@@ -13,6 +13,13 @@ import {
 // Import relativo (no "@/*"): drizzle-kit carga este archivo con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
 import { crudPolicy } from "../../db/rls";
+// Unica excepcion documentada al principio de "modulo = caja negra": se
+// importa la tabla de otro modulo (no su repository ni actions) solo para
+// declarar la FK real de plan_id. Ver ANCLA.md de Identidad y de
+// Suscripcion. Si Suscripcion llega a necesitar tenant_id en el futuro
+// (Cartera Institucional), esa tabla va en un modulo aparte para no cerrar
+// un ciclo real entre schemas.
+import { planes } from "../suscripcion/schema";
 
 // Referencia de solo lectura a auth.users (Supabase Auth / GoTrue). Supabase
 // ya crea y administra esta tabla — no es un modulo de este proyecto.
@@ -79,9 +86,7 @@ export const tenants = pgTable("tenants", {
   // null = Modo Basico (Modulo_01 seccion 5)
   nichoId: uuid("nicho_id"),
   nichoAsignadoEn: timestamp("nicho_asignado_en", { withTimezone: true }),
-  // Sin FK todavia: el catalogo de Planes es responsabilidad del Modulo 11,
-  // que no existe aun (ver ANCLA.md).
-  planId: uuid("plan_id"),
+  planId: uuid("plan_id").references(() => planes.id),
   estadoSuscripcion: estadoSuscripcionEnum("estado_suscripcion")
     .notNull()
     .default("activa"),

@@ -6,12 +6,13 @@ import {
   actualizarPermisosRol,
   cambiarRolUsuario,
   crearRolPersonalizado,
+  crearTenant,
   eliminarRol,
   tieneCapacidadEspecial,
   tienePermiso,
   suspenderUsuario,
 } from "./actions";
-import { ROL_OWNER_ID } from "./constants";
+import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "./constants";
 import * as repo from "./repository";
 import {
   permisos,
@@ -240,5 +241,47 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     expect(
       await tieneCapacidadEspecial(colaborador!, "gestionar_eventos")
     ).toBe(false);
+  });
+
+  it("crearTenant: rechaza un plan_id inexistente antes de invitar al Auth (Modulo 11)", async () => {
+    // Fixture en memoria, no persistido — alcanza con que pase el gate de
+    // rol para llegar a la validacion de plan. No hay un usuario CEOM Admin
+    // real sembrado todavia (solo el rol y el tenant CEOM Ops).
+    const fakeCeomAdmin: repo.UsuarioConRol = {
+      id: "00000000-0000-0000-0000-000000000001",
+      tenantId: CEOM_OPS_TENANT_ID,
+      nombreCompleto: "CEOM Admin (test)",
+      email: "admin-test@ceom.lat",
+      telefono: null,
+      rolId: ROL_CEOM_ADMIN_ID,
+      esOwner: false,
+      activo: true,
+      ultimoAccesoEn: null,
+      creadoPor: null,
+      creadoEn: new Date(),
+      modificadoPor: null,
+      modificadoEn: null,
+      eliminadoEn: null,
+      rol: {
+        id: ROL_CEOM_ADMIN_ID,
+        tenantId: null,
+        nombre: "CEOM Admin",
+        esRolSistema: true,
+        creadoEn: new Date(),
+        eliminadoEn: null,
+      },
+    };
+
+    // planId inexistente hace que crearTenant() devuelva error ANTES de
+    // llamar a inviteUserByEmail — no dispara ningun email real.
+    const resultado = await crearTenant(fakeCeomAdmin, {
+      nombreNegocio: "No deberia crearse",
+      monedaPrincipal: "BOB",
+      fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
+      ownerEmail: `no-deberia-enviarse-${Date.now()}@ceom-erp.test`,
+      ownerNombreCompleto: "No Crear",
+      planId: "00000000-0000-0000-0000-000000000000",
+    });
+    expect(resultado.ok).toBe(false);
   });
 });

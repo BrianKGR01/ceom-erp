@@ -7,14 +7,17 @@
   pertenece un dato, quién es el usuario, qué puede hacer, está permitida
   esta acción ahora mismo).
 - NO hace: no tiene pantallas de UI todavía (alcance de esta tarea: solo
-  backend). No implementa el catálogo de Planes (Módulo 11). No implementa
-  el Gateway de Consentimiento institucional (sección 7.2 del módulo, futuro
-  módulo aparte). No corre un scheduler real para transición de etapas de
-  suscripción — `calcularEstadoAcceso()` es una función pura, algo externo
-  tiene que invocarla periódicamente cuando exista esa infraestructura.
-- Entradas que consume: ninguna de otro módulo (es la base, no depende de
-  nadie — `CEOM_Arquitectura.md` sección 7). Sí depende de Supabase Auth
-  (GoTrue) para la sesión y para crear usuarios.
+  backend). No implementa el Panel Administrativo CEOM, Instituciones ni el
+  Gateway de Consentimiento institucional (sección 7.2 del módulo — ver
+  `src/modules/suscripcion/ANCLA.md`, es trabajo del roadmap ítem #10). No
+  corre un scheduler real para transición de etapas de suscripción —
+  `calcularEstadoAcceso()` es una función pura, algo externo tiene que
+  invocarla periódicamente cuando exista esa infraestructura.
+- Entradas que consume: `obtenerPlanPorId()` de `src/modules/suscripcion/actions.ts`
+  (para validar/defaultear el plan al dar de alta un tenant — ver
+  decisiones abajo). Fuera de eso, ninguna de otro módulo (es la base,
+  `CEOM_Arquitectura.md` sección 7). Sí depende de Supabase Auth (GoTrue)
+  para la sesión y para crear usuarios.
 - Salidas que expone (`actions.ts`): `obtenerUsuarioActual`,
   `calcularEstadoAcceso`, `tienePermiso`, `tieneCapacidadEspecial`,
   `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
@@ -30,10 +33,12 @@
 - [x] Tests: `estado-acceso.test.ts` (puro, siempre corre) +
       `identidad.test.ts` (integración contra Supabase Cloud real, se salta
       solo si faltan `DATABASE_URL`/`SUPABASE_SECRET_KEY`).
+- [x] `tenants.plan_id` tiene FK real a `planes.id` (Módulo 11 mínimo,
+      `src/modules/suscripcion/`); `crearTenant()` valida/defaultea el plan.
 - [ ] Pantallas de onboarding (sección 4 del módulo) — fuera de alcance de
       esta tarea.
-- [ ] Catálogo Planes completo — Módulo 11.
-- [ ] Gateway de Consentimiento institucional (sección 7.2) — módulo aparte.
+- [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
+      (sección 7.2) — roadmap ítem #10, módulo aparte.
 - [ ] Scheduler real que recalcula y persiste `estado_acceso` por tiempo.
 - [ ] Chequeo de límite de sucursales contra plan (sección 9.6) — depende de
       que exista el catálogo Planes.
@@ -92,5 +97,19 @@
   desarrollo real** (no hay DB de test separada) y limpian explícitamente lo
   que crean en `afterAll` (usuarios de Auth vía `admin.deleteUser`, filas de
   Postgres vía `DELETE`) — no dependen de rollback de transacción.
+- `crearTenant()` valida el plan **antes** de invitar al usuario a Supabase
+  Auth: si no viene `planId`, usa `PLAN_BASICO_ID` (de
+  `src/modules/suscripcion/constants.ts`) por default; si viene, llama a
+  `obtenerPlanPorId()` de `suscripcion/actions.ts` (nunca a su repository
+  directo) y rechaza si el plan no existe o `activo=false`. Este chequeo
+  corre antes del efecto secundario de invitación por email — un test
+  puede ejercer el rechazo (`identidad.test.ts`, plan inexistente) sin
+  disparar un email real.
+- `identidad/schema.ts` importa la tabla `planes` de
+  `suscripcion/schema.ts` (no su repository ni actions) para declarar la FK
+  `tenants.plan_id → planes.id`. Es la **única excepción documentada** al
+  principio de "módulo = caja negra" en todo el proyecto — ver el detalle
+  completo (por qué, y qué hacer si algún día se vuelve un ciclo real) en
+  `src/modules/suscripcion/ANCLA.md`.
 
-## Última actualización: 2026-07-14 — sesión de implementación inicial (Fase 1, Módulo 1)
+## Última actualización: 2026-07-14 — Módulo 11 mínimo agregó la FK de plan_id (Fase 1)

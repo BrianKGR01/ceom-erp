@@ -43,6 +43,27 @@
       "when": 1784016439146,
       "tag": "0005_seed_ceom_ops_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784023146717,
+      "tag": "0006_happy_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784023212945,
+      "tag": "0007_seed_plan_basico",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784024159188,
+      "tag": "0008_uneven_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

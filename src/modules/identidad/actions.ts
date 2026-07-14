@@ -1,5 +1,9 @@
 import { crearClienteAdmin, crearClienteServidor } from "@/lib/supabase/server";
 import {
+  obtenerPlanPorId,
+  PLAN_BASICO_ID,
+} from "@/modules/suscripcion/actions";
+import {
   CEOM_OPS_TENANT_ID,
   DURACION_ETAPA_SOLO_LECTURA_DIAS,
   ROL_CEOM_ADMIN_ID,
@@ -150,6 +154,15 @@ export async function crearTenant(
     return { ok: false, error: "Solo CEOM Admin puede dar de alta un tenant." };
   }
 
+  // Modulo_01 seccion 12: "Básico" es el plan de arranque por defecto. Si
+  // se especifica otro, se valida contra Suscripcion (nunca contra su
+  // repository directo — regla de caja negra) que exista y este activo.
+  const planId = input.planId ?? PLAN_BASICO_ID;
+  const plan = await obtenerPlanPorId(planId);
+  if (!plan || !plan.activo) {
+    return { ok: false, error: "El plan indicado no existe o no está activo." };
+  }
+
   const admin = crearClienteAdmin();
   const { data: authData, error: authError } =
     await admin.auth.admin.inviteUserByEmail(input.ownerEmail);
@@ -166,7 +179,7 @@ export async function crearTenant(
       ciudadBase: input.ciudadBase,
       monedaPrincipal: input.monedaPrincipal,
       canalesVenta: input.canalesVenta ?? [],
-      planId: input.planId,
+      planId,
       estadoSuscripcion: "activa",
       fechaInicioSuscripcion: input.fechaInicioSuscripcion,
       creadoPor: solicitante.id,
