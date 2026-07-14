@@ -246,3 +246,23 @@ export async function registrarCompraDeAjuste(
 
   return { ok: true, data: { ajusteId: ajuste.id } };
 }
+
+// --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
+
+export async function consultarPagosCompraEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ totalPagado: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
+  }
+  const totalPagado = await repo.sumarPagosCompraPeriodo(
+    tenantId,
+    periodo.desde,
+    periodo.hasta,
+    opts
+  );
+  return { ok: true, data: { totalPagado } };
+}

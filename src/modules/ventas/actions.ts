@@ -683,3 +683,67 @@ export async function importarVentaHistorica(
 
   return { ok: true, data: { ventaId: venta.id, totalVenta } };
 }
+
+// --- Agregados por periodo (Modulo_07 - Financiero, seccion 2) ---------------------------------------------------------
+// Financiero no tiene tablas propias — consume Ventas exclusivamente via
+// estas funciones (caja negra), nunca importando detalles_venta/ventas
+// directo.
+
+export interface PeriodoConsulta {
+  desde: string;
+  hasta: string;
+}
+
+export async function consultarIngresosPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta,
+  opts: { sucursalId?: string; productoId?: string } = {}
+): Promise<Resultado<{ ingresos: number; costos: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const { ingresos, costos } = await repo.sumarIngresosCostosPeriodo(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    opts
+  );
+  return { ok: true, data: { ingresos, costos } };
+}
+
+export async function consultarPagosVentaEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta,
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ totalPagado: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const totalPagado = await repo.sumarPagosVentaPeriodo(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    opts
+  );
+  return { ok: true, data: { totalPagado } };
+}
+
+export async function consultarAjustesVentaEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta,
+  opts: { sucursalId?: string; productoId?: string } = {}
+): Promise<Resultado<{ totalAjustes: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const totalAjustes = await repo.sumarAjustesVentaPeriodo(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    opts
+  );
+  return { ok: true, data: { totalAjustes } };
+}

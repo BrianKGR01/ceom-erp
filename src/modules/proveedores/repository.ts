@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { comprasAjuste, compras, pagosCompra, proveedores } from "./schema";
 
@@ -153,4 +153,33 @@ export async function listarAjustesPorCompra(compraId: string) {
     .from(comprasAjuste)
     .where(eq(comprasAjuste.compraId, compraId))
     .orderBy(asc(comprasAjuste.creadoEn));
+}
+
+// --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
+// Financiero no tiene tablas propias — consume Proveedores exclusivamente
+// via esta funcion (caja negra), nunca importando "compras"/"pagos_compra"
+// directo.
+
+/** Suma de Pago de Compra por fecha_pago — base caja (nunca el evento
+ * compra_registrada, que no impacta caja hasta que se paga). */
+export async function sumarPagosCompraPeriodo(
+  tenantId: string,
+  desde: string,
+  hasta: string,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(compras.tenantId, tenantId),
+    gte(pagosCompra.fechaPago, desde),
+    lte(pagosCompra.fechaPago, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(compras.sucursalId, opts.sucursalId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${pagosCompra.monto}), 0)` })
+    .from(pagosCompra)
+    .innerJoin(compras, eq(pagosCompra.compraId, compras.id))
+    .where(and(...condiciones));
+
+  return Number(total);
 }

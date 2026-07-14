@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   ajustesVenta,
@@ -304,4 +304,85 @@ export async function registrarPagoVentaTx(data: NuevoPagoVenta) {
 
     return { pago, estadoPago, totalPagado: pagado };
   });
+}
+
+// --- Agregados por periodo (Modulo_07 - Financiero, seccion 2) ---------------------------------------------------------
+// Financiero no tiene tablas propias — estas funciones son la unica forma
+// de que consuma "solo lectura" a Ventas sin importar sus tablas directo
+// (regla de caja negra).
+
+/** Ingresos (subtotal, ya persistido) y costos (cantidad x costo snapshot)
+ * de Detalle de Venta, por fecha_venta — base devengado. */
+export async function sumarIngresosCostosPeriodo(
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { sucursalId?: string; productoId?: string } = {}
+): Promise<{ ingresos: number; costos: number }> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    gte(ventas.fechaVenta, desde),
+    lte(ventas.fechaVenta, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
+  if (opts.productoId) condiciones.push(eq(detallesVenta.productoId, opts.productoId));
+
+  const [{ ingresos, costos }] = await db
+    .select({
+      ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+    })
+    .from(detallesVenta)
+    .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(...condiciones));
+
+  return { ingresos: Number(ingresos), costos: Number(costos) };
+}
+
+/** Suma de Pago de Venta por fecha_pago — base caja. */
+export async function sumarPagosVentaPeriodo(
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    gte(pagosVenta.fechaPago, desde),
+    lte(pagosVenta.fechaPago, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${pagosVenta.monto}), 0)` })
+    .from(pagosVenta)
+    .innerJoin(ventas, eq(pagosVenta.ventaId, ventas.id))
+    .where(and(...condiciones));
+
+  return Number(total);
+}
+
+/** Suma de AjusteVenta.monto_ajuste por su fecha de creacion — AjusteVenta
+ * no tiene un campo de fecha propio distinto de creado_en. */
+export async function sumarAjustesVentaPeriodo(
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { sucursalId?: string; productoId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    gte(ajustesVenta.creadoEn, desde),
+    lte(ajustesVenta.creadoEn, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
+  if (opts.productoId) condiciones.push(eq(ajustesVenta.productoId, opts.productoId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${ajustesVenta.montoAjuste}), 0)` })
+    .from(ajustesVenta)
+    .innerJoin(ventas, eq(ajustesVenta.ventaId, ventas.id))
+    .where(and(...condiciones));
+
+  return Number(total);
 }

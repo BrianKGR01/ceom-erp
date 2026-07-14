@@ -569,3 +569,43 @@ export async function consultarDistribucionPorCategoria(
   );
   return { ok: true, data: filas.map((f) => ({ categoriaId: f.categoriaId, total: Number(f.total) })) };
 }
+
+// --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
+
+export async function consultarPagosGastoEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ totalPagado: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+  }
+  const totalPagado = await repo.sumarPagosGastoPeriodo(
+    tenantId,
+    periodo.desde,
+    periodo.hasta,
+    opts
+  );
+  return { ok: true, data: { totalPagado } };
+}
+
+/** A diferencia de consultarTotalCostosFijos (solo tipo=fijo), suma TODOS
+ * los Gasto del periodo — insumo de estado_resultados en Financiero. */
+export async function consultarTotalGastosEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ totalGastos: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+  }
+  const totalGastos = await repo.sumarTotalGastosPeriodo(
+    tenantId,
+    periodo.desde,
+    periodo.hasta,
+    opts
+  );
+  return { ok: true, data: { totalGastos } };
+}

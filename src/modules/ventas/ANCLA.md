@@ -23,7 +23,11 @@
 - Salidas que expone (`actions.ts`): CRUD de `Cliente`/`CanalVenta`/
   `MetodoPago`/`Evento` + `registrarVenta`, `registrarAjusteVenta`,
   `registrarPagoVenta`, `listarVentas`, `fichaVenta`, `importarVentaHistorica`
-  + fórmulas puras (`calcularSubtotal`, `calcularComision`).
+  + fórmulas puras (`calcularSubtotal`, `calcularComision`) +
+  `consultarIngresosPeriodo`, `consultarPagosVentaEnPeriodo`,
+  `consultarAjustesVentaEnPeriodo` (agregados de solo lectura por período,
+  agregados en Módulo 7 para que Financiero consuma Ventas sin importar
+  `ventas`/`detalles_venta` directo).
 
 ## Estado actual
 - [x] Schema Drizzle (`clientes`, `canales_venta`, `metodos_pago`, `eventos`,
@@ -139,4 +143,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-14 — Módulo 4 (Egresos y Gastos) conectó `generarGastoComisionVenta` como consumidor real de la comisión (Fase 1)
+## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó agregados de período de solo lectura (`consultarIngresosPeriodo`/`consultarPagosVentaEnPeriodo`/`consultarAjustesVentaEnPeriodo`)

@@ -276,3 +276,56 @@ export async function sumarGastosPorCategoriaEnPeriodo(
     )
     .groupBy(gastos.categoriaId);
 }
+
+// --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
+// Financiero no tiene tablas propias — consume Gastos exclusivamente via
+// estas funciones (caja negra), nunca importando "gastos"/"pagos_gasto"
+// directo.
+
+/** Suma de Pago de Gasto por fecha_pago — base caja. */
+export async function sumarPagosGastoPeriodo(
+  tenantId: string,
+  desde: string,
+  hasta: string,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(gastos.tenantId, tenantId),
+    gte(pagosGasto.fechaPago, desde),
+    lte(pagosGasto.fechaPago, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(gastos.sucursalId, opts.sucursalId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${pagosGasto.monto}), 0)` })
+    .from(pagosGasto)
+    .innerJoin(gastos, eq(pagosGasto.gastoId, gastos.id))
+    .where(and(...condiciones));
+
+  return Number(total);
+}
+
+/** Suma de TODOS los Gasto (cualquier tipo) por fecha_gasto — base
+ * devengado. A diferencia de sumarGastosPorTipoEnPeriodo (solo tipo=fijo,
+ * usado por costo_fijo_total), esta suma todo para estado_resultados. */
+export async function sumarTotalGastosPeriodo(
+  tenantId: string,
+  desde: string,
+  hasta: string,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(gastos.tenantId, tenantId),
+    isNull(gastos.eliminadoEn),
+    gte(gastos.fechaGasto, desde),
+    lte(gastos.fechaGasto, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(gastos.sucursalId, opts.sucursalId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${gastos.monto}), 0)` })
+    .from(gastos)
+    .where(and(...condiciones));
+
+  return Number(total);
+}

@@ -21,7 +21,10 @@
 - Salidas que expone (`actions.ts`): `crearProveedor`, `actualizarProveedor`,
   `eliminarProveedor`, `listarProveedores`, `fichaProveedor`,
   `registrarCompra` (+ `calcularCostoUnitario()` pura, exportada),
-  `historialPrecio`, `registrarPagoCompra`, `registrarCompraDeAjuste`.
+  `historialPrecio`, `registrarPagoCompra`, `registrarCompraDeAjuste`,
+  `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período,
+  agregado en Módulo 7 para que Financiero consuma Proveedores sin
+  importar `compras`/`pagos_compra` directo).
 
 ## Estado actual
 - [x] Schema Drizzle (`proveedores`, `compras`, `pagos_compra`,
@@ -88,4 +91,4 @@
   explícita en `afterAll` (orden: `compras_ajuste`/`pagos_compra` antes
   que `compras`, por las FK).
 
-## Última actualización: 2026-07-14 — nota de `item_id` corregida al construirse Módulo 2 (Productos), sin cambios de código en este módulo
+## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período)

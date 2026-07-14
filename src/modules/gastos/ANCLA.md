@@ -21,7 +21,10 @@
   `eliminarGastoManual`, `registrarPagoGasto`, `listarGastos`, `fichaGasto`
   + `generarGastoCuotaPasivo`, `generarGastoComisionVenta`,
   `generarGastoDesdeRecurrente` + `consultarTotalCostosFijos`,
-  `consultarDistribucionPorCategoria`.
+  `consultarDistribucionPorCategoria` + `consultarPagosGastoEnPeriodo`,
+  `consultarTotalGastosEnPeriodo` (agregados de solo lectura por período,
+  agregados en Módulo 7 para que Financiero consuma Gastos sin importar
+  `gastos`/`pagos_gasto` directo).
 
 ## Estado actual
 - [x] Schema Drizzle (`categorias_gasto_sugeridas`, `categorias_gasto`,
@@ -112,4 +115,4 @@
   mismo motivo que Módulo 3 — varias operaciones encadenan transacciones
   propias más una llamada cross-módulo real.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 4, roadmap ítem #8)
+## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó agregados de período de solo lectura (`consultarPagosGastoEnPeriodo`/`consultarTotalGastosEnPeriodo`)
