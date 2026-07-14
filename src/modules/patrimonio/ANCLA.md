@@ -5,8 +5,9 @@
   dato crudo de qué tiene y qué debe un tenant, y su depreciación/saldo
   derivados bajo demanda.
 - NO hace: no calcula porcentaje de uso de capacidad ni genera alertas
-  (eso es Producción, dentro del futuro Módulo 6 — Patrimonio solo entrega
-  el dato crudo vía `consultarCapacidad`). No genera automáticamente el
+  (eso es Producción/Capacidad Operativa, en Módulo 6 —
+  `src/modules/operativo/nichos/nicho-1/`, que ya consume `consultarCapacidad`
+  de verdad — Patrimonio solo entrega el dato crudo). No genera automáticamente el
   `Gasto` periódico en Costos y Gastos cuando un Pasivo está activo (el
   modelo de datos ya lo soporta — `Pago de Pasivo.origen` admite
   `automatico`/`manual` — pero no hay scheduler ni Módulo 4 todavía; nadie
@@ -82,4 +83,4 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 5)
+## Última actualización: 2026-07-14 — nota de `consultarCapacidad` actualizada al construirse Módulo 6, sin cambios de código en este módulo

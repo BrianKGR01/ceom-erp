@@ -70,9 +70,14 @@
       `tenants.nicho_id` (su `actions.ts` no tiene un `obtenerTenant`), y
       agregarla es un cambio de contrato de Identidad que no se declaró al
       empezar esta tarea. Queda documentado, no silencioso.
-- [ ] `registrarEntradaProduccion`, `registrarEntradaCompraReventa`,
-      `descontarStockVenta` están listos pero **sin caller real** — Módulo 6
-      (Operaciones), Proveedores (evento `compra_registrada`) y Ventas no
+- [x] `registrarEntradaProduccion` **ya tiene caller real**: Módulo 6
+      (`src/modules/operativo/nichos/nicho-1/`) lo llama desde
+      `registrarProduccion()` al confirmar un lote — primera integración
+      cross-módulo real del proyecto vía `actions.ts` (además del
+      `plan_id`/FK de Identidad-Suscripción). Ver el gap de atomicidad
+      cruzada documentado en `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
+- [ ] `registrarEntradaCompraReventa`, `descontarStockVenta` siguen **sin
+      caller real** — Proveedores (evento `compra_registrada`) y Ventas no
       disparan nada todavía. Mismo criterio que `compra_registrada` quedó
       documentado en Proveedores.
 - [ ] `compras.item_id` (Proveedores) **sigue sin FK** a `productos.id` —
@@ -128,4 +133,4 @@
   `20000`ms de timeout explícito — hacen varias transacciones secuenciales
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 2), modo punto de venta puro sin Nicho
+## Última actualización: 2026-07-14 — Módulo 6 (Operativo Nicho 1) conectó `registrarEntradaProduccion` como caller real (Fase 1)
