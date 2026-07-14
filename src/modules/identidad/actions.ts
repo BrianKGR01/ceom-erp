@@ -388,3 +388,7 @@ export async function eliminarRol(
 }
 
 export { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID };
+// Parte del contrato publico: cualquier modulo que llame a tienePermiso()
+// necesita tipar su parametro "solicitante" sin importar el repository de
+// Identidad directamente.
+export type { UsuarioConRol } from "./repository";

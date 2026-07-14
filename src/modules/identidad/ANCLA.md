@@ -22,7 +22,10 @@
   `calcularEstadoAcceso`, `tienePermiso`, `tieneCapacidadEspecial`,
   `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
   `reactivarUsuario`, `crearRolPersonalizado`, `actualizarPermisosRol`,
-  `eliminarRol`.
+  `eliminarRol`. También re-exporta el **tipo** `UsuarioConRol` (desde
+  Módulo 5/Patrimonio) — cualquier módulo que llame a `tienePermiso()`
+  necesita tipar su `solicitante` sin importar `identidad/repository.ts`
+  directamente.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -111,5 +114,10 @@
   principio de "módulo = caja negra" en todo el proyecto — ver el detalle
   completo (por qué, y qué hacer si algún día se vuelve un ciclo real) en
   `src/modules/suscripcion/ANCLA.md`.
+- `UsuarioConRol` se re-exporta desde `actions.ts` (antes solo vivía en
+  `repository.ts`) porque Módulo 5 (Patrimonio) lo necesita para tipar
+  `solicitante` al llamar `tienePermiso()`. Cualquier módulo futuro que
+  también llame `tienePermiso()` debe importar el tipo desde acá, no desde
+  el repository.
 
-## Última actualización: 2026-07-14 — Módulo 11 mínimo agregó la FK de plan_id (Fase 1)
+## Última actualización: 2026-07-14 — Módulo 5 (Patrimonio) agregó UsuarioConRol al contrato publico (Fase 1)
