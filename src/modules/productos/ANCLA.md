@@ -76,10 +76,15 @@
       cross-módulo real del proyecto vía `actions.ts` (además del
       `plan_id`/FK de Identidad-Suscripción). Ver el gap de atomicidad
       cruzada documentado en `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
-- [ ] `registrarEntradaCompraReventa`, `descontarStockVenta` siguen **sin
-      caller real** — Proveedores (evento `compra_registrada`) y Ventas no
-      disparan nada todavía. Mismo criterio que `compra_registrada` quedó
-      documentado en Proveedores.
+- [x] `descontarStockVenta` y `registrarAjusteManualStock` **ya tienen
+      caller real**: Módulo 3 (`src/modules/ventas/`) los llama desde
+      `registrarVenta()` (descuento por línea) y `registrarAjusteVenta()`
+      (devolución de stock, caso borde 2) respectivamente. Mismo gap de
+      atomicidad cruzada documentado en `src/modules/ventas/ANCLA.md` que ya
+      existía en Módulo 6.
+- [ ] `registrarEntradaCompraReventa` sigue **sin caller real** — Proveedores
+      no dispara el evento `compra_registrada` todavía. Mismo criterio que
+      quedó documentado en su propio `ANCLA.md`.
 - [ ] `compras.item_id` (Proveedores) **sigue sin FK** a `productos.id` —
       decisión deliberada de esta tarea, no un olvido: un FK directo solo
       cubriría `tipo = "reventa"`, no `tipo = "insumo"` (que apunta a Insumo,
@@ -133,4 +138,4 @@
   `20000`ms de timeout explícito — hacen varias transacciones secuenciales
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
-## Última actualización: 2026-07-14 — Módulo 6 (Operativo Nicho 1) conectó `registrarEntradaProduccion` como caller real (Fase 1)
+## Última actualización: 2026-07-14 — Módulo 3 (Ventas) conectó `descontarStockVenta`/`registrarAjusteManualStock` como callers reales (Fase 1)
