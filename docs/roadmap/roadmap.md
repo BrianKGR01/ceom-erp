@@ -29,7 +29,7 @@
 
 Orden de construcción, basado en la matriz de dependencias de `CEOM_Arquitectura.md` (sección 7). Cada módulo se da por cerrado cuando pasa su "prueba de caja negra" ya definida en su `docs/modules/Modulo_XX.md`, y su `ANCLA.md` queda actualizado.
 
-- [ ] **1. Identidad, Tenants, Roles, Autorización** (`Modulo_01`) — base literal de todo lo demás: `tenant_id`, usuario, rol, motor de autorización, RLS.
+- [~] **1. Identidad, Tenants, Roles, Autorización** (`Modulo_01`) — base literal de todo lo demás: `tenant_id`, usuario, rol, motor de autorización, RLS. Backend cerrado (schema+RLS+motor de autorización+Server Actions+tests, ver `src/modules/identidad/ANCLA.md`); quedan pendientes las pantallas de onboarding y lo que depende del Módulo 11 (catálogo Planes) — se retoma al construir esos módulos.
 - [ ] **2. Suscripción / Panel Administrativo — versión mínima** (`Modulo_11`) — solo lo que el Módulo 1 ya referencia: `plan_id`, `estado_suscripcion`. El resto del panel administrativo puede esperar.
 - [ ] **3. Patrimonio / Activos** (`Modulo_05`) — no depende de ningún otro módulo de negocio.
 - [ ] **4. Proveedores / Compras** (`Modulo_08`) — tampoco depende de otro módulo de negocio. Construir ya con la jerarquía cerrada: Proveedores = directorio, nunca compite con una Orden de Compra.
