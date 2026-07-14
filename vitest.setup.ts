@@ -1,4 +1,10 @@
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+
+// Sin esto, el DOM se acumula entre tests dentro del mismo archivo (varios
+// "it" con render()) porque no usamos test.globals en vitest.config.ts.
+afterEach(cleanup);
 
 // Carga .env.local si existe (dev local). En CI, hasta que DATABASE_URL se
 // configure como secret, este archivo no existe y los tests que dependen de
