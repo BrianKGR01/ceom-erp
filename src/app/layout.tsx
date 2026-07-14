@@ -20,6 +20,10 @@ const quicksand = Quicksand({
 export const metadata: Metadata = {
   title: "CEOM",
   description: "ERP modular para emprendimientos",
+  icons: {
+    // Icono oficial (public/icono-CEOM.svg), sin recrear.
+    icon: "/icono-CEOM.svg",
+  },
 };
 
 export default function RootLayout({
