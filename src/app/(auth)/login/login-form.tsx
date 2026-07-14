@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ArrowRight, Eye, EyeOff, Lock } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +14,9 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-sm rounded-2xl bg-card p-8 shadow-card">
-      <div className="mx-auto mb-5 flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg">
-        <Lock className="size-5 text-primary" />
-      </div>
+      {/* Logo oficial en su color natural (sin filtro) — regla del
+          design-system: usar public/logo-CEOM.svg tal cual existe. */}
+      <Logo className="mx-auto mb-6 h-10 w-auto" />
 
       <h1 className="text-center font-heading text-lg font-semibold text-navy">
         ¡Bienvenid@ de vuelta!

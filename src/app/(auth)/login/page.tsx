@@ -1,6 +1,5 @@
 import { ArrowLeft, Bot, Target, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { Logo } from "@/components/brand/logo";
 import { LoginForm } from "./login-form";
 
 const bullets = [
@@ -43,13 +42,10 @@ export default function LoginPage() {
 
         <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-between px-8 py-12">
           <div>
-            {/* Logo oficial (public/logo-CEOM.svg) sin recrear — se fuerza a
-                blanco con un filtro CSS para que se lea sobre el navy, la
-                referencia aprobada por el cliente lo muestra en blanco. */}
-            <Logo className="h-8 w-auto brightness-0 invert" />
+            {/* Siempre apegado a la izquierda arriba del panel. */}
             <Link
               href="/"
-              className="mt-10 inline-flex items-center gap-2 text-sm text-white/80 hover:text-white"
+              className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white"
             >
               <ArrowLeft className="size-4" />
               Volver al inicio
@@ -89,61 +85,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-background p-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-10 right-10 size-40 rounded-full bg-pastel-blue-bg blur-2xl"
-        />
+      <div className="flex flex-1 items-center justify-center bg-background p-6">
         <LoginForm />
-        <MiniChart className="pointer-events-none absolute right-10 bottom-14 hidden text-primary/70 sm:block" />
-        <PottedPlant className="pointer-events-none absolute bottom-8 left-10 hidden text-pastel-blue sm:block" />
       </div>
     </div>
-  );
-}
-
-// Ilustraciones decorativas propias del login (no son la marca CEOM, no
-// aplica la regla de "usar los SVG oficiales tal cual") — replican los
-// adornos de estadisticas/planta de la referencia aprobada.
-function MiniChart({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 64 40" width="64" height="40" className={className} fill="none">
-      <path
-        d="M2 32 L16 22 L28 27 L42 10 L62 4"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="62" cy="4" r="4" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PottedPlant({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 40 44" width="40" height="44" className={className} fill="none">
-      <path
-        d="M20 26V10"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M20 18c0-6-8-6-8-12 6 0 8 4 8 8Z"
-        fill="currentColor"
-        opacity="0.5"
-      />
-      <path
-        d="M20 14c0-6 8-6 8-12-6 0-8 4-8 8Z"
-        fill="currentColor"
-        opacity="0.8"
-      />
-      <path
-        d="M10 26h20l-2.5 14a2 2 0 0 1-2 1.7H14.5a2 2 0 0 1-2-1.7L10 26Z"
-        fill="currentColor"
-        opacity="0.9"
-      />
-    </svg>
   );
 }
