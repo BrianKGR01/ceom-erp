@@ -71,8 +71,13 @@
       Módulo 6): la Venta se confirma antes de descontar stock en Módulo 2;
       si esa llamada falla, queda una Venta sin el stock correspondiente
       descontado. Sin compensación automática.
-- [ ] Comisión calculada y persistida en `Venta`, **sin consumidor real**
-      todavía — Módulo 4 (Costos y Gastos) no existe.
+- [x] Comisión calculada y persistida en `Venta` **ya tiene consumidor real**:
+      Módulo 4 (`src/modules/gastos/`) — `generarGastoComisionVenta()` lee
+      `comisionMontoCalculado` vía `fichaVenta()` y crea el `Gasto`
+      correspondiente ya pagado. Sigue sin un trigger automático que la
+      llame justo después de `registrarVenta()` (eso tocaría el contrato de
+      Ventas, no declarado en la tarea de Módulo 4) — hay que invocarla a
+      mano o desde un futuro orquestador.
 - [ ] Pre-carga automática de `CanalVenta` desde el onboarding (sección 1.5)
       **fuera de esta tarea** — la UI de onboarding no existe todavía
       (pendiente ya documentado en `identidad/ANCLA.md`).
@@ -134,4 +139,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 3, roadmap ítem #7)
+## Última actualización: 2026-07-14 — Módulo 4 (Egresos y Gastos) conectó `generarGastoComisionVenta` como consumidor real de la comisión (Fase 1)

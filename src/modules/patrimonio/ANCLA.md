@@ -37,11 +37,17 @@
       (integración contra Supabase Cloud real).
 - [ ] `Activo.proveedor_id` sin FK — Proveedores (Módulo 8) no existe
       todavía.
-- [ ] Generación automática de `Gasto`/`Pago de Pasivo` hacia Costos y
-      Gastos — depende de que exista el Módulo 4 y algún tipo de
-      scheduler; no se construye acá.
-- [ ] `frecuencia_cuota` está duplicado localmente (ver decisiones abajo) —
-      revisar al construir Módulo 4.
+- [x] Generación automática de `Gasto`/`Pago de Pasivo` hacia Costos y
+      Gastos — Módulo 4 (`src/modules/gastos/`) ya existe y
+      `generarGastoCuotaPasivo()` llama de verdad a `registrarPagoPasivo(...,
+      origen: "automatico")`. Sigue sin scheduler real que lo dispare
+      periódicamente — hay que invocarlo a mano o desde un futuro
+      scheduler, pero la integración en sí ya funciona.
+- [x] `frecuencia_cuota` — resuelto al construir Módulo 4: en vez de
+      duplicarlo, `gastos_recurrentes.frecuencia` (Módulo 4) **reutiliza este
+      mismo enum** (`frecuenciaCuotaEnum`, import directo desde
+      `patrimonio/schema.ts`). Si se agrega un valor nuevo a este enum en el
+      futuro, afecta a ambos módulos — no es privado de Patrimonio.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/patrimonio/schema.ts`
@@ -62,11 +68,10 @@
   de meses transcurridos queda corrido un mes entero. El test
   `valor-actual.test.ts` lo detectó — no volver a usar `getFullYear()`/
   `getMonth()` en cálculos sobre fechas de este tipo en ningún módulo.
-- **`frecuencia_cuota` es un enum local** (`mensual`/`semanal`/`quincenal`/
-  `anual`) en `patrimonio/schema.ts`, aunque el módulo dice que es "el
-  mismo catálogo que `GastoRecurrente`" (Costos y Gastos, Módulo 4, que no
-  existe). Cuando se construya ese módulo, decidir si reutiliza este enum
-  o si se extrae uno compartido — no asumir que ya está resuelto.
+- **`frecuencia_cuota` ya no es un enum solo de Patrimonio** — Módulo 4
+  (`src/modules/gastos/schema.ts`) importa y reutiliza este mismo tipo de
+  Postgres para `gastos_recurrentes.frecuencia`, en vez de duplicarlo. No
+  eliminar ni renombrar este enum sin revisar el impacto en Módulo 4.
 - **`activo.proveedor_id`** queda `uuid` sin FK — mismo criterio que
   `tenants.nicho_id`/`planes.nicho_id`. Revisar cuando exista Proveedores
   (Módulo 8).
@@ -83,4 +88,4 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
-## Última actualización: 2026-07-14 — nota de `consultarCapacidad` actualizada al construirse Módulo 6, sin cambios de código en este módulo
+## Última actualización: 2026-07-14 — Módulo 4 (Egresos y Gastos) conectó `registrarPagoPasivo(origen: "automatico")` como caller real y reutiliza `frecuencia_cuota` (Fase 1)
