@@ -1,0 +1,202 @@
+# CEOM-ERP — Prácticas de Desarrollo con Agentes
+
+> **Qué es este documento y cómo se relaciona con `AGENTS.md`:** `AGENTS.md` (en la raíz) es el resumen ejecutable — lo que un agente lee antes de cada tarea. Este documento es el detalle y el porqué detrás de ese resumen: el flujo de trabajo completo, las plantillas, y la configuración concreta de cada herramienta. Si algo de acá creciera y `AGENTS.md` empezara a superar las ~150 líneas recomendadas, la regla es mover el detalle aquí y dejar en `AGENTS.md` solo el enlace — nunca duplicar contenido entre los dos.
+
+---
+
+## 1. Flujo de trabajo por módulo (Research → Plan → Implement → Verify)
+
+Este es el flujo que se sigue para **cada** módulo del roadmap, sea con Claude Code, Antigravity, o cualquier otro agente:
+
+### 1.1 Research (el agente lee, no escribe código todavía)
+El agente lee, en este orden:
+1. `docs/modules/Modulo_XX.md` — qué hace el módulo, sus reglas de negocio, su prueba de caja negra.
+2. `docs/architecture/CEOM_Arquitectura.md` — sobre todo la sección 7 (matriz de dependencias), para confirmar qué otros módulos ya deberían estar construidos antes de este.
+3. `src/modules/<módulo>/ANCLA.md`, si ya existe (retomar trabajo en curso).
+4. `src/modules/<módulo>/AGENTS.md`, si ya existe (reglas específicas de ese módulo).
+
+### 1.2 Plan (el agente propone, la persona aprueba)
+El agente redacta un plan concreto antes de tocar un archivo: qué tablas o cambios de esquema, qué funciones públicas va a exponer el módulo, qué casos cubren los tests. En Claude Code, esto es literalmente el "plan mode" — se usa siempre para un módulo nuevo o un cambio de contrato entre módulos; se puede saltear para una corrección chica y acotada (un typo, un ajuste de estilo).
+
+**Quién aprueba el plan:** el dueño del proyecto revisa el plan antes de que el agente implemente, sobre todo si el módulo es de los marcados como "lógica de negocio densa" en la sección 4.
+
+### 1.3 Implement (cambios acotados a un módulo por vez)
+Una sesión no toca 5 módulos a la vez — así un error queda contenido a un módulo y es fácil de revisar en un solo Pull Request. Si una tarea genuinamente necesita tocar dos módulos (ej. cambiar un contrato de "salidas que expone"), se declara explícitamente al empezar, no se descubre a mitad de camino.
+
+### 1.4 Verify (con evidencia, no con una afirmación)
+- Correr la prueba de caja negra ya definida para ese módulo en `docs/modules/Modulo_XX.md`, traducida a un test de Vitest o Playwright (ver sección 6).
+- Pedir siempre la salida real del comando (`pnpm test`), no una afirmación de "ya funciona".
+- Typecheck y lint también deben pasar — no son opcionales.
+
+### 1.5 Cerrar la tarea
+- Actualizar `src/modules/<módulo>/ANCLA.md` (estado, qué se hizo, dónde vive cada cosa).
+- Si se tocó el contrato de un módulo, revisar el impacto contra la matriz de dependencias y avisarlo explícitamente en el resumen de la tarea — no dejar que quede implícito en el diff.
+
+---
+
+## 2. Plantilla `ANCLA.md` (una por módulo, en `src/modules/<módulo>/`)
+
+```markdown
+# ANCLA — Módulo: <Nombre del módulo>
+
+## Contrato (no romper sin actualizar este archivo)
+- Responsabilidad: <una frase — qué es lo único de lo que este módulo es dueño>
+- NO hace: <lo que explícitamente no es su responsabilidad, para no absorberlo por error>
+- Entradas que consume: <de qué otros módulos recibe datos/eventos, y cuáles>
+- Salidas que expone: <funciones públicas que otros módulos pueden llamar>
+
+## Estado actual
+- [x] <tarea ya cerrada>
+- [ ] <tarea pendiente>
+
+## Dónde está cada cosa
+- Esquema de BD (Drizzle): `src/modules/<módulo>/schema.ts`
+- Server actions: `src/modules/<módulo>/actions.ts`
+- Repository (acceso a datos de este módulo): `src/modules/<módulo>/repository.ts`
+- Tests: `src/modules/<módulo>/*.test.ts`
+
+## Decisiones tomadas que un agente no debe revertir
+- <regla específica de este módulo que no es obvia leyendo el código>
+
+## Última actualización: <fecha> — <quién/qué sesión>
+```
+
+**Regla práctica:** actualizar `ANCLA.md` es parte de terminar la tarea, no un paso opcional — igual que correr los tests.
+
+---
+
+## 3. Plantilla `AGENTS.md` por módulo (solo si el módulo lo necesita)
+
+No todos los módulos necesitan su propio `AGENTS.md` — solo tiene sentido cuando hay una regla específica de ese módulo que no está ya en el `AGENTS.md` raíz. Ejemplo (Módulo Operativo, Nicho 1):
+
+```markdown
+# AGENTS.md — Módulo Operativo (Nicho 1: Alimentos/Bebidas por Lotes)
+
+## Regla específica de este módulo
+Este módulo implementa la interfaz "Operaciones" definida en
+docs/architecture/CEOM_Arquitectura.md sección 5.1. Cualquier función pública
+nueva que se agregue acá tiene que existir también, aunque sea como stub,
+en la implementación de Nicho 4 — son intercambiables por diseño (Strategy
+Pattern), no se puede romper esa simetría sin decirlo explícitamente.
+
+## Conversión de unidades
+Las recetas manejan conversión de unidades (kg ↔ g, l ↔ ml) — la lógica de
+conversión vive en `src/modules/operativo/nichos/nicho-1/unidades.ts` y
+NO se duplica en ningún otro archivo. Ver Módulo 6, sección 4.
+```
+
+---
+
+## 4. Cuándo usar Claude Code vs. Antigravity
+
+Criterio de trabajo por defecto (ajustable módulo por módulo, no una regla absoluta):
+
+| Tipo de módulo | Herramienta / modo sugerido |
+|---|---|
+| Lógica de negocio densa y reglas de consistencia estrictas (Identidad/Autorización, Ventas, Financiero, Gateway de Consentimiento) | Sesión dedicada de Claude Code, en modo plan, con el plan revisado por vos antes de implementar. |
+| Pantallas, formularios, CRUD simple, reportes de solo lectura | Iteración más rápida, menos supervisión punto a punto — buen candidato para Antigravity. |
+
+Esta tabla es un punto de partida — a medida que uses ambas herramientas en la práctica, conviene ajustarla acá con lo que realmente funcione mejor para cada tipo de tarea.
+
+---
+
+## 5. Convenciones de código
+
+### 5.1 Estructura de un módulo
+
+```
+src/modules/<módulo>/
+├── AGENTS.md          (solo si hace falta — sección 3)
+├── ANCLA.md
+├── schema.ts           ← esquema Drizzle + políticas RLS (crudPolicy)
+├── repository.ts        ← única capa que toca las tablas de este módulo
+├── actions.ts           ← Server Actions, la capa pública ("salidas que expone")
+└── *.test.ts
+```
+
+- **`repository.ts` es la única capa que ejecuta queries de Drizzle sobre las tablas de este módulo.** Ningún otro módulo importa este archivo directamente — solo consume `actions.ts`.
+- **`actions.ts` es el contrato del módulo** — es literalmente la lista de "salidas que expone" documentada en `docs/modules/Modulo_XX.md` y en `ANCLA.md`, traducida a funciones.
+
+### 5.2 Manejo de errores
+Las Server Actions devuelven un resultado tipado (`{ ok: true, data }` o `{ ok: false, error }`), nunca solo lanzan una excepción sin capturar — el llamador (otro módulo, o la UI) siempre puede reaccionar sin un `try/catch` genérico envolviendo todo.
+
+### 5.3 Commits y Pull Requests
+- Un PR = un módulo (o una tarea acotada dentro de un módulo). Nunca un PR que mezcla dos módulos sin necesidad.
+- Título del PR: `[Modulo_XX] descripción corta` (ej. `[Modulo_02] CRUD de productos + snapshot de costo`).
+- Descripción del PR incluye: qué prueba de caja negra queda cubierta, y si se tocó el contrato de otro módulo.
+
+---
+
+## 6. Testing
+
+| Nivel | Herramienta | Qué cubre |
+|---|---|---|
+| Unitario / integración de módulo | **Vitest** + Testing Library | La prueba de caja negra de cada módulo, aislada con mocks de sus dependencias (ej. Productos e Inventario probado con un mock de "Operaciones") |
+| End-to-end | **Playwright** | Los 4 flujos completos de la Fase 2 del roadmap (Nicho 1, Nicho 4, Modo Básico, consentimiento) — de punta a punta, sin mocks |
+
+Convención de archivos: `src/modules/<módulo>/<archivo>.test.ts` para unitarios, `e2e/<flujo>.spec.ts` para Playwright.
+
+**La prueba de caja negra ya definida en cada `docs/modules/Modulo_XX.md` es el punto de partida del test unitario de ese módulo** — no hay que inventar casos nuevos desde cero, hay que traducir la prueba ya diseñada a código.
+
+---
+
+## 7. Migraciones con Drizzle
+
+Flujo estándar para cualquier cambio de esquema:
+
+```bash
+# 1. Editar src/modules/<módulo>/schema.ts (tablas + políticas RLS con crudPolicy)
+# 2. Generar la migración
+pnpm drizzle-kit generate
+
+# 3. Revisar el SQL generado en drizzle/migrations/ antes de aplicarlo —
+#    nunca aplicar una migración generada sin leerla, sobre todo si toca RLS.
+
+# 4. Aplicar contra el entorno de desarrollo
+pnpm drizzle-kit migrate
+```
+
+- Nunca editar a mano una migración ya generada y aplicada — si hace falta corregir algo, se genera una migración nueva.
+- Toda tabla nueva que maneje datos de un tenant lleva su política RLS en el mismo cambio que la crea — no "para después" (ya está en `AGENTS.md` raíz, se repite acá porque es la regla que más se salta bajo presión de tiempo).
+
+---
+
+## 8. Integración continua (GitHub Actions)
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+```
+
+Se amplía más adelante con el job de Playwright (necesita un entorno con Supabase local o un proyecto de staging) y con el despliegue de preview de Vercel, que ya corre automático por integración nativa sin necesidad de un job propio acá.
+
+---
+
+## 9. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
+
+- [ ] `pnpm typecheck && pnpm lint && pnpm test` pasan localmente.
+- [ ] La prueba de caja negra del módulo (sección 6) está cubierta por un test real, no solo mencionada.
+- [ ] `ANCLA.md` del módulo actualizado.
+- [ ] Si se tocó el contrato de un módulo: impacto revisado contra `CEOM_Arquitectura.md` sección 7, y avisado explícitamente en el PR.
+- [ ] Ninguna tabla nueva de negocio sin su política RLS.
+- [ ] CI en verde antes de mergear.
