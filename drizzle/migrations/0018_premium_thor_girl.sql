@@ -1,0 +1,2 @@
+ALTER TABLE "aprobaciones_tenant" ADD COLUMN "codigo_acceso_id" uuid;--> statement-breakpoint
+ALTER TABLE "aprobaciones_tenant" ADD CONSTRAINT "aprobaciones_tenant_codigo_acceso_id_codigos_acceso_id_fk" FOREIGN KEY ("codigo_acceso_id") REFERENCES "public"."codigos_acceso"("id") ON DELETE no action ON UPDATE no action;

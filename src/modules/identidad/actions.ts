@@ -103,6 +103,45 @@ export async function tienePermiso(
   return permiso?.permitido ?? false;
 }
 
+/**
+ * Lectura basica de un Tenant (plan_id, nicho_id, estado_suscripcion, etc).
+ * El repository ya tenia esta consulta (la usa tienePermiso() internamente);
+ * faltaba exponerla como parte del contrato publico. Mismo criterio de
+ * alcance que tienePermiso(): ceom_admin ve cualquier tenant, un usuario
+ * normal solo el suyo — "identidad" no esta en el enum modulo_permiso, asi
+ * que no hay un modulo/accion que gatear, se resuelve igual que
+ * invitarUsuario/crearTenant (chequeo directo, no via la matriz generica).
+ */
+export async function obtenerTenantPorId(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerTenantPorId>>>>> {
+  const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
+  if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
+    return { ok: false, error: "No tenés permiso para ver este tenant." };
+  }
+
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  return { ok: true, data: tenant };
+}
+
+/**
+ * Consulta minima y SIN gate de solicitante — a proposito, para el Gateway
+ * de Consentimiento (Modulo 10): una Institucion externa consultando un
+ * tenant no es un UsuarioConRol, asi que no puede pasar por
+ * obtenerTenantPorId(). Expone unicamente el estado_acceso derivado, nunca
+ * datos de negocio del tenant (nombre, plan, etc) — no usar esta funcion
+ * para nada que no sea ese chequeo puntual.
+ */
+export async function obtenerEstadoAccesoTenant(
+  tenantId: string
+): Promise<Resultado<{ estadoAcceso: EstadoAcceso }>> {
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  return { ok: true, data: { estadoAcceso: calcularEstadoAcceso(tenant) } };
+}
+
 /** Resolucion: override por usuario > override por rol > false (seccion 13.1). */
 export async function tieneCapacidadEspecial(
   solicitante: UsuarioConRol,

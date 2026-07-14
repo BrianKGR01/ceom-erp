@@ -120,6 +120,20 @@
       "when": 1784058247071,
       "tag": "0016_modern_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784061455031,
+      "tag": "0017_curved_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784061883934,
+      "tag": "0018_premium_thor_girl",
+      "breakpoints": true
     }
   ]
 }

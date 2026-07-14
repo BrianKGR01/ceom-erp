@@ -22,10 +22,11 @@
   `calcularEstadoAcceso`, `tienePermiso`, `tieneCapacidadEspecial`,
   `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
   `reactivarUsuario`, `crearRolPersonalizado`, `actualizarPermisosRol`,
-  `eliminarRol`. También re-exporta el **tipo** `UsuarioConRol` (desde
-  Módulo 5/Patrimonio) — cualquier módulo que llame a `tienePermiso()`
-  necesita tipar su `solicitante` sin importar `identidad/repository.ts`
-  directamente.
+  `eliminarRol`, `obtenerTenantPorId`, `obtenerEstadoAccesoTenant` (las dos
+  últimas agregadas en Módulo 10 — Gateway de Consentimiento). También
+  re-exporta el **tipo** `UsuarioConRol` (desde Módulo 5/Patrimonio) —
+  cualquier módulo que llame a `tienePermiso()` necesita tipar su
+  `solicitante` sin importar `identidad/repository.ts` directamente.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -128,5 +129,14 @@
   **sola**, sin ninguna otra sentencia DDL en el mismo archivo — Postgres
   no permite usar un valor recién agregado en la misma transacción en que
   se agregó. Ver `src/modules/proveedores/ANCLA.md` para el ejemplo real.
+- **`obtenerTenantPorId` y `obtenerEstadoAccesoTenant` (Módulo 10)**: la
+  primera exige un `solicitante: UsuarioConRol` real (gate: `ceom_admin` o
+  mismo tenant) y devuelve el registro completo del Tenant. La segunda **no
+  recibe `solicitante`** — a propósito, pensada para el Gateway de
+  Consentimiento, donde el llamador (una Institución externa) no es un
+  usuario de CEOM — expone únicamente `estado_acceso` derivado, nunca el
+  resto de los datos del Tenant. No fusionar ambas ni agregarle
+  `solicitante` a la segunda "por consistencia" — perdería su único
+  propósito.
 
-## Última actualización: 2026-07-14 — Módulo 8 (Proveedores) agregó "proveedores" al enum modulo_permiso (Fase 1)
+## Última actualización: 2026-07-14 — Módulo 10 (Gateway de Consentimiento) agregó `obtenerTenantPorId`/`obtenerEstadoAccesoTenant` (Fase 1)
