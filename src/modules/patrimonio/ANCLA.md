@@ -35,8 +35,10 @@
       refinanciación con trazabilidad (nunca edita el original).
 - [x] Tests: `valor-actual.test.ts` (puro) + `patrimonio.test.ts`
       (integración contra Supabase Cloud real).
-- [ ] `Activo.proveedor_id` sin FK — Proveedores (Módulo 8) no existe
-      todavía.
+- [x] `Activo.proveedor_id` **ahora con FK real** a `proveedores.id`
+      (migración `0016`) — quedó sin FK durante la construcción de este
+      módulo porque Proveedores (Módulo 8) todavía no existía; se cerró
+      después, sin tocar la migración original (`0009`).
 - [x] Generación automática de `Gasto`/`Pago de Pasivo` hacia Costos y
       Gastos — Módulo 4 (`src/modules/gastos/`) ya existe y
       `generarGastoCuotaPasivo()` llama de verdad a `registrarPagoPasivo(...,
@@ -72,9 +74,9 @@
   (`src/modules/gastos/schema.ts`) importa y reutiliza este mismo tipo de
   Postgres para `gastos_recurrentes.frecuencia`, en vez de duplicarlo. No
   eliminar ni renombrar este enum sin revisar el impacto en Módulo 4.
-- **`activo.proveedor_id`** queda `uuid` sin FK — mismo criterio que
-  `tenants.nicho_id`/`planes.nicho_id`. Revisar cuando exista Proveedores
-  (Módulo 8).
+- **`activo.proveedor_id` tiene FK real desde la migración `0016`** — se
+  agregó en una migración aparte, sin tocar `0009` (la que crea la tabla),
+  siguiendo la misma regla de nunca editar una migración ya aplicada.
 - **Patrón de autorización por recurso:** las acciones que reciben
   `activoId`/`pasivoId` primero buscan la fila (para conocer su
   `tenant_id` real) y recién ahí llaman a `tienePermiso()` — nunca confían
@@ -88,4 +90,4 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
-## Última actualización: 2026-07-14 — Módulo 4 (Egresos y Gastos) conectó `registrarPagoPasivo(origen: "automatico")` como caller real y reutiliza `frecuencia_cuota` (Fase 1)
+## Última actualización: 2026-07-14 — FK real `activos.proveedor_id -> proveedores.id` cerrada (migración 0016)

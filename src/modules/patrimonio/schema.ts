@@ -14,11 +14,13 @@ import {
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
 import { crudPolicy } from "../../db/rls";
-// Referenciar tenants/sucursales de Identidad es el patron esperado (todo
-// modulo de negocio le pertenece a un tenant) — no es la excepcion de caja
-// negra documentada para plan_id (esa va en sentido inverso, Identidad
+// Referenciar tenants/sucursales de Identidad y proveedores de Proveedores
+// es el patron esperado (todo modulo de negocio le pertenece a un tenant, y
+// Proveedores ya existia cuando se agrego esta FK) — no es la excepcion de
+// caja negra documentada para plan_id (esa va en sentido inverso, Identidad
 // importando de un modulo periferico).
 import { sucursales, tenants } from "../identidad/schema";
+import { proveedores } from "../proveedores/schema";
 
 export const tipoActivoEnum = pgEnum("tipo_activo", [
   "equipo_productivo",
@@ -98,8 +100,10 @@ export const activos = pgTable(
     fechaAdquisicion: date("fecha_adquisicion").notNull(),
     // null = el activo no deprecia (ej. un terreno).
     vidaUtilMeses: numeric("vida_util_meses", { precision: 6, scale: 2 }),
-    // Sin FK todavia: Proveedores (Modulo 8) no existe aun.
-    proveedorId: uuid("proveedor_id"),
+    // FK real: Proveedores (Modulo 8) ya existe. Nota historica: quedo sin
+    // FK durante Modulo 5 porque Proveedores todavia no existia; se cerro
+    // en una migracion posterior (ver ANCLA.md).
+    proveedorId: uuid("proveedor_id").references(() => proveedores.id),
     numeroSerie: text("numero_serie"),
     vencimientoGarantia: date("vencimiento_garantia"),
     creadoPor: uuid("creado_por"),
