@@ -15,6 +15,34 @@
       "when": 1784013084645,
       "tag": "0001_colossal_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784016167161,
+      "tag": "0002_concerned_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784016246732,
+      "tag": "0003_current_tenant_id_function",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784016396809,
+      "tag": "0004_amused_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784016439146,
+      "tag": "0005_seed_ceom_ops_tenant",
+      "breakpoints": true
     }
   ]
 }
