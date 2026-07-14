@@ -85,6 +85,13 @@
       "when": 1784038601916,
       "tag": "0011_free_thunderbird",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784040358797,
+      "tag": "0012_petite_ken_ellis",
+      "breakpoints": true
     }
   ]
 }

@@ -38,8 +38,11 @@
       pendiente→parcial→pagado dentro de `registrarPagoCompra`.
 - [x] Tests: `costo-unitario.test.ts` (puro) + `proveedores.test.ts`
       (integración contra Supabase Cloud real).
-- [ ] `item_id` sin FK — Insumo (Módulo 6) y Producto (Módulo 2) no
-      existen todavía.
+- [ ] `item_id` sin FK — decisión deliberada, no un olvido: Módulo 2
+      (Productos) ya existe, pero un FK directo a `productos.id` solo
+      cubriría `tipo = "reventa"`, no `tipo = "insumo"` (que sigue
+      apuntando a Insumo, Módulo 6, inexistente). Se revisa cuando exista
+      Módulo 6 — ver `src/modules/productos/ANCLA.md`.
 - [ ] Evento `compra_registrada` no se dispara a ningún lado — nadie lo
       consume aún.
 - [ ] Landed Cost / Órdenes de Compra formales (Nicho 4) — fuera de
@@ -85,4 +88,4 @@
   explícita en `afterAll` (orden: `compras_ajuste`/`pagos_compra` antes
   que `compras`, por las FK).
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 8)
+## Última actualización: 2026-07-14 — nota de `item_id` corregida al construirse Módulo 2 (Productos), sin cambios de código en este módulo
