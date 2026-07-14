@@ -55,6 +55,10 @@ export const moduloPermisoEnum = pgEnum("modulo_permiso", [
   "financiero",
   "simulaciones",
   "reportes",
+  // Agregado en Modulo 8 (Proveedores/Compras) — no estaba en la lista
+  // original de Modulo_01 seccion 1.5. Extension aditiva del enum, misma
+  // logica que "patrimonio".
+  "proveedores",
 ]);
 
 export const accionPermisoEnum = pgEnum("accion_permiso", [

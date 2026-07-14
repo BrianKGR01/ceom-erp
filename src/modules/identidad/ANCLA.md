@@ -38,6 +38,8 @@
       solo si faltan `DATABASE_URL`/`SUPABASE_SECRET_KEY`).
 - [x] `tenants.plan_id` tiene FK real a `planes.id` (Módulo 11 mínimo,
       `src/modules/suscripcion/`); `crearTenant()` valida/defaultea el plan.
+- [x] `modulo_permiso` (enum) ahora incluye `"proveedores"` (Módulo 8,
+      `src/modules/proveedores/`) además de `"patrimonio"` (Módulo 5).
 - [ ] Pantallas de onboarding (sección 4 del módulo) — fuera de alcance de
       esta tarea.
 - [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
@@ -119,5 +121,12 @@
   `solicitante` al llamar `tienePermiso()`. Cualquier módulo futuro que
   también llame `tienePermiso()` debe importar el tipo desde acá, no desde
   el repository.
+- **`modulo_permiso` es un enum ampliable** — Módulo 5 agregó
+  `"patrimonio"` y Módulo 8 agregó `"proveedores"` (ninguno de los dos
+  estaba en la lista original de Módulo 1 sección 1.5). Patrón para
+  agregar un valor nuevo: la migración `ALTER TYPE ... ADD VALUE` va
+  **sola**, sin ninguna otra sentencia DDL en el mismo archivo — Postgres
+  no permite usar un valor recién agregado en la misma transacción en que
+  se agregó. Ver `src/modules/proveedores/ANCLA.md` para el ejemplo real.
 
-## Última actualización: 2026-07-14 — Módulo 5 (Patrimonio) agregó UsuarioConRol al contrato publico (Fase 1)
+## Última actualización: 2026-07-14 — Módulo 8 (Proveedores) agregó "proveedores" al enum modulo_permiso (Fase 1)

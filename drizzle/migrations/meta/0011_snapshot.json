@@ -1,0 +1,2085 @@
+{
+  "id": "e8b988a8-0df3-4849-a09e-09ac36076d31",
+  "prevId": "ee27fb06-b8e3-4870-b0dc-fe2ac6f74621",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "auth.users": {
+      "name": "users",
+      "schema": "auth",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.permisos": {
+      "name": "permisos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "rol_id": {
+          "name": "rol_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "modulo": {
+          "name": "modulo",
+          "type": "modulo_permiso",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accion": {
+          "name": "accion",
+          "type": "accion_permiso",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permitido": {
+          "name": "permitido",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "permisos_rol_modulo_accion_unique": {
+          "name": "permisos_rol_modulo_accion_unique",
+          "columns": [
+            {
+              "expression": "rol_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "modulo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "accion",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "permisos_rol_id_roles_id_fk": {
+          "name": "permisos_rol_id_roles_id_fk",
+          "tableFrom": "permisos",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "rol_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "permisos_tenant_select": {
+          "name": "permisos_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)"
+        },
+        "permisos_tenant_modify": {
+          "name": "permisos_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)",
+          "withCheck": "\"permisos\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.permisos_especiales_por_rol": {
+      "name": "permisos_especiales_por_rol",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "rol_id": {
+          "name": "rol_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacidad": {
+          "name": "capacidad",
+          "type": "capacidad_especial",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "habilitado": {
+          "name": "habilitado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "permisos_especiales_rol_capacidad_unique": {
+          "name": "permisos_especiales_rol_capacidad_unique",
+          "columns": [
+            {
+              "expression": "rol_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "capacidad",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "permisos_especiales_por_rol_rol_id_roles_id_fk": {
+          "name": "permisos_especiales_por_rol_rol_id_roles_id_fk",
+          "tableFrom": "permisos_especiales_por_rol",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "rol_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "permisos_especiales_por_rol_tenant_select": {
+          "name": "permisos_especiales_por_rol_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos_especiales_por_rol\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)"
+        },
+        "permisos_especiales_por_rol_tenant_modify": {
+          "name": "permisos_especiales_por_rol_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos_especiales_por_rol\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)",
+          "withCheck": "\"permisos_especiales_por_rol\".\"rol_id\" in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.permisos_especiales_por_usuario": {
+      "name": "permisos_especiales_por_usuario",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacidad": {
+          "name": "capacidad",
+          "type": "capacidad_especial",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "habilitado": {
+          "name": "habilitado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "permisos_especiales_usuario_capacidad_unique": {
+          "name": "permisos_especiales_usuario_capacidad_unique",
+          "columns": [
+            {
+              "expression": "usuario_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "capacidad",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"permisos_especiales_por_usuario\".\"eliminado_en\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "permisos_especiales_por_usuario_usuario_id_usuarios_id_fk": {
+          "name": "permisos_especiales_por_usuario_usuario_id_usuarios_id_fk",
+          "tableFrom": "permisos_especiales_por_usuario",
+          "tableTo": "usuarios",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "permisos_especiales_por_usuario_tenant_select": {
+          "name": "permisos_especiales_por_usuario_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos_especiales_por_usuario\".\"usuario_id\" in (select id from usuarios where tenant_id = (select current_tenant_id()))"
+        },
+        "permisos_especiales_por_usuario_tenant_modify": {
+          "name": "permisos_especiales_por_usuario_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"permisos_especiales_por_usuario\".\"usuario_id\" in (select id from usuarios where tenant_id = (select current_tenant_id()))",
+          "withCheck": "\"permisos_especiales_por_usuario\".\"usuario_id\" in (select id from usuarios where tenant_id = (select current_tenant_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.roles": {
+      "name": "roles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "es_rol_sistema": {
+          "name": "es_rol_sistema",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "roles_tenant_nombre_unique": {
+          "name": "roles_tenant_nombre_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nombre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"roles\".\"tenant_id\" is not null and \"roles\".\"eliminado_en\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "roles_sistema_nombre_unique": {
+          "name": "roles_sistema_nombre_unique",
+          "columns": [
+            {
+              "expression": "nombre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"roles\".\"tenant_id\" is null and \"roles\".\"eliminado_en\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "roles_tenant_id_tenants_id_fk": {
+          "name": "roles_tenant_id_tenants_id_fk",
+          "tableFrom": "roles",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "roles_tenant_select": {
+          "name": "roles_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"roles\".\"tenant_id\" = (select current_tenant_id()) or \"roles\".\"tenant_id\" is null"
+        },
+        "roles_tenant_modify": {
+          "name": "roles_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"roles\".\"tenant_id\" = (select current_tenant_id()) or \"roles\".\"tenant_id\" is null",
+          "withCheck": "\"roles\".\"tenant_id\" = (select current_tenant_id()) or \"roles\".\"tenant_id\" is null"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.sucursales": {
+      "name": "sucursales",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direccion": {
+          "name": "direccion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "es_principal": {
+          "name": "es_principal",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "activa": {
+          "name": "activa",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "sucursales_tenant_principal_unique": {
+          "name": "sucursales_tenant_principal_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"sucursales\".\"es_principal\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sucursales_tenant_id_tenants_id_fk": {
+          "name": "sucursales_tenant_id_tenants_id_fk",
+          "tableFrom": "sucursales",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "sucursales_tenant_select": {
+          "name": "sucursales_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"sucursales\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "sucursales_tenant_modify": {
+          "name": "sucursales_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"sucursales\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"sucursales\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.tenants": {
+      "name": "tenants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nombre_negocio": {
+          "name": "nombre_negocio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ciudad_base": {
+          "name": "ciudad_base",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "moneda_principal": {
+          "name": "moneda_principal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logo_url": {
+          "name": "logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "canales_venta": {
+          "name": "canales_venta",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "nicho_id": {
+          "name": "nicho_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nicho_asignado_en": {
+          "name": "nicho_asignado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado_suscripcion": {
+          "name": "estado_suscripcion",
+          "type": "estado_suscripcion",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activa'"
+        },
+        "estado_acceso": {
+          "name": "estado_acceso",
+          "type": "estado_acceso",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activo'"
+        },
+        "fecha_inicio_suscripcion": {
+          "name": "fecha_inicio_suscripcion",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_proximo_pago": {
+          "name": "fecha_proximo_pago",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "modificado_por": {
+          "name": "modificado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modificado_en": {
+          "name": "modificado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "tenants_plan_id_planes_id_fk": {
+          "name": "tenants_plan_id_planes_id_fk",
+          "tableFrom": "tenants",
+          "tableTo": "planes",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenants_tenant_select": {
+          "name": "tenants_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"tenants\".\"id\" = (select current_tenant_id())"
+        },
+        "tenants_tenant_modify": {
+          "name": "tenants_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"tenants\".\"id\" = (select current_tenant_id())",
+          "withCheck": "\"tenants\".\"id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.usuarios": {
+      "name": "usuarios",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre_completo": {
+          "name": "nombre_completo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telefono": {
+          "name": "telefono",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rol_id": {
+          "name": "rol_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "es_owner": {
+          "name": "es_owner",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "ultimo_acceso_en": {
+          "name": "ultimo_acceso_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "modificado_por": {
+          "name": "modificado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modificado_en": {
+          "name": "modificado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "usuarios_tenant_email_unique": {
+          "name": "usuarios_tenant_email_unique",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"usuarios\".\"eliminado_en\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usuarios_id_users_id_fk": {
+          "name": "usuarios_id_users_id_fk",
+          "tableFrom": "usuarios",
+          "tableTo": "users",
+          "schemaTo": "auth",
+          "columnsFrom": [
+            "id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "usuarios_tenant_id_tenants_id_fk": {
+          "name": "usuarios_tenant_id_tenants_id_fk",
+          "tableFrom": "usuarios",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "usuarios_rol_id_roles_id_fk": {
+          "name": "usuarios_rol_id_roles_id_fk",
+          "tableFrom": "usuarios",
+          "tableTo": "roles",
+          "columnsFrom": [
+            "rol_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "usuarios_tenant_select": {
+          "name": "usuarios_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"usuarios\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "usuarios_tenant_modify": {
+          "name": "usuarios_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"usuarios\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"usuarios\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.activos": {
+      "name": "activos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sucursal_id": {
+          "name": "sucursal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_activo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacidad_produccion_cantidad": {
+          "name": "capacidad_produccion_cantidad",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capacidad_produccion_unidad": {
+          "name": "capacidad_produccion_unidad",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capacidad_almacenamiento_cantidad": {
+          "name": "capacidad_almacenamiento_cantidad",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capacidad_almacenamiento_unidad": {
+          "name": "capacidad_almacenamiento_unidad",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "disponibilidad_horaria_semanal": {
+          "name": "disponibilidad_horaria_semanal",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requiere_descanso_entre_ciclos": {
+          "name": "requiere_descanso_entre_ciclos",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "tiempo_descanso_minutos": {
+          "name": "tiempo_descanso_minutos",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiempo_estimado_por_ciclo_minutos": {
+          "name": "tiempo_estimado_por_ciclo_minutos",
+          "type": "numeric(8, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "estado_activo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activo'"
+        },
+        "valor_compra": {
+          "name": "valor_compra",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_adquisicion": {
+          "name": "fecha_adquisicion",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vida_util_meses": {
+          "name": "vida_util_meses",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proveedor_id": {
+          "name": "proveedor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "numero_serie": {
+          "name": "numero_serie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vencimiento_garantia": {
+          "name": "vencimiento_garantia",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "modificado_por": {
+          "name": "modificado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modificado_en": {
+          "name": "modificado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "activos_tenant_id_tenants_id_fk": {
+          "name": "activos_tenant_id_tenants_id_fk",
+          "tableFrom": "activos",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "activos_sucursal_id_sucursales_id_fk": {
+          "name": "activos_sucursal_id_sucursales_id_fk",
+          "tableFrom": "activos",
+          "tableTo": "sucursales",
+          "columnsFrom": [
+            "sucursal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "activos_tenant_select": {
+          "name": "activos_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"activos\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "activos_tenant_modify": {
+          "name": "activos_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"activos\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"activos\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.pagos_pasivo": {
+      "name": "pagos_pasivo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pasivo_id": {
+          "name": "pasivo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monto": {
+          "name": "monto",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_pago": {
+          "name": "fecha_pago",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "origen": {
+          "name": "origen",
+          "type": "origen_pago_pasivo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pagos_pasivo_pasivo_id_pasivos_id_fk": {
+          "name": "pagos_pasivo_pasivo_id_pasivos_id_fk",
+          "tableFrom": "pagos_pasivo",
+          "tableTo": "pasivos",
+          "columnsFrom": [
+            "pasivo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "pagos_pasivo_tenant_select": {
+          "name": "pagos_pasivo_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pagos_pasivo\".\"pasivo_id\" in (select id from pasivos where tenant_id = (select current_tenant_id()))"
+        },
+        "pagos_pasivo_tenant_modify": {
+          "name": "pagos_pasivo_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pagos_pasivo\".\"pasivo_id\" in (select id from pasivos where tenant_id = (select current_tenant_id()))",
+          "withCheck": "\"pagos_pasivo\".\"pasivo_id\" in (select id from pasivos where tenant_id = (select current_tenant_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.pasivos": {
+      "name": "pasivos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo_id": {
+          "name": "activo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monto_total": {
+          "name": "monto_total",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cuota_periodica": {
+          "name": "cuota_periodica",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frecuencia_cuota": {
+          "name": "frecuencia_cuota",
+          "type": "frecuencia_cuota",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plazo_cuotas": {
+          "name": "plazo_cuotas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_inicio": {
+          "name": "fecha_inicio",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "estado_pasivo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'activo'"
+        },
+        "refinanciado_desde_id": {
+          "name": "refinanciado_desde_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pasivos_tenant_id_tenants_id_fk": {
+          "name": "pasivos_tenant_id_tenants_id_fk",
+          "tableFrom": "pasivos",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pasivos_activo_id_activos_id_fk": {
+          "name": "pasivos_activo_id_activos_id_fk",
+          "tableFrom": "pasivos",
+          "tableTo": "activos",
+          "columnsFrom": [
+            "activo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pasivos_refinanciado_desde_id_pasivos_id_fk": {
+          "name": "pasivos_refinanciado_desde_id_pasivos_id_fk",
+          "tableFrom": "pasivos",
+          "tableTo": "pasivos",
+          "columnsFrom": [
+            "refinanciado_desde_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "pasivos_tenant_select": {
+          "name": "pasivos_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pasivos\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "pasivos_tenant_modify": {
+          "name": "pasivos_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pasivos\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"pasivos\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.compras": {
+      "name": "compras",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sucursal_id": {
+          "name": "sucursal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proveedor_id": {
+          "name": "proveedor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_compra",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cantidad": {
+          "name": "cantidad",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "costo_unitario": {
+          "name": "costo_unitario",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monto_total": {
+          "name": "monto_total",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_compra": {
+          "name": "fecha_compra",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_vencimiento": {
+          "name": "fecha_vencimiento",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado_pago": {
+          "name": "estado_pago",
+          "type": "estado_pago_compra",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pendiente'"
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "compras_tenant_id_tenants_id_fk": {
+          "name": "compras_tenant_id_tenants_id_fk",
+          "tableFrom": "compras",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "compras_sucursal_id_sucursales_id_fk": {
+          "name": "compras_sucursal_id_sucursales_id_fk",
+          "tableFrom": "compras",
+          "tableTo": "sucursales",
+          "columnsFrom": [
+            "sucursal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "compras_proveedor_id_proveedores_id_fk": {
+          "name": "compras_proveedor_id_proveedores_id_fk",
+          "tableFrom": "compras",
+          "tableTo": "proveedores",
+          "columnsFrom": [
+            "proveedor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "compras_tenant_select": {
+          "name": "compras_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"compras\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "compras_tenant_modify": {
+          "name": "compras_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"compras\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"compras\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.compras_ajuste": {
+      "name": "compras_ajuste",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "compra_id": {
+          "name": "compra_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "tipo_ajuste_compra",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monto_ajuste": {
+          "name": "monto_ajuste",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "compras_ajuste_compra_id_compras_id_fk": {
+          "name": "compras_ajuste_compra_id_compras_id_fk",
+          "tableFrom": "compras_ajuste",
+          "tableTo": "compras",
+          "columnsFrom": [
+            "compra_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "compras_ajuste_tenant_select": {
+          "name": "compras_ajuste_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"compras_ajuste\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))"
+        },
+        "compras_ajuste_tenant_modify": {
+          "name": "compras_ajuste_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"compras_ajuste\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))",
+          "withCheck": "\"compras_ajuste\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.pagos_compra": {
+      "name": "pagos_compra",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "compra_id": {
+          "name": "compra_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monto": {
+          "name": "monto",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_pago": {
+          "name": "fecha_pago",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pagos_compra_compra_id_compras_id_fk": {
+          "name": "pagos_compra_compra_id_compras_id_fk",
+          "tableFrom": "pagos_compra",
+          "tableTo": "compras",
+          "columnsFrom": [
+            "compra_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "pagos_compra_tenant_select": {
+          "name": "pagos_compra_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pagos_compra\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))"
+        },
+        "pagos_compra_tenant_modify": {
+          "name": "pagos_compra_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"pagos_compra\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))",
+          "withCheck": "\"pagos_compra\".\"compra_id\" in (select id from compras where tenant_id = (select current_tenant_id()))"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.proveedores": {
+      "name": "proveedores",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contacto": {
+          "name": "contacto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notas": {
+          "name": "notas",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "eliminado_en": {
+          "name": "eliminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "proveedores_tenant_id_tenants_id_fk": {
+          "name": "proveedores_tenant_id_tenants_id_fk",
+          "tableFrom": "proveedores",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "proveedores_tenant_select": {
+          "name": "proveedores_tenant_select",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"proveedores\".\"tenant_id\" = (select current_tenant_id())"
+        },
+        "proveedores_tenant_modify": {
+          "name": "proveedores_tenant_modify",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "authenticated"
+          ],
+          "using": "\"proveedores\".\"tenant_id\" = (select current_tenant_id())",
+          "withCheck": "\"proveedores\".\"tenant_id\" = (select current_tenant_id())"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.planes": {
+      "name": "planes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nicho_id": {
+          "name": "nicho_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incluye_sucursales": {
+          "name": "incluye_sucursales",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "permite_multiples_owners": {
+          "name": "permite_multiples_owners",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "permite_downgrade_autogestionado": {
+          "name": "permite_downgrade_autogestionado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "duracion_invitacion_dias": {
+          "name": "duracion_invitacion_dias",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 7
+        },
+        "duracion_etapa_solo_lectura_dias": {
+          "name": "duracion_etapa_solo_lectura_dias",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 3
+        },
+        "modulos_veedor_permitidos": {
+          "name": "modulos_veedor_permitidos",
+          "type": "modulo_veedor[]",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::modulo_veedor[]"
+        },
+        "precio_mensual": {
+          "name": "precio_mensual",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "moneda": {
+          "name": "moneda",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activo": {
+          "name": "activo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "planes_select_authenticated": {
+          "name": "planes_select_authenticated",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "authenticated"
+          ],
+          "using": "true"
+        }
+      },
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {
+    "public.accion_permiso": {
+      "name": "accion_permiso",
+      "schema": "public",
+      "values": [
+        "ver",
+        "crear",
+        "editar",
+        "anular_ajustar"
+      ]
+    },
+    "public.capacidad_especial": {
+      "name": "capacidad_especial",
+      "schema": "public",
+      "values": [
+        "vender_sin_stock",
+        "gestionar_eventos",
+        "importar_historico",
+        "producir_sin_stock_insumo"
+      ]
+    },
+    "public.estado_acceso": {
+      "name": "estado_acceso",
+      "schema": "public",
+      "values": [
+        "activo",
+        "solo_lectura",
+        "bloqueado"
+      ]
+    },
+    "public.estado_suscripcion": {
+      "name": "estado_suscripcion",
+      "schema": "public",
+      "values": [
+        "activa",
+        "pausada",
+        "vencida"
+      ]
+    },
+    "public.modulo_permiso": {
+      "name": "modulo_permiso",
+      "schema": "public",
+      "values": [
+        "productos",
+        "inventario",
+        "ventas",
+        "costos_gastos",
+        "patrimonio",
+        "operativo",
+        "financiero",
+        "simulaciones",
+        "reportes",
+        "proveedores"
+      ]
+    },
+    "public.estado_activo": {
+      "name": "estado_activo",
+      "schema": "public",
+      "values": [
+        "activo",
+        "en_mantenimiento",
+        "dado_de_baja"
+      ]
+    },
+    "public.estado_pasivo": {
+      "name": "estado_pasivo",
+      "schema": "public",
+      "values": [
+        "activo",
+        "pagado",
+        "refinanciado"
+      ]
+    },
+    "public.frecuencia_cuota": {
+      "name": "frecuencia_cuota",
+      "schema": "public",
+      "values": [
+        "mensual",
+        "semanal",
+        "quincenal",
+        "anual"
+      ]
+    },
+    "public.origen_pago_pasivo": {
+      "name": "origen_pago_pasivo",
+      "schema": "public",
+      "values": [
+        "automatico",
+        "manual"
+      ]
+    },
+    "public.tipo_activo": {
+      "name": "tipo_activo",
+      "schema": "public",
+      "values": [
+        "equipo_productivo",
+        "mobiliario",
+        "vehiculo",
+        "otro"
+      ]
+    },
+    "public.estado_pago_compra": {
+      "name": "estado_pago_compra",
+      "schema": "public",
+      "values": [
+        "pendiente",
+        "parcial",
+        "pagado"
+      ]
+    },
+    "public.tipo_ajuste_compra": {
+      "name": "tipo_ajuste_compra",
+      "schema": "public",
+      "values": [
+        "correccion",
+        "devolucion_a_proveedor",
+        "anulacion_total"
+      ]
+    },
+    "public.tipo_compra": {
+      "name": "tipo_compra",
+      "schema": "public",
+      "values": [
+        "insumo",
+        "reventa"
+      ]
+    },
+    "public.modulo_veedor": {
+      "name": "modulo_veedor",
+      "schema": "public",
+      "values": [
+        "financiero",
+        "operativo",
+        "inventario_operativo"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

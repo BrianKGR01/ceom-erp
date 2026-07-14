@@ -71,6 +71,20 @@
       "when": 1784037408856,
       "tag": "0009_careful_ikaris",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784038492370,
+      "tag": "0010_young_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784038601916,
+      "tag": "0011_free_thunderbird",
+      "breakpoints": true
     }
   ]
 }
