@@ -12,14 +12,14 @@
 - [x] `AGENTS.md` en la raíz con las reglas globales.
 - [ ] `CLAUDE.md` como symlink a `AGENTS.md` (`ln -s AGENTS.md CLAUDE.md`).
 - [x] Estructura de `docs/` con `modules/`, `architecture/`, `dev-practices/` (pendiente de redactar), `production/` (pendiente), `roadmap/` (este archivo).
-- [ ] Proyecto Next.js inicializado (App Router, TypeScript) con `pnpm`.
-- [ ] Proyecto Supabase Cloud creado (entorno de desarrollo).
-- [ ] Drizzle configurado contra ese proyecto (`drizzle.config.ts`, conexión, primer `drizzle-kit generate` de prueba).
-- [ ] Vitest + Testing Library configurados, un test trivial corriendo en CI.
-- [ ] Playwright configurado, un test e2e trivial (ej. "la página de login carga").
-- [ ] GitHub Actions: workflow mínimo que corre `pnpm typecheck && pnpm lint && pnpm test` en cada PR.
-- [ ] Proyecto conectado a Vercel (deploy de preview automático por PR).
-- [ ] `docs/dev-practices/` redactado (siguiente documento después de este roadmap).
+- [x] Proyecto Next.js inicializado (App Router, TypeScript) con `pnpm`.
+- [x] Proyecto Supabase Cloud creado (entorno de desarrollo).
+- [x] Drizzle configurado contra ese proyecto (`drizzle.config.ts`, conexión, primer `drizzle-kit generate` de prueba).
+- [x] Vitest + Testing Library configurados, un test trivial corriendo en CI.
+- [x] Playwright configurado, un test e2e trivial (ej. "la página de login carga").
+- [x] GitHub Actions: workflow mínimo que corre `pnpm typecheck && pnpm lint && pnpm test` en cada PR.
+- [ ] Proyecto conectado a Vercel (deploy de preview automático por PR) — pendiente: conexión manual desde el dashboard de Vercel (la hace el dueño del proyecto, no un agente).
+- [x] `docs/dev-practices/` redactado (siguiente documento después de este roadmap).
 
 **Criterio de salida de la Fase 0:** un PR de prueba (ej. "página de inicio en blanco") pasa CI, se previsualiza en Vercel, y un agente puede levantar el entorno local siguiendo solo `AGENTS.md` sin preguntas adicionales.
 
