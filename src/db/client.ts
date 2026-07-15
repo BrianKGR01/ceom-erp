@@ -12,3 +12,10 @@ import postgres from "postgres";
 const client = postgres(process.env.DATABASE_URL ?? "", { prepare: false });
 
 export const db = drizzle(client);
+
+// Exportado para scripts standalone (ej. scripts/seed-admin.ts) que no
+// corren dentro del ciclo de vida de Next.js/Vitest y necesitan cerrar la
+// conexion explicitamente al terminar (`await client.end()`) — si no, el
+// proceso de Node queda colgado. El resto del código (Server Actions,
+// tests) sigue usando solo `db`, nunca necesitó cerrar esto a mano.
+export { client };

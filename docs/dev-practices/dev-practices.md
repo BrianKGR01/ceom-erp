@@ -161,6 +161,35 @@ pnpm drizzle-kit migrate
 
 ---
 
+## 7.1. Scripts de bootstrap (`scripts/`)
+
+Para tareas puntuales que no encajan en un Server Action (necesitan correr
+una sola vez, fuera del ciclo de vida de Next.js — ej. sembrar el primer
+usuario `ceom_admin` cuando el entorno recién se levanta) usamos
+`scripts/*.ts`, corridos con **`tsx`** (devDependency — Node nativo no
+resuelve el alias `@/*` que usa casi todo `src/modules/**`, `tsx` sí porque
+lee `tsconfig.json`).
+
+```bash
+pnpm seed:admin <email> ["Nombre completo"]
+```
+
+Convención para cualquier script nuevo en esta carpeta:
+- Reutilizar los `actions.ts`/`repository.ts` de los módulos existentes
+  igual que el resto del código — un script no es una excusa para duplicar
+  lógica de negocio.
+- **No** importar `src/lib/supabase/server.ts` completo si solo hace falta
+  `crearClienteAdmin()` — ese archivo también exporta `crearClienteServidor`,
+  que importa `next/headers` (asume runtime de Next.js). Armar el cliente
+  admin de Supabase inline si el script corre fuera de Next.js.
+- Cerrar la conexión de Postgres al final (`await client.end()`, exportado
+  desde `src/db/client.ts` junto a `db`) — si no, el proceso de Node queda
+  colgado.
+- Idempotente cuando sea razonable (ver `scripts/seed-admin.ts`: si el
+  usuario ya existe, no hace nada en vez de fallar).
+
+---
+
 ## 8. Integración continua (GitHub Actions)
 
 ```yaml

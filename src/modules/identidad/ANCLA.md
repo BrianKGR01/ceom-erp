@@ -176,5 +176,13 @@
   se aceptó sin paginación para "nivel básico": el volumen esperado de
   tenants en este MVP es bajo. Revisar si se vuelve un problema real de
   performance antes de escalar el número de tenants.
+- **El candado circular ya está resuelto**: antes no había forma de entrar
+  como `ceom_admin` ni de crear el primer tenant (la migración `0005` solo
+  siembra el ROL, nunca una fila de usuario real, y `crearTenant()` exige
+  un solicitante ya logueado como `ceom_admin`). `scripts/seed-admin.ts`
+  (`pnpm seed:admin <email>`) crea ese primer usuario real vía el Admin API
+  de Supabase Auth + una fila en `usuarios` con `rolId=ROL_CEOM_ADMIN_ID` en
+  el tenant `CEOM Ops`. Ver `docs/dev-practices/dev-practices.md` sección
+  7.1.
 
 ## Última actualización: 2026-07-14 — roadmap ítem #11 (Monitoreo Institucional/Panel Admin CEOM) agregó `obtenerTenantParaVeedor`/`listarTenants`/`solicitanteGateway`
