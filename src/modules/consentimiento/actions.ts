@@ -136,6 +136,20 @@ export async function listarCarteraPorInstitucion(
   return { ok: true, data: await repo.listarCarteraPorInstitucion(institucionId) };
 }
 
+/**
+ * Variante SIN gate de ceom_admin — a proposito, para que la propia
+ * Institucion (Modulo 11, Monitoreo Institucional) liste su cartera desde el
+ * futuro Portal de Entidades Veedoras, donde no existe un SolicitanteCeomAdmin
+ * (mismo criterio que tieneConsentimiento()/canjearCodigoAcceso(): quien
+ * llama ya conoce su propio institucionId, no hay nada que gatear acá salvo
+ * el filtro por ese id que el repository ya aplica).
+ */
+export async function listarCarteraPropia(
+  institucionId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarCarteraPorInstitucion>>>> {
+  return { ok: true, data: await repo.listarCarteraPorInstitucion(institucionId) };
+}
+
 // --- Solicitud de Seguimiento ---------------------------------------------------------
 
 /** La institucion no tiene login propio en el alcance de este modulo — CEOM

@@ -44,6 +44,11 @@ export async function obtenerTenantPorId(tenantId: string) {
   return filas[0] ?? null;
 }
 
+/** Listado cross-tenant completo — solo para consumidores ya gateados a ceom_admin (Panel Admin CEOM). */
+export async function listarTenants() {
+  return db.select().from(tenants).where(isNull(tenants.eliminadoEn));
+}
+
 export async function obtenerRolPorId(rolId: string) {
   const filas = await db
     .select()

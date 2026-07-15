@@ -20,7 +20,8 @@
   `rechazarSolicitud` gate Owner del tenant), `revocarConsentimiento`,
   `consultarAprobacionesPorTenant`, **`tieneConsentimiento`** (el Gateway
   propiamente dicho), `generarCodigoAcceso`/`revocarCodigoAcceso`/
-  `canjearCodigoAcceso`, `registrarAccesoAdminCeom`/`listarLogsAcceso`.
+  `canjearCodigoAcceso`, `registrarAccesoAdminCeom`/`listarLogsAcceso`,
+  `listarCarteraPropia` (roadmap ítem #11, ver abajo).
 
 ## Estado actual
 - [x] Schema Drizzle (`instituciones`, `cartera_institucional`,
@@ -55,13 +56,27 @@
       real, los 6 casos de la prueba de caja negra del plan, más un caso
       borde 6 del propio Módulo_11 — código ya canjeado no se puede
       reutilizar).
-- [ ] `registrarAccesoAdminCeom` existe y funciona, pero **sin hook
-      automático** desde el resto de los módulos — nadie la llama todavía
-      cuando `ceom_admin` consulta Financiero/Operativo/etc. Tocar
-      `tienePermiso()` de cada módulo para auto-loguear es un cambio de
-      contrato mucho mayor, no declarado en esta tarea.
-- [ ] Panel Institucional (vista, sin tablas propias) y Panel Administrativo
-      CEOM quedan para el roadmap ítem #11, que depende de este módulo.
+- [x] `registrarAccesoAdminCeom` **ya tiene caller real** — cerrado
+      parcialmente en el roadmap ítem #11: `panel-admin-ceom/actions.ts`
+      (`consultarFinancieroTenant`/`consultarOperativoTenant`/
+      `consultarInventarioOperativoTenant`) llama a esta función después de
+      cada lectura de un tenant puntual. **Sigue sin hook automático desde
+      el resto de los módulos** — nadie la llama todavía cuando `ceom_admin`
+      consulta Financiero/Operativo directamente (fuera de este panel).
+      Tocar `tienePermiso()` de cada módulo para auto-loguear en todos los
+      casos sigue siendo un cambio de contrato mucho mayor, no declarado en
+      esta tarea tampoco.
+- [x] `listarCarteraPropia(institucionId)` (roadmap ítem #11) — variante sin
+      gate de `ceom_admin` de `listarCarteraPorInstitucion()`, para que la
+      propia Institución liste su cartera desde `monitoreo-institucional`
+      (descubierto necesario recién al implementar ese módulo: la versión
+      original está gateada a CEOM Admin, no sirve para una Institución
+      externa que no tiene cuenta CEOM).
+- [x] Panel Institucional (`src/modules/monitoreo-institucional/`) y Panel
+      Administrativo CEOM (`src/modules/panel-admin-ceom/`) — implementados
+      en el roadmap ítem #11, como dos módulos separados (distinto
+      consumidor, distinta regla de autorización cada uno). Ver sus propios
+      `ANCLA.md`.
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`): se agregaron
@@ -119,4 +134,4 @@
   módulos. `testTimeout: 20000` para todo el archivo (`vi.setConfig`),
   mismo motivo que Módulo 3/4/7.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 10, roadmap ítem #10)
+## Última actualización: 2026-07-14 — roadmap ítem #11 agregó `listarCarteraPropia` y cerró el caller real de `registrarAccesoAdminCeom` (acotado a panel-admin-ceom)

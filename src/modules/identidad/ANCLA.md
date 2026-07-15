@@ -23,10 +23,13 @@
   `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
   `reactivarUsuario`, `crearRolPersonalizado`, `actualizarPermisosRol`,
   `eliminarRol`, `obtenerTenantPorId`, `obtenerEstadoAccesoTenant` (las dos
-  últimas agregadas en Módulo 10 — Gateway de Consentimiento). También
-  re-exporta el **tipo** `UsuarioConRol` (desde Módulo 5/Patrimonio) —
-  cualquier módulo que llame a `tienePermiso()` necesita tipar su
-  `solicitante` sin importar `identidad/repository.ts` directamente.
+  últimas agregadas en Módulo 10 — Gateway de Consentimiento),
+  `obtenerTenantParaVeedor`, `listarTenants`, `solicitanteGateway` (las tres
+  agregadas en el roadmap ítem #11 — Monitoreo Institucional/Panel Admin
+  CEOM, ver detalle abajo). También re-exporta el **tipo** `UsuarioConRol`
+  (desde Módulo 5/Patrimonio) — cualquier módulo que llame a
+  `tienePermiso()` necesita tipar su `solicitante` sin importar
+  `identidad/repository.ts` directamente.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -41,6 +44,23 @@
       `src/modules/suscripcion/`); `crearTenant()` valida/defaultea el plan.
 - [x] `modulo_permiso` (enum) ahora incluye `"proveedores"` (Módulo 8,
       `src/modules/proveedores/`) además de `"patrimonio"` (Módulo 5).
+- [x] `obtenerTenantParaVeedor(tenantId)` (roadmap ítem #11) — sin
+      `solicitante`, mismo criterio que `obtenerEstadoAccesoTenant()`: para
+      que `monitoreo-institucional` (una Institución externa, no un
+      `UsuarioConRol`) lea nombre/nicho/plan/estado_acceso mínimos de un
+      tenant que ya tiene en su Cartera Institucional.
+- [x] `listarTenants(solicitante)` (roadmap ítem #11) — listado cross-tenant
+      completo, gateado a `ceom_admin` directo (mismo bypass que ya usa
+      `tienePermiso()` para ese rol). Consumido por `panel-admin-ceom` para
+      calcular salud agregada de la plataforma.
+- [x] `solicitanteGateway()` (roadmap ítem #11) — arma un `UsuarioConRol`
+      SINTÉTICO (`rolId=ROL_CEOM_ADMIN_ID`, sin fila de usuario real
+      detrás) para que `monitoreo-institucional` pueda "prestar" el bypass
+      cross-tenant de `ceom_admin` y llamar a los `actions.ts` de solo
+      lectura de Financiero/Ventas/Operativo en nombre de una Institución
+      externa ya autorizada por `tieneConsentimiento()`. Decisión de diseño
+      confirmada explícitamente con el usuario antes de implementar — ver
+      "Decisiones" abajo.
 - [ ] Pantallas de onboarding (sección 4 del módulo) — fuera de alcance de
       esta tarea.
 - [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
@@ -139,4 +159,22 @@
   `solicitante` a la segunda "por consistencia" — perdería su único
   propósito.
 
-## Última actualización: 2026-07-14 — Módulo 10 (Gateway de Consentimiento) agregó `obtenerTenantPorId`/`obtenerEstadoAccesoTenant` (Fase 1)
+- **`solicitanteGateway()` es un objeto SINTÉTICO, no una fila de usuario
+  real** — no crear un usuario de sistema real en la base para "arreglar"
+  esto. Reutiliza el mismo bypass cross-tenant que `tienePermiso()` ya le
+  da a `ceom_admin` (líneas 83-88, no valida `tenantId` ni la existencia
+  real de la fila de usuario en esa rama) — por eso alcanza con un objeto
+  en memoria con `rolId=ROL_CEOM_ADMIN_ID` y el `rol` real (traído de
+  `repo.obtenerRolPorId`). **Uso exclusivo**: solo lo invoca
+  `monitoreo-institucional/actions.ts`, y solo para lecturas, solo después
+  de que `tieneConsentimiento()` ya devolvió `true`. Nunca usar para
+  escrituras (los campos de auditoría `creadoPor`/`modificadoPor` quedarían
+  apuntando a un UUID sin fila real, violando la FK) ni exponer a ningún
+  input externo.
+- **`listarTenants()` no pagina** — a diferencia de la advertencia de
+  rendimiento del Módulo_11 sección 6.2 (cartera institucional grande), acá
+  se aceptó sin paginación para "nivel básico": el volumen esperado de
+  tenants en este MVP es bajo. Revisar si se vuelve un problema real de
+  performance antes de escalar el número de tenants.
+
+## Última actualización: 2026-07-14 — roadmap ítem #11 (Monitoreo Institucional/Panel Admin CEOM) agregó `obtenerTenantParaVeedor`/`listarTenants`/`solicitanteGateway`

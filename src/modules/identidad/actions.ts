@@ -142,6 +142,110 @@ export async function obtenerEstadoAccesoTenant(
   return { ok: true, data: { estadoAcceso: calcularEstadoAcceso(tenant) } };
 }
 
+/**
+ * Consulta minima y SIN gate de solicitante — mismo criterio que
+ * obtenerEstadoAccesoTenant(): una Institucion externa (Modulo 11,
+ * Monitoreo Institucional) no es un UsuarioConRol. Expone solo lo minimo
+ * para mostrar un tenant en un panel de veedor (nombre, nicho, plan, estado
+ * de acceso), nunca el resto de los datos del Tenant.
+ */
+export async function obtenerTenantParaVeedor(tenantId: string): Promise<
+  Resultado<{
+    id: string;
+    nombreNegocio: string;
+    nichoId: string | null;
+    planId: string | null;
+    estadoAcceso: EstadoAcceso;
+  }>
+> {
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  return {
+    ok: true,
+    data: {
+      id: tenant.id,
+      nombreNegocio: tenant.nombreNegocio,
+      nichoId: tenant.nichoId,
+      planId: tenant.planId,
+      estadoAcceso: calcularEstadoAcceso(tenant),
+    },
+  };
+}
+
+/**
+ * Listado cross-tenant, gateado a ceom_admin directo (mismo criterio que
+ * tienePermiso() para ese rol) — para que Panel Admin CEOM (Modulo 11)
+ * calcule salud agregada de la plataforma sin duplicar calcularEstadoAcceso().
+ */
+export async function listarTenants(solicitante: UsuarioConRol): Promise<
+  Resultado<
+    Array<{
+      id: string;
+      nombreNegocio: string;
+      planId: string | null;
+      nichoId: string | null;
+      estadoSuscripcion: EstadoSuscripcion;
+      fechaProximoPago: string | null;
+    }>
+  >
+> {
+  const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
+  if (!esCeomAdmin) {
+    return { ok: false, error: "No tenés permiso para listar tenants." };
+  }
+  const tenants = await repo.listarTenants();
+  return {
+    ok: true,
+    data: tenants.map((t) => ({
+      id: t.id,
+      nombreNegocio: t.nombreNegocio,
+      planId: t.planId,
+      nichoId: t.nichoId,
+      estadoSuscripcion: t.estadoSuscripcion,
+      fechaProximoPago: t.fechaProximoPago,
+    })),
+  };
+}
+
+/**
+ * Solicitante SINTETICO — solo para lecturas mediadas por el Gateway de
+ * Consentimiento (Modulo 11, Monitoreo Institucional). Una Institucion
+ * externa no es un UsuarioConRol; una vez que tieneConsentimiento() ya
+ * confirmo el permiso puntual, el Gateway necesita "prestar" el mismo
+ * bypass cross-tenant que ya tiene ceom_admin (ver tienePermiso() arriba,
+ * que no valida nada de tenantId ni de la fila real de usuario en esa
+ * rama) para poder llamar a los actions.ts de solo lectura de otros
+ * modulos sin romper la caja negra. No hay una fila de usuario real
+ * detras — objeto de un solo proposito, documentado.
+ *
+ * NUNCA usar para escrituras ni exponer a ningun input externo — solo el
+ * propio codigo de monitoreo-institucional/actions.ts lo invoca, y solo
+ * despues de que tieneConsentimiento() ya devolvio true.
+ */
+export async function solicitanteGateway(): Promise<UsuarioConRol> {
+  const rol = await repo.obtenerRolPorId(ROL_CEOM_ADMIN_ID);
+  if (!rol) {
+    throw new Error("Rol CEOM Admin no encontrado — seed de sistema faltante.");
+  }
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    tenantId: CEOM_OPS_TENANT_ID,
+    nombreCompleto: "Gateway de Consentimiento (sistema)",
+    email: "sistema@ceom.internal",
+    telefono: null,
+    rolId: ROL_CEOM_ADMIN_ID,
+    esOwner: false,
+    activo: true,
+    ultimoAccesoEn: null,
+    creadoPor: null,
+    creadoEn: new Date(),
+    modificadoPor: null,
+    modificadoEn: null,
+    eliminadoEn: null,
+    rol,
+  };
+}
+
 /** Resolucion: override por usuario > override por rol > false (seccion 13.1). */
 export async function tieneCapacidadEspecial(
   solicitante: UsuarioConRol,

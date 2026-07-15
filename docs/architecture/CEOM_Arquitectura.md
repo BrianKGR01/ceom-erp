@@ -213,7 +213,8 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Egresos y Gastos | Proveedores (opcional, ficha) | Financiero |
 | Financiero | Ventas, Gastos, Proveedores/Compras | Gateway de Consentimiento |
 | Gateway de Consentimiento | — | Monitoreo Institucional, Panel Admin CEOM |
-| Monitoreo Institucional / Panel Admin | Gateway, Financiero, Operaciones, Inventario Operativo (mediado por Gateway) | — |
+| Monitoreo Institucional (`src/modules/monitoreo-institucional/`) | Gateway (`tieneConsentimiento`, `listarCarteraPropia`), Identidad (`obtenerTenantParaVeedor`, `solicitanteGateway`), Financiero, Ventas, Operaciones (mediado por Gateway) | — |
+| Panel Admin CEOM (`src/modules/panel-admin-ceom/`) | Identidad (`listarTenants`, `obtenerTenantPorId`, bypass `ceom_admin` de `tienePermiso`), Gateway (`registrarAccesoAdminCeom`), Suscripción (`listarPlanes`), Financiero, Operaciones (acceso directo, no mediado por Gateway — regla 4.5 del Módulo 11) | — |
 | Reportes | Todos los módulos (solo lectura, agregación) | — |
 
 ---
