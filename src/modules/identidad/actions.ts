@@ -530,6 +530,72 @@ export async function eliminarRol(
   return { ok: true, data: true };
 }
 
+// --- Capacidades especiales (Modulo_01 seccion 13) ---------------------------------------------------------
+
+/**
+ * Override por rol (seccion 13). El Owner activa/desactiva una capacidad
+ * especial (ej. "vender_sin_stock") para todos los usuarios de ese rol —
+ * default que despues puede pisarse puntualmente con
+ * otorgarCapacidadEspecialPorUsuario(). Nunca aplica a un rol de sistema
+ * (Owner/CEOM Admin son globales, compartidos entre tenants).
+ */
+export async function otorgarCapacidadEspecialPorRol(
+  solicitante: UsuarioConRol,
+  rolId: string,
+  capacidad: Capacidad,
+  habilitado: boolean
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return {
+      ok: false,
+      error: "Solo el Owner puede otorgar capacidades especiales.",
+    };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  const rol = await repo.obtenerRolPorId(rolId);
+  if (!rol || rol.esRolSistema) {
+    return { ok: false, error: "Rol no encontrado o no editable." };
+  }
+
+  await repo.upsertCapacidadEspecialRol(rolId, capacidad, habilitado);
+  return { ok: true, data: true };
+}
+
+/**
+ * Override puntual por usuario (seccion 13.1) — gana sobre el override de
+ * rol, sin crear un rol nuevo solo para la excepcion. `tieneCapacidadEspecial()`
+ * ya resuelve el orden usuario > rol > false; esta es la unica forma de
+ * escribir ese primer nivel.
+ */
+export async function otorgarCapacidadEspecialPorUsuario(
+  solicitante: UsuarioConRol,
+  usuarioId: string,
+  capacidad: Capacidad,
+  habilitado: boolean
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return {
+      ok: false,
+      error: "Solo el Owner puede otorgar capacidades especiales.",
+    };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  const usuario = await repo.obtenerUsuarioConRolPorId(usuarioId);
+  if (!usuario) return { ok: false, error: "Usuario no encontrado." };
+
+  await repo.upsertCapacidadEspecialUsuario(
+    usuarioId,
+    capacidad,
+    habilitado,
+    solicitante.id
+  );
+  return { ok: true, data: true };
+}
+
 export { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID };
 // Parte del contrato publico: cualquier modulo que llame a tienePermiso()
 // necesita tipar su parametro "solicitante" sin importar el repository de

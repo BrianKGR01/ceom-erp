@@ -232,3 +232,66 @@ export async function eliminarRolSoft(rolId: string) {
     .returning();
   return rol;
 }
+
+/**
+ * Upsert (Modulo_01 seccion 13): una fila por (rol, capacidad). El indice
+ * unico no es parcial, a diferencia del de usuario, asi que
+ * onConflictDoUpdate directo alcanza.
+ */
+export async function upsertCapacidadEspecialRol(
+  rolId: string,
+  capacidad: (typeof permisosEspecialesPorRol.$inferSelect)["capacidad"],
+  habilitado: boolean
+) {
+  const [fila] = await db
+    .insert(permisosEspecialesPorRol)
+    .values({ rolId, capacidad, habilitado })
+    .onConflictDoUpdate({
+      target: [permisosEspecialesPorRol.rolId, permisosEspecialesPorRol.capacidad],
+      set: { habilitado },
+    })
+    .returning();
+  return fila;
+}
+
+/**
+ * Upsert (Modulo_01 seccion 13.1): a diferencia del de rol, el indice unico
+ * de esta tabla es parcial (`where eliminado_en is null`) — Postgres exige
+ * que el predicado del indice matchee el de ON CONFLICT, asi que se resuelve
+ * a mano (select + insert/update) en vez de onConflictDoUpdate.
+ */
+export async function upsertCapacidadEspecialUsuario(
+  usuarioId: string,
+  capacidad: (typeof permisosEspecialesPorUsuario.$inferSelect)["capacidad"],
+  habilitado: boolean,
+  creadoPor: string
+) {
+  return db.transaction(async (tx) => {
+    const existentes = await tx
+      .select()
+      .from(permisosEspecialesPorUsuario)
+      .where(
+        and(
+          eq(permisosEspecialesPorUsuario.usuarioId, usuarioId),
+          eq(permisosEspecialesPorUsuario.capacidad, capacidad),
+          isNull(permisosEspecialesPorUsuario.eliminadoEn)
+        )
+      )
+      .limit(1);
+
+    if (existentes[0]) {
+      const [fila] = await tx
+        .update(permisosEspecialesPorUsuario)
+        .set({ habilitado })
+        .where(eq(permisosEspecialesPorUsuario.id, existentes[0].id))
+        .returning();
+      return fila;
+    }
+
+    const [fila] = await tx
+      .insert(permisosEspecialesPorUsuario)
+      .values({ usuarioId, capacidad, habilitado, creadoPor })
+      .returning();
+    return fila;
+  });
+}

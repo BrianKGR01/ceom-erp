@@ -8,6 +8,8 @@ import {
   crearRolPersonalizado,
   crearTenant,
   eliminarRol,
+  otorgarCapacidadEspecialPorRol,
+  otorgarCapacidadEspecialPorUsuario,
   tieneCapacidadEspecial,
   tienePermiso,
   suspenderUsuario,
@@ -242,6 +244,72 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       await tieneCapacidadEspecial(colaborador!, "gestionar_eventos")
     ).toBe(false);
   });
+
+  it("otorgarCapacidadEspecialPorRol/PorUsuario: escriben lo que tieneCapacidadEspecial ya sabia leer", async () => {
+    // Timeout default (5000ms) queda corto: son 8 round-trips secuenciales
+    // contra Supabase Cloud real, no un mock.
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+
+    // Sin overrides todavia: false por defecto.
+    expect(
+      await tieneCapacidadEspecial(colaborador!, "importar_historico")
+    ).toBe(false);
+
+    // Un no-Owner no puede otorgar.
+    const rechazo = await otorgarCapacidadEspecialPorRol(
+      colaborador!,
+      colaborador!.rolId,
+      "importar_historico",
+      true
+    );
+    expect(rechazo.ok).toBe(false);
+
+    // Override por rol: prende la capacidad para todo el rol.
+    const porRol = await otorgarCapacidadEspecialPorRol(
+      owner!,
+      colaborador!.rolId,
+      "importar_historico",
+      true
+    );
+    expect(porRol.ok).toBe(true);
+    expect(
+      await tieneCapacidadEspecial(colaborador!, "importar_historico")
+    ).toBe(true);
+
+    // Re-otorgar el mismo (rol, capacidad) actualiza in-place (upsert), no duplica fila.
+    const porRolActualizado = await otorgarCapacidadEspecialPorRol(
+      owner!,
+      colaborador!.rolId,
+      "importar_historico",
+      false
+    );
+    expect(porRolActualizado.ok).toBe(true);
+    expect(
+      await tieneCapacidadEspecial(colaborador!, "importar_historico")
+    ).toBe(false);
+
+    // Override por usuario: gana sobre el override de rol (seccion 13.1).
+    const porUsuario = await otorgarCapacidadEspecialPorUsuario(
+      owner!,
+      colaboradorId,
+      "importar_historico",
+      true
+    );
+    expect(porUsuario.ok).toBe(true);
+    expect(
+      await tieneCapacidadEspecial(colaborador!, "importar_historico")
+    ).toBe(true);
+
+    // No se puede otorgar sobre un rol de sistema (Owner/CEOM Admin son globales).
+    const rolSistema = await otorgarCapacidadEspecialPorRol(
+      owner!,
+      ROL_OWNER_ID,
+      "importar_historico",
+      true
+    );
+    expect(rolSistema.ok).toBe(false);
+  }, 15000);
 
   it("crearTenant: rechaza un plan_id inexistente antes de invitar al Auth (Modulo 11)", async () => {
     // Fixture en memoria, no persistido — alcanza con que pase el gate de

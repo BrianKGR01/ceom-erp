@@ -26,8 +26,13 @@
   últimas agregadas en Módulo 10 — Gateway de Consentimiento),
   `obtenerTenantParaVeedor`, `listarTenants`, `solicitanteGateway` (las tres
   agregadas en el roadmap ítem #11 — Monitoreo Institucional/Panel Admin
-  CEOM, ver detalle abajo). También re-exporta el **tipo** `UsuarioConRol`
-  (desde Módulo 5/Patrimonio) — cualquier módulo que llame a
+  CEOM, ver detalle abajo), `otorgarCapacidadEspecialPorRol`,
+  `otorgarCapacidadEspecialPorUsuario` (agregadas en auditoría de Fase 1 —
+  cerraban un gap real: `tieneCapacidadEspecial()` ya sabía leer el override
+  usuario→rol→false de la sección 13.1, pero no existía ninguna Server
+  Action para escribirlo; las únicas escrituras eran `db.insert()` directo
+  dentro de los propios tests). También re-exporta el **tipo**
+  `UsuarioConRol` (desde Módulo 5/Patrimonio) — cualquier módulo que llame a
   `tienePermiso()` necesita tipar su `solicitante` sin importar
   `identidad/repository.ts` directamente.
 
@@ -61,6 +66,13 @@
       externa ya autorizada por `tieneConsentimiento()`. Decisión de diseño
       confirmada explícitamente con el usuario antes de implementar — ver
       "Decisiones" abajo.
+- [x] `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario`
+      (auditoría de Fase 1) — gateadas a `esOwner` + `requireEscrituraHabilitada`,
+      hacen upsert real sobre `permisos_especiales_por_rol`/`_por_usuario`.
+      La de rol rechaza roles de sistema (`esRolSistema`) — Owner/CEOM Admin
+      son globales, compartidos entre tenants; habilitar ahí afectaría a
+      todos los tenants a la vez. Cubierto por
+      `identidad.test.ts` ("otorgarCapacidadEspecialPorRol/PorUsuario...").
 - [ ] Pantallas de onboarding (sección 4 del módulo) — fuera de alcance de
       esta tarea.
 - [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
@@ -185,4 +197,4 @@
   el tenant `CEOM Ops`. Ver `docs/dev-practices/dev-practices.md` sección
   7.1.
 
-## Última actualización: 2026-07-14 — roadmap ítem #11 (Monitoreo Institucional/Panel Admin CEOM) agregó `obtenerTenantParaVeedor`/`listarTenants`/`solicitanteGateway`
+## Última actualización: 2026-07-15 — auditoría de Fase 1 agregó `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario` (gap real de backend: no había forma de escribir la sección 13.1, solo de leerla)
