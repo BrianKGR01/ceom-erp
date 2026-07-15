@@ -712,6 +712,28 @@ export async function consultarIngresosPeriodo(
   return { ok: true, data: { ingresos, costos } };
 }
 
+/** Rotación de un producto en un período — roadmap ítem #13 (Simulaciones,
+ * sección 1.1: "rotación del último período"). */
+export async function consultarUnidadesVendidasPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoId: string,
+  periodo: PeriodoConsulta,
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ unidadesVendidas: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const unidadesVendidas = await repo.sumarUnidadesVendidasPeriodo(
+    tenantId,
+    productoId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    opts
+  );
+  return { ok: true, data: { unidadesVendidas } };
+}
+
 export async function consultarPagosVentaEnPeriodo(
   solicitante: UsuarioConRol,
   tenantId: string,

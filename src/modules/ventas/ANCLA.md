@@ -27,7 +27,9 @@
   `consultarIngresosPeriodo`, `consultarPagosVentaEnPeriodo`,
   `consultarAjustesVentaEnPeriodo` (agregados de solo lectura por período,
   agregados en Módulo 7 para que Financiero consuma Ventas sin importar
-  `ventas`/`detalles_venta` directo).
+  `ventas`/`detalles_venta` directo) + `consultarUnidadesVendidasPeriodo`
+  (roadmap ítem #13, agregado de solo lectura para Simulaciones —
+  "rotación" de un producto en un período).
 
 ## Estado actual
 - [x] Schema Drizzle (`clientes`, `canales_venta`, `metodos_pago`, `eventos`,
@@ -143,4 +145,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó agregados de período de solo lectura (`consultarIngresosPeriodo`/`consultarPagosVentaEnPeriodo`/`consultarAjustesVentaEnPeriodo`)
+## Última actualización: 2026-07-15 — roadmap ítem #13 (Simulaciones) agregó `consultarUnidadesVendidasPeriodo`

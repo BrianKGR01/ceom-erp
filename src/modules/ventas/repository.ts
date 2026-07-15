@@ -339,6 +339,34 @@ export async function sumarIngresosCostosPeriodo(
   return { ingresos: Number(ingresos), costos: Number(costos) };
 }
 
+/** Unidades vendidas (rotación) de un producto en un período — roadmap
+ * ítem #13 (Simulaciones): "rotación del último período" (sección 1.1 del
+ * Módulo 9), insumo de simularPrecio(). Por fecha_venta, mismo criterio de
+ * "base devengado" que sumarIngresosCostosPeriodo. */
+export async function sumarUnidadesVendidasPeriodo(
+  tenantId: string,
+  productoId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    eq(detallesVenta.productoId, productoId),
+    gte(ventas.fechaVenta, desde),
+    lte(ventas.fechaVenta, hasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
+
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${detallesVenta.cantidad}), 0)` })
+    .from(detallesVenta)
+    .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(...condiciones));
+
+  return Number(total);
+}
+
 /** Suma de Pago de Venta por fecha_pago — base caja. */
 export async function sumarPagosVentaPeriodo(
   tenantId: string,

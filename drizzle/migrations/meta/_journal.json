@@ -148,6 +148,13 @@
       "when": 1784110316577,
       "tag": "0020_proveedores_drop_item_id",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784118868026,
+      "tag": "0021_simulaciones",
+      "breakpoints": true
     }
   ]
 }

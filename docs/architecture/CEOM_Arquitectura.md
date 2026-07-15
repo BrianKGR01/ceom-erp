@@ -216,6 +216,7 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Gateway de Consentimiento | — | Monitoreo Institucional, Panel Admin CEOM |
 | Monitoreo Institucional (`src/modules/monitoreo-institucional/`) | Gateway (`tieneConsentimiento`, `listarCarteraPropia`), Identidad (`obtenerTenantParaVeedor`, `solicitanteGateway`), Financiero, Ventas, Operaciones (mediado por Gateway) | — |
 | Panel Admin CEOM (`src/modules/panel-admin-ceom/`) | Identidad (`listarTenants`, `obtenerTenantPorId`, bypass `ceom_admin` de `tienePermiso`), Gateway (`registrarAccesoAdminCeom`), Suscripción (`listarPlanes`), Financiero, Operaciones (acceso directo, no mediado por Gateway — regla 4.5 del Módulo 11) | — |
+| Simulaciones (`src/modules/simulaciones/`) | Ventas (`consultarUnidadesVendidasPeriodo`), Productos e Inventario (`consultarCostoOperativo`, `consultarPrecioVenta`, `listarProductos`), Financiero (`costoFijoTotal`, `calcularMargenPorcentaje` — pura, reutilizada) | — |
 | Reportes | Todos los módulos (solo lectura, agregación) | — |
 
 ---
