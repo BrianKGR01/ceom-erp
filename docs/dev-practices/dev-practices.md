@@ -187,6 +187,12 @@ Convención para cualquier script nuevo en esta carpeta:
   colgado.
 - Idempotente cuando sea razonable (ver `scripts/seed-admin.ts`: si el
   usuario ya existe, no hace nada en vez de fallar).
+- **Cargar el `.env.local` con `node --env-file=.env.local` en el comando de
+  `package.json`, nunca con `process.loadEnvFile()` dentro del script** —
+  los `import` estáticos se hoistean antes que cualquier código del cuerpo
+  del archivo, así que `src/db/client.ts` (que lee `DATABASE_URL` al
+  importarse) ya se evalúa con el env todavía vacío si `loadEnvFile()` se
+  llama después de los imports. Bug real encontrado durante esta tarea.
 
 ---
 

@@ -32,7 +32,13 @@ import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID } from "@/modules/identidad/const
 import * as identidadRepo from "@/modules/identidad/repository";
 import { usuarios } from "@/modules/identidad/schema";
 
-process.loadEnvFile(".env.local");
+// El env se carga con `node --env-file=.env.local` (ver "seed:admin" en
+// package.json), NO con `process.loadEnvFile()` acá abajo — los `import`
+// estáticos se hoistean antes que cualquier código del cuerpo del archivo,
+// así que para cuando `process.loadEnvFile()` correría, "@/db/client" ya se
+// habría evaluado con `process.env.DATABASE_URL` todavía vacío. Bug real
+// encontrado y corregido durante esta tarea — no volver a mover la carga de
+// env a código dentro del script.
 
 async function main() {
   const email = process.argv[2];
