@@ -414,3 +414,118 @@ export async function sumarAjustesVentaPeriodo(
 
   return Number(total);
 }
+
+// --- Agregados por periodo (Modulo_10 - Reportes, seccion 2.1) ---------------------------------------------------------
+// Reportes no tiene tablas propias — estas tres funciones son la unica
+// forma de que consuma "solo lectura" a Ventas sin importar sus tablas
+// directo (misma regla de caja negra que las de Financiero, arriba).
+
+/** ranking_productos(periodo, canal_venta_id?) — agrupado por producto,
+ * unidades e ingresos/costos para que actions.ts calcule el margen%. */
+export async function listarRankingProductos(
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { canalVentaId?: string } = {}
+): Promise<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    gte(ventas.fechaVenta, desde),
+    lte(ventas.fechaVenta, hasta),
+  ];
+  if (opts.canalVentaId) condiciones.push(eq(ventas.canalVentaId, opts.canalVentaId));
+
+  const filas = await db
+    .select({
+      productoId: detallesVenta.productoId,
+      unidadesVendidas: sql<string>`coalesce(sum(${detallesVenta.cantidad}), 0)`,
+      ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+    })
+    .from(detallesVenta)
+    .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(...condiciones))
+    .groupBy(detallesVenta.productoId);
+
+  return filas.map((f) => ({
+    productoId: f.productoId,
+    unidadesVendidas: Number(f.unidadesVendidas),
+    ingresos: Number(f.ingresos),
+    costos: Number(f.costos),
+  }));
+}
+
+/** historico_ventas(periodo, incluir_eventos) — una fila por Venta, con su
+ * monto total agregado desde Detalle de Venta (Venta no persiste un
+ * monto_total propio, mismo criterio que registrarPagoVenta). */
+export async function listarHistoricoVentas(
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { incluirEventos: boolean }
+): Promise<
+  Array<{
+    ventaId: string;
+    fechaVenta: Date;
+    canalVentaId: string;
+    eventoId: string | null;
+    montoTotal: number;
+  }>
+> {
+  const condiciones = [
+    eq(ventas.tenantId, tenantId),
+    gte(ventas.fechaVenta, desde),
+    lte(ventas.fechaVenta, hasta),
+  ];
+  if (!opts.incluirEventos) condiciones.push(isNull(ventas.eventoId));
+
+  const filas = await db
+    .select({
+      ventaId: ventas.id,
+      fechaVenta: ventas.fechaVenta,
+      canalVentaId: ventas.canalVentaId,
+      eventoId: ventas.eventoId,
+      montoTotal: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+    })
+    .from(ventas)
+    .innerJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(...condiciones))
+    .groupBy(ventas.id, ventas.fechaVenta, ventas.canalVentaId, ventas.eventoId)
+    .orderBy(asc(ventas.fechaVenta));
+
+  return filas.map((f) => ({ ...f, montoTotal: Number(f.montoTotal) }));
+}
+
+/** margen_por_canal_y_producto(periodo) — tabla cruzada canal x producto. */
+export async function listarMargenPorCanalYProducto(
+  tenantId: string,
+  desde: Date,
+  hasta: Date
+): Promise<
+  Array<{ canalVentaId: string; productoId: string; ingresos: number; costos: number }>
+> {
+  const filas = await db
+    .select({
+      canalVentaId: ventas.canalVentaId,
+      productoId: detallesVenta.productoId,
+      ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+    })
+    .from(detallesVenta)
+    .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
+    .where(
+      and(
+        eq(ventas.tenantId, tenantId),
+        gte(ventas.fechaVenta, desde),
+        lte(ventas.fechaVenta, hasta)
+      )
+    )
+    .groupBy(ventas.canalVentaId, detallesVenta.productoId);
+
+  return filas.map((f) => ({
+    canalVentaId: f.canalVentaId,
+    productoId: f.productoId,
+    ingresos: Number(f.ingresos),
+    costos: Number(f.costos),
+  }));
+}

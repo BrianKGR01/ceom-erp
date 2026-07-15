@@ -734,6 +734,80 @@ export async function consultarUnidadesVendidasPeriodo(
   return { ok: true, data: { unidadesVendidas } };
 }
 
+// --- Reportes (Modulo_10, seccion 2.1) ---------------------------------------------------------
+// Reportes no tiene tablas propias — estas tres funciones son la unica
+// forma de que consuma "solo lectura" a Ventas sin importar sus tablas
+// directo. Devuelven ingresos/costos crudos, NO margenPct calculado: Ventas
+// no puede importar calcularMargenPorcentaje() de Financiero sin crear un
+// ciclo (Financiero ya importa Ventas) — Reportes, que ya importa ambos
+// sin ciclo, es quien calcula el margen% final para mostrar. El criterio
+// "margen" de rankingProductos sí ordena por margen acá (ratio interno de
+// ordenamiento, no la formula de negocio reutilizable).
+
+export async function rankingProductos(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta,
+  opts: { canalVentaId?: string; criterio: "rotacion" | "margen" }
+): Promise<
+  Resultado<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const filas = await repo.listarRankingProductos(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    { canalVentaId: opts.canalVentaId }
+  );
+
+  const ordenadas = [...filas].sort((a, b) => {
+    if (opts.criterio === "rotacion") return b.unidadesVendidas - a.unidadesVendidas;
+    const margenA = a.ingresos !== 0 ? (a.ingresos - a.costos) / a.ingresos : -Infinity;
+    const margenB = b.ingresos !== 0 ? (b.ingresos - b.costos) / b.ingresos : -Infinity;
+    return margenB - margenA;
+  });
+
+  return { ok: true, data: ordenadas };
+}
+
+/** Separa ventas regulares de las de evento (regla ya fijada en este
+ * módulo: no distorsionar el histórico regular con volumen de feria). */
+export async function historicoVentas(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta,
+  opts: { incluirEventos: boolean }
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarHistoricoVentas>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const filas = await repo.listarHistoricoVentas(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta),
+    opts
+  );
+  return { ok: true, data: filas };
+}
+
+export async function margenPorCanalYProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: PeriodoConsulta
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarMargenPorCanalYProducto>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const filas = await repo.listarMargenPorCanalYProducto(
+    tenantId,
+    new Date(periodo.desde),
+    new Date(periodo.hasta)
+  );
+  return { ok: true, data: filas };
+}
+
 export async function consultarPagosVentaEnPeriodo(
   solicitante: UsuarioConRol,
   tenantId: string,

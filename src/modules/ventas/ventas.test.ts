@@ -23,8 +23,11 @@ import {
   crearCanalVenta,
   crearMetodoPago,
   fichaVenta,
+  historicoVentas,
   importarVentaHistorica,
   listarVentas,
+  margenPorCanalYProducto,
+  rankingProductos,
   registrarAjusteVenta,
   registrarPagoVenta,
   registrarVenta,
@@ -531,5 +534,173 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
       .update(tenants)
       .set({ estadoSuscripcion: "activa", fechaProximoPago: null })
       .where(eq(tenants.id, tenantId));
+  });
+
+  const periodoReportes = { desde: "2026-07-01", hasta: "2026-07-31" };
+
+  it("roadmap #14: rankingProductos ordena distinto por rotacion y por margen", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const altoMargen = await crearProducto(owner!, tenantId, {
+      nombre: "Alto margen, baja rotacion",
+      unidadVenta: "unidad",
+      precioVenta: 100,
+      costoOperativoVigente: 20,
+    });
+    if (!altoMargen.ok) throw new Error("setup fallo");
+    const bajoMargen = await crearProducto(owner!, tenantId, {
+      nombre: "Bajo margen, alta rotacion",
+      unidadVenta: "unidad",
+      precioVenta: 100,
+      costoOperativoVigente: 90,
+    });
+    if (!bajoMargen.ok) throw new Error("setup fallo");
+
+    for (const [productoId, cantidad] of [
+      [altoMargen.data.productoId, 1],
+      [bajoMargen.data.productoId, 5],
+    ] as const) {
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial",
+      });
+      await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-07-10",
+        lineas: [{ productoId, cantidad }],
+      });
+    }
+
+    // Otros tests de este archivo registran ventas con fechaVenta por
+    // defecto (hoy) que tambien caen en periodoReportes — se filtra a solo
+    // los dos productos de este test en vez de asumir la posicion [0] del
+    // ranking completo del tenant.
+    const posicion = (
+      datos: Array<{ productoId: string }>,
+      productoId: string
+    ) => datos.findIndex((f) => f.productoId === productoId);
+
+    const porRotacion = await rankingProductos(owner!, tenantId, periodoReportes, {
+      criterio: "rotacion",
+    });
+    expect(porRotacion.ok).toBe(true);
+    if (porRotacion.ok) {
+      expect(
+        posicion(porRotacion.data, bajoMargen.data.productoId)
+      ).toBeLessThan(posicion(porRotacion.data, altoMargen.data.productoId));
+    }
+
+    const porMargen = await rankingProductos(owner!, tenantId, periodoReportes, {
+      criterio: "margen",
+    });
+    expect(porMargen.ok).toBe(true);
+    if (porMargen.ok) {
+      expect(
+        posicion(porMargen.data, altoMargen.data.productoId)
+      ).toBeLessThan(posicion(porMargen.data, bajoMargen.data.productoId));
+    }
+  });
+
+  it("roadmap #14: historicoVentas separa ventas regulares de las de evento", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: "Producto historico",
+      unidadVenta: "unidad",
+      precioVenta: 10,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    const productoId = producto.data.productoId;
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 10,
+      motivo: "Carga inicial",
+    });
+
+    const ventaRegular = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      fechaVenta: "2026-07-15",
+      lineas: [{ productoId, cantidad: 1 }],
+    });
+    if (!ventaRegular.ok) throw new Error("setup fallo");
+
+    const evento = await abrirEvento(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      nombre: "Feria historico",
+      porcentajeComision: 15,
+      fechaInicio: "2026-07-16",
+      fechaFin: "2026-07-17",
+    });
+    if (!evento.ok) throw new Error("setup fallo");
+    const ventaEvento = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      eventoId: evento.data.eventoId,
+      fechaVenta: "2026-07-16",
+      lineas: [{ productoId, cantidad: 1 }],
+    });
+    if (!ventaEvento.ok) throw new Error("setup fallo");
+
+    const soloRegulares = await historicoVentas(owner!, tenantId, periodoReportes, {
+      incluirEventos: false,
+    });
+    expect(soloRegulares.ok).toBe(true);
+    if (soloRegulares.ok) {
+      const ids = soloRegulares.data.map((v) => v.ventaId);
+      expect(ids).toContain(ventaRegular.data.ventaId);
+      expect(ids).not.toContain(ventaEvento.data.ventaId);
+    }
+
+    const conEventos = await historicoVentas(owner!, tenantId, periodoReportes, {
+      incluirEventos: true,
+    });
+    expect(conEventos.ok).toBe(true);
+    if (conEventos.ok) {
+      const ids = conEventos.data.map((v) => v.ventaId);
+      expect(ids).toContain(ventaRegular.data.ventaId);
+      expect(ids).toContain(ventaEvento.data.ventaId);
+    }
+  });
+
+  it("roadmap #14: margenPorCanalYProducto cruza canal x producto", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: "Producto cruce canal",
+      unidadVenta: "unidad",
+      precioVenta: 50,
+      costoOperativoVigente: 30,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    const productoId = producto.data.productoId;
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 10,
+      motivo: "Carga inicial",
+    });
+    await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      fechaVenta: "2026-07-20",
+      lineas: [{ productoId, cantidad: 2 }],
+    });
+
+    const resultado = await margenPorCanalYProducto(owner!, tenantId, periodoReportes);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    const fila = resultado.data.find(
+      (f) => f.canalVentaId === canalVentaId && f.productoId === productoId
+    );
+    expect(fila).toBeDefined();
+    expect(fila?.ingresos).toBe(100);
+    expect(fila?.costos).toBe(60);
   });
 });

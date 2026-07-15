@@ -29,7 +29,11 @@
   agregados en Módulo 7 para que Financiero consuma Ventas sin importar
   `ventas`/`detalles_venta` directo) + `consultarUnidadesVendidasPeriodo`
   (roadmap ítem #13, agregado de solo lectura para Simulaciones —
-  "rotación" de un producto en un período).
+  "rotación" de un producto en un período) + `rankingProductos`,
+  `historicoVentas`, `margenPorCanalYProducto` (roadmap ítem #14, agregados
+  de solo lectura para Reportes — devuelven ingresos/costos crudos, **sin**
+  `margenPct` calculado, ver `reportes/ANCLA.md` sección "Decisiones" para
+  el motivo — evitar un ciclo de imports con Financiero).
 
 ## Estado actual
 - [x] Schema Drizzle (`clientes`, `canales_venta`, `metodos_pago`, `eventos`,
@@ -145,4 +149,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-15 — roadmap ítem #13 (Simulaciones) agregó `consultarUnidadesVendidasPeriodo`
+## Última actualización: 2026-07-15 — roadmap ítem #14 (Reportes) agregó `rankingProductos`/`historicoVentas`/`margenPorCanalYProducto`
