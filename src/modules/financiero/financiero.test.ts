@@ -208,7 +208,7 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       sucursalId,
       proveedorId: proveedor.data.proveedorId,
       tipo: "reventa",
-      itemId: "00000000-0000-0000-0000-0000000000aa",
+      productoId,
       cantidad: 10,
       montoTotal: 300,
       fechaCompra: "2026-06-10",

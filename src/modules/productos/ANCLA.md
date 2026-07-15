@@ -25,8 +25,9 @@
   `eliminarProducto`, `listarProductos`, `fichaProducto`,
   `configurarStockMinimo`) + entradas de ledger (`registrarEntradaProduccion`,
   `registrarEntradaCompraReventa`, `registrarAjusteManualStock`,
-  `descontarStockVenta`, `registrarTransferenciaStock`) + `signoMovimiento()`
-  pura, exportada.
+  `descontarStockVenta`, `registrarTransferenciaStock`) +
+  `consultarStockTotalPorSucursal` (roadmap ítem #12, agregado de solo
+  lectura para Nicho 4) + `signoMovimiento()` pura, exportada.
 
 ## Estado actual
 - [x] Schema Drizzle (`categorias_producto`, `categorias_sugeridas`,
@@ -82,14 +83,13 @@
       (devolución de stock, caso borde 2) respectivamente. Mismo gap de
       atomicidad cruzada documentado en `src/modules/ventas/ANCLA.md` que ya
       existía en Módulo 6.
-- [ ] `registrarEntradaCompraReventa` sigue **sin caller real** — Proveedores
-      no dispara el evento `compra_registrada` todavía. Mismo criterio que
-      quedó documentado en su propio `ANCLA.md`.
-- [ ] `compras.item_id` (Proveedores) **sigue sin FK** a `productos.id` —
-      decisión deliberada de esta tarea, no un olvido: un FK directo solo
-      cubriría `tipo = "reventa"`, no `tipo = "insumo"` (que apunta a Insumo,
-      Módulo 6, inexistente). Cerrar ese FK parcialmente se descartó por no
-      resolver el caso completo; se revisa cuando exista Módulo 6.
+- [x] `registrarEntradaCompraReventa` **ya tiene caller real (roadmap ítem
+      #12)** — `registrarCompra()`/`recibirCompra()` de Proveedores lo
+      llaman de verdad cuando una Compra `tipo="reventa"` llega a
+      `estado="recibido"`. Ver `proveedores/ANCLA.md`.
+- [x] `compras.item_id` (Proveedores) **ya tiene FK real** — reemplazado por
+      `insumoId`/`productoId` tipados (roadmap ítem #12), con CHECK
+      constraint que exige exactamente uno según `tipo`.
 - [ ] Categorías sugeridas: no hay set inicial cargado (el doc no lo exige
       para el MVP) — el catálogo queda vacío hasta que alguien con
       `ROL_CEOM_ADMIN_ID` cargue sugerencias.
@@ -138,4 +138,4 @@
   `20000`ms de timeout explícito — hacen varias transacciones secuenciales
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
-## Última actualización: 2026-07-14 — Módulo 3 (Ventas) conectó `descontarStockVenta`/`registrarAjusteManualStock` como callers reales (Fase 1)
+## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4): `registrarEntradaCompraReventa` con caller real, FK de `compras.item_id` cerrado, agregado `consultarStockTotalPorSucursal`

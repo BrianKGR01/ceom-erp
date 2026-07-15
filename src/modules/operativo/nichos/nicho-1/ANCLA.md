@@ -70,9 +70,10 @@
       expone `acreditacionProductos` (`{ok, error}`) para que el caller
       pueda detectarlo y reintentar a mano. Mismo criterio que el usuario
       huérfano de Supabase Auth en Identidad.
-- [ ] `registrarEntradaCompraInsumo` sigue sin caller real — Proveedores no
-      dispara el evento `compra_registrada` todavía (mismo gap que ya estaba
-      documentado en Proveedores/Módulo 2).
+- [x] `registrarEntradaCompraInsumo` **ya tiene caller real (roadmap ítem
+      #12)** — `registrarCompra()`/`recibirCompra()` de Proveedores lo
+      llaman de verdad cuando una Compra `tipo="insumo"` llega a
+      `estado="recibido"`. Ver `proveedores/ANCLA.md`.
 - [ ] `Movimiento de Insumo.costo_unitario_en_movimiento` para
       `entrada_ajuste_manual`/`salida_ajuste_manual`/`salida_merma_almacenamiento`
       usa `insumo.costo_unitario_vigente` (o `0` si nunca hubo compra) como
@@ -124,4 +125,16 @@
   Dos tests (insumo insuficiente y producción de ajuste) necesitan
   `20000`ms de timeout explícito por las mismas razones que en Módulo 2.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 6, roadmap ítem #6)
+- **Nicho 4 (roadmap ítem #12) ya existe** en
+  `src/modules/operativo/nichos/nicho-4/` — pero NO es un espejo completo:
+  no tiene Insumo/Receta/Producción (ese dominio no aplica, Nicho 4 no
+  produce, solo revende). La única función compartida es
+  `calcularPorcentajeCapacidadUsada()` (pura), que Nicho 4 importa
+  directamente desde acá en vez de duplicarla. La regla de "toda función
+  pública nueva debe existir aunque sea como stub en la otra
+  implementación" (sección 3 de `dev-practices.md`) no aplicó tal cual acá
+  porque el dominio de ambos nichos no tiene el mismo shape — decisión
+  confirmada explícitamente con el usuario antes de implementar Nicho 4, no
+  un desvío silencioso.
+
+## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4) conectó `registrarEntradaCompraInsumo` como caller real; Nicho 4 reutiliza `calcularPorcentajeCapacidadUsada()`

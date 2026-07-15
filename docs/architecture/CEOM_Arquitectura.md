@@ -207,7 +207,8 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Inventario Operativo | Proveedores/Compras, Operaciones | Operaciones |
 | Capacidad Operativa | Patrimonio | Operaciones |
 | Patrimonio / Activos | — | Capacidad Operativa |
-| Proveedores / Compras | — | Inventario Operativo, Productos e Inventario, Financiero |
+| Proveedores / Compras | Insumos (Nicho 1), Productos (Módulo 2) — FK real de `Compra.insumoId`/`productoId` | Inventario Operativo (`registrarEntradaCompraInsumo`), Productos e Inventario (`registrarEntradaCompraReventa`), Financiero — **caller real desde roadmap ítem #12**, no solo teórico |
+| Nicho 4 (`src/modules/operativo/nichos/nicho-4/`) | Patrimonio (`consultarCapacidad`), Productos e Inventario (`consultarStockTotalPorSucursal`), Operativo Nicho 1 (`calcularPorcentajeCapacidadUsada`, pura) | — |
 | Ventas | Productos e Inventario | Clientes, Costos y Gastos (comisión automática), Financiero |
 | Clientes | Ventas (evento) | — |
 | Egresos y Gastos | Proveedores (opcional, ficha) | Financiero |

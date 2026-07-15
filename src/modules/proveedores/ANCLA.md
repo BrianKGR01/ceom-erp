@@ -6,22 +6,20 @@
   negocio le compra a terceros (insumo o reventa directa).
 - NO hace: no decide el costo operativo de un producto terminado (eso es
   el Módulo Operativo de Nicho). No es un gasto operativo (Costos y
-  Gastos, Módulo 4) ni un costo de venta (Ventas/Financiero vía COGS). No
-  dispara el evento `compra_registrada` hacia Inventario Operativo/
-  Productos e Inventario/Financiero — ninguno de esos módulos existe
-  todavía, así que nadie lo consume; el dato queda listo en `compras`
-  para cuando se construyan. Landed Cost y Órdenes de Compra formales
-  quedan explícitamente fuera (funcionalidad futura de Nicho 4, sección 6
-  del propio módulo — hay una "dirección de diseño" esbozada ahí, no una
-  implementación).
+  Gastos, Módulo 4) ni un costo de venta (Ventas/Financiero vía COGS).
 - Entradas que consume: `tienePermiso()` de `identidad/actions.ts` (gate
   real por `"proveedores"` × acción). `tenants`/`sucursales` de
   `identidad/schema.ts` para las FK de `tenant_id`/`sucursal_id` (patrón
-  esperado).
+  esperado). `insumos` (Módulo 6) y `productos` (Módulo 2) para las FK
+  reales de `insumoId`/`productoId` (roadmap ítem #12, ver abajo).
+  `registrarEntradaCompraReventa()` (Módulo 2) y
+  `registrarEntradaCompraInsumo()` (Operativo Nicho 1) — caja negra vía
+  `actions.ts`, disparadas al recibir una Compra.
 - Salidas que expone (`actions.ts`): `crearProveedor`, `actualizarProveedor`,
   `eliminarProveedor`, `listarProveedores`, `fichaProveedor`,
   `registrarCompra` (+ `calcularCostoUnitario()` pura, exportada),
-  `historialPrecio`, `registrarPagoCompra`, `registrarCompraDeAjuste`,
+  **`recibirCompra`** (nueva, roadmap ítem #12), `historialPrecio`,
+  `registrarPagoCompra`, `registrarCompraDeAjuste`,
   `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período,
   agregado en Módulo 7 para que Financiero consuma Proveedores sin
   importar `compras`/`pagos_compra` directo).
@@ -41,15 +39,40 @@
       pendiente→parcial→pagado dentro de `registrarPagoCompra`.
 - [x] Tests: `costo-unitario.test.ts` (puro) + `proveedores.test.ts`
       (integración contra Supabase Cloud real).
-- [ ] `item_id` sin FK — decisión deliberada, no un olvido: Módulo 2
-      (Productos) ya existe, pero un FK directo a `productos.id` solo
-      cubriría `tipo = "reventa"`, no `tipo = "insumo"` (que sigue
-      apuntando a Insumo, Módulo 6, inexistente). Se revisa cuando exista
-      Módulo 6 — ver `src/modules/productos/ANCLA.md`.
-- [ ] Evento `compra_registrada` no se dispara a ningún lado — nadie lo
-      consume aún.
-- [ ] Landed Cost / Órdenes de Compra formales (Nicho 4) — fuera de
-      alcance, ver sección 6 del documento del módulo.
+- [x] **`item_id` sin FK — cerrado (roadmap ítem #12).** Reemplazado por
+      `insumoId`/`productoId` tipados (FK real a `insumos.id`/
+      `productos.id`), exactamente uno según `tipo`, reforzado por un CHECK
+      constraint en la base (no solo en `actions.ts`). Migraciones `0019`
+      (columnas nuevas) + `0020` (drop de `item_id`) — separadas en dos
+      pasadas porque drizzle-kit pide confirmación interactiva de
+      rename/drop+add sin TTY disponible.
+- [x] **Landed Cost simple — cerrado (roadmap ítem #12).** Campo opcional
+      `costoAdicionalTraslado` en `Compra`; `calcularCostoUnitario()` ahora
+      es `(montoTotal + costoAdicionalTraslado) / cantidad`. Dirección de
+      diseño ya propuesta en la sección 6 del propio módulo, ahora
+      implementada tal cual (sin calculadora aparte, el usuario solo
+      contesta "¿tuviste algún costo extra de flete/transporte?").
+- [x] **Orden de Compra como estado — cerrado (roadmap ítem #12).** `Compra`
+      gana `estado` (`pedido`/`recibido`, default `recibido` — preserva el
+      comportamiento histórico de quien no usa este flujo) y
+      `fechaRecepcion`. No es una entidad nueva — mismo criterio ya
+      propuesto en la sección 6: un único concepto ("Compra") con un
+      estado de más. `recibirCompra()` transiciona `pedido → recibido`.
+- [x] **Evento `compra_registrada` — cerrado (roadmap ítem #12).** Al
+      transicionar (o nacer) `estado="recibido"`, `registrarCompra()`/
+      `recibirCompra()` disparan de verdad `registrarEntradaCompraReventa()`
+      (Módulo 2, `tipo="reventa"`) o `registrarEntradaCompraInsumo()`
+      (Operativo Nicho 1, `tipo="insumo"`) — cierra el pendiente
+      documentado en 3 `ANCLA.md` distintos (este, Módulo 2, Nicho 1).
+      Mismo criterio de "gap de atomicidad cruzada aceptado a propósito"
+      que Ventas/Producción: si esa llamada falla, la Compra ya quedó
+      `recibido` igual; el resultado expone `entradaStock: {ok, error}`
+      para reintentar a mano.
+- [ ] Landed Cost / Órdenes de Compra formales, versión completa (multi-
+      línea, un solo pedido con varios ítems) — lo implementado es la
+      versión "simple" ya propuesta (una Compra = un ítem = un pedido). Si
+      Nicho 4 necesita pedidos multi-ítem más adelante, es una extensión
+      nueva, no un bug de esta.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/proveedores/schema.ts`
@@ -59,7 +82,9 @@
   `src/modules/proveedores/proveedores.test.ts`
 - Migraciones relevantes: `drizzle/migrations/0010` (solo
   `ALTER TYPE modulo_permiso ADD VALUE 'proveedores'`, aislada a
-  propósito), `0011` (tablas + RLS de este módulo).
+  propósito), `0011` (tablas + RLS de este módulo), `0019` (roadmap #12:
+  `estado`, `costoAdicionalTraslado`, `fechaRecepcion`, `insumoId`/
+  `productoId` nuevos + CHECK), `0020` (drop de `item_id`).
 
 ## Decisiones tomadas que un agente no debe revertir
 - **`"proveedores"` se agregó al enum `modulo_permiso`** (antes solo
@@ -90,5 +115,22 @@
   Supabase Cloud real, `describe.skipIf` sin credenciales, limpieza
   explícita en `afterAll` (orden: `compras_ajuste`/`pagos_compra` antes
   que `compras`, por las FK).
+- **`insumoId`/`productoId` importan las tablas `insumos`
+  (`../operativo/nichos/nicho-1/schema`) y `productos`
+  (`../productos/schema`) directo en `schema.ts`** — mismo patrón ya usado
+  por `patrimonio/schema.ts` importando `proveedores` para
+  `activos.proveedorId` (migración `0016`), no es una excepción nueva a la
+  caja negra.
+- **`dispararEntradaStock()` (interno, no exportado) es el único lugar que
+  decide "reventa → Módulo 2, insumo → Nicho 1"** — tanto
+  `registrarCompra()` (cuando nace `recibido`) como `recibirCompra()`
+  (cuando transiciona) lo reutilizan, no hay dos copias de esa lógica.
+- **`registrarCompra()` valida `insumoId` xor `productoId` según `tipo` en
+  `actions.ts`**, no solo confiando en el CHECK de la base — mismo criterio
+  que la validación de `motivo` en Compra de Ajuste (mensaje de error claro
+  antes de tocar la base).
+- `vi.setConfig({ testTimeout: 20000 })` agregado a `proveedores.test.ts`
+  (no lo tenía antes) — `registrarCompra`/`recibirCompra` ahora encadenan
+  una llamada cross-módulo real, igual motivo que Módulo 3/4/7.
 
-## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período)
+## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4): Landed Cost simple, Orden de Compra como estado, FK real de insumo/producto, evento compra_registrada real

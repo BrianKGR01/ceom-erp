@@ -337,6 +337,22 @@ export async function consultarStock(
   return { ok: true, data: { cantidadActual, stockMinimo, bajoStockMinimo } };
 }
 
+/** Suma cantidad_actual de TODOS los productos del tenant en una sucursal —
+ * roadmap item #12 (Nicho 4): a diferencia de consultarStock (un producto
+ * puntual), esto es el insumo que necesita consultarCapacidadAlmacenamiento-
+ * Usada de Nicho 4 para comparar contra la capacidad de un Activo. */
+export async function consultarStockTotalPorSucursal(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string
+): Promise<Resultado<{ stockTotal: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "inventario", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+  }
+  const stockTotal = await repo.sumarStockPorSucursal(tenantId, sucursalId);
+  return { ok: true, data: { stockTotal } };
+}
+
 /** Configura el umbral de alerta (Modulo_02 seccion 5) — no crea movimiento,
  * no toca cantidad_actual, solo el umbral con el que se compara. */
 export async function configurarStockMinimo(

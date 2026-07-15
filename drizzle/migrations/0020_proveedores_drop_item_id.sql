@@ -1,0 +1,1 @@
+ALTER TABLE "compras" DROP COLUMN "item_id";

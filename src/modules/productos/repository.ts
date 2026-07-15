@@ -172,6 +172,28 @@ export async function obtenerStock(productoId: string, sucursalId: string) {
   return filas[0] ?? null;
 }
 
+/** Suma cantidad_actual de TODOS los productos del tenant en una sucursal —
+ * roadmap item #12 (Nicho 4): insumo para consultarCapacidadAlmacenamiento-
+ * Usada, que no tiene el historial de Producciones que usa Nicho 1 para
+ * derivar el mismo dato. */
+export async function sumarStockPorSucursal(
+  tenantId: string,
+  sucursalId: string
+): Promise<number> {
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${stock.cantidadActual}), 0)` })
+    .from(stock)
+    .innerJoin(productos, eq(stock.productoId, productos.id))
+    .where(
+      and(
+        eq(productos.tenantId, tenantId),
+        eq(stock.sucursalId, sucursalId),
+        isNull(productos.eliminadoEn)
+      )
+    );
+  return Number(total);
+}
+
 /** Suma de stock de un producto en todas sus sucursales — usada por el caso
  * borde 1 (advertencia al eliminar un producto con stock positivo). */
 export async function obtenerStockTotalProducto(productoId: string) {

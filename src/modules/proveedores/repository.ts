@@ -86,19 +86,33 @@ export async function obtenerCompraPorId(compraId: string) {
   return filas[0] ?? null;
 }
 
-/** historial_precio(item_id) — Modulo_08 seccion 2, ordenado por fecha. */
-export async function listarComprasPorItem(tenantId: string, itemId: string) {
+/** historial_precio(item_id) — Modulo_08 seccion 2, ordenado por fecha.
+ * "item" es insumo o producto segun tipo (roadmap item #12) — exactamente
+ * uno de los dos filtros aplica por llamada. */
+export async function listarComprasPorItem(
+  tenantId: string,
+  item: { insumoId: string } | { productoId: string }
+) {
+  const filtroItem =
+    "insumoId" in item
+      ? eq(compras.insumoId, item.insumoId)
+      : eq(compras.productoId, item.productoId);
   return db
     .select()
     .from(compras)
-    .where(
-      and(
-        eq(compras.tenantId, tenantId),
-        eq(compras.itemId, itemId),
-        isNull(compras.eliminadoEn)
-      )
-    )
+    .where(and(eq(compras.tenantId, tenantId), filtroItem, isNull(compras.eliminadoEn)))
     .orderBy(asc(compras.fechaCompra));
+}
+
+/** Transiciona una Compra de "pedido" a "recibido" (roadmap item #12,
+ * Modulo_08 seccion 6 — Orden de Compra como estado, no entidad nueva). */
+export async function marcarCompraRecibida(compraId: string, fechaRecepcion: string) {
+  const [compra] = await db
+    .update(compras)
+    .set({ estado: "recibido", fechaRecepcion })
+    .where(eq(compras.id, compraId))
+    .returning();
+  return compra;
 }
 
 // --- Pagos de Compra ---------------------------------------------------------

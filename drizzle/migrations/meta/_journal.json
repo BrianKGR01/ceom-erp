@@ -134,6 +134,20 @@
       "when": 1784061883934,
       "tag": "0018_premium_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784110279262,
+      "tag": "0019_proveedores_nicho4_landed_cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784110316577,
+      "tag": "0020_proveedores_drop_item_id",
+      "breakpoints": true
     }
   ]
 }
