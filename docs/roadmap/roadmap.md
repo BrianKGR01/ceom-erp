@@ -48,7 +48,7 @@ Orden de construcción, basado en la matriz de dependencias de `CEOM_Arquitectur
 
 **Criterio de salida de la Fase 1:** los 14 puntos anteriores en `[x]`, con sus tests pasando y sus `ANCLA.md` al día. **Estado real (2026-07-16): 14 de 14 en `[x]`** — backend + tests completos en los 14, y el ítem #1 (Identidad) cerró también sus pantallas de onboarding (ver arriba). **Fase 1 cerrada.**
 
-**Construcción de UI (no es una fase numerada aparte — vive dentro/después de esta Fase 1):** el inventario completo de pantallas, con seguimiento de cuáles están construidas y el orden sugerido para las que faltan, vive en `docs/ui/pantallas.md`. Resumen: el "camino dorado" (Login → Onboarding → Catálogo → Punto de Venta → Dashboard) está 4/5 construido; falta el Dashboard/Resumen Ejecutivo (Módulo 14) para cerrarlo. Las ~97 pantallas/modales restantes (de 116 trackeados) se construyen por tandas, cada una con referencia visual del usuario antes de implementar — ver la sección "Próxima tanda sugerida" de ese documento.
+**Construcción de UI (no es una fase numerada aparte — vive dentro/después de esta Fase 1):** el inventario completo de pantallas, con seguimiento de cuáles están construidas y el orden sugerido para las que faltan, vive en `docs/ui/pantallas.md`. Resumen: el "camino dorado" (Login → Onboarding → Catálogo → Punto de Venta → Dashboard) está **5/5 construido y cerrado** — el MVP es navegable de punta a punta con datos reales (`pnpm seed:demo`). Las ~96 pantallas/modales restantes (de 116 trackeados) se construyen por tandas, cada una con referencia visual del usuario antes de implementar — ver la sección "Próxima tanda sugerida" de ese documento.
 
 ---
 

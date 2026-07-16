@@ -5,20 +5,27 @@ import Link from "next/link";
 import { Package, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { DashboardResumen } from "./dashboard-resumen";
+import type { DatosDashboard } from "./inicio-actions";
 
 // "Sub-onboarding" de la pantalla de Inicio: mientras el tenant no tenga
-// ni un producto cargado, se prioriza esta guía sobre el dashboard real
-// (que todavía no existe, Modulo 14). Se apaga solo con el primer
-// producto — esa regla manda siempre sobre el cierre manual (localStorage,
-// solo preferencia de UI, no dato de negocio).
+// ni un producto cargado, se prioriza esta guía sobre el Dashboard real.
+// Se apaga solo con el primer producto — esa regla manda siempre sobre el
+// cierre manual (localStorage, solo preferencia de UI, no dato de
+// negocio). En cuanto se apaga (por producto o a mano), se muestra el
+// Dashboard real (Modulo 14, Sección A).
 export function InicioContenido({
   tenantId,
   nombreNegocio,
   tieneProductos,
+  sucursales,
+  datosIniciales,
 }: {
   tenantId: string;
   nombreNegocio: string;
   tieneProductos: boolean;
+  sucursales: { id: string; nombre: string }[];
+  datosIniciales: DatosDashboard;
 }) {
   const storageKey = `ceom_checklist_cerrado_${tenantId}`;
   const [cerradoManualmente, setCerradoManualmente] = useState(true);
@@ -38,10 +45,10 @@ export function InicioContenido({
 
   if (!mostrarChecklist) {
     return (
-      <PageHeader
-        title={`¡Hola, ${nombreNegocio}!`}
-        description="Acá vas a ver el resumen de tu negocio — todavía lo estamos construyendo."
-      />
+      <div className="space-y-6">
+        <PageHeader title={`¡Hola, ${nombreNegocio}!`} description="Así viene tu negocio en este período." />
+        <DashboardResumen sucursales={sucursales} datosIniciales={datosIniciales} />
+      </div>
     );
   }
 

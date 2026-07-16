@@ -48,7 +48,20 @@
       alcance, documentado, no silencioso. Queda para cuando se aborde la
       fase de UI (co-branding negocio + marca discreta de CEOM, mismo
       layout que pantalla, ya investigado y confirmado en el doc).
-- [ ] Sin UI — 100% `actions.ts`, sin pantallas.
+- [x] **Primera UI real** (`src/app/app/(shell)/dashboard-resumen.tsx` +
+      `inicio-actions.ts`, pantalla de Inicio): Sección A completa del
+      Dashboard (Resumen del período, Flujo de Caja, Productos más
+      vendidos, Gastos por categoría, Merma) — cierra el "camino dorado"
+      del MVP (`docs/ui/pantallas.md`). Sección B (Reportes Detallados)
+      sigue sin construir.
+- ⚠️ **Limitación real de filtro conocida**: el selector de sucursal del
+  Dashboard solo filtra `resumenPeriodo`/`flujoCaja` (que sí aceptan
+  `sucursalId` opcional) — `rankingProductos`, `distribucionGastos` y
+  `controlMerma` no reciben `sucursalId` en su firma, así que esas 3
+  tarjetas siempre muestran el consolidado del tenant sin importar la
+  sucursal elegida. No es un bug de la UI, es la firma real de estas 3
+  funciones — si se quiere resolver, es un cambio de contrato acá (y en
+  Ventas/Gastos/Nicho 1), no en la pantalla.
 
 ## Cambio de contrato en Ventas
 - **Ventas** (`src/modules/ventas/actions.ts`): `rankingProductos`,
@@ -84,4 +97,4 @@
   real (rol `postgres`, bypassea RLS), mismo criterio que los demás
   módulos.
 
-## Última actualización: 2026-07-15 — implementación inicial (Fase 1, roadmap ítem #14 — cierra Fase 1)
+## Última actualización: 2026-07-16 — primera UI real (Dashboard, Sección A) — cierra el camino dorado del MVP; sin cambio de contrato de `actions.ts`

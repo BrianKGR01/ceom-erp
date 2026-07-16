@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-16)
 
-**16 construidas · 3 parciales · 97 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**17 construidas · 3 parciales · 96 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -43,35 +43,31 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | 11. Monitoreo Institucional + Panel Admin | 0 | 0 | 10 | 10 |
 | 12. Nicho 4 | 0 | 0 | 1 | 1 |
 | 13. Simulaciones | 0 | 0 | 5 | 5 |
-| 14. Reportes y Dashboard | 0 | 0 | 9 | 9 |
+| **14. Reportes y Dashboard** | **1** | 0 | 8 | 9 |
 
-**Camino dorado (sección "Resumen" al final de este doc): 4 de 5 completo.** Login, Onboarding,
-Catálogo y Punto de Venta ya están construidos y verificados end-to-end con datos reales
-(`owner@ceom.local`, ver `pnpm seed:demo`). Falta el punto #5: **Dashboard / Resumen Ejecutivo**
-(Módulo 14) — es la próxima tanda recomendada, ver sección "Próxima tanda sugerida" más abajo.
+**Camino dorado (sección "Resumen" al final de este doc): 5 de 5 completo.** Login, Onboarding,
+Catálogo, Punto de Venta y ahora Dashboard/Resumen Ejecutivo ya están construidos y verificados
+end-to-end con datos reales (`owner@ceom.local`, ver `pnpm seed:demo`). **El MVP navegable de
+punta a punta está cerrado.**
 
 ### Próxima tanda sugerida
 
-1. **Dashboard / Resumen Ejecutivo (Módulo 14, Sección A)** — cierra el camino dorado completo.
-   Pantallas necesarias: Resumen del Período, Flujo de Caja (widget), Ranking de Productos,
-   Distribución de Gastos por Categoría, Control de Merma. Con solo Ventas y Productos cargados
-   (que ya tenemos con datos de prueba), Financiero/Ranking van a tener datos reales para mostrar;
-   Gastos y Merma van a verse en 0 hasta que existan esos módulos — hay que decidir si mockeamos
-   esas 2 tarjetas en 0 real (correcto, no hay gastos todavía) o las posponemos a la tanda de
-   Gastos. Mandá referencia de esta pantalla cuando quieras arrancarla.
-2. **Gestión de Clientes / Canales de Venta / Métodos de Pago** (completar lo `[~]` de Ventas) —
+1. **Gestión de Clientes / Canales de Venta / Métodos de Pago** (completar lo `[~]` de Ventas) —
    son pantallas chicas (CRUD simple, mismo patrón que "Gestionar categorías" de Catálogo), buen
-   candidato para una tanda corta antes de saltar a un módulo nuevo.
-3. **Patrimonio (Activos/Pasivos)** — el próximo módulo de negocio completo sin ninguna pantalla
+   candidato para una tanda corta.
+2. **Patrimonio (Activos/Pasivos)** — el próximo módulo de negocio completo sin ninguna pantalla
    todavía. Requiere primero cerrar 2 gaps chicos de backend (`listarActivos`/`listarPasivos`
    existen en `repository.ts`, falta el wrapper en `actions.ts` — mismo tipo de gap que ya
    resolvimos varias veces).
-4. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
+3. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
    Compra de Nicho 4.
-5. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
-   `proveedorId`, aunque no es un bloqueo estricto.
-6. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro;
-   tiene sentido después de que el "camino dorado" esté cerrado.
+4. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
+   `proveedorId`, aunque no es un bloqueo estricto. Poblar datos de Gastos también dejaría de
+   mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
+5. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
+6. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+   Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
+   reportes detallados" que se omitió del Dashboard por no tener destino todavía.
 7. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
@@ -637,18 +633,22 @@ Todas las pantallas en `/app`, gateadas por permiso `"simulaciones"`.
 
 ## 14. Reportes y Dashboard
 
-Cero tablas propias, cero lógica de negocio propia — es composición de funciones ya expuestas por Ventas, Financiero, Gastos y Operativo. **Es el punto de entrada por defecto de `/app` al iniciar sesión — hoy es un placeholder** ("Acá vas a ver el resumen de tu negocio — todavía lo estamos construyendo", en `src/app/app/(shell)/inicio-contenido.tsx`), sin ninguna de las pantallas de abajo construida. **Próxima tanda recomendada, ver arriba.**
+Cero tablas propias, cero lógica de negocio propia — es composición de funciones ya expuestas por Ventas, Financiero, Gastos y Operativo. **Es el punto de entrada por defecto de `/app` al iniciar sesión — Sección A ya construida** (`src/app/app/(shell)/dashboard-resumen.tsx` + `inicio-actions.ts`), reemplaza el placeholder anterior en cuanto el checklist de sub-onboarding se apaga.
 
-Estructura propuesta: **una sola pantalla con 2 secciones**, no 8 pantallas separadas.
+Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas separadas (tal como estaba propuesto).
 
-**Filtro global:** selector de período + sucursal opcional/consolidado (aplica a `resumenPeriodo`, `estadoResultados`, `flujoCaja`; el resto de las vistas no tiene ese filtro en su firma actual).
+**Filtro global implementado:** selector de período (4 presets calculados en cliente: Hoy/Últimos 7 días/Este mes/Este año — sin backend de rangos custom) + sucursal opcional/consolidado. Confirmado en la implementación: el filtro de sucursal solo afecta `resumenPeriodo`/`flujoCaja` — `rankingProductos`/`distribucionGastos`/`controlMerma` no reciben `sucursalId` en su firma real (limitación de backend, no de la pantalla — ver `reportes/ANCLA.md`).
 
-### Sección A — Resumen Ejecutivo (visible al entrar, sin acción del usuario)
-1. **Resumen del Período** `[ ]` (card destacada) — `estadoResultados`, `ingresos`, `costos`, `gastos`, `ajustesVenta`. Acción: `resumenPeriodo` (delega en Financiero). Rol: `financiero` × `ver`.
-2. **Flujo de Caja** `[ ]` (card junto al resumen) — `flujoCaja`, `pagosVenta`, `pagosCompra`, `pagosGasto`. Acción: `flujoCaja`. Rol: `financiero` × `ver`.
-3. **Ranking de Productos** `[ ]` (top N, toggle rotación/margen) — `productoId`, `unidadesVendidas`, `ingresos`, `costos`, `margenPct` (calculado en Reportes, no en Ventas, para evitar un ciclo de imports). Acción: `rankingProductos`. Rol: `ventas` × `ver`.
-4. **Distribución de Gastos por Categoría** `[ ]` (torta/dona) — `categoriaId`, `total`. Acción: `distribucionGastos`. Rol: `costos_gastos` × `ver`.
-5. **Control de Merma** `[ ]` (card chica — 0 naturalmente en tenants sin producción, no error) — `mermaCostoTotal`. Acción: `controlMerma` (delega en Nicho 1). Rol: `operativo` × `ver`.
+**Gráficas nuevas agregadas sobre lo documentado** (paleta categórica validada con la skill de dataviz, primera vez que la app necesita una — ver `dashboard-resumen.tsx`): barras horizontales Ingresos/Costos/Gastos en Resumen del Período, barra de 2 segmentos Entradas/Salidas en Flujo de Caja, barras por fila en Productos más vendidos, dona SVG en Gastos por categoría (sin librería, no hay ninguna instalada).
+
+**Desviación:** sin botón "Ver reportes detallados" — la Sección B (abajo) no tiene ninguna pantalla construida todavía, no se linkea a algo que no existe.
+
+### Sección A — Resumen Ejecutivo (visible al entrar, sin acción del usuario) — `[x]` construida completa
+1. **Resumen del Período** `[x]` (card destacada) — `estadoResultados`, `ingresos`, `costos`, `gastos`, `ajustesVenta`. Agrega delta real "% vs período anterior" (fetch adicional del período equivalente inmediatamente anterior). Acción: `resumenPeriodo` (delega en Financiero). Rol: `financiero` × `ver`.
+2. **Flujo de Caja** `[x]` (card junto al resumen) — `flujoCaja`, `pagosVenta`, `pagosCompra`, `pagosGasto` (Salidas = `pagosCompra + pagosGasto` combinados, la referencia visual solo mostraba 2 líneas). Acción: `flujoCaja`. Rol: `financiero` × `ver`.
+3. **Ranking de Productos** `[x]` (top 5, toggle rotación/margen — ambos criterios se pre-cargan juntos, el toggle es instantáneo sin round-trip nuevo) — `productoId`, `unidadesVendidas`, `ingresos`, `costos`, `margenPct`. Acción: `rankingProductos`. Rol: `ventas` × `ver`.
+4. **Distribución de Gastos por Categoría** `[x]` (dona) — `categoriaId`, `total`. Estado vacío real implementado (tenant sin Gastos construido/cargado todavía). Acción: `distribucionGastos`. Rol: `costos_gastos` × `ver`.
+5. **Control de Merma** `[x]` (card chica — 0 naturalmente en tenants sin producción, no error; texto distingue "0 real" de "hay merma, dentro del margen") — `mermaCostoTotal`, % contra `costos` del mismo período (derivado en la pantalla). Acción: `controlMerma` (delega en Nicho 1). Rol: `operativo` × `ver`.
 
 ### Sección B — Reportes Detallados (tab aparte, el usuario la abre a propósito, con sus propios filtros)
 6. **Estado de Resultados** `[ ]` (vista formal, mismos campos que el widget 1). Acción: `estadoResultados`.
@@ -672,16 +672,16 @@ Estructura propuesta: **una sola pantalla con 2 secciones**, no 8 pantallas sepa
 - `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs.
 - `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle.
 
-### Las 5 pantallas más urgentes (flujo navegable de punta a punta) — **4 de 5 construidas**
+### Las 5 pantallas más urgentes (flujo navegable de punta a punta) — **5 de 5 construidas ✅**
 En este orden, porque cada una depende de la anterior para tener sentido:
 
 1. **Login** `[x]` (con el redirect por rol resuelto) — bloqueante para absolutamente todo lo demás.
 2. **Onboarding mínimo del Owner** `[x]` (Configurar negocio + Elegir rubro/nicho + checklist) — construido completo, gap de backend original ya cerrado.
 3. **Catálogo + Ficha + Alta de Producto** `[x]` (Módulo 5) — construido completo, incluida gestión de categorías.
 4. **Punto de Venta + Listado + Ficha de Venta** `[x]` (Módulo 7) — construido completo (el corazón del producto).
-5. **Dashboard / Resumen Ejecutivo** `[ ]` (Módulo 14) — para cerrar el loop y ver el impacto de lo anterior. **Única pantalla que falta para completar el camino dorado.**
+5. **Dashboard / Resumen Ejecutivo** `[x]` (Módulo 14, Sección A) — construido completo, cierra el loop.
 
-Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un producto, venderlo, y ver el resultado — el "camino dorado" mínimo del producto. Hay datos de prueba reales para verificarlo (`pnpm seed:demo`, tenant `owner@ceom.local`).
+Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un producto, venderlo, y ver el resultado — el "camino dorado" mínimo del producto **ya está cerrado de punta a punta**. Verificado con datos de prueba reales (`pnpm seed:demo`, tenant `owner@ceom.local`).
 
 ### Lo que puede esperar
 - Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Nicho 4, Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.

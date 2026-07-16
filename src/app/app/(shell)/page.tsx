@@ -1,22 +1,31 @@
 import { redirect } from "next/navigation";
-import { obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import { listarSucursalesPorTenant, obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarProductos } from "@/modules/productos/actions";
+import { construirDashboard } from "./inicio-actions";
 import { InicioContenido } from "./inicio-contenido";
+import { calcularRangoPreset } from "./periodo-presets";
 
-// Inicio de /app — mientras no exista el Dashboard real (Resumen
-// Ejecutivo, Modulo 14), esta pantalla prioriza guiar al Owner a cargar su
-// primer producto (unico paso real y disponible hoy — Proveedores y
-// Patrimonio todavia no tienen pantalla propia, no se linkean acá).
+// Inicio de /app — checklist de sub-onboarding mientras el tenant no
+// tiene productos (o hasta que se cierre a mano), Dashboard real
+// (Modulo 14) apenas eso pasa. Los datos del Dashboard se resuelven acá
+// (server-side, periodo "Este mes" por defecto) para que la primera
+// carga no tenga flash de loading — el cierre manual del checklist vive
+// en localStorage, el server no lo puede saber, así que siempre se
+// calculan (si el tenant no tiene datos, simplemente da 0/vacío, barato).
 export default async function AppHomePage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [productosResultado, tenantResultado] = await Promise.all([
+  const [productosResultado, tenantResultado, sucursalesResultado] = await Promise.all([
     listarProductos(usuario, usuario.tenantId),
     obtenerTenantPorId(usuario, usuario.tenantId),
+    listarSucursalesPorTenant(usuario, usuario.tenantId),
   ]);
   const tieneProductos = productosResultado.ok && productosResultado.data.length > 0;
   const nombreNegocio = tenantResultado.ok ? tenantResultado.data.nombreNegocio : usuario.nombreCompleto;
+  const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
+
+  const datosIniciales = await construirDashboard(usuario, calcularRangoPreset("mes"));
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
@@ -25,6 +34,8 @@ export default async function AppHomePage() {
           tenantId={usuario.tenantId}
           nombreNegocio={nombreNegocio}
           tieneProductos={tieneProductos}
+          sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
+          datosIniciales={datosIniciales}
         />
       </div>
     </div>
