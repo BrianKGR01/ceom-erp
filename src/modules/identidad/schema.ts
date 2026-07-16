@@ -97,6 +97,12 @@ export const tenants = pgTable("tenants", {
   // null = Modo Basico (Modulo_01 seccion 5)
   nichoId: nichoEnum("nicho_id"),
   nichoAsignadoEn: timestamp("nicho_asignado_en", { withTimezone: true }),
+  // Senal real de "termino el asistente de Onboarding" — independiente de
+  // nicho_id, que se queda en null tanto si nunca paso por onboarding como
+  // si eligio explicitamente Modo Basico (Modulo_01 seccion 5). Sin este
+  // campo no hay forma de distinguir esos dos casos para forzar el redirect
+  // solo la primera vez.
+  onboardingCompletadoEn: timestamp("onboarding_completado_en", { withTimezone: true }),
   planId: uuid("plan_id").references(() => planes.id),
   estadoSuscripcion: estadoSuscripcionEnum("estado_suscripcion")
     .notNull()

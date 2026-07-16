@@ -1,6 +1,11 @@
 "use server";
 
-import { asignarNicho, actualizarTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  asignarNicho,
+  actualizarTenant,
+  completarOnboarding,
+  obtenerUsuarioActual,
+} from "@/modules/identidad/actions";
 import { actualizarTenantSchema, asignarNichoSchema } from "@/modules/identidad/validation";
 
 export type ResultadoAccion = { ok: true } | { ok: false; error: string };
@@ -31,6 +36,18 @@ export async function elegirRubro(nicho: "nicho_1" | "nicho_4"): Promise<Resulta
   if (!parsed.success) return { ok: false, error: "Rubro inválido." };
 
   const resultado = await asignarNicho(usuario, parsed.data.nicho);
+  if (!resultado.ok) return resultado;
+  return { ok: true };
+}
+
+/** Se llama al terminar el paso 2, sin importar si se eligió un rubro real
+ * o Modo Básico — es la única señal real de "onboarding terminado", ver
+ * decisión en identidad/ANCLA.md. */
+export async function finalizarOnboarding(): Promise<ResultadoAccion> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const resultado = await completarOnboarding(usuario);
   if (!resultado.ok) return resultado;
   return { ok: true };
 }

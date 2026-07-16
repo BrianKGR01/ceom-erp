@@ -124,6 +124,24 @@
   --info-text: #2176bd;
 }
 
+/* Drawer del sidebar mobile (src/components/shared/app-sidebar.tsx) —
+   CSS a mano en vez de utilidades responsive de Tailwind (max-lg:/lg:)
+   porque el build de Turbopack en dev reproducidamente genero esas
+   variantes duplicadas sin envolver en @media, pisando siempre el estado
+   "cerrado". Con reglas propias, sin ese problema. */
+.app-sidebar {
+  transform: translateX(-100%);
+}
+.app-sidebar.app-sidebar--abierto {
+  transform: translateX(0);
+}
+@media (min-width: 1024px) {
+  .app-sidebar {
+    position: static;
+    transform: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

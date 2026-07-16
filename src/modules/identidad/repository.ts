@@ -222,6 +222,20 @@ export async function asignarNichoTenant(
   return tenant;
 }
 
+/** Idempotente — si ya tiene fecha, no la pisa (no queremos que un segundo
+ * llamado accidental mueva el timestamp original). */
+export async function completarOnboardingTenant(tenantId: string) {
+  const tenant = await obtenerTenantPorId(tenantId);
+  if (tenant?.onboardingCompletadoEn) return tenant;
+
+  const [actualizado] = await db
+    .update(tenants)
+    .set({ onboardingCompletadoEn: new Date() })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+  return actualizado;
+}
+
 export async function insertarUsuario(data: NuevoUsuario) {
   const [usuario] = await db.insert(usuarios).values(data).returning();
   return usuario;

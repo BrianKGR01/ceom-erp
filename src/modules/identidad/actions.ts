@@ -420,6 +420,22 @@ export async function asignarNicho(
   return { ok: true, data: { nichoAsignadoEn: actualizado.nichoAsignadoEn!.toISOString() } };
 }
 
+/**
+ * Marca el onboarding como terminado — señal independiente de nicho_id
+ * (que se queda en null tanto si nunca se pasó por onboarding como si se
+ * eligió Modo Básico a propósito). Se llama una sola vez, al final del
+ * asistente, sin importar qué se haya elegido en "Elegir rubro".
+ */
+export async function completarOnboarding(
+  solicitante: UsuarioConRol
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede completar el onboarding." };
+  }
+  await repo.completarOnboardingTenant(solicitante.tenantId);
+  return { ok: true, data: true };
+}
+
 // --- Colaboradores (Modulo_01 seccion 8) ---------------------------------------------------------
 
 async function requireEscrituraHabilitada(

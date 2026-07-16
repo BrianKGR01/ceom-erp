@@ -40,6 +40,9 @@
   `listarSucursalesPorTenant` (agregada al construir Catálogo/Ficha de
   Producto — ningún módulo tenía forma de listar sucursales de un tenant
   hasta ahora; la necesitan los modales de ajuste/transferencia de stock).
+  `completarOnboarding` (agregada al construir el shell de `/app` — hacía
+  falta forzar el redirect a Onboarding en el primer ingreso del Owner, y
+  `nicho_id` solo no alcanza para saber si ya terminó, ver decisión abajo).
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -112,6 +115,14 @@
   (`current_tenant_id()`), `0004` (RLS), `0005` (seed CEOM Ops/roles).
 
 ## Decisiones tomadas que un agente no debe revertir
+- **`tenants.onboarding_completado_en` es independiente de `nicho_id`** —
+  no reusar `nicho_id IS NOT NULL` como señal de "onboarding terminado".
+  Modo Básico deja `nicho_id = null` a propósito y para siempre (Modulo_01
+  sección 5), así que ese campo solo no distingue "nunca pasó por
+  onboarding" de "pasó y eligió Modo Básico". `completarOnboarding()` se
+  llama una sola vez al final del asistente sin importar qué se haya
+  elegido en el paso 2, y es idempotente (no pisa la fecha si ya está
+  seteada).
 - `crudPolicy()` **no existe** en `drizzle-orm` para Supabase (solo para
   Neon) en la versión instalada — el de `src/db/rls.ts` es un helper propio.
   No asumir que viene de la librería.
@@ -246,4 +257,4 @@
   "se aplicó bien" — `drizzle-kit migrate` puede terminar en exit code 1
   sin imprimir el error real de Postgres.
 
-## Última actualización: 2026-07-15 — Catálogo/Ficha de Producto (Fase 1 UI): agregó `listarSucursalesPorTenant` (gap real: ningún módulo podía listar sucursales de un tenant todavía)
+## Última actualización: 2026-07-16 — Shell de `/app` (Fase 1 UI): agregó `onboardingCompletadoEn`/`completarOnboarding` para forzar el redirect a Onboarding en el primer ingreso

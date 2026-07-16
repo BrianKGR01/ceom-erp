@@ -24,7 +24,7 @@ import {
   actualizarTenantSchema,
   type ActualizarTenantInput,
 } from "@/modules/identidad/validation";
-import { elegirRubro, guardarNegocio } from "./actions";
+import { elegirRubro, finalizarOnboarding, guardarNegocio } from "./actions";
 
 const CANALES_SUGERIDOS = [
   { value: "redes_sociales", label: "Redes sociales" },
@@ -87,11 +87,15 @@ export function OnboardingWizard({ tenant }: { tenant: TenantActual }) {
       {paso === 1 && (
         <PasoRubro
           nichoElegido={nichoElegido}
-          onElegido={(nicho) => {
+          onElegido={async (nicho) => {
             setNichoElegido(nicho);
             setTerminado(true);
+            await finalizarOnboarding();
           }}
-          onModoBasico={() => setTerminado(true)}
+          onModoBasico={async () => {
+            setTerminado(true);
+            await finalizarOnboarding();
+          }}
         />
       )}
 
