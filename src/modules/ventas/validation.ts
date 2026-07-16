@@ -41,12 +41,32 @@ export const metodoPagoFormSchema = z.object({
 export const clienteFormSchema = z.object({
   nombre: z.string().trim().min(1, "Ponele un nombre al cliente."),
   telefono: z.string().optional(),
+  email: z.string().trim().email("Ingresá un email válido.").optional().or(z.literal("")),
 });
 
 export const registrarPagoVentaSchema = z.object({
   monto: z.number().positive("El monto tiene que ser mayor a 0."),
   metodoPagoId: z.string().min(1, "Elegí un método de pago."),
   fechaPago: z.string().optional(),
+});
+
+export const eventoFormSchema = z.object({
+  sucursalId: z.string().min(1, "Elegí una sucursal."),
+  canalVentaId: z.string().min(1, "Elegí un canal de venta."),
+  nombre: z.string().trim().min(1, "Ponele un nombre al evento."),
+  porcentajeComision: z.number().min(0).max(100).optional(),
+  fechaInicio: z.string().min(1, "Elegí la fecha de inicio."),
+  fechaFin: z.string().min(1, "Elegí la fecha de fin."),
+});
+
+export const importarVentaHistoricaFilaSchema = z.object({
+  fechaVenta: z.string().min(1),
+  canalVentaId: z.string().min(1),
+  clienteId: z.string().optional(),
+  productoId: z.string().min(1),
+  cantidad: z.number().positive(),
+  precioVentaSnapshot: z.number().min(0),
+  costoUnitarioSnapshot: z.number().min(0),
 });
 
 export const ajusteVentaSchema = z.object({

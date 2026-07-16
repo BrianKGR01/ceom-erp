@@ -15,6 +15,20 @@ type OrigenRegistro = (typeof origenRegistroEnum.enumValues)[number];
 type EstadoPagoVenta = (typeof estadoPagoVentaEnum.enumValues)[number];
 type TipoAjusteVenta = (typeof tipoAjusteVentaEnum.enumValues)[number];
 
+/**
+ * Si `valor` es solo fecha (`YYYY-MM-DD`, ej. de un `<input type="date">`),
+ * ancla a mediodía UTC en vez de medianoche — `new Date("YYYY-MM-DD")` sola
+ * ancla a medianoche UTC, que al mostrarse con `toLocaleDateString` en un
+ * huso horario detrás de UTC (Bolivia, UTC-4 — el mercado real del
+ * producto) corre un día hacia atrás. Mediodía UTC deja margen para
+ * cualquier huso real (UTC-12 a UTC+13) sin cambiar de día calendario. Si
+ * `valor` ya trae hora/timezone, se respeta tal cual — no es una fecha
+ * "solo día".
+ */
+function parsearFechaVentaSoloFecha(valor: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor) ? new Date(`${valor}T12:00:00Z`) : new Date(valor);
+}
+
 // --- Calculos puros ---------------------------------------------------------
 
 export function calcularSubtotal(cantidad: number, precioVentaSnapshot: number): number {
@@ -93,6 +107,7 @@ export async function listarClientes(
 export interface DatosCanalVenta {
   nombre: string;
   porcentajeComisionDefault?: string | number;
+  activo?: boolean;
 }
 
 export async function crearCanalVenta(
@@ -130,6 +145,7 @@ export async function actualizarCanalVenta(
       input.porcentajeComisionDefault !== undefined
         ? String(input.porcentajeComisionDefault)
         : undefined,
+    activo: input.activo,
   });
   return { ok: true, data: true };
 }
@@ -200,6 +216,21 @@ export async function desactivarMetodoPago(
     return { ok: false, error: "No tenés permiso para desactivar este método de pago." };
   }
   await repo.actualizarMetodoPago(metodoPagoId, { activo: false });
+  return { ok: true, data: true };
+}
+
+/** Simétrico a desactivarMetodoPago — sin eliminado_en (seccion 1.7), la
+ * reactivacion tambien es solo el booleano activo. */
+export async function reactivarMetodoPago(
+  solicitante: UsuarioConRol,
+  metodoPagoId: string
+): Promise<Resultado<true>> {
+  const metodo = await repo.obtenerMetodoPagoPorId(metodoPagoId);
+  if (!metodo) return { ok: false, error: "Método de pago no encontrado." };
+  if (!(await tienePermiso(solicitante, metodo.tenantId, "ventas", "editar"))) {
+    return { ok: false, error: "No tenés permiso para reactivar este método de pago." };
+  }
+  await repo.actualizarMetodoPago(metodoPagoId, { activo: true });
   return { ok: true, data: true };
 }
 
@@ -379,7 +410,7 @@ export async function registrarVenta(
     clienteId = cliente.id;
   }
 
-  const fechaVenta = input.fechaVenta ? new Date(input.fechaVenta) : new Date();
+  const fechaVenta = input.fechaVenta ? parsearFechaVentaSoloFecha(input.fechaVenta) : new Date();
 
   // Snapshot doble (regla 1) — se congela ANTES de crear la Venta.
   const lineas: Array<{
@@ -692,7 +723,7 @@ export async function importarVentaHistorica(
       tenantId,
       sucursalId: input.sucursalId,
       clienteId: input.clienteId,
-      fechaVenta: new Date(input.fechaVenta),
+      fechaVenta: parsearFechaVentaSoloFecha(input.fechaVenta),
       canalVentaId: input.canalVentaId,
       origenRegistro: "importacion_historica",
       creadoPor: solicitante.id,

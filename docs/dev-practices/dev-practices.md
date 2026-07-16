@@ -260,6 +260,24 @@ código de la sección 5.
   o `src/components/shared/` (compuestos con forma de producto CEOM pero sin
   dueño de módulo, ej. estado vacío, modal de confirmación).
 
+### 9.1 Cierre de tanda
+
+Al terminar de construir y verificar todas las pantallas de una tanda de UI:
+
+1. Actualizar `docs/ui/pantallas.md` por completo — cada pantalla construida pasa a `[x]` con su
+   nota de detalle, y la sección "Próxima tanda sugerida" se reescribe para reflejar el estado
+   real, no se deja desactualizada.
+2. Nunca cerrar con un genérico "decime cómo seguir". Siempre anunciar explícitamente, sin que se
+   pregunte: cuál es la siguiente tanda según el orden ya fijado (roadmap + matriz de
+   dependencias de `CEOM_Arquitectura.md` sección 7), y el listado exacto de pantallas/modales
+   que la componen, por nombre, tal como aparecen en `pantallas.md` — para que puedan pasarse
+   directamente como pedido de diseño a otra herramienta.
+3. Si la siguiente tanda todavía no tiene el contrato de backend completo (ej. le falta una
+   Server Action o un wrapper en `actions.ts`), avisarlo ahí mismo, no descubrirlo a mitad de la
+   implementación de UI.
+4. Commitear después de cada pantalla construida y verificada — no acumular varias sin
+   commitear.
+
 ---
 
 ## 10. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)

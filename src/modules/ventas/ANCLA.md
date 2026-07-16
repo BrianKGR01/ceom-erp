@@ -154,3 +154,115 @@
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
 ## Última actualización: 2026-07-16 — Rediseño visual de POS/Historial/Ficha de venta: `registrarPagoVentaSchema` (ruta) ahora reenvía `fechaPago` (el módulo ya lo aceptaba, faltaba el wiring — mismo caso que `listarVentasConTotal`). Sin cambios de contrato. Se agregó `scripts/seed-demo-data.ts` (`pnpm seed:demo`) para poblar un tenant existente con categorías/productos/stock/canales/métodos/clientes/ventas/ajustes de prueba usando siempre las funciones de negocio reales de este módulo y de Productos.
+
+## Actualización 2026-07-16 (2) — Gestión de Clientes (CRUD completo)
+- Pantalla `/app/ventas/clientes` (`page.tsx` + `clientes-cliente.tsx`): listado con buscador,
+  alta/edición vía Dialog (react-hook-form + zod), eliminar (soft delete) con confirmación inline.
+  Mismo patrón visual que Historial de Ventas (lista de filas, `docs/design-system.md` §5.5).
+- `clienteFormSchema` (`validation.ts`) se extendió con `email` (ya existía en `DatosCliente`/
+  `actions.ts`, solo faltaba exponerlo en el formulario) — no es un cambio de contrato del módulo.
+- Se agregaron `actualizarClienteAction`/`eliminarClienteAction` en la ruta
+  (`src/app/app/(shell)/ventas/actions.ts`), delgadas sobre `actualizarCliente`/`eliminarCliente`
+  ya existentes en `actions.ts` del módulo — sin lógica nueva de negocio.
+- Verificado end-to-end en navegador (alta, edición, eliminación, búsqueda) contra el tenant de
+  prueba (`owner@ceom.local`). Nota de herramienta: el diálogo de Base UI queda con
+  `data-closed` pero visualmente montado cuando la pestaña del navegador de automatización está
+  en `document.visibilityState = "hidden"` (la animación de salida depende de `animationend`, que
+  Chrome no dispara en pestañas en segundo plano) — confirmado como artefacto de la herramienta,
+  reproducible también en el Dialog ya existente de "Gestionar categorías" (Catálogo), no es un
+  bug de esta pantalla ni del componente `Dialog` compartido en un navegador real en primer plano.
+
+## Actualización 2026-07-16 (3) — Gestión de Canales de Venta (CRUD completo)
+- Pantalla `/app/ventas/canales` (`page.tsx` + `canales-cliente.tsx`): grid de cards
+  (`docs/design-system.md` §5.3), `Switch` de `activo` inline en cada card, alta/edición de
+  `nombre`/`porcentajeComisionDefault` vía Dialog, eliminar (soft delete, `canales_venta` sí tiene
+  `eliminado_en`) con confirmación inline.
+- **Cambio de contrato aditivo** (no rompe callers existentes): `DatosCanalVenta` y
+  `actualizarCanalVenta` (`actions.ts`) ahora aceptan `activo?: boolean` — antes solo permitían
+  tocar `nombre`/`porcentajeComisionDefault`. Necesario para el toggle de la card; `activo` ya
+  existía en el schema/repository, solo faltaba el wrapper público.
+- De paso se agregó `reactivarMetodoPago` (simétrico a `desactivarMetodoPago` ya existente) para
+  la próxima pantalla (Métodos de Pago) — mismo criterio, aditivo.
+- Se agregaron `actualizarCanalVentaAction`/`toggleCanalVentaActivoAction`/
+  `eliminarCanalVentaAction` en la ruta (`src/app/app/(shell)/ventas/actions.ts`).
+- Verificado end-to-end en navegador (alta, edición vía toggle, eliminar) contra el tenant de
+  prueba — datos de demo restaurados a su estado original tras la prueba.
+
+## Actualización 2026-07-16 (4) — Gestión de Métodos de Pago (CRUD completo)
+- Pantalla `/app/ventas/metodos-pago` (`page.tsx` + `metodos-pago-cliente.tsx`): filas simples
+  (ícono + nombre) con `Switch` de `activo` inline, alta/edición de `nombre` vía Dialog. Sin
+  eliminar (`metodos_pago` no tiene `eliminado_en` a propósito, sección 1.7 del doc) — la baja es
+  el toggle, usando `reactivarMetodoPago` agregado en la actualización anterior.
+- Se agregaron `actualizarMetodoPagoAction`/`toggleMetodoPagoActivoAction` en la ruta.
+- Verificado end-to-end en navegador (alta, edición, toggle activo/inactivo) contra el tenant de
+  prueba — el método de prueba quedó desactivado al cerrar (no se puede eliminar, por diseño).
+
+## Actualización 2026-07-16 (5) — Gestión de Eventos
+- Pantalla `/app/ventas/eventos` (`page.tsx` + `eventos-cliente.tsx`): filas con nombre/sucursal/
+  canal, fechas, comisión, badge de estado, botón Cerrar/Reabrir. Alta vía Dialog — el canal
+  elegido precarga `porcentajeComisionDefault` en el campo de comisión (editable).
+- Se agregó `eventoFormSchema` (`validation.ts`) y las rutas
+  `abrirEventoAction`/`actualizarComisionEventoAction`/`cerrarEventoAction`/`reabrirEventoAction`.
+  Sin cambios de contrato del módulo — `abrirEvento`/`cerrarEvento`/`reabrirEvento` ya existían.
+- **No implementado en esta tanda:** editar la comisión de un evento ya abierto en la UI (la
+  acción `actualizarComisionEvento` existe pero no se conectó — no era parte de los campos
+  mínimos de la referencia visual de esta tanda).
+- **Bug real encontrado y corregido:** `fechaInicio`/`fechaFin` son rangos de días completos
+  (cargados desde `<input type="date">`, sin componente horario significativo), pero el módulo ya
+  los persistía con `new Date(input.fechaInicio)` (ancla a medianoche UTC) desde su construcción
+  original (Módulo 3). Formatear eso con `toLocaleDateString` en huso horario local corre un día
+  hacia atrás en cualquier huso detrás de UTC — **incluido Bolivia (UTC-4), el mercado real del
+  producto**. Corregido en la UI forzando `timeZone: "UTC"` al formatear (no se tocó el
+  almacenamiento, que sigue igual). Cualquier otra pantalla futura que muestre estas fechas debe
+  usar el mismo criterio.
+- Verificado end-to-end en navegador (alta, cerrar, reabrir) — la capacidad especial
+  `gestionar_eventos` (sin bypass de Owner, por diseño) se otorgó temporalmente al Owner de
+  prueba vía un script descartable (`otorgarCapacidadEspecialPorUsuario`, ya existente) y se
+  revocó al terminar. El evento de prueba ("Feria QA") quedó en el tenant de demo — no hay acción
+  de eliminar Evento en el contrato del módulo, y al ser una fecha futura sin ventas asociadas no
+  genera efectos secundarios.
+
+## Actualización 2026-07-16 (6) — Importación de Venta Histórica
+- Pantalla `/app/ventas/importar` (`page.tsx` + `importar-cliente.tsx`): dropzone de `.csv` con
+  parser propio (sin librería nueva — encabezado fijo
+  `fecha,canal,producto,cantidad,precioVenta,costoUnitario,cliente`, split por coma), resuelve
+  `canal`/`producto`/`cliente` por nombre contra los ya cargados del tenant. Vista previa marca
+  filas inválidas con motivo explícito (canal/producto no encontrado, cantidad/precio/costo
+  inválido). Un selector de sucursal aplica a todo el lote. "Confirmar importación" llama al nuevo
+  wrapper de ruta `importarVentaHistoricaLoteAction(sucursalId, filas)`, que itera una llamada a
+  `importarVentaHistorica` por fila válida (cada fila = una Venta de una sola línea — la
+  granularidad real del contrato del módulo, no la de "Total" simplificado de la referencia
+  visual) y devuelve `{ importadas, errores[] }`.
+- **Decisión de esta tanda:** sin UI de mapeo interactivo de columnas (el doc lo dejaba como
+  "probablemente") — encabezado fijo, más simple y suficiente para el uso real (import puntual,
+  gateado a Owner/capacidad especial). Se documenta acá para no re-litigar la decisión.
+- Se agregó `importarVentaHistoricaFilaSchema` (`validation.ts`) para validar cada fila ya resuelta
+  en el servidor antes de llamar `importarVentaHistorica`.
+- **Bug real encontrado y corregido (afecta también a `registrarVenta`):** el módulo ya persistía
+  `fechaVenta` con `new Date(input.fechaVenta)` (ancla a medianoche UTC) cuando el input es una
+  fecha de solo-día (`"YYYY-MM-DD"`) — típico de esta importación y también posible en
+  `registrarVenta` si algún caller pasa `fechaVenta` explícito sin hora. Mostrado luego con
+  `toLocaleDateString` en huso horario local, corre un día hacia atrás en cualquier huso detrás de
+  UTC — **incluida Bolivia (UTC-4), el mercado real del producto** (mismo tipo de bug que en
+  Eventos, pero acá la fecha si tiene un componente horario real en otros usos — `registrarVenta`
+  sin `fechaVenta` explícito usa `new Date()` con hora real — así que el fix no puede ir en el
+  display como en Eventos sin romper esos casos). **Fix real:** nueva función
+  `parsearFechaVentaSoloFecha()` en `ventas/actions.ts` — si el string es exactamente
+  `YYYY-MM-DD` lo ancla a mediodía UTC (no medianoche), lo que mantiene el día calendario correcto
+  en cualquier huso horario real (UTC-12 a UTC+13); si ya trae hora/timezone, se respeta tal cual.
+  Aplicado en `registrarVenta` y en `importarVentaHistorica`. Los 143 tests siguen en verde
+  (los rangos de período de los tests existentes cortan por día completo, un corrimiento de 12h
+  dentro del mismo día UTC no los afecta).
+- Verificado end-to-end simulando una carga real de archivo (`File`/`DataTransfer` sintéticos,
+  ya que la automatización de navegador no puede manejar el diálogo nativo de selección de
+  archivo): 2 filas válidas + 1 con error de canal inexistente, detectado y mostrado
+  correctamente. Las 2 ventas de prueba quedaron anuladas (`Ajuste de Venta` tipo
+  `anulacion_total`, motivo explícito) en vez de un `DELETE` — no existe (ni debe existir,
+  regla de ledger append-only) una forma de eliminar una Venta.
+
+## Cierre de tanda (2026-07-16) — Clientes/Canales/Métodos de Pago/Eventos/Importación
+Las 5 pantallas que quedaban pendientes del módulo Ventas + Clientes quedan `[x]` en
+`docs/ui/pantallas.md` (sección 7) — el módulo queda **10/10 construido**. Próxima tanda:
+Patrimonio (Activos/Pasivos) — requiere cerrar primero un gap chico de backend
+(`listarActivos`/`listarPasivos`/fichas completas sin wrapper público en `actions.ts`), ver
+`docs/ui/pantallas.md` sección "Próxima tanda sugerida".

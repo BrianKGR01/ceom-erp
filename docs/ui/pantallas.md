@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-16)
 
-**17 construidas · 3 parciales · 96 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**22 construidas · 0 parciales · 94 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -36,7 +36,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | 4. Proveedores/Compras | 0 | 0 | 9 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
-| **7. Ventas + Clientes** | **5** | **3** | 2 | 10 |
+| **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | 8. Egresos y Gastos | 0 | 0 | 6 | 6 |
 | 9. Financiero | 0 | 0 | 3 | 3 |
 | 10. Gateway de Consentimiento | 0 | 0 | 9 | 9 |
@@ -50,25 +50,44 @@ Catálogo, Punto de Venta y ahora Dashboard/Resumen Ejecutivo ya están construi
 end-to-end con datos reales (`owner@ceom.local`, ver `pnpm seed:demo`). **El MVP navegable de
 punta a punta está cerrado.**
 
+**Tanda cerrada el 2026-07-16: Ventas + Clientes, 5/5.** Gestión de Clientes, Canales de Venta,
+Métodos de Pago, Gestión de Eventos e Importación de Venta Histórica — las 5 pantallas que
+quedaban pendientes del módulo quedan `[x]`, verificadas end-to-end contra el tenant de prueba.
+Detalle de decisiones y del bug de timezone encontrado y corregido: `src/modules/ventas/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Gestión de Clientes / Canales de Venta / Métodos de Pago** (completar lo `[~]` de Ventas) —
-   son pantallas chicas (CRUD simple, mismo patrón que "Gestionar categorías" de Catálogo), buen
-   candidato para una tanda corta.
-2. **Patrimonio (Activos/Pasivos)** — el próximo módulo de negocio completo sin ninguna pantalla
-   todavía. Requiere primero cerrar 2 gaps chicos de backend (`listarActivos`/`listarPasivos`
-   existen en `repository.ts`, falta el wrapper en `actions.ts` — mismo tipo de gap que ya
-   resolvimos varias veces).
-3. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
+1. **Patrimonio (Activos/Pasivos)** — el próximo módulo de negocio completo sin ninguna pantalla
+   todavía (0/12 construidas). **⚠️ Gap de backend a cerrar antes de construir la UI:**
+   `src/modules/patrimonio/actions.ts` no expone `listarActivos`/`listarPasivos` ni fichas
+   completas (`obtenerActivoPorId`/`obtenerPasivoPorId`) — `repository.ts` ya los tiene
+   (`listarActivosPorTenant`, `listarPasivosPorTenant`, `obtenerActivoPorId`,
+   `obtenerPasivoPorId`), solo falta el wrapper público. La Ficha de Pasivo además necesita
+   exponer el historial completo de pagos (hoy solo `consultarPasivoDeActivo` da el saldo, no la
+   lista de pagos) — mismo tipo de gap chico ya resuelto varias veces en otros módulos. Pantallas
+   exactas de esta tanda (sección 3 de este documento):
+   - Listado de Activos
+   - Ficha de Activo
+   - Alta de Activo
+   - Editar Activo
+   - Dar de baja Activo
+   - Transferir Activo entre sucursales
+   - Listado de Pasivos
+   - Ficha de Pasivo
+   - Alta de Pasivo
+   - Refinanciar Pasivo
+   - Registrar pago de Pasivo
+   - Valor patrimonial total (widget, probablemente embebido en el Dashboard de Reportes)
+2. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
    Compra de Nicho 4.
-4. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
+3. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
    `proveedorId`, aunque no es un bloqueo estricto. Poblar datos de Gastos también dejaría de
    mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
-5. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
-6. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+4. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
+5. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
    Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
    reportes detallados" que se omitió del Dashboard por no tener destino todavía.
-7. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
+6. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
 
@@ -426,24 +445,38 @@ Módulo 14 abajo). `/admin` sigue siendo landing provisoria, sin Panel Admin rea
 - Acción: `registrarPagoVenta`.
 
 ### `/app` — Catálogos de Ventas
-**Gestión de Clientes.** `[~]` — solo alta rápida inline desde el selector de Cliente en el Punto de Venta (crea `clienteNuevo` al vender). **No construido:** listado propio, editar, eliminar.
-- Campos: `nombre`, `telefono`, `email`, `primeraCompraEn`/`ultimaCompraEn` (derivados). Acciones ya expuestas en backend: `crearCliente`, `actualizarCliente`, `eliminarCliente`, `listarClientes`.
+**Gestión de Clientes.** `[x]` — listado propio en `/app/ventas/clientes` (buscador + lista tipo fila con "última compra" derivada, paginación client-side), alta/edición vía Dialog (react-hook-form + zod, `clienteFormSchema` extendido con `email`), eliminar (soft delete) con confirmación inline. Verificado end-to-end en navegador (alta, edición, eliminación, búsqueda) contra el tenant de prueba.
+- Campos: `nombre`, `telefono`, `email`, `primeraCompraEn`/`ultimaCompraEn` (derivados). Acciones: `crearCliente`, `actualizarCliente`, `eliminarCliente`, `listarClientes`.
 
-**Gestión de Canales de Venta.** `[~]` — solo alta rápida inline desde el Punto de Venta (Dialog "+ Nuevo canal", solo `nombre`). **No construido:** listado/edición de `porcentajeComisionDefault`/`activo`, eliminar.
+**Gestión de Canales de Venta.** `[x]` — listado propio en `/app/ventas/canales`, grid de cards (design-system §5.3) con `Switch` de `activo` inline, alta/edición de `nombre`/`porcentajeComisionDefault` vía Dialog, eliminar (soft delete) con confirmación inline. Verificado end-to-end en navegador contra el tenant de prueba.
 - Campos: `nombre`, `porcentajeComisionDefault`, `activo`.
 
-**Gestión de Métodos de Pago.** `[~]` — solo alta rápida inline desde el Punto de Venta (Dialog "+ Nuevo método", solo `nombre`). **No construido:** listado/desactivar (sin soft delete — la baja es el booleano `activo`).
+**Gestión de Métodos de Pago.** `[x]` — listado propio en `/app/ventas/metodos-pago`, filas simples (ícono + nombre + `Switch` de `activo`), alta/edición de `nombre` vía Dialog. Sin eliminar (sin soft delete por diseño — la baja es el booleano `activo`, `reactivarMetodoPago` agregado como simétrico de `desactivarMetodoPago`). Verificado end-to-end en navegador.
 - Campos: `nombre`, `activo`.
 
-**Gestión de Eventos** `[ ]` (ferias/pop-ups).
+**Gestión de Eventos** `[x]` (ferias/pop-ups) — listado propio en `/app/ventas/eventos`, filas con nombre/sucursal/canal, fechas, comisión, badge de estado y botón Cerrar/Reabrir según corresponda. Alta vía Dialog (sucursal + canal con precarga automática de `porcentajeComisionDefault` del canal elegido + fechas). Gateado por la capacidad especial `gestionar_eventos` (sin bypass de Owner, por diseño) — el error de "no tenés la capacidad" se muestra inline si falta. **No implementado:** editar comisión de un evento ya abierto (la acción `actualizarComisionEvento` existe en el módulo pero no tiene UI en esta tanda, no era parte de los campos mínimos de la referencia). Verificado end-to-end en navegador (alta, cerrar, reabrir) otorgando la capacidad temporalmente vía script de QA.
 - Campos: `sucursalId`, `canalVentaId`, `nombre`, `porcentajeComision` (precargado del canal, editable), `fechaInicio`/`fechaFin`, `estado` (`abierto`/`cerrado`), `cerradoPor`/`cerradoEn`.
-- ⚠️ El doc menciona un "modo de cierre agregado" (cargar el total vendido de una sola vez al cerrar) — no existe acción dedicada, hoy se resolvería con múltiples `registrarVenta`.
+- ⚠️ El doc menciona un "modo de cierre agregado" (cargar el total vendido de una sola vez al cerrar) — no existe acción dedicada, hoy se resolvería con múltiples `registrarVenta`. Sigue sin implementar.
 - Rol: capacidad especial `gestionar_eventos` para abrir/editar/cerrar/reabrir.
 - Acciones: `abrirEvento`, `actualizarComisionEvento`, `cerrarEvento`, `reabrirEvento`, `listarEventos`.
 
 ### `/app` — Importación de Venta Histórica
-**Importación de Venta Histórica** `[ ]`
-- Campos de entrada: `sucursalId`, `clienteId?`, `fechaVenta`, `canalVentaId`, `lineas[]` (`productoId`, `cantidad`, `precioVentaSnapshot`, `costoUnitarioSnapshot`) — probablemente carga CSV/Excel con mapeo de columnas.
+**Importación de Venta Histórica** `[x]` — pantalla en `/app/ventas/importar`: dropzone de archivo
+`.csv` (parser propio, sin librería nueva) con encabezado fijo
+`fecha,canal,producto,cantidad,precioVenta,costoUnitario,cliente` (sin UI de mapeo interactivo de
+columnas — decisión de esta tanda, ver `ventas/ANCLA.md`). Vista previa resuelve
+`canal`/`producto`/`cliente` por nombre contra los ya cargados del tenant, marca filas inválidas
+con motivo explícito, pide una sucursal para todo el lote, y "Confirmar importación" dispara una
+`Venta` de una sola línea por fila válida (nuevo wrapper de lote
+`importarVentaHistoricaLoteAction` en la ruta, itera una llamada a `importarVentaHistorica` por
+fila) mostrando un resumen de importadas/errores. Verificado end-to-end simulando una carga real
+de archivo (2 filas válidas + 1 con error de canal inexistente, detectado correctamente).
+**Bug real encontrado y corregido en esta pantalla** (afecta también a `registrarVenta`): una
+`fechaVenta` de solo-día (`"YYYY-MM-DD"`, típica de este flujo) se anclaba a medianoche UTC,
+corriendo un día hacia atrás al mostrarse en husos horarios detrás de UTC — incluida Bolivia
+(UTC-4), el mercado real del producto. Corregido anclando a mediodía UTC
+(`parsearFechaVentaSoloFecha` en `ventas/actions.ts`) — ver detalle en `ventas/ANCLA.md`.
+- Campos de entrada: `sucursalId`, `clienteId?`, `fechaVenta`, `canalVentaId`, `lineas[]` (`productoId`, `cantidad`, `precioVentaSnapshot`, `costoUnitarioSnapshot`).
 - No descuenta stock, no calcula comisión — snapshots vienen directo del input.
 - Rol: Owner (bypass explícito) o capacidad especial `importar_historico`.
 - Acción: `importarVentaHistorica`.

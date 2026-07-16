@@ -44,12 +44,26 @@ export default async function PuntoDeVentaPage() {
           title="Vender"
           description="Elegí los productos y confirmá la venta."
           action={
-            <Link
-              href="/app/ventas/historial"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Ver historial de ventas
-            </Link>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
+              <Link href="/app/ventas/historial" className="text-primary hover:underline">
+                Historial
+              </Link>
+              <Link href="/app/ventas/clientes" className="text-primary hover:underline">
+                Clientes
+              </Link>
+              <Link href="/app/ventas/canales" className="text-primary hover:underline">
+                Canales
+              </Link>
+              <Link href="/app/ventas/metodos-pago" className="text-primary hover:underline">
+                Métodos de pago
+              </Link>
+              <Link href="/app/ventas/eventos" className="text-primary hover:underline">
+                Eventos
+              </Link>
+              <Link href="/app/ventas/importar" className="text-primary hover:underline">
+                Importar historial
+              </Link>
+            </div>
           }
         />
 
