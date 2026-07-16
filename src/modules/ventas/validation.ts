@@ -46,6 +46,7 @@ export const clienteFormSchema = z.object({
 export const registrarPagoVentaSchema = z.object({
   monto: z.number().positive("El monto tiene que ser mayor a 0."),
   metodoPagoId: z.string().min(1, "Elegí un método de pago."),
+  fechaPago: z.string().optional(),
 });
 
 export const ajusteVentaSchema = z.object({

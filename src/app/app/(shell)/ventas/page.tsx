@@ -4,7 +4,7 @@ import { Package } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { listarProductos } from "@/modules/productos/actions";
+import { listarCategorias, listarProductos } from "@/modules/productos/actions";
 import { listarCanalesVenta, listarClientes, listarMetodosPago } from "@/modules/ventas/actions";
 import { PosCliente } from "./pos-cliente";
 
@@ -12,20 +12,28 @@ export default async function PuntoDeVentaPage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [productosResultado, sucursalesResultado, clientesResultado, canalesResultado, metodosResultado] =
-    await Promise.all([
-      listarProductos(usuario, usuario.tenantId),
-      listarSucursalesPorTenant(usuario, usuario.tenantId),
-      listarClientes(usuario, usuario.tenantId),
-      listarCanalesVenta(usuario, usuario.tenantId),
-      listarMetodosPago(usuario, usuario.tenantId),
-    ]);
+  const [
+    productosResultado,
+    sucursalesResultado,
+    clientesResultado,
+    canalesResultado,
+    metodosResultado,
+    categoriasResultado,
+  ] = await Promise.all([
+    listarProductos(usuario, usuario.tenantId),
+    listarSucursalesPorTenant(usuario, usuario.tenantId),
+    listarClientes(usuario, usuario.tenantId),
+    listarCanalesVenta(usuario, usuario.tenantId),
+    listarMetodosPago(usuario, usuario.tenantId),
+    listarCategorias(usuario, usuario.tenantId),
+  ]);
 
   const productos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
   const clientes = clientesResultado.ok ? clientesResultado.data : [];
   const canales = canalesResultado.ok ? canalesResultado.data : [];
   const metodos = metodosResultado.ok ? metodosResultado.data : [];
+  const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
 
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
 
@@ -61,11 +69,13 @@ export default async function PuntoDeVentaPage() {
             sucursalId={sucursalPrincipal.id}
             productos={productos.map((p) => ({
               id: p.id,
+              categoriaId: p.categoriaId,
               nombre: p.nombre,
               imagenUrl: p.imagenUrl,
               unidadVenta: p.unidadVenta,
               precioVenta: p.precioVenta,
             }))}
+            categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
             metodosIniciales={metodos.map((m) => ({ id: m.id, nombre: m.nombre }))}

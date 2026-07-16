@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export interface ProductoParaVenta {
   id: string;
+  categoriaId: string | null;
   nombre: string;
   imagenUrl: string | null;
   unidadVenta: string;
@@ -15,9 +16,11 @@ export interface ProductoParaVenta {
 // componente de Productos directamente — caja negra entre modulos de UI).
 export function ProductPickerCard({
   producto,
+  categoriaNombre,
   onAgregar,
 }: {
   producto: ProductoParaVenta;
+  categoriaNombre?: string;
   onAgregar: () => void;
 }) {
   return (
@@ -36,6 +39,11 @@ export function ProductPickerCard({
           )}
         </div>
         <CardContent className="space-y-0.5 p-2.5">
+          {categoriaNombre && (
+            <p className="line-clamp-1 text-[10px] font-medium text-text-muted uppercase">
+              {categoriaNombre}
+            </p>
+          )}
           <p className="line-clamp-1 text-xs font-medium text-navy">{producto.nombre}</p>
           <p className="text-sm font-semibold text-navy">
             {Number(producto.precioVenta).toFixed(2)}{" "}

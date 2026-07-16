@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,7 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { CartPanel, type LineaCarrito } from "@/modules/ventas/components/cart-panel";
+import { MetodoPagoIcon } from "@/modules/ventas/components/metodo-pago-icon";
 import {
   ProductPickerCard,
   type ProductoParaVenta,
@@ -39,18 +42,23 @@ interface Opcion {
 export function PosCliente({
   sucursalId,
   productos,
+  categorias,
   clientesIniciales,
   canalesIniciales,
   metodosIniciales,
 }: {
   sucursalId: string;
   productos: ProductoParaVenta[];
+  categorias: Opcion[];
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
   metodosIniciales: Opcion[];
 }) {
   const router = useRouter();
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
+  const [busqueda, setBusqueda] = useState("");
+  const [categoriaId, setCategoriaId] = useState("todas");
+  const categoriaPorId = new Map(categorias.map((c) => [c.id, c.nombre]));
 
   const [clientes] = useState(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>("sin_cliente");
@@ -72,6 +80,10 @@ export function PosCliente({
 
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+
+  const productosFiltrados = productos
+    .filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId)
+    .filter((p) => p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()));
 
   function agregarProducto(producto: ProductoParaVenta) {
     setCarrito((prev) => {
@@ -175,16 +187,68 @@ export function PosCliente({
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {productos.map((producto) => (
-            <ProductPickerCard
-              key={producto.id}
-              producto={producto}
-              onAgregar={() => agregarProducto(producto)}
+      <div className="space-y-4 lg:col-span-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {categorias.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCategoriaId("todas")}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                  categoriaId === "todas"
+                    ? "bg-primary text-white"
+                    : "bg-pastel-blue-bg text-text-body hover:bg-pastel-blue-bg/70"
+                )}
+              >
+                Todos los productos
+              </button>
+              {categorias.map((categoria) => (
+                <button
+                  key={categoria.id}
+                  type="button"
+                  onClick={() => setCategoriaId(categoria.id)}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                    categoriaId === categoria.id
+                      ? "bg-primary text-white"
+                      : "bg-pastel-blue-bg text-text-body hover:bg-pastel-blue-bg/70"
+                  )}
+                >
+                  {categoria.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="relative sm:w-64">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
+            <Input
+              placeholder="Buscar por nombre o categoría..."
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="pl-8"
             />
-          ))}
+          </div>
         </div>
+
+        {productosFiltrados.length === 0 ? (
+          <p className="py-8 text-center text-sm text-text-muted">
+            Ningún producto coincide con esta búsqueda.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {productosFiltrados.map((producto) => (
+              <ProductPickerCard
+                key={producto.id}
+                producto={producto}
+                categoriaNombre={
+                  producto.categoriaId ? categoriaPorId.get(producto.categoriaId) : undefined
+                }
+                onAgregar={() => agregarProducto(producto)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="lg:sticky lg:top-6 lg:self-start">
@@ -203,7 +267,7 @@ export function PosCliente({
               <Label>Cliente</Label>
               <Select
                 items={{
-                  sin_cliente: "Sin cliente",
+                  sin_cliente: "Consumidor final",
                   nuevo: "+ Cliente nuevo",
                   ...Object.fromEntries(clientes.map((c) => [c.id, c.nombre])),
                 }}
@@ -211,10 +275,11 @@ export function PosCliente({
                 onValueChange={(v) => v && setClienteId(v)}
               >
                 <SelectTrigger className="w-full">
+                  <User className="size-4 text-text-muted" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sin_cliente">Sin cliente</SelectItem>
+                  <SelectItem value="sin_cliente">Consumidor final</SelectItem>
                   <SelectItem value="nuevo">+ Cliente nuevo</SelectItem>
                   {clientes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -241,22 +306,25 @@ export function PosCliente({
 
             <div className="space-y-1.5">
               <Label>Canal de venta</Label>
-              <Select
-                items={Object.fromEntries(canales.map((c) => [c.id, c.nombre]))}
-                value={canalVentaId}
-                onValueChange={(v) => v && setCanalVentaId(v)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Elegí un canal" />
-                </SelectTrigger>
-                <SelectContent>
-                  {canales.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nombre}
-                    </SelectItem>
+              {canales.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {canales.map((canal) => (
+                    <button
+                      key={canal.id}
+                      type="button"
+                      onClick={() => setCanalVentaId(canal.id)}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                        canalVentaId === canal.id
+                          ? "border-primary bg-pastel-blue-bg text-primary"
+                          : "border-gray-border text-text-body hover:border-primary/50"
+                      )}
+                    >
+                      {canal.nombre}
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setCanalDialogAbierto(true)}
@@ -268,38 +336,45 @@ export function PosCliente({
 
             <div className="space-y-1.5">
               <Label>Pago inicial (opcional)</Label>
-              <div className="flex gap-2">
-                <Select
-                  items={{
-                    sin_pago: "Sin pago todavía",
-                    ...Object.fromEntries(metodos.map((m) => [m.id, m.nombre])),
-                  }}
-                  value={metodoPagoId}
-                  onValueChange={(v) => v && setMetodoPagoId(v)}
-                >
-                  <SelectTrigger className="w-1/2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sin_pago">Sin pago todavía</SelectItem>
-                    {metodos.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Monto"
-                  className="w-1/2"
-                  value={montoPagoInicial}
-                  onChange={(e) => setMontoPagoInicial(e.target.value)}
-                  disabled={metodoPagoId === "sin_pago"}
-                />
-              </div>
+              {metodos.length > 0 && (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {metodos.map((metodo) => (
+                    <button
+                      key={metodo.id}
+                      type="button"
+                      onClick={() =>
+                        setMetodoPagoId((prev) => (prev === metodo.id ? "sin_pago" : metodo.id))
+                      }
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-lg border p-2 text-center transition-colors",
+                        metodoPagoId === metodo.id
+                          ? "border-primary bg-pastel-blue-bg"
+                          : "border-gray-border hover:border-primary/50"
+                      )}
+                    >
+                      <MetodoPagoIcon
+                        nombre={metodo.nombre}
+                        className={cn(
+                          "size-4",
+                          metodoPagoId === metodo.id ? "text-primary" : "text-text-muted"
+                        )}
+                      />
+                      <span className="line-clamp-1 text-[11px] font-medium text-navy">
+                        {metodo.nombre}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Monto del pago"
+                value={montoPagoInicial}
+                onChange={(e) => setMontoPagoInicial(e.target.value)}
+                disabled={metodoPagoId === "sin_pago"}
+              />
               <button
                 type="button"
                 onClick={() => setMetodoDialogAbierto(true)}

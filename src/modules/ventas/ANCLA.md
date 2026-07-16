@@ -153,4 +153,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-15 — Punto de Venta/Listado/Ficha (Fase 1 UI): agregó el wrapper público `listarVentasConTotal`
+## Última actualización: 2026-07-16 — Rediseño visual de POS/Historial/Ficha de venta: `registrarPagoVentaSchema` (ruta) ahora reenvía `fechaPago` (el módulo ya lo aceptaba, faltaba el wiring — mismo caso que `listarVentasConTotal`). Sin cambios de contrato. Se agregó `scripts/seed-demo-data.ts` (`pnpm seed:demo`) para poblar un tenant existente con categorías/productos/stock/canales/métodos/clientes/ventas/ajustes de prueba usando siempre las funciones de negocio reales de este módulo y de Productos.
