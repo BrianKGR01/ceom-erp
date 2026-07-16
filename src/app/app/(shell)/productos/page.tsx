@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarCategorias, listarProductos } from "@/modules/productos/actions";
 import { CatalogoCliente } from "./catalogo-cliente";
+import { GestionarCategoriasBoton } from "./gestionar-categorias-dialog";
 
 export default async function CatalogoPage() {
   const usuario = await obtenerUsuarioActual();
@@ -19,6 +20,11 @@ export default async function CatalogoPage() {
 
   const productos = productosResultado.ok ? productosResultado.data : [];
   const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
+  const categoriasConConteo = categorias.map((categoria) => ({
+    id: categoria.id,
+    nombre: categoria.nombre,
+    cantidadProductos: productos.filter((p) => p.categoriaId === categoria.id).length,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
@@ -27,10 +33,13 @@ export default async function CatalogoPage() {
           title="Catálogo"
           description="Los productos que tenés cargados para vender."
           action={
-            <Button render={<Link href="/app/productos/nuevo" />} nativeButton={false}>
-              <Plus className="size-4" />
-              Nuevo producto
-            </Button>
+            <div className="flex items-center gap-2">
+              <GestionarCategoriasBoton categorias={categoriasConConteo} />
+              <Button render={<Link href="/app/productos/nuevo" />} nativeButton={false}>
+                <Plus className="size-4" />
+                Nuevo producto
+              </Button>
+            </div>
           }
         />
 

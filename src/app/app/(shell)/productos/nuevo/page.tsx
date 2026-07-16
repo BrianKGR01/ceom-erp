@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Breadcrumb } from "@/components/shared/breadcrumb";
+import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarCategorias } from "@/modules/productos/actions";
 import { NuevoCliente } from "./nuevo-cliente";
@@ -18,16 +21,18 @@ export default async function NuevoProductoPage() {
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-lg py-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Nuevo producto</CardTitle>
-            <CardDescription>Cargá lo básico — después podés completar el resto.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <NuevoCliente categorias={categorias} sucursales={sucursales} />
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-4xl space-y-4 py-6">
+        <Breadcrumb items={[{ label: "Catálogo", href: "/app/productos" }, { label: "Nuevo producto" }]} />
+        <PageHeader
+          title="Nuevo producto"
+          description="Cargá lo básico — después podés completar el resto."
+          action={
+            <Button variant="outline" render={<Link href="/app/productos" />} nativeButton={false}>
+              Cancelar
+            </Button>
+          }
+        />
+        <NuevoCliente categorias={categorias} sucursales={sucursales} />
       </div>
     </div>
   );

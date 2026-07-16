@@ -14,6 +14,7 @@ export const productoFormSchema = z.object({
   precioVenta: z.number().positive("El precio tiene que ser mayor a 0."),
   costoOperativoVigente: z.number().min(0).optional(),
   vidaUtilDias: z.number().int().positive().optional(),
+  fechaVencimientoReferencia: z.string().optional(),
   activo: z.boolean(),
   // Solo se usan en el Alta (stock inicial opcional) — se ignoran al editar.
   stockInicial: z.number().min(0).optional(),

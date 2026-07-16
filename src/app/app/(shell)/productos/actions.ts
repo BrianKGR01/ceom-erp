@@ -2,8 +2,11 @@
 
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import {
+  actualizarCategoria,
   actualizarProducto,
+  crearCategoria,
   crearProducto,
+  eliminarCategoria,
   eliminarProducto,
   listarMovimientosStock,
   registrarAjusteManualStock,
@@ -28,13 +31,15 @@ export async function crearProductoAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
-  const { stockInicial, sucursalId, categoriaId, ...datosProducto } = parsed.data;
+  const { stockInicial, sucursalId, categoriaId, fechaVencimientoReferencia, ...datosProducto } =
+    parsed.data;
 
   const resultado = await crearProducto(usuario, usuario.tenantId, {
     ...datosProducto,
     // El Select de categoria manda "" cuando no se elige nada — la columna
     // es un uuid, no acepta string vacio (rechaza en DB si se lo pasamos tal cual).
     categoriaId: categoriaId || undefined,
+    fechaVencimientoReferencia: fechaVencimientoReferencia || undefined,
   });
   if (!resultado.ok) return resultado;
 
@@ -71,8 +76,16 @@ export async function actualizarProductoAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
-  const { categoriaId, nombre, unidadVenta, precioVenta, costoOperativoVigente, vidaUtilDias, activo } =
-    parsed.data;
+  const {
+    categoriaId,
+    nombre,
+    unidadVenta,
+    precioVenta,
+    costoOperativoVigente,
+    vidaUtilDias,
+    fechaVencimientoReferencia,
+    activo,
+  } = parsed.data;
 
   const resultado = await actualizarProducto(usuario, productoId, {
     categoriaId: categoriaId || undefined,
@@ -81,6 +94,7 @@ export async function actualizarProductoAction(
     precioVenta,
     costoOperativoVigente,
     vidaUtilDias,
+    fechaVencimientoReferencia: fechaVencimientoReferencia || undefined,
     activo,
   });
   if (!resultado.ok) return resultado;
@@ -134,4 +148,36 @@ export async function transferirStockAction(input: {
   const resultado = await registrarTransferenciaStock(usuario, usuario.tenantId, input);
   if (!resultado.ok) return resultado;
   return { ok: true, data: resultado.data };
+}
+
+export async function crearCategoriaAction(
+  nombre: string
+): Promise<ResultadoAccion<{ categoriaId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  return crearCategoria(usuario, usuario.tenantId, { nombre });
+}
+
+export async function actualizarCategoriaAction(
+  categoriaId: string,
+  nombre: string
+): Promise<ResultadoAccion<undefined>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const resultado = await actualizarCategoria(usuario, categoriaId, { nombre });
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: undefined };
+}
+
+export async function eliminarCategoriaAction(
+  categoriaId: string
+): Promise<ResultadoAccion<undefined>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const resultado = await eliminarCategoria(usuario, categoriaId);
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: undefined };
 }

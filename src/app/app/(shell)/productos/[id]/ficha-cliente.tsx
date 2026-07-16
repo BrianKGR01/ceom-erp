@@ -3,10 +3,21 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowLeftRight,
+  ArrowRight,
+  ArrowUpRight,
+  Minus,
+  Package,
+  Pencil,
+  Plus,
+  Store,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { signoMovimiento } from "@/modules/productos/signo-movimiento";
 import {
   ajustarStockAction,
@@ -57,24 +70,51 @@ const ETIQUETAS_TIPO: Record<string, string> = {
   salida_transferencia: "Transferencia enviada",
 };
 
+const UNIDADES_LABEL: Record<string, string> = {
+  unidad: "Unidad",
+  kg: "Kilogramo (kg)",
+  g: "Gramo (g)",
+  l: "Litro (l)",
+  ml: "Mililitro (ml)",
+  docena: "Docena",
+};
+
+const ORIGEN_COSTO_LABEL: Record<string, string> = {
+  nicho_sugerido: "Sugerido por tu rubro",
+  proveedor_reventa: "Precio de tu proveedor",
+};
+
 export function FichaCliente({
   productoId,
+  imagenUrl,
+  categoriaNombre,
+  unidadVenta,
+  origenCosto,
+  ultimaActualizacion,
+  precio,
+  costo,
+  margenPct,
+  costoBloqueado,
   stockPorSucursal,
   sucursales,
 }: {
   productoId: string;
+  imagenUrl: string | null;
+  categoriaNombre?: string;
+  unidadVenta: string;
+  origenCosto: string;
+  ultimaActualizacion: string;
+  precio: number;
+  costo: number | null;
+  margenPct: number | null;
+  costoBloqueado: boolean;
   stockPorSucursal: StockFila[];
   sucursales: { id: string; nombre: string }[];
 }) {
   const router = useRouter();
   const [stock, setStock] = useState(stockPorSucursal);
   const sucursalPorId = new Map(sucursales.map((s) => [s.id, s.nombre]));
-  // Sin esto, Select.Value muestra el value crudo (uuid) en vez del nombre.
   const sucursalItems = Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]));
-  const tipoAjusteItems = {
-    entrada_ajuste_manual: "Sumar stock",
-    salida_ajuste_manual: "Restar stock",
-  };
 
   const [sucursalHistorial, setSucursalHistorial] = useState(sucursales[0]?.id ?? "");
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
@@ -107,6 +147,24 @@ export function FichaCliente({
   const [ajusteError, setAjusteError] = useState<string | null>(null);
   const [ajustando, setAjustando] = useState(false);
 
+  function abrirAjuste(sucursalId?: string) {
+    setAjusteError(null);
+    setAjusteCantidad("");
+    setAjusteMotivo("");
+    setAjusteTipo("entrada_ajuste_manual");
+    if (sucursalId) setAjusteSucursalId(sucursalId);
+    setAjusteAbierto(true);
+  }
+
+  const cantidadActualAjuste = Number(
+    stock.find((f) => f.sucursalId === ajusteSucursalId)?.cantidadActual ?? 0
+  );
+  const cantidadIngresada = Number(ajusteCantidad) || 0;
+  const nuevoStockPreview =
+    ajusteTipo === "entrada_ajuste_manual"
+      ? cantidadActualAjuste + cantidadIngresada
+      : cantidadActualAjuste - cantidadIngresada;
+
   async function confirmarAjuste() {
     setAjustando(true);
     setAjusteError(null);
@@ -132,8 +190,6 @@ export function FichaCliente({
         : [...prev, { sucursalId: ajusteSucursalId, cantidadActual: String(resultado.data.cantidadActual), stockMinimo: null }]
     );
     setAjusteAbierto(false);
-    setAjusteCantidad("");
-    setAjusteMotivo("");
     if (sucursalHistorial === ajusteSucursalId) {
       listarMovimientosStockAction(productoId, ajusteSucursalId).then((r) => {
         if (r.ok) setMovimientos(r.data ?? []);
@@ -163,15 +219,26 @@ export function FichaCliente({
       setTransferenciaError(resultado.error);
       return;
     }
-    setStock((prev) =>
-      prev.map((f) => {
+    setStock((prev) => {
+      const actualizado = prev.map((f) => {
         if (f.sucursalId === origenId)
           return { ...f, cantidadActual: String(resultado.data.cantidadActualOrigen) };
         if (f.sucursalId === destinoId)
           return { ...f, cantidadActual: String(resultado.data.cantidadActualDestino) };
         return f;
-      })
-    );
+      });
+      // El destino puede no tener fila propia todavia (primera vez que
+      // recibe stock) — a diferencia del origen, que siempre existe (no se
+      // puede transferir desde una sucursal sin stock).
+      if (!prev.some((f) => f.sucursalId === destinoId)) {
+        actualizado.push({
+          sucursalId: destinoId,
+          cantidadActual: String(resultado.data.cantidadActualDestino),
+          stockMinimo: null,
+        });
+      }
+      return actualizado;
+    });
     setTransferenciaAbierta(false);
     setTransferenciaCantidad("");
   }
@@ -196,7 +263,7 @@ export function FichaCliente({
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
           render={<Link href={`/app/productos/${productoId}/editar`} />}
@@ -205,20 +272,114 @@ export function FichaCliente({
           <Pencil className="size-4" />
           Editar
         </Button>
+        {sucursales.length > 1 && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setTransferenciaError(null);
+              setTransferenciaAbierta(true);
+            }}
+          >
+            <ArrowLeftRight className="size-4" />
+            Transferir stock
+          </Button>
+        )}
+        <Button variant="outline" onClick={() => abrirAjuste()}>
+          Ajustar stock
+        </Button>
         <Button variant="destructive" onClick={() => setEliminarAbierto(true)}>
           <Trash2 className="size-4" />
           Eliminar
         </Button>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-pastel-blue-bg">
+          {imagenUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagenUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Package className="size-12 text-primary" />
+          )}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Información general</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-text-muted uppercase">Categoría</p>
+              <p className="mt-0.5 text-text-body">{categoriaNombre ?? "Sin categoría"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-muted uppercase">Unidad de venta</p>
+              <p className="mt-0.5 text-text-body">{UNIDADES_LABEL[unidadVenta] ?? unidadVenta}</p>
+            </div>
+            {origenCosto !== "manual" && (
+              <div>
+                <p className="text-xs text-text-muted uppercase">Origen del costo</p>
+                <p className="mt-0.5 text-text-body">{ORIGEN_COSTO_LABEL[origenCosto] ?? origenCosto}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-text-muted uppercase">Última actualización</p>
+              <p className="mt-0.5 text-text-body">{ultimaActualizacion}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
+          <CardContent className="relative space-y-1 pt-6">
+            <p className="text-xs text-text-muted uppercase">Precio de venta</p>
+            <p className="text-2xl font-semibold text-navy">
+              {precio.toFixed(2)}{" "}
+              <span className="text-sm font-normal text-text-muted">/ {unidadVenta}</span>
+            </p>
+            {margenPct !== null && (
+              <Badge variant={margenPct >= 0 ? "success" : "error"}>
+                Margen estimado: {margenPct.toFixed(0)}%
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
+          <CardContent className="relative space-y-1 pt-6">
+            <p className="text-xs text-text-muted uppercase">Costo operativo</p>
+            <p className="text-2xl font-semibold text-navy">
+              {costo !== null ? costo.toFixed(2) : "—"}
+            </p>
+            {costoBloqueado ? (
+              <p className="text-xs text-text-muted">Actualizado por tu proceso de producción.</p>
+            ) : (
+              <p className="text-xs text-text-muted">
+                {costo !== null ? "Cargado a mano." : "Todavía no cargaste un costo."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Stock por sucursal</CardTitle>
-          <CardDescription>Cada sucursal tiene su propia cantidad disponible.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-1">
           {stock.length === 0 && (
             <p className="text-sm text-text-muted">Todavía no hay stock cargado.</p>
+          )}
+          {stock.length > 0 && (
+            <div className="hidden text-xs font-medium text-text-muted uppercase sm:flex sm:items-center sm:gap-3 sm:px-1 sm:pb-1">
+              <span className="flex-1">Sucursal</span>
+              <span className="w-16 text-right">Stock actual</span>
+              <span className="w-16 text-right">Stock mínimo</span>
+              <span className="w-24 text-right">Estado</span>
+              <span className="w-16 text-right">Acción</span>
+            </div>
           )}
           {stock.map((fila) => {
             const cantidad = Number(fila.cantidadActual);
@@ -227,42 +388,29 @@ export function FichaCliente({
             return (
               <div
                 key={fila.sucursalId}
-                className="flex items-center justify-between rounded-lg border border-gray-border px-3 py-2"
+                className="flex items-center gap-3 rounded-lg border border-gray-border px-3 py-2"
               >
-                <span className="text-sm text-text-body">
+                <span className="flex flex-1 items-center gap-2 text-sm text-text-body">
+                  <Store className="size-4 text-text-muted" />
                   {sucursalPorId.get(fila.sucursalId) ?? "Sucursal"}
                 </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-navy">{cantidad}</span>
+                <span className="w-16 text-right text-sm font-medium text-navy">{cantidad}</span>
+                <span className="w-16 text-right text-sm text-text-muted">{minimo ?? "—"}</span>
+                <span className="w-24 text-right">
                   {bajoMinimo && <Badge variant="warning">Stock bajo</Badge>}
-                </div>
+                </span>
+                <span className="w-16 text-right">
+                  <button
+                    type="button"
+                    onClick={() => abrirAjuste(fila.sucursalId)}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Ajustar
+                  </button>
+                </span>
               </div>
             );
           })}
-
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setAjusteError(null);
-                setAjusteAbierto(true);
-              }}
-            >
-              Ajustar stock
-            </Button>
-            {sucursales.length > 1 && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setTransferenciaError(null);
-                  setTransferenciaAbierta(true);
-                }}
-              >
-                <ArrowLeftRight className="size-4" />
-                Transferir
-              </Button>
-            )}
-          </div>
         </CardContent>
       </Card>
 
@@ -298,9 +446,21 @@ export function FichaCliente({
             return (
               <div
                 key={mov.id}
-                className="flex items-center justify-between border-b border-gray-border py-2 text-sm last:border-0"
+                className="flex items-center gap-3 border-b border-gray-border py-2 text-sm last:border-0"
               >
-                <div>
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full",
+                    signo > 0 ? "bg-success-bg text-success-text" : "bg-error-bg text-error-text"
+                  )}
+                >
+                  {signo > 0 ? (
+                    <ArrowUpRight className="size-4" />
+                  ) : (
+                    <ArrowDownRight className="size-4" />
+                  )}
+                </span>
+                <div className="flex-1">
                   <p className="text-text-body">{ETIQUETAS_TIPO[mov.tipo] ?? mov.tipo}</p>
                   {mov.motivo && <p className="text-xs text-text-muted">{mov.motivo}</p>}
                 </div>
@@ -347,19 +507,38 @@ export function FichaCliente({
             )}
             <div className="space-y-1.5">
               <Label>Tipo de ajuste</Label>
-              <Select
-                items={tipoAjusteItems}
-                value={ajusteTipo}
-                onValueChange={(v) => v && setAjusteTipo(v as typeof ajusteTipo)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrada_ajuste_manual">Sumar stock</SelectItem>
-                  <SelectItem value="salida_ajuste_manual">Restar stock</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAjusteTipo("entrada_ajuste_manual")}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                    ajusteTipo === "entrada_ajuste_manual"
+                      ? "border-primary bg-pastel-blue-bg"
+                      : "border-gray-border hover:border-primary/50"
+                  )}
+                >
+                  <span className="flex size-8 items-center justify-center rounded-full bg-success-bg text-success-text">
+                    <Plus className="size-4" />
+                  </span>
+                  <span className="text-xs font-medium text-navy">Entrada</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAjusteTipo("salida_ajuste_manual")}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                    ajusteTipo === "salida_ajuste_manual"
+                      ? "border-primary bg-pastel-blue-bg"
+                      : "border-gray-border hover:border-primary/50"
+                  )}
+                >
+                  <span className="flex size-8 items-center justify-center rounded-full bg-error-bg text-error-text">
+                    <Minus className="size-4" />
+                  </span>
+                  <span className="text-xs font-medium text-navy">Salida</span>
+                </button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Cantidad</Label>
@@ -370,10 +549,15 @@ export function FichaCliente({
                 value={ajusteCantidad}
                 onChange={(e) => setAjusteCantidad(e.target.value)}
               />
+              {ajusteCantidad && (
+                <p className="text-xs text-text-muted">
+                  El nuevo stock será: <span className="font-medium text-navy">{nuevoStockPreview}</span>
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Motivo</Label>
-              <Input
+              <Textarea
                 placeholder="Ej. Conteo físico — diferencia por merma"
                 value={ajusteMotivo}
                 onChange={(e) => setAjusteMotivo(e.target.value)}
@@ -386,7 +570,7 @@ export function FichaCliente({
               Cancelar
             </Button>
             <Button onClick={confirmarAjuste} disabled={ajustando}>
-              {ajustando ? "Guardando..." : "Confirmar ajuste"}
+              {ajustando ? "Guardando..." : "Guardar ajuste"}
             </Button>
           </DialogFooter>
         </DialogContent>

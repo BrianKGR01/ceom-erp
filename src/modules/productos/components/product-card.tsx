@@ -17,7 +17,13 @@ export interface ProductCardData {
 // Vista principal del catalogo (design-system.md seccion 5.3: cards antes
 // que listas) — bloque de imagen o placeholder de color arriba, badge de
 // estado en la esquina, nombre + precio + margen debajo.
-export function ProductCard({ producto }: { producto: ProductCardData }) {
+export function ProductCard({
+  producto,
+  categoriaNombre,
+}: {
+  producto: ProductCardData;
+  categoriaNombre?: string;
+}) {
   const precio = Number(producto.precioVenta);
   const costo = producto.costoOperativoVigente !== null ? Number(producto.costoOperativoVigente) : null;
   const margenPct = costo !== null && precio > 0 ? ((precio - costo) / precio) * 100 : null;
@@ -43,6 +49,11 @@ export function ProductCard({ producto }: { producto: ProductCardData }) {
           </div>
         </div>
         <CardContent className="space-y-1">
+          {categoriaNombre && (
+            <p className="line-clamp-1 text-[11px] font-medium text-text-muted uppercase">
+              {categoriaNombre}
+            </p>
+          )}
           <p className="line-clamp-1 text-sm font-medium text-navy">{producto.nombre}</p>
           <div className="flex items-baseline justify-between">
             <p className="text-base font-semibold text-navy">

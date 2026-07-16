@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { fichaProducto } from "@/modules/productos/actions";
+import { fichaProducto, listarCategorias } from "@/modules/productos/actions";
 import { FichaCliente } from "./ficha-cliente";
 
 export default async function FichaProductoPage({
@@ -15,48 +14,47 @@ export default async function FichaProductoPage({
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [fichaResultado, sucursalesResultado] = await Promise.all([
+  const [fichaResultado, sucursalesResultado, categoriasResultado] = await Promise.all([
     fichaProducto(usuario, id),
     listarSucursalesPorTenant(usuario, usuario.tenantId),
+    listarCategorias(usuario, usuario.tenantId),
   ]);
 
   if (!fichaResultado.ok || !fichaResultado.data.producto) redirect("/app/productos");
   const { producto, stockPorSucursal } = fichaResultado.data;
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
+  const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
+  const categoriaNombre = categorias.find((c) => c.id === producto!.categoriaId)?.nombre;
 
   const precio = Number(producto!.precioVenta);
   const costo =
     producto!.costoOperativoVigente !== null ? Number(producto!.costoOperativoVigente) : null;
   const margenPct = costo !== null && precio > 0 ? ((precio - costo) / precio) * 100 : null;
+  const ultimaActualizacion = new Date(producto!.modificadoEn ?? producto!.creadoEn).toLocaleDateString(
+    "es-BO",
+    { day: "2-digit", month: "short", year: "numeric" }
+  );
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-2xl space-y-6 py-6">
+      <div className="mx-auto max-w-4xl space-y-4 py-6">
+        <Breadcrumb items={[{ label: "Catálogo", href: "/app/productos" }, { label: producto!.nombre }]} />
         <PageHeader
           title={producto!.nombre}
           description={producto!.activo ? "Visible para la venta" : "Oculto del catálogo"}
         />
 
-        <Card>
-          <CardHeader>
-            <CardDescription>Precio y margen</CardDescription>
-            <CardTitle>
-              {precio.toFixed(2)}{" "}
-              <span className="text-sm font-normal text-text-muted">/ {producto!.unidadVenta}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-3">
-            {costo !== null ? (
-              <span className="text-sm text-text-muted">Costo: {costo.toFixed(2)}</span>
-            ) : (
-              <span className="text-sm text-text-muted">Sin costo cargado</span>
-            )}
-            {margenPct !== null && <Badge variant="success">{margenPct.toFixed(0)}% margen</Badge>}
-          </CardContent>
-        </Card>
-
         <FichaCliente
           productoId={id}
+          imagenUrl={producto!.imagenUrl}
+          categoriaNombre={categoriaNombre}
+          unidadVenta={producto!.unidadVenta}
+          origenCosto={producto!.origenCosto}
+          ultimaActualizacion={ultimaActualizacion}
+          precio={precio}
+          costo={costo}
+          margenPct={margenPct}
+          costoBloqueado={producto!.tipoOrigenProducto === "produccion_nicho"}
           stockPorSucursal={stockPorSucursal.map((f) => ({
             sucursalId: f.sucursalId,
             cantidadActual: f.cantidadActual,

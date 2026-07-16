@@ -96,6 +96,15 @@
 - [ ] Categorías sugeridas: no hay set inicial cargado (el doc no lo exige
       para el MVP) — el catálogo queda vacío hasta que alguien con
       `ROL_CEOM_ADMIN_ID` cargue sugerencias.
+- [ ] `configurarStockMinimo` **sigue sin UI** (Fase 1 UI del rediseño de
+      Catálogo llegó a paridad visual con el resto del contrato — Alta/
+      Edición ahora carga `fecha_vencimiento_referencia`, y la Ficha
+      muestra `stock_minimo` — pero nadie llama a `configurarStockMinimo`
+      todavía desde ninguna pantalla, así que ese campo siempre se ve como
+      "—"). `imagen_url` tampoco se persiste desde la UI: el dropzone de
+      Alta/Edición es preview local únicamente (mismo criterio que el logo
+      del negocio en Onboarding), no hay flujo de subida a Storage en todo
+      el proyecto todavía.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/productos/schema.ts`
@@ -141,4 +150,4 @@
   `20000`ms de timeout explícito — hacen varias transacciones secuenciales
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
-## Última actualización: 2026-07-15 — Catálogo/Ficha de Producto (Fase 1 UI): agregó el wrapper público `listarMovimientosStock`
+## Última actualización: 2026-07-16 — Rediseño visual de Catálogo/Ficha/Alta-Edición: Alta/Edición ahora carga `fecha_vencimiento_referencia` (backend ya lo aceptaba); se agregaron wrappers de ruta para el CRUD de categorías (ya existía en `actions.ts`, solo faltaba el wiring de UI); sin cambios de contrato
