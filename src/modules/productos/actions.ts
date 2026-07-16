@@ -315,6 +315,22 @@ export async function enviarProductoAOperaciones(
 
 // --- Consultas (Modulo_02 seccion 3 — salidas que expone) ---------------------------------------------------------
 
+/** Historial de movimientos de un producto en una sucursal — ya existia en
+ * repository.ts pero no estaba expuesta (gap documentado en
+ * docs/ui/pantallas.md seccion 5). Mismo gate que consultarStock. */
+export async function listarMovimientosStock(
+  solicitante: UsuarioConRol,
+  productoId: string,
+  sucursalId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarMovimientosStock>>>> {
+  const producto = await repo.obtenerProductoPorId(productoId);
+  if (!producto) return { ok: false, error: "Producto no encontrado." };
+  if (!(await tienePermiso(solicitante, producto.tenantId, "inventario", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+  }
+  return { ok: true, data: await repo.listarMovimientosStock(productoId, sucursalId) };
+}
+
 export async function consultarStock(
   solicitante: UsuarioConRol,
   productoId: string,

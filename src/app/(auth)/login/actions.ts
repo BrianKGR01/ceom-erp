@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { crearClienteServidor } from "@/lib/supabase/server";
+import { obtenerUsuarioActual, ROL_CEOM_ADMIN_ID } from "@/modules/identidad/actions";
 
 export type ResultadoLogin = { ok: true } | { ok: false; error: string };
 
@@ -23,7 +24,17 @@ export async function iniciarSesion(
     return { ok: false, error: "Correo o contraseña incorrectos." };
   }
 
-  // Placeholder hasta que exista una ruta de dashboard real (ver plan de
-  // esta fase de UI).
-  redirect("/");
+  // Redirect por rol (docs/ui/pantallas.md seccion 0): mismo login para
+  // /app y /admin, el destino depende de con que rol quedo autenticado el
+  // usuario recien logueado.
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) {
+    return {
+      ok: false,
+      error:
+        "Tu cuenta no está completamente configurada todavía. Contactá a soporte.",
+    };
+  }
+
+  redirect(usuario.rolId === ROL_CEOM_ADMIN_ID ? "/admin" : "/app");
 }

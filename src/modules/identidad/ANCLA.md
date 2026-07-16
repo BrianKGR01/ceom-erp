@@ -34,7 +34,12 @@
   dentro de los propios tests). También re-exporta el **tipo**
   `UsuarioConRol` (desde Módulo 5/Patrimonio) — cualquier módulo que llame a
   `tienePermiso()` necesita tipar su `solicitante` sin importar
-  `identidad/repository.ts` directamente.
+  `identidad/repository.ts` directamente. `actualizarTenant`, `asignarNicho`
+  (agregadas al construir la UI de Onboarding, Fase 1 fase de UI — cerraban
+  el gap de backend documentado desde `docs/ui/pantallas.md`).
+  `listarSucursalesPorTenant` (agregada al construir Catálogo/Ficha de
+  Producto — ningún módulo tenía forma de listar sucursales de un tenant
+  hasta ahora; la necesitan los modales de ajuste/transferencia de stock).
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -73,8 +78,16 @@
       son globales, compartidos entre tenants; habilitar ahí afectaría a
       todos los tenants a la vez. Cubierto por
       `identidad.test.ts` ("otorgarCapacidadEspecialPorRol/PorUsuario...").
-- [ ] Pantallas de onboarding (sección 4 del módulo) — fuera de alcance de
-      esta tarea.
+- [x] `actualizarTenant`/`asignarNicho` (Onboarding, sección 4/5 del módulo)
+      — "Configurar negocio" + "Elegir rubro" ya tienen backend real y
+      pantalla en `/app/onboarding`. Gate igual que
+      `invitarUsuario`/`cambiarRolUsuario`: `solicitante.esOwner` directo.
+      `asignarNicho` es de un solo uso — rechaza siempre si el tenant ya
+      tiene `nicho_id` (sección 5: la migración Modo Básico → Nicho es de un
+      solo sentido, sin excepciones). Cubierto por `identidad.test.ts`.
+- [ ] Checklist de bienvenida progresivo (sección 4, paso 3) — sin tracking
+      persistido todavía, fuera de alcance de esta tarea (ya documentado
+      como gap aparte en `docs/ui/pantallas.md`).
 - [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
       (sección 7.2) — roadmap ítem #10, módulo aparte.
 - [ ] Scheduler real que recalcula y persiste `estado_acceso` por tiempo.
@@ -197,4 +210,40 @@
   el tenant `CEOM Ops`. Ver `docs/dev-practices/dev-practices.md` sección
   7.1.
 
-## Última actualización: 2026-07-15 — auditoría de Fase 1 agregó `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario` (gap real de backend: no había forma de escribir la sección 13.1, solo de leerla)
+- **`tenants.nicho_id` es un enum fijo (`nicho_1`/`nicho_4`), no un `uuid`
+  con tabla catálogo.** Antes de esta tarea la columna era un `uuid` suelto
+  sin FK y **ningún código del repo la leía ni la escribía** (cero
+  referencias en `src/modules/operativo/**`, cero en tests) — un gap más
+  profundo que el documentado en `docs/ui/pantallas.md`. Se decidió
+  explícitamente con el usuario no crear una tabla `nichos` (solo hay 2
+  nichos reales en el MVP, sin previsión de crecer sin revisar el roadmap
+  primero — mismo criterio que `capacidadEspecialEnum`). Si algún día se
+  suma un nicho nuevo: `ALTER TYPE nicho ADD VALUE` en su propia migración,
+  sola, sin otro DDL en el mismo archivo (mismo patrón ya documentado abajo
+  para `modulo_permiso`). `planes.nicho_id` (Suscripción) sigue siendo un
+  `uuid` suelto — no se tocó, queda fuera de alcance de este cambio.
+- **Bug real encontrado en `drizzle-kit generate` para un `ALTER COLUMN` de
+  `uuid` a enum**: el SQL que genera (`USING "col"::"tipo_enum"`) falla en
+  Postgres — no se puede castear `uuid` directo a un enum arbitrario, hace
+  falta pasar por texto (`USING "col"::text::"tipo_enum"`). Ver
+  `drizzle/migrations/0022_public_lady_bullseye.sql`, ya corregido a mano.
+  Si se genera otra migración que cambie el tipo de una columna `uuid` a un
+  enum, revisar el `USING` generado antes de aplicar — no asumir que
+  `drizzle-kit generate` lo resuelve bien.
+- **`drizzle.__drizzle_migrations` puede quedar inconsistente si una
+  migración falla a mitad de camino** (visto en la 0022: `CREATE TYPE`
+  llegó a persistir pero el `ALTER COLUMN` falló, y aun así quedó una fila
+  de tracking con un `hash`/`created_at` que no correspondían al archivo
+  real — la lógica de `drizzle-orm` para decidir qué migración ya se aplicó
+  compara por `created_at` contra el `when` de `_journal.json`, **no por
+  hash**, aunque la tabla también guarda un hash). Se corrigió esa fila a
+  mano, con autorización explícita del usuario (acción que el modo
+  automático de la sesión bloquea por defecto, correctamente, al ser una
+  escritura directa sobre infraestructura compartida). Si vuelve a pasar:
+  comparar `_journal.json` (`when` de la migración) contra
+  `select id, hash, created_at from drizzle.__drizzle_migrations order by
+  created_at desc limit 1` antes de asumir que "no aparece error" significa
+  "se aplicó bien" — `drizzle-kit migrate` puede terminar en exit code 1
+  sin imprimir el error real de Postgres.
+
+## Última actualización: 2026-07-15 — Catálogo/Ficha de Producto (Fase 1 UI): agregó `listarSucursalesPorTenant` (gap real: ningún módulo podía listar sucursales de un tenant todavía)

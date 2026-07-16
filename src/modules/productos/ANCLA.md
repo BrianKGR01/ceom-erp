@@ -28,6 +28,9 @@
   `descontarStockVenta`, `registrarTransferenciaStock`) +
   `consultarStockTotalPorSucursal` (roadmap ítem #12, agregado de solo
   lectura para Nicho 4) + `signoMovimiento()` pura, exportada.
+  `listarMovimientosStock` (agregada al construir la Ficha de Producto —
+  ya existía en `repository.ts`, solo faltaba el wrapper público; gap
+  documentado desde `docs/ui/pantallas.md` sección 5).
 
 ## Estado actual
 - [x] Schema Drizzle (`categorias_producto`, `categorias_sugeridas`,
@@ -138,4 +141,4 @@
   `20000`ms de timeout explícito — hacen varias transacciones secuenciales
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
-## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4): `registrarEntradaCompraReventa` con caller real, FK de `compras.item_id` cerrado, agregado `consultarStockTotalPorSucursal`
+## Última actualización: 2026-07-15 — Catálogo/Ficha de Producto (Fase 1 UI): agregó el wrapper público `listarMovimientosStock`

@@ -22,7 +22,11 @@
   sección 7).
 - Salidas que expone (`actions.ts`): CRUD de `Cliente`/`CanalVenta`/
   `MetodoPago`/`Evento` + `registrarVenta`, `registrarAjusteVenta`,
-  `registrarPagoVenta`, `listarVentas`, `fichaVenta`, `importarVentaHistorica`
+  `registrarPagoVenta`, `listarVentas`, `listarVentasConTotal` (agregada al
+  construir el Listado de Ventas — `listarVentas` no trae el total por fila,
+  este wrapper lo agrega con `obtenerTotalVenta` por fila, mismo patrón que
+  `listarSucursalesPorTenant`/`listarMovimientosStock` de Identidad/
+  Productos), `fichaVenta`, `importarVentaHistorica`
   + fórmulas puras (`calcularSubtotal`, `calcularComision`) +
   `consultarIngresosPeriodo`, `consultarPagosVentaEnPeriodo`,
   `consultarAjustesVentaEnPeriodo` (agregados de solo lectura por período,
@@ -149,4 +153,4 @@
   secuenciales y la mayoría de los tests del archivo lo necesitan, a
   diferencia de Módulo 2/6 donde era la excepción puntual.
 
-## Última actualización: 2026-07-15 — roadmap ítem #14 (Reportes) agregó `rankingProductos`/`historicoVentas`/`margenPorCanalYProducto`
+## Última actualización: 2026-07-15 — Punto de Venta/Listado/Ficha (Fase 1 UI): agregó el wrapper público `listarVentasConTotal`

@@ -77,6 +77,13 @@ export const capacidadEspecialEnum = pgEnum("capacidad_especial", [
   "producir_sin_stock_insumo",
 ]);
 
+// Solo 2 nichos reales en el MVP (Modulo_01 seccion 5, CEOM_Arquitectura.md
+// seccion 2) — enum fijo en vez de tabla catalogo, mismo criterio que
+// capacidadEspecialEnum. null en tenants.nicho_id = Modo Basico. Ampliable
+// (ALTER TYPE ... ADD VALUE, ver identidad/ANCLA.md) si algun dia se suma un
+// nicho nuevo, pero no antes de una revision de roadmap.
+export const nichoEnum = pgEnum("nicho", ["nicho_1", "nicho_4"]);
+
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
   nombreNegocio: text("nombre_negocio").notNull(),
@@ -88,7 +95,7 @@ export const tenants = pgTable("tenants", {
     .notNull()
     .default(sql`'{}'::text[]`),
   // null = Modo Basico (Modulo_01 seccion 5)
-  nichoId: uuid("nicho_id"),
+  nichoId: nichoEnum("nicho_id"),
   nichoAsignadoEn: timestamp("nicho_asignado_en", { withTimezone: true }),
   planId: uuid("plan_id").references(() => planes.id),
   estadoSuscripcion: estadoSuscripcionEnum("estado_suscripcion")

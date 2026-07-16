@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db } from "@/db/client";
+import { signoMovimiento } from "./signo-movimiento";
 import {
   categoriasProducto,
   categoriasSugeridas,
@@ -14,22 +15,9 @@ export type NuevaCategoriaSugerida = typeof categoriasSugeridas.$inferInsert;
 export type NuevoProducto = typeof productos.$inferInsert;
 export type NuevoMovimientoStock = typeof movimientosStock.$inferInsert;
 
-type TipoMovimientoStock = (typeof movimientosStock.$inferSelect)["tipo"];
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-// "entrada_*" suma, "salida_*" resta (Modulo_02 seccion 2.5) — unica fuente
-// de verdad de esta regla; recalcularCantidadActualTx() la usa en vez de
-// duplicarla como un CASE en SQL crudo.
-const TIPOS_ENTRADA = new Set<TipoMovimientoStock>([
-  "entrada_produccion",
-  "entrada_compra_reventa",
-  "entrada_ajuste_manual",
-  "entrada_transferencia",
-]);
-
-export function signoMovimiento(tipo: TipoMovimientoStock): 1 | -1 {
-  return TIPOS_ENTRADA.has(tipo) ? 1 : -1;
-}
+export { signoMovimiento };
 
 // --- Categorias ---------------------------------------------------------
 

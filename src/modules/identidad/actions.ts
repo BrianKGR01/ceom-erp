@@ -208,6 +208,23 @@ export async function listarTenants(solicitante: UsuarioConRol): Promise<
 }
 
 /**
+ * Listado de sucursales de un tenant (Sucursal ya existe desde Modulo 1,
+ * pero hasta ahora ningun consumidor de UI la necesitaba). Mismo criterio de
+ * gate que obtenerTenantPorId: ceom_admin ve cualquier tenant, un usuario
+ * normal solo el suyo.
+ */
+export async function listarSucursalesPorTenant(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarSucursalesPorTenant>>>> {
+  const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
+  if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
+    return { ok: false, error: "No tenés permiso para ver las sucursales de este tenant." };
+  }
+  return { ok: true, data: await repo.listarSucursalesPorTenant(tenantId) };
+}
+
+/**
  * Solicitante SINTETICO — solo para lecturas mediadas por el Gateway de
  * Consentimiento (Modulo 11, Monitoreo Institucional). Una Institucion
  * externa no es un UsuarioConRol; una vez que tieneConsentimiento() ya
@@ -342,6 +359,65 @@ export async function crearTenant(
       usuarioOwnerId: usuarioOwner.id,
     },
   };
+}
+
+// --- Configuracion del tenant / Onboarding (Modulo_01 seccion 4) ---------------------------------------------------------
+
+/**
+ * "Configurar negocio" (Modulo_01 seccion 4.1). Mismo criterio de gate que
+ * invitarUsuario/cambiarRolUsuario: solo el Owner, chequeo directo de
+ * esOwner (identidad no esta en el enum modulo_permiso, ver ANCLA.md).
+ * logoUrl es opcional a proposito — la pantalla de onboarding todavia no
+ * pide logo (sin integracion de Storage en esta tarea).
+ */
+export async function actualizarTenant(
+  solicitante: UsuarioConRol,
+  input: {
+    nombreNegocio?: string;
+    ciudadBase?: string;
+    monedaPrincipal?: string;
+    canalesVenta?: string[];
+    logoUrl?: string;
+  }
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede configurar el negocio." };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  await repo.actualizarTenant(solicitante.tenantId, input, solicitante.id);
+  return { ok: true, data: true };
+}
+
+/**
+ * "Elegir rubro/nicho" (Modulo_01 seccion 5). Regla de un solo sentido: una
+ * vez que el tenant tiene un nicho asignado, esta funcion siempre rechaza
+ * — ni para cambiar de nicho ni para volver a Modo Basico. No hay excepcion
+ * ni siquiera para ceom_admin: es una decision de negocio del Owner, no una
+ * operacion administrativa.
+ */
+export async function asignarNicho(
+  solicitante: UsuarioConRol,
+  nicho: "nicho_1" | "nicho_4"
+): Promise<Resultado<{ nichoAsignadoEn: string }>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede elegir el rubro del negocio." };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  const tenant = await repo.obtenerTenantPorId(solicitante.tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (tenant.nichoId) {
+    return {
+      ok: false,
+      error: "Ya elegiste un rubro para este negocio, no se puede cambiar.",
+    };
+  }
+
+  const actualizado = await repo.asignarNichoTenant(solicitante.tenantId, nicho, solicitante.id);
+  return { ok: true, data: { nichoAsignadoEn: actualizado.nichoAsignadoEn!.toISOString() } };
 }
 
 // --- Colaboradores (Modulo_01 seccion 8) ---------------------------------------------------------

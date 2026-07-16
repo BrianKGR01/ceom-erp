@@ -26,9 +26,17 @@ cliente — mismo principio que ya sigue el backend (`Resultado<T>` tipado, nunc
 `try/catch` genérico).
 
 Login único (`/app`+`/admin`): [`src/app/(auth)/login`](../../src/app/(auth)/login/page.tsx) ya
-existe, pero [`login/actions.ts:28`](../../src/app/(auth)/login/actions.ts) tiene un
-`redirect("/")` placeholder — la primera pieza real a construir es reemplazar eso por un redirect
-según `rolId === ROL_CEOM_ADMIN_ID` (`/admin`) vs. resto (`/app`).
+existe. **Resuelto (Etapa B, primer paso):** el redirect por rol ya está implementado en
+[`login/actions.ts`](../../src/app/(auth)/login/actions.ts) — `rolId === ROL_CEOM_ADMIN_ID` va a
+`/admin`, el resto a `/app`. Ambas superficies tienen gate server-side real en su propio
+`layout.tsx` (`src/app/app/layout.tsx`, `src/app/admin/layout.tsx`): sin sesión redirige a
+`/login`; en `/admin`, con sesión pero sin rol `ceom_admin` redirige a `/app`. Se agregó también
+`src/proxy.ts` (convención Next.js 16, reemplaza `middleware.ts`) para refrescar la cookie de
+sesión de Supabase en cada request. Verificado end-to-end en navegador con usuarios reales
+temporales (login Owner → `/app`, login CEOM Admin → `/admin`, logout, gates sin sesión, gate de
+rol cruzado, credenciales inválidas). Las páginas de `/app` y `/admin` de esta pieza son
+landings provisorias — el dashboard y el Panel Admin reales son trabajo aparte, todavía no
+construido.
 
 ---
 
@@ -38,7 +46,8 @@ según `rolId === ROL_CEOM_ADMIN_ID` (`/admin`) vs. resto (`/app`).
 **Login** — autenticación compartida `/app`/`/admin`.
 - Campos: `email`, `password` (inputs del form).
 - Rol: público (no autenticado).
-- Acción: `iniciarSesion()` → `supabase.auth.signInWithPassword`. **Falta el redirect por rol** (ver sección 0).
+- Acción: `iniciarSesion()` → `supabase.auth.signInWithPassword`, con redirect por rol ya
+  resuelto (ver sección 0).
 - Nota: los enlaces "¿Olvidaste tu contraseña?" y "Crear cuenta gratis" del componente actual son placeholders sin flujo detrás — no hay alta de cuenta autoservicio (`crearTenant` está gateado a `ceom_admin` únicamente, ver pantalla 16).
 
 ### `/app` — Onboarding del Owner (primer ingreso)

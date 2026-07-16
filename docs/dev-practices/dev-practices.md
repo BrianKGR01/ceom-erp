@@ -227,7 +227,42 @@ Se amplía más adelante con el job de Playwright (necesita un entorno con Supab
 
 ---
 
-## 9. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
+## 9. Convenciones de UI
+
+Reglas específicas para el trabajo de frontend (`src/app/`, `src/components/`,
+`src/modules/<módulo>/components/`), complementarias a las convenciones de
+código de la sección 5.
+
+- **Server Components por defecto.** Un componente pasa a Client Component
+  (`"use client"`) solo cuando hay interacción real que lo exige: formularios,
+  modales, carrito de venta, cualquier `useState`/`onClick`/etc. Si un
+  componente solo lee y renderiza datos, se queda como Server Component.
+- **Estado local, no estado global.** `useState`/`useReducer` para estado de
+  UI. Nada de librería de estado global (Redux, Zustand, Jotai, etc.) sin
+  aprobación explícita del dueño del proyecto — no se instala "por si acaso".
+- **Un solo Context de sesión.** Tenant, usuario, rol y permisos viven en un
+  único Context de solo lectura, poblado en el layout raíz de `/app` a partir
+  de `obtenerUsuarioActual()` (`src/modules/identidad/actions.ts`). Ningún
+  componente vuelve a pedir esos datos por su cuenta ni mantiene su propia
+  copia mutable.
+- **Formularios con `react-hook-form` + `zod`**, reutilizando el mismo schema
+  de validación que ya usa la Server Action correspondiente — nunca un schema
+  de formulario distinto del que valida en el servidor, para no tener dos
+  fuentes de verdad sobre qué es un dato válido.
+- **`loading.tsx` y `error.tsx` por ruta.** Nunca un spinner o un mensaje de
+  error armado a mano dentro de una pantalla — se usan los archivos especiales
+  de Next.js App Router para que la carga y el error sean consistentes en toda
+  la app.
+- **Un componente de módulo nunca importa un componente de otro módulo.**
+  Mismo principio de caja negra que rige el backend (`AGENTS.md`, regla 2):
+  `src/modules/<A>/components/` no importa de `src/modules/<B>/components/`.
+  Lo común entre módulos vive en `src/components/ui/` (primitivos genéricos)
+  o `src/components/shared/` (compuestos con forma de producto CEOM pero sin
+  dueño de módulo, ej. estado vacío, modal de confirmación).
+
+---
+
+## 10. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
 
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` pasan localmente.
 - [ ] La prueba de caja negra del módulo (sección 6) está cubierta por un test real, no solo mencionada.

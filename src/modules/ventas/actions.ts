@@ -584,6 +584,25 @@ export async function listarVentas(
   return { ok: true, data: await repo.listarVentasPorTenant(tenantId) };
 }
 
+/** listarVentas() no trae el total por fila (Venta no persiste un
+ * monto_total propio) — este wrapper lo agrega llamando obtenerTotalVenta
+ * por fila, mismo criterio que listarSucursalesPorTenant/
+ * listarMovimientosStock agregados esta sesion. */
+export async function listarVentasConTotal(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Array<Awaited<ReturnType<typeof repo.listarVentasPorTenant>>[number] & { total: number }>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+  }
+  const ventas = await repo.listarVentasPorTenant(tenantId);
+  const totales = await Promise.all(ventas.map((v) => repo.obtenerTotalVenta(v.id)));
+  return {
+    ok: true,
+    data: ventas.map((venta, i) => ({ ...venta, total: totales[i] })),
+  };
+}
+
 export async function fichaVenta(
   solicitante: UsuarioConRol,
   ventaId: string

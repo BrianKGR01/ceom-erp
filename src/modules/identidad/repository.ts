@@ -49,6 +49,13 @@ export async function listarTenants() {
   return db.select().from(tenants).where(isNull(tenants.eliminadoEn));
 }
 
+export async function listarSucursalesPorTenant(tenantId: string) {
+  return db
+    .select()
+    .from(sucursales)
+    .where(and(eq(sucursales.tenantId, tenantId), isNull(sucursales.eliminadoEn)));
+}
+
 export async function obtenerRolPorId(rolId: string) {
   const filas = await db
     .select()
@@ -172,6 +179,47 @@ export async function crearTenantConOwner(input: {
 
     return { tenant, sucursal, usuarioOwner };
   });
+}
+
+export interface DatosActualizarTenant {
+  nombreNegocio?: string;
+  ciudadBase?: string;
+  monedaPrincipal?: string;
+  canalesVenta?: string[];
+  logoUrl?: string;
+}
+
+export async function actualizarTenant(
+  tenantId: string,
+  data: DatosActualizarTenant,
+  modificadoPor: string
+) {
+  const [tenant] = await db
+    .update(tenants)
+    .set({ ...data, modificadoPor, modificadoEn: new Date() })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+  return tenant;
+}
+
+// Escritura de un solo uso — el gate de "ya tiene nicho asignado" vive en
+// actions.ts (regla de negocio, Modulo_01 seccion 5), acá solo se persiste.
+export async function asignarNichoTenant(
+  tenantId: string,
+  nicho: (typeof tenants.$inferSelect)["nichoId"],
+  modificadoPor: string
+) {
+  const [tenant] = await db
+    .update(tenants)
+    .set({
+      nichoId: nicho,
+      nichoAsignadoEn: new Date(),
+      modificadoPor,
+      modificadoEn: new Date(),
+    })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+  return tenant;
 }
 
 export async function insertarUsuario(data: NuevoUsuario) {

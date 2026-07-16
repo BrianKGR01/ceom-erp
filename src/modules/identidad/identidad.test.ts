@@ -4,6 +4,8 @@ import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
 import {
   actualizarPermisosRol,
+  actualizarTenant,
+  asignarNicho,
   cambiarRolUsuario,
   crearRolPersonalizado,
   crearTenant,
@@ -109,6 +111,42 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
     expect(owner?.esOwner).toBe(true);
     expect(owner?.rol.nombre).toBe("Owner");
+  });
+
+  it("actualizarTenant: guarda los campos y rechaza si no es Owner (Onboarding, Modulo_01 seccion 4.1)", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const noOwner = { ...owner!, esOwner: false };
+
+    const rechazo = await actualizarTenant(noOwner, { nombreNegocio: "No deberia guardarse" });
+    expect(rechazo.ok).toBe(false);
+
+    const resultado = await actualizarTenant(owner!, {
+      nombreNegocio: `Test SRL actualizado ${sufijo}`,
+      ciudadBase: "La Paz",
+      monedaPrincipal: "BOB",
+      canalesVenta: ["redes_sociales", "feria"],
+    });
+    expect(resultado.ok).toBe(true);
+
+    const tenant = await repo.obtenerTenantPorId(tenantId);
+    expect(tenant?.nombreNegocio).toBe(`Test SRL actualizado ${sufijo}`);
+    expect(tenant?.ciudadBase).toBe("La Paz");
+    expect(tenant?.canalesVenta).toEqual(["redes_sociales", "feria"]);
+  });
+
+  it("asignarNicho: guarda nicho_id + nicho_asignado_en y rechaza un segundo intento (Modulo_01 seccion 5, regla de un solo sentido)", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    const resultado = await asignarNicho(owner!, "nicho_1");
+    expect(resultado.ok).toBe(true);
+
+    const tenant = await repo.obtenerTenantPorId(tenantId);
+    expect(tenant?.nichoId).toBe("nicho_1");
+    expect(tenant?.nichoAsignadoEn).not.toBeNull();
+
+    // Ni cambiar de nicho ni volver a Modo Basico: rechaza siempre una vez asignado.
+    const segundoIntento = await asignarNicho(owner!, "nicho_4");
+    expect(segundoIntento.ok).toBe(false);
   });
 
   it("tienePermiso: el Owner tiene acceso total sin filas en la matriz", async () => {
