@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AppSidebar } from "@/components/shared/app-sidebar";
+import { AppShell } from "@/components/shared/app-shell";
 import { obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
 
 // Shell real de /app (design-system.md seccion 5.1): sidebar navy +
@@ -23,14 +23,13 @@ export default async function ShellLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar
-        nombreCompleto={usuario.nombreCompleto}
-        rolNombre={usuario.rol.nombre}
-        tenantNombre={tenant?.nombreNegocio ?? ""}
-        esOwner={usuario.esOwner}
-      />
-      <main className="min-w-0 flex-1">{children}</main>
-    </div>
+    <AppShell
+      nombreCompleto={usuario.nombreCompleto}
+      rolNombre={usuario.rol.nombre}
+      tenantNombre={tenant?.nombreNegocio ?? ""}
+      esOwner={usuario.esOwner}
+    >
+      {children}
+    </AppShell>
   );
 }

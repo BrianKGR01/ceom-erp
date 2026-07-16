@@ -124,21 +124,56 @@
   --info-text: #2176bd;
 }
 
-/* Drawer del sidebar mobile (src/components/shared/app-sidebar.tsx) —
-   CSS a mano en vez de utilidades responsive de Tailwind (max-lg:/lg:)
-   porque el build de Turbopack en dev reproducidamente genero esas
-   variantes duplicadas sin envolver en @media, pisando siempre el estado
-   "cerrado". Con reglas propias, sin ese problema. */
+/* Shell de /app (src/components/shared/app-shell.tsx) — CSS a mano en vez
+   de utilidades responsive de Tailwind (max-lg:/lg:) porque el build de
+   Turbopack en dev reproducidamente genero esas variantes duplicadas sin
+   envolver en @media (confirmado con -translate-x-full + lg:translate-x-0
+   Y con lg:hidden — ambas pisaban el estado que debian ocultar). Con
+   reglas propias, sin ese problema. Evitar lg:/max-lg: en este arbol.
+   min-width: 1024px = breakpoint "lg" de Tailwind (--breakpoint-lg). */
+.app-mobile-bar {
+  display: flex;
+}
+.app-mobile-close {
+  display: inline-flex;
+}
 .app-sidebar {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 50;
+  width: 16rem;
   transform: translateX(-100%);
 }
 .app-sidebar.app-sidebar--abierto {
   transform: translateX(0);
 }
+.app-shell-main {
+  margin-left: 0;
+}
 @media (min-width: 1024px) {
+  .app-mobile-bar {
+    display: none;
+  }
+  .app-mobile-close {
+    display: none;
+  }
   .app-sidebar {
-    position: static;
     transform: none;
+  }
+  .app-sidebar.app-sidebar--colapsado {
+    width: 4.75rem;
+  }
+  .app-sidebar.app-sidebar--colapsado.app-sidebar--hover {
+    width: 16rem;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .app-shell-main {
+    margin-left: 16rem;
+    transition: margin-left 200ms ease;
+  }
+  .app-shell-main.app-shell-main--colapsado {
+    margin-left: 4.75rem;
   }
 }
 
