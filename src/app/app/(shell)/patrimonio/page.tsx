@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
@@ -28,7 +29,15 @@ export default async function PatrimonioPage() {
   return (
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
-        <PageHeader title="Activos" description="Gestión del patrimonio físico del negocio." />
+        <PageHeader
+          title="Activos"
+          description="Gestión del patrimonio físico del negocio."
+          action={
+            <Link href="/app/patrimonio/pasivos" className="text-sm font-medium text-primary hover:underline">
+              Ver pasivos
+            </Link>
+          }
+        />
 
         <ActivosCliente
           activos={activos.map((a) => ({

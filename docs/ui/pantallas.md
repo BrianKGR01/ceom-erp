@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-16)
 
-**28 construidas · 0 parciales · 88 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**33 construidas · 0 parciales · 83 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -32,7 +32,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 |---|---|---|---|---|
 | 1. Identidad | 4 | 0 | 15 | 19 |
 | 2. Suscripción | 0 | 0 | 5 | 5 |
-| **3. Patrimonio** | **6** | 0 | 6 | 12 |
+| **3. Patrimonio** | **11** | 0 | 1 | 12 |
 | 4. Proveedores/Compras | 0 | 0 | 9 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
@@ -55,31 +55,41 @@ Métodos de Pago, Gestión de Eventos e Importación de Venta Histórica — las
 quedaban pendientes del módulo quedan `[x]`, verificadas end-to-end contra el tenant de prueba.
 Detalle de decisiones y del bug de timezone encontrado y corregido: `src/modules/ventas/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Patrimonio, 11/11 pantallas de negocio.** Tanda A (Activos, 6) +
+Tanda B (Pasivos, 5) — Listado/Ficha/Alta/Editar/Dar de baja/Transferir de Activos, y
+Listado/Ficha/Alta/Refinanciar/Registrar pago de Pasivos. Queda pendiente únicamente el widget
+"Valor patrimonial total" — se construye junto con el Dashboard de Reportes (Módulo 14 Sección B),
+no como pantalla propia de Patrimonio. Detalle completo: `src/modules/patrimonio/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Patrimonio (Activos/Pasivos)** — módulo en curso. **Tanda A (Activos) cerrada 2026-07-17,
-   6/12 construidas** — Listado de Activos, Ficha de Activo, Alta/Editar Activo, Dar de baja
-   Activo, Transferir Activo. **Tanda B (Pasivos) es la próxima** — el gap de backend que
-   bloqueaba esta tanda ya está resuelto (`listarPasivos`, `obtenerPasivoPorId`, `fichaPasivo` con
-   historial completo de pagos, todos en `actions.ts`). Pantallas exactas de la Tanda B (sección 3
-   de este documento):
-   - Listado de Pasivos
-   - Ficha de Pasivo
-   - Alta de Pasivo
-   - Refinanciar Pasivo
-   - Registrar pago de Pasivo
-   - Valor patrimonial total (widget, probablemente embebido en el Dashboard de Reportes) — cierra
-     el módulo completo
-2. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
-   Compra de Nicho 4.
-3. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
+1. **Proveedores / Compras** — el próximo módulo de negocio completo sin ninguna pantalla
+   todavía (0/9 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md` §7 —
+   Proveedores no depende de ningún módulo de UI pendiente). Incluye el flujo de Landed Cost/Orden
+   de Compra de Nicho 4. **⚠️ Gap de backend a cerrar antes de construir "Listado de Compras":**
+   no existe un `listarComprasPorTenant`/`listarCompras` con filtros por `estadoPago`/`estado` —
+   hoy el único listado real disponible es indirecto, vía `fichaProveedor()` → `compras[]` (por
+   proveedor) o `historialPrecio()` (por ítem). El resto de las pantallas (Proveedores completo,
+   Alta de Compra, Recibir Compra, Registrar pago, Compra de Ajuste) no tiene gaps — sus acciones
+   ya existen. Pantallas exactas de esta tanda (sección 4 de este documento):
+   - Listado de Proveedores
+   - Ficha de Proveedor
+   - Alta de Proveedor
+   - Listado de Compras
+   - Alta de Compra
+   - Historial de precios de un ítem
+   - Recibir Compra
+   - Registrar pago de Compra
+   - Compra de Ajuste
+2. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
    `proveedorId`, aunque no es un bloqueo estricto. Poblar datos de Gastos también dejaría de
    mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
-4. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
-5. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+3. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
+4. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
    Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
-   reportes detallados" que se omitió del Dashboard por no tener destino todavía.
-6. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
+   reportes detallados" que se omitió del Dashboard por no tener destino todavía, y es donde va el
+   widget "Valor patrimonial total" pendiente de Patrimonio.
+5. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
 
@@ -265,22 +275,36 @@ Verificado end-to-end. Acción: `darDeBajaActivo(solicitante, activoId, motivo)`
 **Transferir Activo entre sucursales** `[x]` (modal, `Dialog`). Verificado end-to-end.
 Campo: `nuevaSucursalId`. Acción: `transferirActivo(solicitante, activoId, nuevaSucursalId)`.
 
-### `/app` — Pasivos (Tanda B, pendiente)
-**Listado de Pasivos** `[ ]` — con saldo pendiente por fila.
-- Campos: `montoTotal`, `cuotaPeriodica`, `frecuenciaCuota`, `plazoCuotas`, `fechaInicio`, `estado` (`activo`/`pagado`/`refinanciado`), `activoId?`.
-- Acción: `listarPasivos(solicitante, tenantId)` — ya existe, sin UI todavía.
+### `/app` — Pasivos (Tanda B, cerrada 2026-07-17)
+**Listado de Pasivos** `[x]` — `/app/patrimonio/pasivos`, vista de lista (design-system §5.5, no
+cards), con saldo pendiente por fila (agregado vía `fichaPasivo` por fila, mismo criterio que
+`listarVentasConTotal`). Link cruzado "Ver activos"/"Ver pasivos" entre ambos listados. Verificado
+end-to-end.
+- Campos: `montoTotal`, `cuotaPeriodica`, `frecuenciaCuota`, `plazoCuotas`, `fechaInicio`, `estado` (`activo`/`pagado`/`refinanciado`), `activoId?` (se muestra el nombre del activo vinculado, o "Sin activo asociado"). **No incluido:** "próxima cuota"/vencido de la referencia visual — no hay cálculo de fecha de próxima cuota en el contrato, no se fabricó.
+- Acción: `listarPasivos(solicitante, tenantId)`.
 
-**Ficha de Pasivo** `[ ]` — cronograma de pagos derivado del ledger.
+**Ficha de Pasivo** `[x]` — `/app/patrimonio/pasivos/[id]`, 3 stat cards (Monto original, Cuota,
+Saldo pendiente — **sin "Tasa (TEA)"**: el doc del módulo confirma "cuota fija sin desglose de
+interés/capital" para el MVP, ese campo no existe en el modelo) + historial completo de pagos
+(cuota N/plazo, fecha, origen Automático/Manual, monto, saldo restante corrido). Botones
+Refinanciar/Registrar pago se ocultan si el pasivo ya no está `activo`. Verificado end-to-end.
 - Campos: los de arriba + `saldoPendiente` (derivado) + historial de pagos (`monto`, `fechaPago`, `origen`).
-- Acción: `fichaPasivo(solicitante, pasivoId)` — ya existe (pasivo + saldo + historial completo de pagos), sin UI todavía.
+- Acción: `fichaPasivo(solicitante, pasivoId)`.
 
-**Alta de Pasivo** `[ ]` (modal, normalmente junto con un Activo financiado).
+**Alta de Pasivo** `[x]` y **Refinanciar Pasivo** `[x]` — mismo componente compartido
+(`PasivoForm`, `src/components/shared/pasivo-form.tsx`), páginas completas (no modal — la
+referencia de "Refinanciar" mostraba una pantalla completa "Nuevo Pasivo" con un banner, no un
+modal). Selector de Activo relacionado como cards (design-system §5.4), incluye "Sin activo
+relacionado" ya que `activoId` es opcional. En modo Refinanciar, precarga los términos del pasivo
+anterior (menos la fecha de inicio, que se pide de nuevo) y muestra el banner de aviso. Verificado
+end-to-end (alta, refinanciación confirmada — el pasivo anterior queda `refinanciado` con su saldo
+congelado, el nuevo arranca en `activo`).
 - Campos: `activoId?`, `montoTotal`, `cuotaPeriodica`, `frecuenciaCuota` (`mensual`/`semanal`/`quincenal`/`anual`), `plazoCuotas`, `fechaInicio`.
-- Acción: `crearPasivo(solicitante, tenantId, input)`.
+- Acciones: `crearPasivo(solicitante, tenantId, input)`, `refinanciarPasivo(solicitante, pasivoAnteriorId, nuevosTerminos)`.
 
-**Refinanciar Pasivo** `[ ]` (modal — nunca edita el original). Acción: `refinanciarPasivo(solicitante, pasivoAnteriorId, nuevosTerminos)`.
-
-**Registrar pago de Pasivo** `[ ]` (modal).
+**Registrar pago de Pasivo** `[x]` (modal, `Dialog`, disparado desde la Ficha) — resumen
+"Saldo actual / Pago a registrar / Saldo después" recalculado en vivo mientras se escribe el
+monto, igual que la referencia. Verificado end-to-end.
 - Campos: `monto`, `fechaPago`, `origen?` (default `"manual"`).
 - Salida: `saldoPendiente`, `estadoPasivo` (pasa a `pagado` automáticamente al llegar a 0).
 - Acción: `registrarPagoPasivo(solicitante, pasivoId, input)`.

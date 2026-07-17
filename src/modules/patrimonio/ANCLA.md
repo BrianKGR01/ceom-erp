@@ -94,6 +94,46 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
+## Última actualización: 2026-07-17 (2) — Tanda B de UI (Pasivos): módulo cerrado, 11/11 pantallas de negocio
+Sin cambios de contrato — `pasivoFormSchema`/`registrarPagoPasivoSchema` (nuevos, en `validation.ts`)
+mapean 1:1 contra `DatosPasivo`/`registrarPagoPasivo` ya existentes, a diferencia de la Tanda A
+(Activos) que sí necesitó `motivoBaja`. Pantallas: Listado de Pasivos, Ficha de Pasivo (con el
+historial completo de pagos que ya exponía `fichaPasivo`), Alta/Refinanciar Pasivo (mismo
+componente compartido, `src/components/shared/pasivo-form.tsx` — selector de Activo relacionado
+como cards, incluye "Sin activo relacionado"), Registrar pago de Pasivo (modal con resumen
+saldo-antes/después en vivo).
+
+**Dos campos de la referencia visual NO se implementaron por no existir en el modelo de datos —
+no se fabricaron:**
+- **"Tasa (TEA)"** en la Ficha de Pasivo — el doc del módulo (`Modulo_05_patrimonio.md` sección
+  6.1) confirma explícitamente "cuota fija sin desglose de interés/capital" para el MVP.
+  `cuotaPeriodica` se carga directo, nunca se deriva de una tasa.
+- **"Próxima cuota"/estado "Vencido"** en el Listado de Pasivos — no hay ninguna función que
+  calcule la fecha de la próxima cuota a partir de `fechaInicio`/`frecuenciaCuota`/pagos
+  registrados. Si se necesita esto en el futuro, es una función pura nueva (candidata a
+  `calcularProximaCuota()`, mismo criterio que `calcularValorActual()`), no algo que ya exista.
+
+**Dónde vive la UI de esta tanda:**
+- `src/app/app/(shell)/patrimonio/pasivos/page.tsx` + `pasivos-cliente.tsx` (Listado — lista, no
+  cards, `docs/design-system.md` §5.5)
+- `src/app/app/(shell)/patrimonio/pasivos/[id]/page.tsx` + `ficha-pasivo-cliente.tsx` (Ficha, con
+  el modal de Registrar pago inline)
+- `src/app/app/(shell)/patrimonio/pasivos/nuevo/` y `pasivos/[id]/refinanciar/` (Alta/Refinanciar,
+  ambos delgados sobre `pasivo-form.tsx`; a diferencia de Activos, Refinanciar es una **página
+  completa**, no un modal — así lo mostraba la referencia)
+- `src/app/app/(shell)/patrimonio/actions.ts` ganó `crearPasivoAction`/`refinanciarPasivoAction`/
+  `registrarPagoPasivoAction`
+- Verificado end-to-end en navegador: alta, registrar pago (saldo recalculado en vivo y
+  persistido correctamente), refinanciar (pasivo anterior queda `refinanciado` con su saldo
+  congelado, el nuevo arranca `activo` sin historial). Datos de prueba soft-eliminados
+  (`eliminado_en`) al cerrar.
+
+**Módulo Patrimonio completo: 11/11 pantallas de negocio construidas y verificadas.** Único
+pendiente: el widget "Valor patrimonial total" (`consultarValorPatrimonialTotal`, ya existe la
+acción) — se construye junto con el Dashboard de Reportes, no como pantalla propia de este
+módulo. Ver `docs/ui/pantallas.md` sección 3 para el detalle completo y sección "Próxima tanda
+sugerida" para lo que sigue (Proveedores/Compras).
+
 ## Última actualización: 2026-07-17 — Tanda A de UI (Activos): `motivoBaja` (cambio de contrato aditivo)
 La referencia visual de "Dar de baja Activo" pedía un motivo obligatorio — el doc del módulo
 (`Modulo_05_patrimonio.md`) no lo lista, es una adenda de esta tarea, mismo criterio que el motivo

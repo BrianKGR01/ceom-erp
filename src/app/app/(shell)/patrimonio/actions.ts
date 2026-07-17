@@ -4,12 +4,17 @@ import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import {
   actualizarActivo,
   crearActivo,
+  crearPasivo,
   darDeBajaActivo,
+  refinanciarPasivo,
+  registrarPagoPasivo,
   transferirActivo,
 } from "@/modules/patrimonio/actions";
 import {
   activoFormSchema,
   darDeBajaActivoSchema,
+  pasivoFormSchema,
+  registrarPagoPasivoSchema,
   transferirActivoSchema,
   type ActivoFormInput,
 } from "@/modules/patrimonio/validation";
@@ -113,4 +118,60 @@ export async function transferirActivoAction(
   const resultado = await transferirActivo(usuario, activoId, parsed.data.nuevaSucursalId);
   if (!resultado.ok) return resultado;
   return { ok: true, data: undefined };
+}
+
+export async function crearPasivoAction(
+  input: unknown
+): Promise<ResultadoAccion<{ pasivoId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const parsed = pasivoFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+
+  const resultado = await crearPasivo(usuario, usuario.tenantId, {
+    ...parsed.data,
+    activoId: parsed.data.activoId || undefined,
+  });
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: { pasivoId: resultado.data.pasivoId } };
+}
+
+export async function refinanciarPasivoAction(
+  pasivoAnteriorId: string,
+  input: unknown
+): Promise<ResultadoAccion<{ pasivoId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const parsed = pasivoFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+
+  const resultado = await refinanciarPasivo(usuario, pasivoAnteriorId, {
+    ...parsed.data,
+    activoId: parsed.data.activoId || undefined,
+  });
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: { pasivoId: resultado.data.pasivoId } };
+}
+
+export async function registrarPagoPasivoAction(
+  pasivoId: string,
+  input: unknown
+): Promise<ResultadoAccion<{ saldoPendiente: number; estadoPasivo: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const parsed = registrarPagoPasivoSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+
+  const resultado = await registrarPagoPasivo(usuario, pasivoId, parsed.data);
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: resultado.data };
 }
