@@ -15,13 +15,15 @@
   de Suscripción (ya existía), `moduloVeedorEnum` de Suscripción (reutilizado,
   no duplicado), `moduloPermisoEnum` de Identidad (reutilizado para el log).
 - Salidas que expone (`actions.ts`): CRUD de `Institución` (gate
-  `ROL_CEOM_ADMIN_ID`), `Cartera Institucional`, `Solicitud de Seguimiento`
-  (`crearSolicitudSeguimiento` gate CEOM Admin; `aprobarSolicitud`/
-  `rechazarSolicitud` gate Owner del tenant), `revocarConsentimiento`,
-  `consultarAprobacionesPorTenant`, **`tieneConsentimiento`** (el Gateway
-  propiamente dicho), `generarCodigoAcceso`/`revocarCodigoAcceso`/
-  `canjearCodigoAcceso`, `registrarAccesoAdminCeom`/`listarLogsAcceso`,
-  `listarCarteraPropia` (roadmap ítem #11, ver abajo).
+  `ROL_CEOM_ADMIN_ID`), `obtenerInstitucionPorId` (lookup público de 1
+  registro, sin gate, **nueva en la tanda de UI**), `Cartera Institucional`,
+  `Solicitud de Seguimiento` (`crearSolicitudSeguimiento` gate CEOM Admin;
+  `aprobarSolicitud`/`rechazarSolicitud` gate Owner del tenant),
+  `revocarConsentimiento`, `consultarAprobacionesPorTenant`,
+  **`tieneConsentimiento`** (el Gateway propiamente dicho),
+  `generarCodigoAcceso`/`revocarCodigoAcceso`/`canjearCodigoAcceso`,
+  `registrarAccesoAdminCeom`/`listarLogsAcceso`, `listarCarteraPropia`
+  (roadmap ítem #11, ver abajo).
 
 ## Estado actual
 - [x] Schema Drizzle (`instituciones`, `cartera_institucional`,
@@ -77,6 +79,37 @@
       en el roadmap ítem #11, como dos módulos separados (distinto
       consumidor, distinta regla de autorización cada uno). Ver sus propios
       `ANCLA.md`.
+- [x] **`listarInstituciones()` gateada** — antes no exigía `solicitante`
+      (gap de seguridad señalado en `docs/ui/pantallas.md` para "revisar en
+      Fase 3"). Cerrado el 2026-07-17 al empezar la tanda de UI de este
+      módulo, no se dejó para después: ahora exige `SolicitanteCeomAdmin` y
+      pasa por `requiereCeomAdmin()`, mismo patrón que
+      `crearInstitucion`/`actualizarInstitucion`/`eliminarInstitucion`.
+      Test agregado en `consentimiento.test.ts` ("listarInstituciones exige
+      ceom_admin"). Sin consumidores previos (no había UI todavía), así que
+      no rompe nada existente.
+- [x] **`obtenerInstitucionPorId(institucionId)` — nueva, sin gate a
+      propósito.** Consecuencia directa de haber gateado `listarInstituciones()`:
+      el Owner de un tenant necesita resolver el NOMBRE de una institución
+      en sus propias pantallas de Aprobaciones/Solicitudes (Módulo 10, `/app`),
+      pero ya no puede llamar al listado completo (correctamente gateado a
+      `ceom_admin`). `instituciones` es catálogo global de solo-lectura
+      abierta a cualquier `authenticated` a nivel de RLS (mismo patrón que
+      `planes`) — esta función solo expone esa misma superficie pública para
+      UN registro puntual por id, nunca el listado. No confundir con un
+      "re-abrir" el gap cerrado arriba: la diferencia es enumeración
+      (listado completo, sensible) vs. lookup puntual por id ya conocido
+      (no sensible, mismo dato que ya era público a nivel RLS).
+- [x] **UI real, 3 superficies** (`/app`, `/portal`, `/admin`) — Módulo 10
+      completo, 9/9 pantallas, ver `docs/ui/pantallas.md` sección 10 para
+      el detalle pantalla por pantalla. Primera vez que `/admin` tiene un
+      shell real (`admin-shell.tsx`) y que `/portal` tiene cualquier
+      pantalla. Verificación explícita en navegador de que revocar un
+      código o una aprobación corta el acceso *en la base de datos* de
+      inmediato (`tieneConsentimiento()` llamado directo, no vía UI,
+      antes/después de cada revocación) — pedido explícito del usuario dado
+      que este módulo es "el único punto de privacidad de la plataforma"
+      (`CEOM_Arquitectura.md` §6.9).
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`): se agregaron
@@ -93,10 +126,21 @@
 - Esquema de BD (Drizzle): `src/modules/consentimiento/schema.ts`
 - Repository: `src/modules/consentimiento/repository.ts`
 - Server actions: `src/modules/consentimiento/actions.ts`
+- Validation (zod, UI): `src/modules/consentimiento/validation.ts`
 - Tests: `src/modules/consentimiento/consentimiento.test.ts`
 - Migraciones relevantes: `drizzle/migrations/0017` (tablas + RLS),
   `0018` (agrega `aprobaciones_tenant.codigo_acceso_id`, aislada, ver
   decisiones abajo).
+- UI `/app`: `src/app/app/(shell)/consentimiento/` (route actions.ts +
+  `page.tsx`/`generar-cliente.tsx` con `NavConsentimiento`/
+  `MODULOS_VEEDOR_INFO` compartidos, `codigos/`, `aprobaciones/`,
+  `solicitudes/`).
+- UI `/portal`: `src/app/portal/` (`page.tsx`, `canjear-cliente.tsx`,
+  `actions.ts`) — primera pantalla real de esta superficie, sin
+  `layout.tsx` de auth (pública a propósito).
+- UI `/admin`: `src/app/admin/(shell)/` (`layout.tsx` nuevo con
+  `AdminShell`, `instituciones/`, `logs/`) — primer shell real de
+  `/admin`, ver `src/components/shared/admin-shell.tsx`.
 
 ## Decisiones tomadas que un agente no debe revertir
 - **`obtenerAprobacionVigente()` NO filtra por `revocado_en is null` en el
@@ -135,3 +179,13 @@
   mismo motivo que Módulo 3/4/7.
 
 ## Última actualización: 2026-07-14 — roadmap ítem #11 agregó `listarCarteraPropia` y cerró el caller real de `registrarAccesoAdminCeom` (acotado a panel-admin-ceom)
+
+## Última actualización: 2026-07-17 — gap de seguridad cerrado: `listarInstituciones()` ahora exige `SolicitanteCeomAdmin`, antes de empezar la UI de este módulo
+
+## Última actualización: 2026-07-17 (2) — UI completa, Módulo 10 al 9/9 (`/app` + `/portal` + `/admin`), agrega `obtenerInstitucionPorId()` sin gate; verificación explícita de revocación inmediata en DB. Datos de prueba dejados a propósito en el tenant `owner@ceom.local` (no hay forma de borrarlos vía UI, entidades append-only por diseño):
+- Institución **"Universidad QA Test"** con una Aprobación vigente (`financiero`) y una revocada, más una Solicitud aprobada y su Cartera vinculada a `owner@ceom.local`.
+- 2 Códigos de Acceso (`MDAPU5TV` canjeado, `F4PF7RGF` revocado).
+- Usuario `ceom_admin` de QA (`ceomadmin-qa@ceom-erp.test` / `QaAdmin123!`) — reutilizable para futuras tandas de `/admin` (Monitoreo Institucional, Panel Admin CEOM).
+- El plan "Básico" (compartido, no exclusivo del tenant de prueba) quedó con los 3 módulos veedor habilitados en `modulosVeedorPermitidos` — antes estaba `[]`; se dejó así para que Generar Código de Acceso sea probable a simple vista.
+- **`owner@ceom.local` no tenía `planId` asignado** (se le asignó el plan "Básico" recién arriba) — gap real del script `seed-demo-data.ts`, no de este módulo; no se investigó más a fondo, queda anotado acá para quien la retome.
+- ⚠️ **La contraseña de `owner@ceom.local` se reseteó a `QaOwner123!`** — hizo falta para re-loguear como Owner después de que el login del `ceom_admin` de QA pisara la sesión en la misma pestaña del navegador (comparten cookie jar). Si el usuario tenía otra contraseña guardada, ya no es válida.

@@ -13,6 +13,7 @@ import {
   crearInstitucion,
   crearSolicitudSeguimiento,
   generarCodigoAcceso,
+  listarInstituciones,
   revocarCodigoAcceso,
   revocarConsentimiento,
   tieneConsentimiento,
@@ -137,6 +138,16 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
 
     expect(await tieneConsentimiento(institucionId, tenantId, "financiero")).toBe(true);
     expect(await tieneConsentimiento(institucionId, tenantId, "operativo")).toBe(false);
+  });
+
+  it("listarInstituciones exige ceom_admin (gate de rol cerrado)", async () => {
+    const rechazado = await listarInstituciones({ rolId: ROL_OWNER_ID });
+    expect(rechazado.ok).toBe(false);
+
+    const permitido = await listarInstituciones({ rolId: ROL_CEOM_ADMIN_ID });
+    expect(permitido.ok).toBe(true);
+    if (!permitido.ok) return;
+    expect(permitido.data.some((i) => i.id === institucionId)).toBe(true);
   });
 
   it("caso borde 3: revocarConsentimiento deniega de inmediato la siguiente consulta", async () => {

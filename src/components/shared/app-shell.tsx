@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   ChefHat,
+  KeyRound,
   LayoutGrid,
   LogOut,
   Menu,
@@ -66,6 +67,7 @@ export function AppShell({
     { href: "/app/gastos", label: "Gastos", icono: Receipt },
     { href: "/app/produccion", label: "Producción", icono: ChefHat },
     { href: "/app/simulaciones", label: "Simulaciones", icono: Calculator },
+    { href: "/app/consentimiento", label: "Compartir Datos", icono: KeyRound },
   ];
 
   function esActivo(href: string) {

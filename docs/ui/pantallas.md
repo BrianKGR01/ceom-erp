@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-17)
 
-**75 construidas · 0 parciales · 41 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**84 construidas · 0 parciales · 32 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -39,7 +39,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
 | **9. Financiero** | **3** | 0 | 0 | 3 |
-| 10. Gateway de Consentimiento | 0 | 0 | 9 | 9 |
+| **10. Gateway de Consentimiento** | **9** | 0 | 0 | 9 |
 | 11. Monitoreo Institucional + Panel Admin | 0 | 0 | 10 | 10 |
 | 12. Nicho 4 | 0 | 0 | 1 | 1 |
 | **13. Simulaciones** | **5** | 0 | 0 | 5 |
@@ -162,18 +162,43 @@ contra el tenant de prueba (2 simulaciones guardadas y confirmadas en el Histori
 de costo, ambos casos borde de Punto de Equilibrio, edición de umbral). Detalle completo:
 `src/modules/simulaciones/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Gateway de Consentimiento, Módulo 10 completo (9/9) — 3 superficies.**
+Antes de construir se cerró un gap de seguridad real: `listarInstituciones()` no tenía gate de rol
+(señalado en el análisis previo para "revisar en Fase 3") — se cerró de entrada, exige
+`SolicitanteCeomAdmin` igual que el resto de las acciones de `/admin` del módulo. `/app`: Generar
+Código de Acceso (con mockup, checklist de módulos con badges Disponible/Deshabilitado según el
+plan del tenant), Códigos de Acceso generados y Aprobaciones/Consentimientos vigentes (sin mockup,
+listado + revocar), Solicitudes de Seguimiento entrantes (sin mockup, Aprobar abre un Dialog con
+checklist precargado que solo permite reducir, nunca ampliar, lo solicitado). `/portal`: Canjear
+Código de Acceso (con mockup) — **primera pantalla de esta superficie, pública de verdad, sin
+sesión** — reutiliza el layout split-screen del login; wizard de 2 pasos (código → alta mínima de
+institución solo si hace falta). `/admin`: CRUD de Instituciones (con mockup, maestro-detalle) —
+**primer shell real de `/admin`** (`admin-shell.tsx`, hasta ahora era una landing provisoria sin
+sidebar) — con Cartera Institucional y Crear Solicitud de Seguimiento como tab/Dialog dentro de la
+Ficha (no rutas propias, tal como mostraba el mockup), y Logs de Acceso (sin mockup, filtro de
+tenant + rango de fechas). Adenda de backend agregada: `obtenerInstitucionPorId()` (lectura pública
+de 1 institución, sin gate — necesaria para que el Owner resuelva nombres en sus propias
+Aprobaciones/Solicitudes sin acceso al listado completo, que sigue gateado a `ceom_admin`).
+**Verificación explícita de la propiedad de seguridad central del módulo** (pedida directamente):
+se confirmó con `tieneConsentimiento()` llamado directo (no vía UI) que revocar un código o una
+aprobación corta el acceso *en la base de datos* de inmediato, no solo actualiza la pantalla — dos
+veces, por los dos caminos de revocación (código y aprobación directa). Verificado también el ciclo
+completo Generar código → Canjear en `/portal` → ver en Aprobaciones → Solicitud desde `/admin` →
+Aprobar con subconjunto → eliminar Institución (soft delete). Detalle completo:
+`src/modules/consentimiento/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-Con esto se cierran todos los módulos de "uso diario" (Fase 1 completa a nivel de UI, más allá del
-camino dorado). Lo que queda es funcionalidad real pero de uso menos frecuente:
-
-1. **Gateway de Consentimiento (Módulo 10) + Nicho 4 (1 pantalla chica, se suma sin costo extra)**
-   — Generar Código de Acceso, Códigos de Acceso generados (listado + revocar), Aprobaciones/
-   Consentimientos vigentes (listado + revocar) — 9 pantallas. Es la pieza que habilita todo lo
-   demás: sin esto, Monitoreo Institucional (`/portal`, Módulo 11) no tiene nada que mostrarle a una
-   Institución.
-2. **Monitoreo Institucional + Panel Admin CEOM (Módulo 11)** — depende del ítem anterior; separa en
-   dos superficies (`/portal` para la Institución, `/admin` para `ceom_admin`), ~10 pantallas.
+1. **Monitoreo Institucional + Panel Admin CEOM (Módulo 11)** — depende del módulo recién cerrado;
+   separa en dos superficies: `/portal` (Mi Cartera + 4 tabs de detalle por tenant, gateados
+   individualmente vía `tieneConsentimiento()` — financiero/operativo/inventario, con la regla de
+   privacidad de nunca mezclar "no autorizado" con "sin datos") y `/admin` (listado de tenants con
+   salud agregada). ~10 pantallas. Antes de tocar UI: confirmar si el gap de `email` en
+   `instituciones` (magic link de `/portal`, anotado desde esta tanda) se resuelve ahora o se
+   pospone — sin eso, una Institución no tiene forma de volver a entrar a `/portal` después del
+   primer canje.
+2. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
+   cualquiera de las tandas siguientes.
 3. **Suscripción (Módulo 2) e Identidad pendiente (Módulo 1)** — gestión de colaboradores/roles,
    planes — funcionalidad de administración de cuenta, no bloquea el uso diario del producto.
 
@@ -206,7 +231,14 @@ sesión de Supabase en cada request. Verificado end-to-end en navegador con usua
 temporales (login Owner → `/app`, login CEOM Admin → `/admin`, logout, gates sin sesión, gate de
 rol cruzado, credenciales inválidas). **Actualización:** la landing de `/app` ya no es
 provisoria — hoy es Inicio (checklist de sub-onboarding + placeholder de dashboard, ver Módulo 1 y
-Módulo 14 abajo). `/admin` sigue siendo landing provisoria, sin Panel Admin real construido.
+Módulo 14 abajo). **Actualización 2026-07-17:** `/admin` tiene su primer shell real
+(`admin-shell.tsx`, route group `src/app/admin/(shell)/`) con Instituciones y Logs de Acceso — la
+landing en `src/app/admin/page.tsx` sigue siendo provisoria (fuera de ese route group a propósito),
+el Panel Admin CEOM completo (salud agregada de tenants) es Módulo 11. `/portal` tiene su primera
+pantalla real (`src/app/portal/`, Canjear Código de Acceso) — pública, sin `layout.tsx` de auth
+porque no hace falta sesión para esta pantalla puntual (`canjearCodigoAcceso()` no recibe
+`solicitante`, a propósito); el resto de `/portal` (Mi Cartera + magic link) sigue sin construir,
+es Módulo 11.
 
 ---
 
@@ -751,52 +783,54 @@ Sin tablas propias — capa de agregación pura sobre Ventas, Gastos y Proveedor
 
 ## 10. Gateway de Consentimiento
 
-Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_operativo`), nunca por función individual (decisión confirmada, ver `CEOM_Arquitectura.md` §8.1).
+Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_operativo`), nunca por función individual (decisión confirmada, ver `CEOM_Arquitectura.md` §8.1). **Módulo completo, 9/9 pantallas — cerrado el 2026-07-17.**
 
 ### `/app` (Owner del tenant)
-**Generar Código de Acceso.** `[ ]`
-- Subpantalla: selector de módulos, limitado a `plan.modulosVeedorPermitidos` (la action rechaza si se marca uno no permitido por el plan).
-- Salida: `codigoAccesoId`, `codigo`.
+**Generar Código de Acceso.** `[x]` (`/app/consentimiento`, con mockup)
+- Checklist de los 3 módulos veedor con badge Disponible/Deshabilitado según `plan.modulosVeedorPermitidos` del tenant (fetch server-side de `obtenerTenantPorId` + `obtenerPlanPorId`, sin route propia previa).
+- Salida: `codigoAccesoId`, `codigo` (mostrado en un panel navy con botón copiar).
 - Acción: `generarCodigoAcceso(solicitante, tenantId, { modulosHabilitados })`.
 
-**Códigos de Acceso generados** `[ ]` (listado + revocar).
+**Códigos de Acceso generados** `[x]` (`/app/consentimiento/codigos`, sin mockup — lista + revocar con confirmación inline, mismo patrón que Canales de Venta).
 - Campos: `modulosHabilitados`, `codigo`, `estado` (`activo`/`canjeado`/`revocado`), `creadoEn`, `institucionId?` (null hasta canjear), `canjeadoEn?`, `revocadoEn?`.
-- Acciones: `listarCodigosAcceso`, `revocarCodigoAcceso` (también corta el acceso ya otorgado si el código ya se había canjeado).
+- Acciones: `listarCodigosAcceso`, `revocarCodigoAcceso` (también corta el acceso ya otorgado si el código ya se había canjeado — **verificado en navegador con `tieneConsentimiento()` llamado directo, antes/después: `true`→`false` de inmediato**).
 
-**Aprobaciones/Consentimientos vigentes** `[ ]` (listado + revocar).
-- Campos: `institucionId`, `modulosAprobados`, `aprobadoPor`, `fechaAprobacion`, `revocadoEn`, `codigoAccesoId?`.
-- Nota: `consultarAprobacionesPorTenant` devuelve TODAS las filas, incluidas las revocadas — la UI debe filtrar/etiquetar vigente vs. revocada client-side.
-- Acciones: `consultarAprobacionesPorTenant`, `revocarConsentimiento` (revocación inmediata).
+**Aprobaciones/Consentimientos vigentes** `[x]` (`/app/consentimiento/aprobaciones`, sin mockup).
+- Campos: `institucionId` (resuelto a nombre vía `obtenerInstitucionPorId`, nueva — ver abajo), `modulosAprobados`, `aprobadoPor`, `fechaAprobacion`, `revocadoEn`, `codigoAccesoId?`.
+- "Vigente" se calcula server-side igual que `tieneConsentimiento()`: la fila más reciente por institución sin `revocadoEn` es "Vigente"; una fila más vieja sin revocar queda "Histórica" (superada), nunca "Vigente" — verificado con 2 aprobaciones para la misma institución.
+- Acciones: `consultarAprobacionesPorTenant`, `revocarConsentimiento` (revocación inmediata — **verificado con `tieneConsentimiento()` antes/después: `true`→`false`**).
 
-**Solicitudes de Seguimiento entrantes** `[ ]` (responder).
-- Campos: `institucionId`, `modulosSolicitados`, `estado` (`pendiente`/`aprobada`/`rechazada`). Al aprobar, el Owner elige `modulosAprobados` (puede ser subconjunto de lo solicitado).
-- Acciones: `listarSolicitudesPorTenant`, `aprobarSolicitud`/`rechazarSolicitud`.
+**Solicitudes de Seguimiento entrantes** `[x]` (`/app/consentimiento/solicitudes`, sin mockup).
+- Campos: `institucionId` (resuelto a nombre), `modulosSolicitados`, `estado` (`pendiente`/`aprobada`/`rechazada`). Pendientes arriba con Aprobar/Rechazar, resueltas abajo como historial.
+- Aprobar abre un Dialog con checklist precargado con `modulosSolicitados` — el Owner puede destildar pero nunca agregar módulos fuera de lo pedido (checklist solo itera sobre `solicitud.modulosSolicitados`).
+- Acciones: `listarSolicitudesPorTenant`, `aprobarSolicitud`/`rechazarSolicitud` — **verificado end-to-end: solicitud creada desde `/admin`, aprobada desde `/app`, y `tieneConsentimiento()` confirmó el módulo aprobado real (`financiero: true`, `operativo: false` — coincide exacto con lo solicitado/aprobado, no con lo pedido originalmente si eran distintos)**.
 
 ### `/portal` (Institución, sin cuenta CEOM)
-**Canjear Código de Acceso** `[ ]` — única puerta de entrada.
-- Subpantalla condicional: si la institución no existe todavía, formulario de alta mínima (`nombre`, `tipo`, `contacto?`).
-- ⚠️ **Gap de backend bloqueante para la decisión tomada en esta sesión:** para el magic link de visitas posteriores hace falta capturar `email` acá, pero **ese campo no existe hoy** en `DatosInstitucion` ni en la tabla `instituciones` (columnas actuales: `id`, `nombre`, `tipo`, `contacto`, `creadoPor`, `creadoEn`, `eliminadoEn`). Falta: migración que agregue `email`, y el flujo de magic link vía Supabase Auth.
+**Canjear Código de Acceso** `[x]` (`/portal`, con mockup) — única puerta de entrada, superficie completamente nueva (sin `layout.tsx` de auth — pública a propósito, mismo criterio que `canjearCodigoAcceso()` sin `solicitante`). Reusa el layout split-screen del login (panel navy + card).
+- Wizard de 2 pasos: código primero; alta mínima (`nombre`, `tipo`, `contacto?`) solo si hace falta — no existe lookup de código sin canjear, así que la validación real ocurre recién al confirmar el alta.
+- ⚠️ **Gap de backend bloqueante, sigue pendiente (fuera de esta tanda):** para el magic link de visitas posteriores hace falta capturar `email` acá, pero **ese campo no existe hoy** en `DatosInstitucion` ni en la tabla `instituciones`. Falta: migración que agregue `email`, y el flujo de magic link vía Supabase Auth — corresponde a Módulo 11 (Monitoreo Institucional).
 - Campos de entrada: `codigo`, `institucionId` (si ya existe) o `institucionNueva`.
-- Acción: `canjearCodigoAcceso({ codigo, institucionId?, institucionNueva? })` — sin `solicitante`, a propósito.
+- Acción: `canjearCodigoAcceso({ codigo, institucionId?, institucionNueva? })` — sin `solicitante`, a propósito. Tras canjear, la pantalla confirma el acceso otorgado pero aclara que el panel de seguimiento (Mi Cartera) todavía no existe — **verificado end-to-end: 2 canjes reales, ambos crearon la Institución y la Aprobación correctamente**.
 
 ### `/admin` (ceom_admin)
-**CRUD de Instituciones.** `[ ]`
-- Campos: `nombre`, `tipo` (`universidad`/`incubadora`/`organizacion`), `contacto?`, `creadoPor`, `creadoEn`, `eliminadoEn` (soft delete).
-- Acciones: `crearInstitucion`, `actualizarInstitucion`, `eliminarInstitucion`, `listarInstituciones`.
-- ⚠️ **Posible gap de seguridad a revisar en Fase 3:** `listarInstituciones` no tiene gate de rol en el código actual — señalarlo en la auditoría de RLS/permisos ya prevista en el roadmap.
+**CRUD de Instituciones.** `[x]` (`/admin/instituciones`, con mockup — maestro-detalle, primera vez que `/admin` tiene un shell real con sidebar, ver `admin-shell.tsx`).
+- Campos: `nombre`, `tipo` (`universidad`/`incubadora`/`organizacion`), `contacto?`, `creadoPor`, `creadoEn`, `eliminadoEn` (soft delete). Tab "Configuración" del mockup omitida — no hay campo/acción real detrás.
+- Acciones: `crearInstitucion`, `actualizarInstitucion`, `eliminarInstitucion` (**verificado en navegador — soft delete confirmado**), `listarInstituciones`.
+- ✅ **Gap de seguridad cerrado el 2026-07-17:** `listarInstituciones` ahora exige `SolicitanteCeomAdmin` (mismo patrón `requiereCeomAdmin()` que el resto de las acciones de `/admin` en este módulo) — cerrado antes de construir la pantalla que la consume, no se dejó para la auditoría de Fase 3.
+- **Adenda de backend agregada en esta tanda:** `obtenerInstitucionPorId(institucionId)` (sin gate, catálogo público de solo lectura por 1 registro — mismo criterio RLS que `listarInstituciones` original, ver ANCLA) — hacía falta para que el Owner (no ceom_admin) resuelva nombres de institución en Aprobaciones/Solicitudes sin exponerle el listado completo.
 
-**Gestión de Cartera Institucional.** `[ ]`
+**Gestión de Cartera Institucional.** `[x]` (tab "Cartera" dentro de la Ficha de Institución, tal como mostraba el mockup — no ruta propia).
 - Campos: `institucionId`, `tenantId`, `cohorte?`, `fechaInicio`, `fechaFin?`, `eliminadoEn`.
-- Acciones: `agregarTenantACartera`, `quitarDeCartera`, `listarCarteraPorInstitucion`.
+- Acciones: `agregarTenantACartera` ("Vincular Tenant", Dialog), `quitarDeCartera`, `listarCarteraPorInstitucion` — **verificado end-to-end contra el tenant de prueba real (auto-poblada al canjear un código, y vía Vincular Tenant manual)**.
 
-**Crear Solicitud de Seguimiento** `[ ]` (en nombre de la institución).
+**Crear Solicitud de Seguimiento** `[x]` (botón "Nueva Solicitud" dentro del tab Cartera, Dialog — no pantalla propia; el tenant se elige entre los ya vinculados a esa cartera).
 - Confirmado por el gate del código: CEOM registra el pedido de una institución pre-registrada, eligiendo qué módulos solicita; el Owner del tenant decide qué aprueba desde `/app`.
 - Campos: `institucionId`, `tenantId`, `modulosSolicitados`.
-- Acción: `crearSolicitudSeguimiento`.
+- Acción: `crearSolicitudSeguimiento` — **verificado end-to-end (ver Solicitudes entrantes arriba)**.
 
-**Logs de Acceso** `[ ]` (auditoría interna, nunca visible para el tenant).
-- Campos: `usuarioCeomId`, `tenantId`, `moduloConsultado`, `creadoEn`. Filtrable por tenant/rango de fechas.
-- Acción: `listarLogsAcceso`.
+**Logs de Acceso** `[x]` (`/admin/logs`, sin mockup — filtro de tenant + rango de fechas).
+- Campos: `usuarioCeomId` (mostrado truncado — sin `listarUsuarios()` todavía, gap ya documentado de Identidad, fuera de esta tanda), `tenantId` (resuelto a nombre), `moduloConsultado`, `creadoEn`. Filtrable por tenant/rango de fechas.
+- Acción: `listarLogsAcceso` — verificado en navegador (vacío porque ningún flujo de esta tanda dispara `registrarAccesoAdminCeom`, eso lo llama Panel Admin CEOM, módulo aparte).
 
 ---
 
@@ -950,4 +984,4 @@ Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios 
 | Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | pendiente |
 | Ventas | `registrarPagoVentaSchema` (ruta) no reenviaba `fechaPago` — el módulo ya lo aceptaba | Registrar Pago de Venta con fecha explícita | **resuelto** |
 | Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | pendiente |
-| Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | pendiente |
+| Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | **resuelto** (cerrado el 2026-07-17, antes de construir CRUD de Instituciones) |

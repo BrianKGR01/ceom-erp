@@ -95,8 +95,39 @@ export async function eliminarInstitucion(
   return { ok: true, data: true };
 }
 
-export async function listarInstituciones() {
-  return repo.listarInstituciones();
+export async function listarInstituciones(
+  solicitante: SolicitanteCeomAdmin
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarInstituciones>>>> {
+  const bloqueo = requiereCeomAdmin(solicitante);
+  if (bloqueo) return bloqueo;
+  return { ok: true, data: await repo.listarInstituciones() };
+}
+
+/**
+ * Lectura minima de UNA institucion por id — sin gate de rol, a proposito.
+ * `instituciones` es catalogo global de solo-lectura abierta a cualquier
+ * authenticated (mismo patron RLS que "planes", ver comentario en
+ * schema.ts); esto solo expone los mismos 3 campos publicos ya devueltos
+ * por listarInstituciones() pero para 1 registro puntual, sin dar acceso al
+ * listado completo (eso sigue gateado a ceom_admin arriba). Lo usa el
+ * Owner del tenant para mostrar el nombre de la institucion en sus propias
+ * Aprobaciones/Solicitudes (Modulo 10) — no es un dato de negocio del
+ * tenant, es metadato del catalogo de Instituciones.
+ */
+export async function obtenerInstitucionPorId(
+  institucionId: string
+): Promise<Resultado<{ id: string; nombre: string; tipo: TipoInstitucion; contacto: string | null }>> {
+  const institucion = await repo.obtenerInstitucionPorId(institucionId);
+  if (!institucion) return { ok: false, error: "Institución no encontrada." };
+  return {
+    ok: true,
+    data: {
+      id: institucion.id,
+      nombre: institucion.nombre,
+      tipo: institucion.tipo,
+      contacto: institucion.contacto,
+    },
+  };
 }
 
 // --- Cartera Institucional (gate ROL_CEOM_ADMIN_ID) ---------------------------------------------------------
