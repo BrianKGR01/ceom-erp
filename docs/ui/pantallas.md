@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-17)
 
-**42 construidas · 0 parciales · 74 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**48 construidas · 0 parciales · 68 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -37,7 +37,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
-| 8. Egresos y Gastos | 0 | 0 | 6 | 6 |
+| **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
 | 9. Financiero | 0 | 0 | 3 | 3 |
 | 10. Gateway de Consentimiento | 0 | 0 | 9 | 9 |
 | 11. Monitoreo Institucional + Panel Admin | 0 | 0 | 10 | 10 |
@@ -74,25 +74,50 @@ Verificado end-to-end contra el tenant de prueba (alta/edición/baja de proveedo
 en ambos estados, recepción, pago parcial con saldo en vivo, ajuste de anulación total). Detalle
 completo: `src/modules/proveedores/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Egresos y Gastos, 6/6 pantallas — módulo completo.** Sin gaps de
+backend (se confirmó antes de construir: `listarGastos`, `fichaGasto`, CRUD de Gasto/Categoría/
+Recurrente y `registrarPagoGasto` ya existían). Listado con 3 filtros por `Select` (Categoría/Tipo/
+Estado de pago) + paginación "Cargar más", Ficha con banner de bloqueo real para gastos de origen
+automático (regla 3.2 del módulo — nunca editables/eliminables, ni con pago manual, desde acá),
+Alta/Editar de Gasto Manual (tipo bloqueado al editar, el backend no lo acepta), Registrar Pago de
+Gasto (mismo patrón que Pasivo/Compra, saldo en vivo ya resuelto por `fichaGasto()` sin llamada
+extra), Gestión de Categorías (mismo patrón Dialog que Productos + selector opcional de categoría
+sugerida), y Gestión de Gastos Recurrentes (stat strip + grid de plantillas, "Próx. fecha"/
+"Proyección mensual" calculados en cliente por simple aritmética de calendario — el módulo no
+tiene scheduler ni esas funciones, es solo previsualización; cada gasto se sigue generando a mano
+con el botón "Generar gasto de este período"). El toggle de una plantilla es de una sola dirección
+(`desactivarGastoRecurrente` existe, no hay "reactivar" en el contrato) — la UI lo refleja
+bloqueando el Switch una vez pausada, no se inventó una acción nueva. **Bug real encontrado y
+corregido en esta tanda:** el formulario enviaba `sucursalId`/`proveedorId`/`fechaFin` como string
+vacío en vez de `undefined` cuando no se completaban, y esas columnas son `uuid`/`date` — Postgres
+rechazaba el insert (`invalid input syntax for type uuid: ""`). Corregido convirtiendo `"" →
+undefined` en la capa de Server Actions de ruta, mismo criterio que ya usa Proveedores para
+`proveedorId` opcional. Verificado end-to-end (alta/pago/eliminación de gasto, categoría nueva,
+plantilla recurrente con generación manual y desactivación). Detalle completo:
+`src/modules/gastos/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Egresos y Gastos** — el próximo módulo de negocio completo sin ninguna pantalla todavía
-   (0/6 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md` §7). Ya no tiene
-   ningún bloqueo — Proveedores (para `proveedorId` en gastos) está cerrado. Poblar datos de
-   Gastos también dejaría de mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
-   Pantallas exactas (sección 8 de este documento):
-   - Listado de Gastos
-   - Ficha de Gasto
-   - Alta de Gasto Manual (+ Editar)
-   - Registrar Pago de Gasto
-   - Gestión de Gastos Recurrentes
-   - Gestión de Categorías de Gasto
-2. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
-3. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+1. **Nicho 1 (Insumos/Recetas/Producción)** — el próximo módulo de negocio completo sin ninguna
+   pantalla todavía (0/10 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md`
+   §7). Solo relevante para tenants que elijan ese rubro — Módulo Operativo Conmutable, no Core.
+   Pantallas exactas (sección 6 de este documento):
+   - Catálogo de Insumos
+   - Ficha de Insumo con historial de movimientos (⚠️ doble gap de backend: falta `fichaInsumo()`
+     y no existe ninguna función que liste `movimientos_insumo` — revisar antes de construir)
+   - Alta / Edición de Insumo
+   - Entrada de compra de insumo (modal)
+   - Ajuste manual de insumo / Merma de almacenamiento (modales)
+   - Gestión de Recetas
+   - Registrar Producción de un lote
+   - Producción de Ajuste (modal)
+   - Listado de Producciones
+   - Capacidad Operativa (solo lectura)
+2. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
    Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
    reportes detallados" que se omitió del Dashboard por no tener destino todavía, y es donde va el
    widget "Valor patrimonial total" pendiente de Patrimonio.
-4. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
+3. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
 
@@ -548,32 +573,62 @@ corriendo un día hacia atrás al mostrarse en husos horarios detrás de UTC —
 
 ## 8. Egresos y Gastos
 
+> **Módulo completo — tanda cerrada 2026-07-17 (6/6).** Sin gaps de backend (confirmado antes de
+> construir). Detalle completo: `src/modules/gastos/ANCLA.md`.
+
 ### `/app` — Gastos (Owner + permiso `"costos_gastos"`)
-**Listado de Gastos** `[ ]` (filtro por categoría/estado de pago).
+**Listado de Gastos** `[x]` — `/app/gastos`, lista de filas con 3 filtros por `Select`
+(Categoría/Tipo de Gasto/Estado de Pago, client-side) + "Limpiar filtros", paginación "Cargar más"
+(client-side, de a 10). Badge de origen ("Manual"/"Automático") visible por fila. Verificado
+end-to-end.
 - Campos: `sucursalId`, `tipo` (`fijo`/`variable_no_productivo`/`unico`), `categoriaId`, `monto`, `fechaGasto`, `proveedorId`, `origen` (`manual`/`comision_venta_automatica`/`cuota_pasivo_automatica`), `estadoPago` (derivado), `referenciaId`, `descripcion`.
-- ⚠️ `listarGastos` no acepta filtros de servidor — se aplican en cliente.
-- Sugerencia de diseño: distinguir visualmente los gastos `origen ≠ manual` (badge "automático"), no son editables/eliminables desde acá.
+- ⚠️ `listarGastos` no acepta filtros de servidor — se aplican en cliente (documentado, no es un gap; el volumen esperado no lo justifica todavía).
 - Acción: `listarGastos`.
 
-**Ficha de Gasto.** `[ ]`
+**Ficha de Gasto.** `[x]` — `/app/gastos/[id]`, stat card (monto/categoría/fecha/estado) + banner de
+"Gasto automático" cuando `origen≠manual` (regla 3.2 del módulo — bloquea Editar/Eliminar/
+Registrar pago de verdad, no solo visualmente: los botones no se renderizan y la ruta de Editar
+redirige si se entra por URL directa). Historial de pagos con total pagado. Verificado end-to-end.
 - Campos: gasto completo + `pagos[]`.
 - Subpantallas: "Editar" y "Registrar pago" solo visibles si `origen=manual` (los automáticos nacen ya pagados).
 - Acción: `fichaGasto`.
 
-**Alta de Gasto Manual.** `[ ]`
+**Alta de Gasto Manual** `[x]` y **Editar Gasto Manual** `[x]` — mismo componente compartido
+(`GastoForm`, `src/components/shared/gasto-form.tsx`). Tipo de Gasto como 3 cards seleccionables
+(con descripción, igual que la referencia); bloqueado en modo Editar porque `actualizarGastoManual`
+no acepta cambiar `tipo`. Sin campo de Sucursal en el formulario (opcional en el contrato, omitido
+de la referencia — mismo criterio que otros campos opcionales sin UI día uno en el resto del app).
+Verificado end-to-end (alta, edición, eliminación).
 - Campos: `sucursalId?`, `tipo`, `categoriaId`, `monto`, `fechaGasto`, `proveedorId?`, `descripcion?`.
 - Acciones: `crearGastoManual` / `actualizarGastoManual` (rechaza si `origen≠manual` o si el nuevo monto queda por debajo de lo ya pagado) / `eliminarGastoManual` (soft, rechaza si `origen≠manual`).
 
-**Registrar Pago de Gasto** `[ ]` (modal). Campos: `monto`, `fechaPago`. Acción: `registrarPagoGasto`.
+**Registrar Pago de Gasto** `[x]` (modal, disparado desde la Ficha) — mismo patrón visual que
+Registrar pago de Pasivo/Compra: resumen "Saldo actual / Pago a registrar / Saldo después" en
+vivo. El saldo ya lo trae `fichaGasto()` (no hace falta una consulta aparte tipo
+`consultarSaldoCompra`, a diferencia de Compras donde el Listado no traía el dato). Verificado
+end-to-end.
+- Campos: `monto`, `fechaPago`. Acción: `registrarPagoGasto`.
 
-**Gestión de Gastos Recurrentes** `[ ]` (plantillas: alquiler, sueldos, seguros).
+**Gestión de Gastos Recurrentes** `[x]` — `/app/gastos/recurrentes`, stat strip (Plantillas
+activas/Proyección mensual/Próximos 7 días) + grid de cards con `Switch` de `activo` (una sola
+dirección: `desactivarGastoRecurrente` existe, no hay "reactivar" en el contrato, así que el
+Switch queda bloqueado una vez pausado — no se inventó una acción nueva) y botón "Generar gasto"
+por plantilla. "Próx. fecha" y "Proyección mensual" son cálculos puros de cliente por aritmética
+de calendario simple desde `fechaInicio` — el módulo no tiene scheduler ni esas funciones
+(ANCLA.md ya documentaba "sin scheduler real"), es solo previsualización, cada gasto se sigue
+generando a mano. Verificado end-to-end (alta de plantilla, generación manual, desactivación).
 - Campos: `sucursalId?`, `categoriaId`, `monto`, `frecuencia` (`mensual`/`semanal`/`quincenal`/`anual`), `fechaInicio`, `fechaFin?`, `activo`.
 - ⚠️ Sin scheduler automático — cada gasto del período se dispara a mano con el botón "Generar gasto de este período".
 - Acciones: `crearGastoRecurrente`, `actualizarGastoRecurrente`, `desactivarGastoRecurrente`, `listarGastosRecurrentes`, `generarGastoDesdeRecurrente`.
 
-**Gestión de Categorías de Gasto.** `[ ]`
+**Gestión de Categorías de Gasto.** `[x]` — mismo patrón `Dialog` que "Gestionar categorías" de
+Productos (`src/app/app/(shell)/productos/gestionar-categorias-dialog.tsx`), disparado desde el
+Listado de Gastos y también desde el Alta de Gasto ("+ Crear nueva" junto al select de Categoría,
+misma instancia del Dialog). Única diferencia con el de Productos: selector opcional de categoría
+sugerida al crear (oculto si el catálogo global todavía está vacío, que es el caso hoy — sin
+seed). Verificado end-to-end.
 - Campos: `nombre`, `categoriaGastoSugeridaId`. Subpantalla: picker de sugeridas (globales + por nicho).
-- Nota: `sembrarCategoriasGastoDefault(tenantId)` precarga el set default — útil como botón "Cargar categorías sugeridas" hasta que exista onboarding automático.
+- Nota: `sembrarCategoriasGastoDefault(tenantId)` precarga el set default — útil como botón "Cargar categorías sugeridas" hasta que exista onboarding automático. Sigue sin consumirse en UI (no era parte de esta tanda).
 - La administración del catálogo global de sugerencias vive en `/admin`.
 
 **Nota — sin pantalla propia:** `generarGastoCuotaPasivo` y `generarGastoComisionVenta` son funciones automáticas disparadas desde otros módulos (botón "Generar gasto" en la ficha del Pasivo en Patrimonio, y en la Ficha de Venta en Ventas respectivamente) — no se diseña una pantalla para ellas dentro de Egresos y Gastos. Ambas requieren `categoriaId` como parámetro obligatorio, así que esos botones necesitan un selector de categoría en el momento de dispararse.

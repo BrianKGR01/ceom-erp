@@ -115,4 +115,36 @@
   mismo motivo que Módulo 3 — varias operaciones encadenan transacciones
   propias más una llamada cross-módulo real.
 
-## Última actualización: 2026-07-14 — Módulo 7 (Financiero) agregó agregados de período de solo lectura (`consultarPagosGastoEnPeriodo`/`consultarTotalGastosEnPeriodo`)
+## Última actualización: 2026-07-17 — Tanda de UI completa: Egresos y Gastos, 6/6 pantallas
+Módulo cerrado end-to-end. Sin gaps de backend — se confirmó antes de construir que todos los
+wrappers públicos necesarios ya existían (`listarGastos`, `fichaGasto`, CRUD de
+Gasto/CategoriaGasto/GastoRecurrente, `registrarPagoGasto`, `generarGastoDesdeRecurrente`). Ningún
+cambio de contrato en `actions.ts`/`repository.ts`.
+
+UI: `src/app/app/(shell)/gastos/` — Listado con 3 filtros client-side, Ficha con banner real de
+bloqueo para gastos de origen automático (regla 3.2), `GastoForm` compartido (Alta/Editar,
+`src/components/shared/gasto-form.tsx`) con Tipo bloqueado en modo Editar, Registrar Pago (mismo
+patrón que Pasivo/Compra, saldo ya resuelto por `fichaGasto()`), Gestión de Categorías (Dialog,
+mismo patrón que Productos + selector opcional de categoría sugerida), Gestión de Gastos
+Recurrentes (stat strip + grid, "Próx. fecha"/"Proyección mensual" son cálculo puro de cliente,
+no tocan el backend — el módulo sigue sin scheduler real).
+
+**Bug real encontrado y corregido en la capa de Server Actions de ruta**
+(`src/app/app/(shell)/gastos/actions.ts`): el formulario enviaba `sucursalId`/`proveedorId`
+(columnas `uuid`) y `fechaFin` (columna `date`) como string vacío `""` en vez de `undefined`
+cuando el campo quedaba sin completar — Postgres rechazaba el insert
+(`invalid input syntax for type uuid: ""`). Mismo patrón de fix que ya usa
+`src/app/app/(shell)/proveedores/actions.ts` para `proveedorId` opcional en Compra
+(`campo || undefined` antes de llamar al módulo) — aplicado ahora también a
+`crearGastoAction`/`actualizarGastoAction`/`crearGastoRecurrenteAction`/
+`actualizarGastoRecurrenteAction`.
+
+QA de esta tanda dejó una plantilla de `GastoRecurrente` desactivada como artefacto residual
+inevitable: el módulo no expone ninguna acción de "reactivar" ni "eliminar" para
+`GastoRecurrente` (por diseño, ver "Caso borde 3" arriba — desactivar es la única forma de
+"remover" una plantilla), así que no había manera de limpiarla por completo sin inventar una
+acción nueva no pedida. Queda pausada, sin efecto (no genera gastos), con una categoría que ya no
+existe (soft-deleted) — cae al fallback "Sin categoría" en la UI si algún día se lista de nuevo.
+Detalle completo de decisiones: `docs/ui/pantallas.md` sección 8.
+
+## Última actualización anterior: 2026-07-14 — Módulo 7 (Financiero) agregó agregados de período de solo lectura (`consultarPagosGastoEnPeriodo`/`consultarTotalGastosEnPeriodo`)

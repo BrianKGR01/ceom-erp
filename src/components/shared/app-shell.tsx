@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Receipt,
   Settings,
   ShoppingCart,
   Truck,
@@ -60,6 +61,7 @@ export function AppShell({
     ...(esOwner
       ? [{ href: "/app/onboarding", label: "Mi negocio", icono: Settings }]
       : []),
+    { href: "/app/gastos", label: "Gastos", icono: Receipt },
   ];
 
   function esActivo(href: string) {
