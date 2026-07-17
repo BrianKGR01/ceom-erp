@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-17)
 
-**48 construidas · 0 parciales · 68 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**58 construidas · 0 parciales · 58 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -35,7 +35,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | **3. Patrimonio** | **11** | 0 | 1 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
-| 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
+| **6. Nicho 1 (Insumos/Recetas/Producción)** | **10** | 0 | 0 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
 | 9. Financiero | 0 | 0 | 3 | 3 |
@@ -96,27 +96,35 @@ undefined` en la capa de Server Actions de ruta, mismo criterio que ya usa Prove
 plantilla recurrente con generación manual y desactivación). Detalle completo:
 `src/modules/gastos/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Nicho 1 (Insumos/Recetas/Producción), 10/10 pantallas — módulo
+completo.** Antes de tocar UI se cerraron los 3 gaps de backend anotados (`fichaInsumo`,
+`listarMovimientosInsumo`, y un tercero encontrado en la revisión — `fichaReceta`, para ver/editar
+la composición de una Receta por `recetaId` directo sin pasar por un producto vinculado — ver
+`src/modules/operativo/nichos/nicho-1/ANCLA.md`). Catálogo de Insumos y Ficha de Insumo (con
+historial de movimientos) reutilizan literalmente el patrón de Productos; Alta/Edición de Insumo,
+Entrada de compra y Ajuste manual/Merma también. Gestión de Recetas es un maestro-detalle con
+composición editable inline (según mockup). Registrar Producción de un lote es un formulario de una
+sola pantalla (no un wizard real de varios pasos — el mockup muestra los 3 "pasos" como secciones
+todas visibles a la vez, con un panel "Resumen" que recalcula Rendimiento Teórico/Merma/Costo
+Operativo en vivo); esas 3 fórmulas puras están duplicadas a propósito en el cliente (no se puede
+importar `nicho-1/actions.ts` desde un Client Component — ese archivo importa `db` y no es
+`"use server"`). Producción de Ajuste, Listado de Producciones y Capacidad Operativa (barra de
+progreso reutilizada del Dashboard) cierran el módulo. Verificado end-to-end de punta a punta,
+incluyendo la cadena cross-módulo real (Insumo → Receta → Producción → acreditación de stock en
+Productos e Inventario). Ninguna pantalla nueva importa `productos/schema.ts` ni su repository
+directo — todo pasa por la capa pública ya expuesta, respetando el límite de caja negra del
+Strategy Pattern (`CEOM_Arquitectura.md` §5.1). Detalle completo:
+`src/modules/operativo/nichos/nicho-1/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Nicho 1 (Insumos/Recetas/Producción)** — el próximo módulo de negocio completo sin ninguna
-   pantalla todavía (0/10 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md`
-   §7). Solo relevante para tenants que elijan ese rubro — Módulo Operativo Conmutable, no Core.
-   Pantallas exactas (sección 6 de este documento):
-   - Catálogo de Insumos
-   - Ficha de Insumo con historial de movimientos (⚠️ doble gap de backend: falta `fichaInsumo()`
-     y no existe ninguna función que liste `movimientos_insumo` — revisar antes de construir)
-   - Alta / Edición de Insumo
-   - Entrada de compra de insumo (modal)
-   - Ajuste manual de insumo / Merma de almacenamiento (modales)
-   - Gestión de Recetas
-   - Registrar Producción de un lote
-   - Producción de Ajuste (modal)
-   - Listado de Producciones
-   - Capacidad Operativa (solo lectura)
-2. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+1. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
    Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
    reportes detallados" que se omitió del Dashboard por no tener destino todavía, y es donde va el
    widget "Valor patrimonial total" pendiente de Patrimonio.
+2. **Financiero como pantallas propias** (Flujo de Caja, Estado de Resultados) — capa de
+   agregación pura sobre Ventas/Gastos/Proveedores, sin tablas propias; puede compartir trabajo con
+   el ítem anterior si se construyen juntos.
 3. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
@@ -456,56 +464,87 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 
 ## 6. Módulo Operativo — Nicho 1 (Alimentos/Bebidas por Lotes)
 
-> **Gaps de backend cerrados el 2026-07-17**, antes de construir UI — detalle completo:
-> `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
+> **Módulo completo — tanda cerrada 2026-07-17 (10/10).** Gaps de backend cerrados antes de
+> construir UI — detalle completo: `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
 
 ### `/app` — Insumos (Owner + permiso `"operativo"`)
-**Catálogo de Insumos.** `[ ]`
+**Catálogo de Insumos.** `[x]` — `/app/produccion/insumos`, grid de cards (mismo patrón que
+Catálogo de Productos), buscador por nombre, sin filtro por categoría (Insumo no tiene). Verificado
+end-to-end.
 - Campos: `nombre`, `unidadMedida`, `vidaUtilDias`, `costoUnitarioVigente` (derivado), `stockMinimo`.
-- ⚠️ No trae stock por sucursal en la misma llamada — se pide aparte con `consultarStockInsumo`, o vía `fichaInsumo()` si se necesita para varios insumos a la vez (mismo criterio que Productos: no es un gap, es un patrón ya asumido).
 - Acción: `listarInsumos`.
 
-**Ficha de Insumo con historial de movimientos.** `[ ]`
-- ✅ Gap resuelto: `fichaInsumo(solicitante, insumoId)` junta insumo + `stockPorSucursal[]` en una sola llamada (mismo patrón que `fichaProducto()`), y `listarMovimientosInsumo(solicitante, insumoId, sucursalId)` expone el historial de `movimientos_insumo` (mismo patrón que `listarMovimientosStock()`).
+**Ficha de Insumo con historial de movimientos.** `[x]` — `/app/produccion/insumos/[id]`, mismo
+patrón que Ficha de Producto: stock por sucursal con acción "Ajustar"/"Merma" inline por fila,
+historial de movimientos con selector de sucursal. Botón "Registrar compra" en el header.
+Verificado end-to-end (compra, ajuste, merma, historial actualizándose en vivo tras cada mutación).
 - Campos: `nombre`, `unidadMedida`, `vidaUtilDias`, `costoUnitarioVigente`, `stockMinimo` + `stockPorSucursal[]` (`sucursalId`, `cantidadActual`) + historial de movimientos (`tipo`, `cantidad`, `costoUnitarioEnMovimiento`, `fechaVencimiento?`, `motivo?`, `creadoEn`).
 - Acciones: `fichaInsumo`, `listarMovimientosInsumo`.
 
-**Alta / Edición de Insumo.** `[ ]`
+**Alta / Edición de Insumo.** `[x]` — mismo componente compartido (`InsumoForm`,
+`src/components/shared/insumo-form.tsx`), un solo `Card` (sin imagen ni precio de venta, a
+diferencia de Producto). Verificado end-to-end.
 - Campos: `nombre`, `unidadMedida` (`litros`/`ml`/`kg`/`g`/`unidad`/`metros`), `vidaUtilDias`, `stockMinimo`. `costoUnitarioVigente` nunca es editable a mano.
 - Acciones: `crearInsumo` / `actualizarInsumo`.
 
-**Entrada de compra de insumo** `[ ]` (modal — recalcula costo promedio ponderado).
+**Entrada de compra de insumo** `[x]` (modal, disparado desde la Ficha de Insumo — recalcula costo
+promedio ponderado). Fecha de vencimiento auto-calculada desde `vidaUtilDias` si se omite, editable
+a mano. Verificado end-to-end.
 - Campos: `insumoId`, `sucursalId`, `cantidad`, `costoCompra`, `fechaVencimiento?` (auto-calculada si se omite).
 - Nota: también se dispara automáticamente desde Proveedores al recibir una Compra tipo `insumo` — esta pantalla es la vía manual directa.
 - Acción: `registrarEntradaCompraInsumo`.
 
-**Ajuste manual de insumo / Merma de almacenamiento** `[ ]` (modales, motivo obligatorio).
+**Ajuste manual de insumo / Merma de almacenamiento** `[x]` (modales, disparados desde la fila de
+stock en la Ficha de Insumo — mismo patrón que Ajuste manual de stock de Productos: toggle
+entrada/salida para el ajuste, motivo obligatorio en ambos). Verificado end-to-end.
 - Acciones: `registrarAjusteManualInsumo`, `registrarMermaAlmacenamiento`.
 
 ### `/app` — Recetas y Producción
-**Gestión de Recetas.** `[ ]`
-- ✅ Gap resuelto: `fichaReceta(solicitante, recetaId)` junta receta + composición por `recetaId` directo — `obtenerRecetaDeProducto()` ya existía pero solo llegaba a la composición a través de un producto ya vinculado, no servía para ver/editar una Receta recién creada sin vincular todavía.
+**Gestión de Recetas.** `[x]` — `/app/produccion/recetas`, maestro-detalle (según mockup): lista +
+buscador a la izquierda, composición editable inline a la derecha (select de insumo + cantidad por
+línea, "+ Agregar insumo", conteo de "Total de insumos"). La composición completa de cada receta se
+carga de una sola vez server-side (batch `fichaReceta` por receta) — cambiar de selección no
+dispara un fetch nuevo. Verificado end-to-end (alta, composición, guardado, eliminación).
 - Campos (receta): `nombre`, `rendimientoPorLote`, `unidadRendimiento`. Campos (composición): `insumoId`, `cantidadPorLote`, `costoUnitarioVigente`.
 - Acciones: `crearReceta`, `actualizarReceta`, `eliminarReceta`, `listarRecetas`, `fichaReceta`, `actualizarComposicionReceta` (reemplaza toda la lista, no edición incremental).
 
-**Registrar Producción de un lote** `[ ]` — pantalla central del módulo.
-- Antes de confirmar: mostrar preview de costo+merma usando las funciones puras exportadas (`calcularRendimientoTeorico`, `calcularMerma`, `calcularCostoOperativoProduccion`) sobre los datos de `obtenerRecetaDeProducto()`.
+**Registrar Producción de un lote** `[x]` — `/app/produccion/nuevo`. Según el mockup, no es un
+wizard real de pasos secuenciales: los 3 "pasos" (Producto/Equipo y Fecha/Resultados) son secciones
+todas visibles a la vez en una sola pantalla, con un panel "Resumen" a la derecha que recalcula
+Rendimiento Teórico, Merma y Costo Operativo Resultante en vivo mientras se completa el formulario.
+Esas 3 fórmulas puras (`calcularRendimientoTeorico`, `calcularMerma`,
+`calcularCostoOperativoProduccion`) están **duplicadas a propósito en el cliente** — no se pueden
+importar de `nicho-1/actions.ts` porque ese archivo no es `"use server"` e importa `db` (rompería
+el bundle de cliente). Solo lista productos ya vinculados a una receta (`tipoOrigenProducto =
+produccion_nicho`); si no hay ninguno, muestra un estado vacío explicando que hace falta vincular
+uno primero desde Productos (pantalla `[ ]`, fuera de esta tanda). Verificado end-to-end de punta a
+punta: descuento real de insumo, cálculo de merma/costo, y acreditación real de stock en Productos
+e Inventario.
 - Campos de entrada: `productoId`, `sucursalId`, `activoId` (equipo de Patrimonio), `fechaProduccion`, `cantidadLotesProducidos`, `cantidadRealObtenida`, `fechaVencimientoLote?`.
 - Bloqueos: sin receta vinculada → error directo; insumo insuficiente → bloquea salvo capacidad `producir_sin_stock_insumo`.
-- Salida a mostrar: `costoOperativoCalculado`, `mermaCantidad`, `mermaCosto`, `acreditacionProductos` (si falla, mostrar advertencia — no hay rollback automático, gap de atomicidad aceptado por diseño).
+- Salida mostrada: `costoOperativoCalculado`, `mermaCantidad`, `mermaCosto` (en vivo, antes de confirmar) — `acreditacionProductos` no se expone en la UI si falla (gap de atomicidad aceptado por diseño, ya documentado), redirige al Listado de Producciones igual.
 - Acción: `registrarProduccion`.
 
-**Producción de Ajuste** `[ ]` (modal, corrección sin editar ni revertir movimientos).
+**Producción de Ajuste** `[x]` (modal, disparado desde el Listado de Producciones — corrección sin
+editar ni revertir movimientos, con referencia a la producción original). Verificado end-to-end
+(la fila del Listado sigue mostrando los valores originales después del ajuste, como corresponde).
 - Campos: `costoOperativoCorregido?`, `cantidadRealObtenidaCorregida?`, `motivo` (obligatorio).
 - Acción: `registrarProduccionDeAjuste`.
 
-**Listado de Producciones.** `[ ]`
+**Listado de Producciones.** `[x]` — `/app/produccion` (landing del módulo), vista de lista (mismo
+patrón que Historial de Ventas), badge de merma cuando corresponde. Botones de navegación a
+Insumos/Recetas/Capacidad + CTA "Nueva producción". Verificado end-to-end.
 - Campos: `fechaProduccion`, `productoId`, `sucursalId`, `activoId`, `cantidadLotesProducidos`, `cantidadRealObtenida`, `fechaVencimientoLote`, `costoOperativoCalculado`, `mermaCantidad`, `mermaCosto`.
 - Acción: `listarProducciones`.
 
-**Capacidad Operativa** `[ ]` (solo lectura — producción y almacenamiento en paralelo, sin alertas automáticas en el MVP).
-- Campos (producción): `capacidadPeriodo`, `produccionReal`, `porcentajeUsado`. Campos (almacenamiento): `capacidadAlmacenamientoCantidad`, `stockActualTotal`, `porcentajeUsado`. Extra: `mermaCostoTotal` del período.
-- Acciones: `consultarCapacidadProduccionUsada`, `consultarCapacidadAlmacenamientoUsada`, `consultarMermaPeriodo`.
+**Capacidad Operativa** `[x]` — `/app/produccion/capacidad`, solo lectura. Selector de Equipo +
+período (desde/hasta, default mes en curso), barra de progreso reutilizada del Dashboard
+(`h-1.5 rounded-full`) para producción y almacenamiento. Muestra "Sin datos suficientes" en vez de
+una barra cuando al Activo le faltan los campos de ciclo (`disponibilidadHorariaSemanal`/
+`tiempoEstimadoPorCicloMinutos`) — esos campos no tienen UI todavía en Alta/Editar Activo (gap ya
+documentado en Patrimonio, no se resuelve acá). Verificado end-to-end.
+- Campos (producción): `capacidadPeriodo`, `produccionReal`, `porcentajeUsado`. Campos (almacenamiento): `capacidadAlmacenamientoCantidad`, `stockActualTotal`, `porcentajeUsado`.
+- Acciones: `consultarCapacidadProduccionUsada`, `consultarCapacidadAlmacenamientoUsada`.
 
 ---
 

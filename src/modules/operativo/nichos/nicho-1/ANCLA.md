@@ -139,6 +139,39 @@
   confirmada explícitamente con el usuario antes de implementar Nicho 4, no
   un desvío silencioso.
 
+## Última actualización: 2026-07-17 (2) — Tanda de UI completa: Nicho 1, 10/10 pantallas — módulo cerrado
+Todas las pantallas del contrato (`docs/ui/pantallas.md` sección 6) construidas y verificadas
+end-to-end contra el tenant de prueba, incluyendo la cadena cross-módulo real completa: alta de
+Insumo → entrada de compra (recalcula costo promedio ponderado) → Receta con composición → producto
+vinculado (`vincularProductoAReceta`, ya existía) → `registrarProduccion` → descuento real de
+insumo + acreditación real de stock/costo en Productos e Inventario (`registrarEntradaProduccion`,
+Módulo 2) — verificado leyendo el historial de movimientos de ambos lados después de producir.
+
+UI: `src/app/app/(shell)/produccion/` — Catálogo/Ficha/Alta-Editar de Insumo son el mismo patrón
+que Productos e Inventario ya establece (`fichaInsumo`/`listarMovimientosInsumo` del punto
+anterior lo hacen posible sin fetches extra). Gestión de Recetas es un maestro-detalle con
+composición editable inline; la composición de TODAS las recetas se precarga server-side en una
+sola tanda (`fichaReceta` por receta vía `Promise.all`) para que cambiar de selección no dispare
+una llamada nueva. Registrar Producción de un lote resultó, según el mockup de referencia, ser una
+sola pantalla con secciones (no un wizard de pasos secuenciales reales) — el panel "Resumen" en
+vivo obligó a duplicar a propósito 3 fórmulas puras (`calcularRendimientoTeorico`, `calcularMerma`,
+`calcularCostoOperativoProduccion`) directo en el Client Component, porque
+`nicho-1/actions.ts` no es `"use server"` (importa `db`) y no se puede cruzar al bundle de cliente
+— ver el comentario en `nueva-produccion-cliente.tsx`. Capacidad Operativa reutiliza literalmente
+la barra de progreso (`h-1.5 rounded-full`) ya usada en el Dashboard de Reportes, no un componente
+nuevo.
+
+**QA de esta tanda requirió setup fuera de la UI existente dos veces**, vía scripts de un solo uso
+(no committeados): (1) vincular un producto real a una receta de prueba, porque "Vincular a
+proceso operativo" (Módulo 5, Ficha de Producto) sigue `[ ]` — no hay pantalla propia todavía; y
+(2) crear un Activo de prueba con capacidad de producción/almacenamiento cargada, porque el tenant
+no tenía ninguno. Ambos se limpiaron al cerrar (desvinculación + Activo dado de baja). El registro
+de Producción y su Producción de Ajuste de prueba **no se pudieron eliminar** — el módulo no expone
+ninguna acción de borrado para `Producción` (por diseño: "una producción real ya consumida se
+corrige con Produccion de Ajuste, no se borra ni edita", ver más abajo), así que quedan como
+artefactos residuales inevitables en el tenant de prueba, igual criterio que la plantilla de
+`GastoRecurrente` pausada documentada en `gastos/ANCLA.md`.
+
 ## Última actualización: 2026-07-17 — Gaps de backend cerrados para la próxima tanda de UI (10 pantallas)
 `docs/ui/pantallas.md` sección 6 documentaba un "doble gap" para la Ficha de Insumo: (1) no había
 una `fichaInsumo()` que juntara insumo+stock en una sola llamada, y (2) no existía ninguna función,
