@@ -188,4 +188,7 @@
 - Usuario `ceom_admin` de QA (`ceomadmin-qa@ceom-erp.test` / `QaAdmin123!`) — reutilizable para futuras tandas de `/admin` (Monitoreo Institucional, Panel Admin CEOM).
 - El plan "Básico" (compartido, no exclusivo del tenant de prueba) quedó con los 3 módulos veedor habilitados en `modulosVeedorPermitidos` — antes estaba `[]`; se dejó así para que Generar Código de Acceso sea probable a simple vista.
 - **`owner@ceom.local` no tenía `planId` asignado** (se le asignó el plan "Básico" recién arriba) — gap real del script `seed-demo-data.ts`, no de este módulo; no se investigó más a fondo, queda anotado acá para quien la retome.
-- ⚠️ **La contraseña de `owner@ceom.local` se reseteó a `QaOwner123!`** — hizo falta para re-loguear como Owner después de que el login del `ceom_admin` de QA pisara la sesión en la misma pestaña del navegador (comparten cookie jar). Si el usuario tenía otra contraseña guardada, ya no es válida.
+- La sesión de `owner@ceom.local` se perdió a mitad de la verificación porque el login del
+  `ceom_admin` de QA en otra pestaña del navegador pisó la cookie (mismo cookie jar) — se
+  restauró la contraseña original documentada en `reference_tenant_prueba_owner` (memoria del
+  agente) para volver a entrar. Password final: la de siempre, sin cambios netos.
