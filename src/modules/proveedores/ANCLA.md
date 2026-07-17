@@ -18,12 +18,15 @@
 - Salidas que expone (`actions.ts`): `crearProveedor`, `actualizarProveedor`,
   `eliminarProveedor`, `listarProveedores`, `fichaProveedor`,
   `registrarCompra` (+ `calcularCostoUnitario()` pura, exportada),
-  **`recibirCompra`** (nueva, roadmap ítem #12), `historialPrecio`,
-  `listarCompras` (agregada para la UI de "Listado de Compras" — ver
-  "Última actualización"), `registrarPagoCompra`, `registrarCompraDeAjuste`,
-  `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período,
-  agregado en Módulo 7 para que Financiero consuma Proveedores sin
-  importar `compras`/`pagos_compra` directo).
+  **`recibirCompra`** (roadmap ítem #12; extendida en la tanda de UI con un
+  tercer parámetro `fechaRecepcion?` — default hoy si se omite, cambio
+  aditivo), `historialPrecio`, `listarCompras` (agregada para la UI de
+  "Listado de Compras"), `consultarSaldoCompra` (nueva, agregada para la UI
+  de "Registrar pago de Compra" — mismo criterio que
+  `consultarPasivoDeActivo` en Patrimonio), `registrarPagoCompra`,
+  `registrarCompraDeAjuste`, `consultarPagosCompraEnPeriodo` (agregado de
+  solo lectura por período, agregado en Módulo 7 para que Financiero
+  consuma Proveedores sin importar `compras`/`pagos_compra` directo).
 
 ## Estado actual
 - [x] Schema Drizzle (`proveedores`, `compras`, `pagos_compra`,
@@ -133,6 +136,22 @@
 - `vi.setConfig({ testTimeout: 20000 })` agregado a `proveedores.test.ts`
   (no lo tenía antes) — `registrarCompra`/`recibirCompra` ahora encadenan
   una llamada cross-módulo real, igual motivo que Módulo 3/4/7.
+
+## Última actualización: 2026-07-17 (2) — Tanda de UI completa: Proveedores/Compras, 9/9 pantallas
+Módulo cerrado end-to-end. Backend: `consultarSaldoCompra` nueva (saldo pendiente de una Compra,
+para el resumen en vivo del modal de pago); `recibirCompra` extendida con `fechaRecepcion?`
+opcional (default hoy). Ninguna otra función de `actions.ts` cambió de contrato — todo aditivo.
+UI: `src/app/app/(shell)/proveedores/` — maestro-detalle de Proveedores vía route group
+`(directorio)` (para que el layout compartido de Listado+Ficha no se filtre a `compras/*`,
+sibling fuera del grupo), Listado de Compras con 3 modales acoplados a la fila (Recibir/Pagar/
+Ajustar), Alta de Compra. La capa de Server Actions de ruta
+(`src/app/app/(shell)/proveedores/actions.ts`) usa `revalidatePath()` en las mutaciones de
+Proveedores en vez de depender solo de `router.refresh()` del cliente — un layout.tsx padre
+compartido entre la ruta vieja y la nueva a la que se navega tras crear/editar/eliminar hacía que
+`router.push()`+`router.refresh()` compitieran por la misma transición de React (bug real
+encontrado y corregido en esta tanda). "Historial de precios de un ítem" del contrato original se
+resolvió reusando `historialPrecio()` en una sección nueva de la Ficha de Producto existente, sin
+ruta propia. Detalle completo de decisiones: `docs/ui/pantallas.md` sección 4.
 
 ## Última actualización: 2026-07-17 — Gap de backend cerrado para la tanda de UI de Proveedores/Compras
 `docs/ui/pantallas.md` sección 4 documentaba que no existía un listado general de Compras — solo

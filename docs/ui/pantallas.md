@@ -22,9 +22,9 @@
 
 ---
 
-## Progreso (actualizado 2026-07-16)
+## Progreso (actualizado 2026-07-17)
 
-**33 construidas · 0 parciales · 83 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**42 construidas · 0 parciales · 74 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -33,7 +33,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | 1. Identidad | 4 | 0 | 15 | 19 |
 | 2. Suscripción | 0 | 0 | 5 | 5 |
 | **3. Patrimonio** | **11** | 0 | 1 | 12 |
-| 4. Proveedores/Compras | 0 | 0 | 9 | 9 |
+| **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
@@ -61,35 +61,38 @@ Listado/Ficha/Alta/Refinanciar/Registrar pago de Pasivos. Queda pendiente única
 "Valor patrimonial total" — se construye junto con el Dashboard de Reportes (Módulo 14 Sección B),
 no como pantalla propia de Patrimonio. Detalle completo: `src/modules/patrimonio/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Proveedores/Compras, 9/9 pantallas — módulo completo.** Gap de
+backend (`listarCompras` con filtros) cerrado primero, en un cambio separado, antes de construir
+UI. Maestro-detalle de Proveedores (Listado + Ficha con tabs Historial de Compras/Historial de
+Precios + Alta/Editar, route group `(directorio)` para no filtrar a `compras/*`), Listado de
+Compras con pills de filtro (Estado/Pago) y 3 modales acoplados a la fila (Recibir, Registrar
+pago — mismo patrón que Pasivos con saldo antes/después en vivo, Ajustar — mismo patrón que
+Ajuste de Venta), y Alta de Compra. "Historial de precios de un ítem" del contrato original se
+resolvió como una sección nueva en la Ficha de Producto existente (`historialPrecio()`), no como
+ruta propia — ya cubierto también, con los mismos datos, en el tab de la Ficha de Proveedor.
+Verificado end-to-end contra el tenant de prueba (alta/edición/baja de proveedor, alta de compra
+en ambos estados, recepción, pago parcial con saldo en vivo, ajuste de anulación total). Detalle
+completo: `src/modules/proveedores/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Proveedores / Compras** — el próximo módulo de negocio completo sin ninguna pantalla
-   todavía (0/9 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md` §7 —
-   Proveedores no depende de ningún módulo de UI pendiente). Incluye el flujo de Landed Cost/Orden
-   de Compra de Nicho 4. **⚠️ Gap de backend a cerrar antes de construir "Listado de Compras":**
-   no existe un `listarComprasPorTenant`/`listarCompras` con filtros por `estadoPago`/`estado` —
-   hoy el único listado real disponible es indirecto, vía `fichaProveedor()` → `compras[]` (por
-   proveedor) o `historialPrecio()` (por ítem). El resto de las pantallas (Proveedores completo,
-   Alta de Compra, Recibir Compra, Registrar pago, Compra de Ajuste) no tiene gaps — sus acciones
-   ya existen. Pantallas exactas de esta tanda (sección 4 de este documento):
-   - Listado de Proveedores
-   - Ficha de Proveedor
-   - Alta de Proveedor
-   - Listado de Compras
-   - Alta de Compra
-   - Historial de precios de un ítem
-   - Recibir Compra
-   - Registrar pago de Compra
-   - Compra de Ajuste
-2. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
-   `proveedorId`, aunque no es un bloqueo estricto. Poblar datos de Gastos también dejaría de
-   mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
-3. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
-4. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
+1. **Egresos y Gastos** — el próximo módulo de negocio completo sin ninguna pantalla todavía
+   (0/6 construidas), según el orden ya fijado (roadmap + `CEOM_Arquitectura.md` §7). Ya no tiene
+   ningún bloqueo — Proveedores (para `proveedorId` en gastos) está cerrado. Poblar datos de
+   Gastos también dejaría de mostrar la tarjeta "Gastos por categoría" del Dashboard vacía.
+   Pantallas exactas (sección 8 de este documento):
+   - Listado de Gastos
+   - Ficha de Gasto
+   - Alta de Gasto Manual (+ Editar)
+   - Registrar Pago de Gasto
+   - Gestión de Gastos Recurrentes
+   - Gestión de Categorías de Gasto
+2. **Nicho 1 (Insumos/Recetas/Producción)** — solo relevante para tenants que elijan ese rubro.
+3. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
    Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
    reportes detallados" que se omitió del Dashboard por no tener destino todavía, y es donde va el
    widget "Valor patrimonial total" pendiente de Patrimonio.
-5. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
+4. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
    Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
    bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
 
@@ -317,34 +320,69 @@ monto, igual que la referencia. Verificado end-to-end.
 
 ## 4. Proveedores / Compras
 
-### `/app` — Proveedores (Owner + permiso `"proveedores"`)
-**Listado de Proveedores.** `[ ]` Campos: `nombre`, `contacto`, `notas`, `creadoPor`/`creadoEn`. Acción: `listarProveedores`.
+> **Módulo completo — tanda cerrada 2026-07-17 (9/9).** Gap de backend (`listarCompras` con
+> filtros por `estadoPago`/`estado`) cerrado en un cambio previo a la UI. Detalle completo:
+> `src/modules/proveedores/ANCLA.md`.
 
-**Ficha de Proveedor** `[ ]` — con historial de precios/compras.
+### `/app` — Proveedores (Owner + permiso `"proveedores"`)
+**Listado de Proveedores.** `[x]` — maestro-detalle (design-system §5.6) en `/app/proveedores`:
+panel izquierdo con buscador + cards de proveedor (badge de cantidad de compras), panel derecho
+con el detalle del seleccionado. Route group `(directorio)` para que el layout maestro-detalle no
+se filtre a `/app/proveedores/compras/*`. Verificado end-to-end.
+- Campos: `nombre`, `contacto`, `notas`, `creadoPor`/`creadoEn`. Acción: `listarProveedores`.
+
+**Ficha de Proveedor** `[x]` — panel derecho del maestro-detalle (`/app/proveedores/[id]`), con
+tabs "Historial de Compras" e "Historial de Precios" (mismos datos de `compras[]` agrupados por
+ítem en cliente, sin llamada aparte). Editar/Eliminar (soft delete) inline en el header. Verificado
+end-to-end.
 - Campos: `nombre`, `contacto`, `notas`, `cantidadCompras`, `montoTotalComprado`, `compras[]`.
 - Acción: `fichaProveedor(solicitante, proveedorId)`.
 
-**Alta de Proveedor** `[ ]` (modal). Campos: `nombre`, `contacto?`, `notas?`. Acción: `crearProveedor`. (También `actualizarProveedor` y `eliminarProveedor` — soft delete.)
+**Alta de Proveedor** `[x]` y **Editar Proveedor** `[x]` — mismo `Dialog` compartido
+(`proveedor-form-dialog.tsx`), disparado desde el listado o desde la Ficha. Verificado end-to-end
+(alta, edición, eliminación).
+- Campos: `nombre`, `contacto?`, `notas?`. Acciones: `crearProveedor`, `actualizarProveedor`,
+  `eliminarProveedor` (soft delete).
 
 ### `/app` — Compras
-**Listado de Compras** `[ ]` — filtro por `estadoPago` y por `estado` (pedido/recibido).
+**Listado de Compras** `[x]` — `/app/proveedores/compras`, vista de lista (design-system §5.5) con
+pills de filtro por Estado (Todos/Pedido/Recibido) y Pago (Todos/Pendiente/Parcial/Pagado)
+client-side. Acción contextual por fila: "Recibir" si está `pedido`; "Pagar"/"Ajustar" si está
+`recibido`. Verificado end-to-end.
 - Campos: `sucursalId`, `proveedorId?`, `tipo` (`insumo`/`reventa`), `insumoId`/`productoId`, `cantidad`, `costoUnitario`, `montoTotal`, `costoAdicionalTraslado?`, `fechaCompra`, `fechaVencimiento?`, `estado` (`pedido`/`recibido`), `fechaRecepcion`, `estadoPago`.
-- ⚠️ Gap de backend: no hay un `listarComprasPorTenant` con filtros — hoy el listado real disponible es por proveedor (`fichaProveedor` → `compras[]`) o por ítem (`historialPrecio`).
+- Acción: `listarCompras(solicitante, tenantId, { estadoPago?, estado? })` (agregada en esta tanda, gap de backend original ya cerrado).
 
-**Alta de Compra** `[ ]` (formulario).
+**Alta de Compra** `[x]` (`/app/proveedores/compras/nuevo`) — toggle Tipo (Producto para
+reventa/Insumo de producción) que condiciona el selector de ítem, toggle Estado (Ya
+recibida/Pedido, default "recibido") con nota inline de que "Pedido" no mueve stock todavía.
+Verificado end-to-end en ambos estados.
 - Campos de entrada: `sucursalId`, `proveedorId?`, `tipo`, `insumoId` **o** `productoId` (exactamente uno), `cantidad`, `montoTotal`, `costoAdicionalTraslado?`, `fechaCompra`, `fechaVencimiento?`, `estado?` (default `"recibido"`; `"pedido"` para el flujo tipo Orden de Compra de Nicho 4).
 - Salida: `compraId`, `costoUnitario` (calculado), `entradaStock` (solo si `estado="recibido"`).
 - Acción: `registrarCompra(solicitante, tenantId, input)`.
 
-**Historial de precios de un ítem** `[ ]` (insumo o producto). Acción: `historialPrecio(solicitante, tenantId, { insumoId } | { productoId })`.
+**Historial de precios de un ítem** `[x]` — sin mockup propio en esta tanda; resuelto como una
+sección nueva ("Historial de precios de compra") en la Ficha de Producto ya existente
+(`src/app/app/(shell)/productos/[id]/`), y cubierto también, con los mismos datos crudos, por el
+tab "Historial de Precios" de la Ficha de Proveedor de arriba. No se creó ruta propia. Verificado
+end-to-end.
+- Acción: `historialPrecio(solicitante, tenantId, { insumoId } | { productoId })`.
 
-**Recibir Compra** `[ ]` (acción sobre una compra en estado `"pedido"`).
-- Valida que no esté ya `"recibido"`. Dispara la entrada real de stock.
-- Acción: `recibirCompra(solicitante, compraId)`.
+**Recibir Compra** `[x]` (modal, disparado desde la fila de Listado de Compras) — sin mockup
+propio (pantalla trivial): fecha de recepción (prellenada con hoy) + "Confirmar recepción". Dispara
+la entrada real de stock. Verificado end-to-end.
+- Acción: `recibirCompra(solicitante, compraId, fechaRecepcion?)` (extendida en esta tanda con
+  `fechaRecepcion` opcional, default hoy si se omite — cambio de contrato aditivo).
 
-**Registrar pago de Compra** `[ ]` (modal). Campos: `monto`, `fechaPago`. Salida: `estadoPago`, `totalPagado`. Acción: `registrarPagoCompra`.
+**Registrar pago de Compra** `[x]` (modal) — mismo patrón visual que Registrar pago de Pasivo:
+resumen "Saldo actual / Pago a registrar / Saldo después" recalculado en vivo. El saldo se pide al
+abrir el modal (`consultarSaldoCompra`, agregada en esta tanda — mismo criterio que
+`consultarPasivoDeActivo`), no en un `useEffect` (evita el lint `set-state-in-effect`; se dispara
+en el handler de click que abre el modal). Verificado end-to-end.
+- Campos: `monto`, `fechaPago`. Salida: `estadoPago`, `totalPagado`. Acción: `registrarPagoCompra`.
 
-**Compra de Ajuste** `[ ]` (modal — motivo obligatorio, nunca edita la Compra original).
+**Compra de Ajuste** `[x]` (modal — motivo obligatorio, nunca edita la Compra original) — mismo
+patrón visual que Ajuste de Venta: banner de auditoría, tipo por `Select`, motivo en `Textarea`
+obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir compras de prueba).
 - Campos: `tipo` (`correccion`/`devolucion_a_proveedor`/`anulacion_total`), `montoAjuste`, `motivo` (obligatorio).
 - Acción: `registrarCompraDeAjuste(solicitante, compraId, input)`.
 

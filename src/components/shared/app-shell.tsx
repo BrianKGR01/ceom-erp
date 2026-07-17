@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Truck,
   X,
 } from "lucide-react";
 import { Icono } from "@/components/brand/icono";
@@ -55,6 +56,7 @@ export function AppShell({
     { href: "/app/ventas", label: "Ventas", icono: ShoppingCart },
     { href: "/app/productos", label: "Catálogo", icono: Package },
     { href: "/app/patrimonio", label: "Patrimonio", icono: Building2 },
+    { href: "/app/proveedores", label: "Proveedores", icono: Truck },
     ...(esOwner
       ? [{ href: "/app/onboarding", label: "Mi negocio", icono: Settings }]
       : []),

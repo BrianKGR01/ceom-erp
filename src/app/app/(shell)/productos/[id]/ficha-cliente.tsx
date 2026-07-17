@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Store,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +60,23 @@ interface Movimiento {
   creadoEn: string | Date;
 }
 
+interface PrecioDeCompra {
+  id: string;
+  fechaCompra: string;
+  costoUnitario: string;
+  cantidad: string;
+  proveedorNombre: string | null;
+}
+
+function formatFechaCompra(fecha: string): string {
+  return new Date(fecha).toLocaleDateString("es-BO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 const ETIQUETAS_TIPO: Record<string, string> = {
   entrada_produccion: "Producción",
   entrada_compra_reventa: "Compra",
@@ -97,6 +115,7 @@ export function FichaCliente({
   costoBloqueado,
   stockPorSucursal,
   sucursales,
+  historialPrecios,
 }: {
   productoId: string;
   imagenUrl: string | null;
@@ -110,6 +129,7 @@ export function FichaCliente({
   costoBloqueado: boolean;
   stockPorSucursal: StockFila[];
   sucursales: { id: string; nombre: string }[];
+  historialPrecios: PrecioDeCompra[];
 }) {
   const router = useRouter();
   const [stock, setStock] = useState(stockPorSucursal);
@@ -473,6 +493,33 @@ export function FichaCliente({
           })}
         </CardContent>
       </Card>
+
+      {historialPrecios.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Historial de precios de compra</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {historialPrecios.map((fila) => (
+              <div
+                key={fila.id}
+                className="flex items-center gap-3 border-b border-gray-border py-2 text-sm last:border-0"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+                  <Tag className="size-4" />
+                </span>
+                <div className="flex-1">
+                  <p className="text-text-body">{formatFechaCompra(fila.fechaCompra)}</p>
+                  <p className="text-xs text-text-muted">{fila.proveedorNombre ?? "Sin proveedor"}</p>
+                </div>
+                <span className="font-medium text-navy">
+                  {Number(fila.costoUnitario).toFixed(2)} / unidad
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Ajuste manual */}
       <Dialog open={ajusteAbierto} onOpenChange={setAjusteAbierto}>

@@ -254,10 +254,14 @@ export async function registrarCompra(
 
 /** Transiciona una Compra "pedido" -> "recibido" y recien ahi dispara la
  * entrada de stock real (Modulo_08 seccion 6 / roadmap item #12: Orden de
- * Compra como estado, no entidad nueva). */
+ * Compra como estado, no entidad nueva). `fechaRecepcion` opcional (cambio
+ * aditivo agregado al construir la UI — antes siempre usaba la fecha de
+ * hoy; `repo.marcarCompraRecibida` ya aceptaba el parametro, solo faltaba
+ * exponerlo) — default a hoy si no se especifica. */
 export async function recibirCompra(
   solicitante: UsuarioConRol,
-  compraId: string
+  compraId: string,
+  fechaRecepcion?: string
 ): Promise<Resultado<{ entradaStock: DatosEntradaStock }>> {
   const compra = await repo.obtenerCompraPorId(compraId);
   if (!compra) return { ok: false, error: "Compra no encontrada." };
@@ -268,8 +272,8 @@ export async function recibirCompra(
     return { ok: false, error: "Esta compra ya está recibida." };
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
-  const compraRecibida = await repo.marcarCompraRecibida(compraId, hoy);
+  const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
+  const compraRecibida = await repo.marcarCompraRecibida(compraId, fecha);
   const entradaStock = await dispararEntradaStock(
     solicitante,
     compra.tenantId,
@@ -309,6 +313,25 @@ export async function listarCompras(
 }
 
 // --- Pagos de Compra ---------------------------------------------------------
+
+/** Saldo pendiente de una Compra (montoTotal - total pagado) — agregada
+ * para la UI de "Registrar pago de Compra" (resumen saldo antes/después en
+ * vivo, mismo criterio que consultarPasivoDeActivo en Patrimonio). Antes
+ * `obtenerTotalPagado` solo se usaba internamente dentro de
+ * `registrarPagoCompraTx`, sin wrapper de lectura propio. */
+export async function consultarSaldoCompra(
+  solicitante: UsuarioConRol,
+  compraId: string
+): Promise<Resultado<{ saldoPendiente: number }>> {
+  const compra = await repo.obtenerCompraPorId(compraId);
+  if (!compra) return { ok: false, error: "Compra no encontrada." };
+  if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver esta compra." };
+  }
+
+  const totalPagado = await repo.obtenerTotalPagado(compraId);
+  return { ok: true, data: { saldoPendiente: Number(compra.montoTotal) - totalPagado } };
+}
 
 export async function registrarPagoCompra(
   solicitante: UsuarioConRol,

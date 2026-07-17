@@ -3,6 +3,7 @@ import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { fichaProducto, listarCategorias } from "@/modules/productos/actions";
+import { historialPrecio, listarProveedores } from "@/modules/proveedores/actions";
 import { FichaCliente } from "./ficha-cliente";
 
 export default async function FichaProductoPage({
@@ -14,17 +15,23 @@ export default async function FichaProductoPage({
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [fichaResultado, sucursalesResultado, categoriasResultado] = await Promise.all([
-    fichaProducto(usuario, id),
-    listarSucursalesPorTenant(usuario, usuario.tenantId),
-    listarCategorias(usuario, usuario.tenantId),
-  ]);
+  const [fichaResultado, sucursalesResultado, categoriasResultado, historialResultado, proveedoresResultado] =
+    await Promise.all([
+      fichaProducto(usuario, id),
+      listarSucursalesPorTenant(usuario, usuario.tenantId),
+      listarCategorias(usuario, usuario.tenantId),
+      historialPrecio(usuario, usuario.tenantId, { productoId: id }),
+      listarProveedores(usuario, usuario.tenantId),
+    ]);
 
   if (!fichaResultado.ok || !fichaResultado.data.producto) redirect("/app/productos");
   const { producto, stockPorSucursal } = fichaResultado.data;
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
   const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
   const categoriaNombre = categorias.find((c) => c.id === producto!.categoriaId)?.nombre;
+  const historialPrecios = historialResultado.ok ? historialResultado.data : [];
+  const proveedores = proveedoresResultado.ok ? proveedoresResultado.data : [];
+  const proveedorPorId = new Map(proveedores.map((p) => [p.id, p.nombre]));
 
   const precio = Number(producto!.precioVenta);
   const costo =
@@ -61,6 +68,16 @@ export default async function FichaProductoPage({
             stockMinimo: f.stockMinimo,
           }))}
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
+          historialPrecios={historialPrecios
+            .slice()
+            .reverse()
+            .map((c) => ({
+              id: c.id,
+              fechaCompra: c.fechaCompra,
+              costoUnitario: c.costoUnitario,
+              cantidad: c.cantidad,
+              proveedorNombre: c.proveedorId ? (proveedorPorId.get(c.proveedorId) ?? null) : null,
+            }))}
         />
       </div>
     </div>
