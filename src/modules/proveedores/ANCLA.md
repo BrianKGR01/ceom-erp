@@ -19,7 +19,8 @@
   `eliminarProveedor`, `listarProveedores`, `fichaProveedor`,
   `registrarCompra` (+ `calcularCostoUnitario()` pura, exportada),
   **`recibirCompra`** (nueva, roadmap ítem #12), `historialPrecio`,
-  `registrarPagoCompra`, `registrarCompraDeAjuste`,
+  `listarCompras` (agregada para la UI de "Listado de Compras" — ver
+  "Última actualización"), `registrarPagoCompra`, `registrarCompraDeAjuste`,
   `consultarPagosCompraEnPeriodo` (agregado de solo lectura por período,
   agregado en Módulo 7 para que Financiero consuma Proveedores sin
   importar `compras`/`pagos_compra` directo).
@@ -133,4 +134,13 @@
   (no lo tenía antes) — `registrarCompra`/`recibirCompra` ahora encadenan
   una llamada cross-módulo real, igual motivo que Módulo 3/4/7.
 
-## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4): Landed Cost simple, Orden de Compra como estado, FK real de insumo/producto, evento compra_registrada real
+## Última actualización: 2026-07-17 — Gap de backend cerrado para la tanda de UI de Proveedores/Compras
+`docs/ui/pantallas.md` sección 4 documentaba que no existía un listado general de Compras — solo
+indirectos (`fichaProveedor()` → `compras[]` por proveedor, `historialPrecio()` por ítem). Se
+agregó `repo.listarComprasPorTenant(tenantId, { estadoPago?, estado? })` + el wrapper público
+`listarCompras(solicitante, tenantId, opts)`, gateado por `tienePermiso(..., "proveedores",
+"ver")` igual que el resto del módulo. Más reciente primero (`orderBy(desc(fechaCompra))`). Sin
+cambios de contrato en ninguna función existente — todo aditivo. Cubierto por un test nuevo en
+`proveedores.test.ts` que verifica el filtro por `estado` (pedido/recibido) y por `estadoPago`.
+
+## Última actualización anterior: 2026-07-15 — roadmap ítem #12 (Nicho 4): Landed Cost simple, Orden de Compra como estado, FK real de insumo/producto, evento compra_registrada real

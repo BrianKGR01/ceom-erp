@@ -292,6 +292,22 @@ export async function historialPrecio(
   return { ok: true, data: await repo.listarComprasPorItem(tenantId, item) };
 }
 
+/** Listado general de Compras del tenant — antes solo existian listados
+ * indirectos (fichaProveedor -> compras[] por proveedor, historialPrecio
+ * por item). Filtros opcionales por estadoPago y estado (pedido/recibido),
+ * mas reciente primero. Agregada para la UI de "Listado de Compras"
+ * (docs/ui/pantallas.md seccion 4). */
+export async function listarCompras(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  opts: { estadoPago?: EstadoPagoCompra; estado?: EstadoCompra } = {}
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarComprasPorTenant>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
+  }
+  return { ok: true, data: await repo.listarComprasPorTenant(tenantId, opts) };
+}
+
 // --- Pagos de Compra ---------------------------------------------------------
 
 export async function registrarPagoCompra(

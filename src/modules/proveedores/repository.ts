@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { comprasAjuste, compras, pagosCompra, proveedores } from "./schema";
 
@@ -84,6 +84,27 @@ export async function obtenerCompraPorId(compraId: string) {
     .where(and(eq(compras.id, compraId), isNull(compras.eliminadoEn)))
     .limit(1);
   return filas[0] ?? null;
+}
+
+/** Listado general de Compras del tenant, con filtros opcionales por
+ * estadoPago y estado (pedido/recibido) — antes solo existian listados
+ * indirectos (por proveedor, por item). Mas reciente primero. */
+export async function listarComprasPorTenant(
+  tenantId: string,
+  opts: {
+    estadoPago?: (typeof compras.$inferSelect)["estadoPago"];
+    estado?: (typeof compras.$inferSelect)["estado"];
+  } = {}
+) {
+  const condiciones = [eq(compras.tenantId, tenantId), isNull(compras.eliminadoEn)];
+  if (opts.estadoPago) condiciones.push(eq(compras.estadoPago, opts.estadoPago));
+  if (opts.estado) condiciones.push(eq(compras.estado, opts.estado));
+
+  return db
+    .select()
+    .from(compras)
+    .where(and(...condiciones))
+    .orderBy(desc(compras.fechaCompra));
 }
 
 /** historial_precio(item_id) — Modulo_08 seccion 2, ordenado por fecha.

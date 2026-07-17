@@ -12,6 +12,7 @@ import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import {
   fichaProveedor,
   historialPrecio,
+  listarCompras,
   recibirCompra,
   registrarCompra,
   registrarCompraDeAjuste,
@@ -316,5 +317,55 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     // recibirCompra sobre una compra ya recibida rechaza.
     const reintento = await recibirCompra(owner!, compra.data.compraId);
     expect(reintento.ok).toBe(false);
+  });
+
+  it("listarCompras: filtra por estadoPago y por estado (pedido/recibido)", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const recibidaPendiente = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "reventa",
+      productoId,
+      cantidad: 2,
+      montoTotal: 50,
+      fechaCompra: "2026-04-01",
+    });
+    if (!recibidaPendiente.ok) throw new Error("setup fallo");
+
+    const pedidoAbierto = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 1,
+      montoTotal: 30,
+      fechaCompra: "2026-04-02",
+      estado: "pedido",
+    });
+    if (!pedidoAbierto.ok) throw new Error("setup fallo");
+
+    const todas = await listarCompras(owner!, tenantId);
+    expect(todas.ok).toBe(true);
+    if (todas.ok) {
+      const ids = todas.data.map((c) => c.id);
+      expect(ids).toContain(recibidaPendiente.data.compraId);
+      expect(ids).toContain(pedidoAbierto.data.compraId);
+    }
+
+    const soloPedidos = await listarCompras(owner!, tenantId, { estado: "pedido" });
+    expect(soloPedidos.ok).toBe(true);
+    if (soloPedidos.ok) {
+      expect(soloPedidos.data.some((c) => c.id === pedidoAbierto.data.compraId)).toBe(true);
+      expect(soloPedidos.data.some((c) => c.id === recibidaPendiente.data.compraId)).toBe(false);
+    }
+
+    const soloPendientesDePago = await listarCompras(owner!, tenantId, { estadoPago: "pendiente" });
+    expect(soloPendientesDePago.ok).toBe(true);
+    if (soloPendientesDePago.ok) {
+      expect(soloPendientesDePago.data.some((c) => c.id === recibidaPendiente.data.compraId)).toBe(
+        true
+      );
+    }
   });
 });
