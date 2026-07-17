@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  Calculator,
   ChefHat,
   LayoutGrid,
   LogOut,
@@ -64,6 +65,7 @@ export function AppShell({
       : []),
     { href: "/app/gastos", label: "Gastos", icono: Receipt },
     { href: "/app/produccion", label: "Producción", icono: ChefHat },
+    { href: "/app/simulaciones", label: "Simulaciones", icono: Calculator },
   ];
 
   function esActivo(href: string) {

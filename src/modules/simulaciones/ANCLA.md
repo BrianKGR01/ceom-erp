@@ -57,8 +57,20 @@
       casos: rotación real, sin ventas, costo manual sin persistir,
       punto de equilibrio normal, comparativo con alerta, umbral editable,
       margen de contribución negativo).
-- [ ] Sin UI — 100% `actions.ts`, sin pantallas, igual que el resto de
-      Fase 1.
+- [x] **UI real** (`src/app/app/(shell)/simulaciones/`, route actions.ts
+      propio wrapper): Simulador (Simular Precio + Punto de Equilibrio en
+      tabs, con mockup), Comparativo Multi-SKU (con mockup, umbral editable
+      vía Dialog lanzado desde la propia pantalla), Historial de
+      Simulaciones (sin mockup). Módulo 13 completo, 5/5 pantallas — ver
+      `docs/ui/pantallas.md` sección 13. La previa automática al elegir
+      producto (Modulo_09 sección 1.1) usa una Server Action de solo
+      lectura nueva a nivel de ruta (`obtenerDatosPreviaAction`,
+      compone `consultarCostoOperativo`/`consultarPrecioVenta`/
+      `consultarUnidadesVendidasPeriodo`/`costoFijoTotal`) — a propósito
+      NO reutiliza `simularPrecio`/`calcularPuntoEquilibrio` para esto,
+      porque esas dos persisten un registro en `simulaciones` cada vez que
+      se llaman; llamarlas en cada cambio de producto/margen ensuciaría el
+      Historial con simulaciones no deliberadas.
 - [ ] Proyección de inversión en activos (reutilización de
       `unidadesParaCubrir` con `montoACubrir = valorCompra`, sección 2.3) —
       documentada como reutilización futura, no se construye acá (le
@@ -76,10 +88,16 @@
 - Esquema de BD (Drizzle): `src/modules/simulaciones/schema.ts`
 - Repository: `src/modules/simulaciones/repository.ts`
 - Server actions: `src/modules/simulaciones/actions.ts`
+- Validation (zod, UI): `src/modules/simulaciones/validation.ts`
 - Tests: `src/modules/simulaciones/formulas.test.ts`,
   `src/modules/simulaciones/simulaciones.test.ts`
 - Migración relevante: `drizzle/migrations/0021` (tablas + RLS, todo en una
   sola migración).
+- UI: `src/app/app/(shell)/simulaciones/` (route actions.ts +
+  `page.tsx`/`simulador-cliente.tsx`, `comparativo/`, `historial/`,
+  `margen-producto/` — este último consume `margenPorProducto` de
+  Financiero, no de este módulo, pero vive acá por decisión de UI, ver
+  `docs/ui/pantallas.md` sección 9).
 
 ## Decisiones tomadas que un agente no debe revertir
 - **`calcularMargenPorcentaje` de Financiero se reutiliza tratando
@@ -104,3 +122,5 @@
   módulos.
 
 ## Última actualización: 2026-07-15 — implementación inicial (Fase 1, roadmap ítem #13)
+
+## Última actualización: 2026-07-17 — UI completa (Módulo 13, 5/5) + Financiero — Margen por Producto (Módulo 9, cierra 3/3) sumado a esta tanda; sin cambios de contrato de `actions.ts`

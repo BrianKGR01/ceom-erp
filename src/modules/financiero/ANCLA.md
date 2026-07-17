@@ -62,8 +62,13 @@
       aprobado") **no existe todavía** (roadmap ítems #10/#11) — las
       funciones de Financiero ya están gateadas por `tienePermiso()`, listas
       para que el Gateway las consuma cuando exista.
-- [ ] `margenPorProducto`/Simulaciones (Punto de Equilibrio, Módulo 9) — sin
-      consumidor real todavía.
+- [x] `margenPorProducto` — UI construida el 2026-07-17 en
+      `/app/simulaciones/margen-producto` (no ruta propia de Financiero,
+      mismo criterio que Flujo de Caja/Estado de Resultados: viven en
+      Reportes/Simulaciones para no duplicar UI — ver
+      `docs/ui/pantallas.md` sección 9). `calcularPuntoEquilibrio` de
+      Simulaciones (Módulo 9) sí es un consumidor real desde el roadmap
+      ítem #13, vía `costoFijoTotal`.
 
 ## Contrato tocado en 3 módulos (Ventas, Gastos, Proveedores)
 Financiero necesitaba agregados por período que ningún módulo exponía
@@ -114,3 +119,5 @@ comportamiento existente, mismo patrón de gate que cada módulo ya usaba:
   Módulo 3/4 (varias llamadas cross-módulo encadenadas).
 
 ## Última actualización: 2026-07-14 — implementación inicial (Fase 1, Módulo 7, roadmap ítem #9)
+
+## Última actualización: 2026-07-17 — Módulo Financiero completo a nivel de UI (3/3): Flujo de Caja/Estado de Resultados viven en Reportes, Margen por Producto vive en Simulaciones — sin ruta propia, sin cambios de contrato
