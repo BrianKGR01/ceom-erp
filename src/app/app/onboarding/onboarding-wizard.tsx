@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +34,7 @@ import {
   actualizarTenantSchema,
   type ActualizarTenantInput,
 } from "@/modules/identidad/validation";
-import { elegirRubro, finalizarOnboarding, guardarNegocio } from "./actions";
+import { elegirRubro, finalizarOnboarding, guardarNegocio, subirLogoAction } from "./actions";
 
 // Canales reales de Modulo_01 seccion 1.1 — no los de la referencia visual
 // (esta pantalla se rediseño con imagenes de otra herramienta como guia de
@@ -93,6 +93,7 @@ interface TenantActual {
   monedaPrincipal: string;
   canalesVenta: string[];
   nichoId: Nicho | null;
+  logoUrl: string | null;
 }
 
 export function OnboardingWizard({ tenant }: { tenant: TenantActual }) {
@@ -158,6 +159,7 @@ function PasoNegocio({
       ciudadBase: tenant.ciudadBase ?? "",
       monedaPrincipal: tenant.monedaPrincipal,
       canalesVenta: tenant.canalesVenta,
+      logoUrl: tenant.logoUrl ?? undefined,
     },
   });
   const [guardando, setGuardando] = useState(false);
@@ -174,21 +176,17 @@ function PasoNegocio({
     );
   }
 
-  // --- Logo: preview local unicamente, no se sube ni se persiste todavia
-  // (decision confirmada — se conecta a Storage recien cuando haya un
-  // segundo lugar real que tambien necesite subir archivos).
+  // --- Logo: se sube a Storage apenas se elige (subirLogoAction), no
+  // recien al guardar el formulario — asi el preview que se muestra ya es
+  // la URL real persistida, no un blob local. "Guardar y continuar" manda
+  // logoUrl como un campo mas del formulario, no una llamada aparte.
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(tenant.logoUrl);
   const [logoError, setLogoError] = useState<string | null>(null);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      if (logoPreview) URL.revokeObjectURL(logoPreview);
-    };
-  }, [logoPreview]);
-
-  function elegirLogo(file: File) {
+  async function elegirLogo(file: File) {
     setLogoError(null);
     if (!["image/png", "image/jpeg"].includes(file.type)) {
       setLogoError("Solo se aceptan imágenes PNG o JPG.");
@@ -198,17 +196,37 @@ function PasoNegocio({
       setLogoError("La imagen no puede pesar más de 2MB.");
       return;
     }
-    const url = URL.createObjectURL(file);
-    const img = new window.Image();
-    img.onload = () => {
-      if (img.width < 512 || img.height < 512) {
-        setLogoError("La imagen tiene que ser de al menos 512×512px.");
-        URL.revokeObjectURL(url);
-        return;
-      }
-      setLogoPreview(url);
-    };
-    img.src = url;
+
+    const preview = URL.createObjectURL(file);
+    const dimensionesOk = await new Promise<boolean>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img.width >= 512 && img.height >= 512);
+      img.src = preview;
+    });
+    if (!dimensionesOk) {
+      setLogoError("La imagen tiene que ser de al menos 512×512px.");
+      URL.revokeObjectURL(preview);
+      return;
+    }
+
+    setSubiendoLogo(true);
+    setLogoPreview(preview);
+    const resultado = await subirLogoAction(file);
+    setSubiendoLogo(false);
+    URL.revokeObjectURL(preview);
+
+    if (!resultado.ok) {
+      setLogoError(resultado.error);
+      setLogoPreview(tenant.logoUrl);
+      return;
+    }
+    form.setValue("logoUrl", resultado.data.url);
+    setLogoPreview(resultado.data.url);
+  }
+
+  function quitarLogo() {
+    form.setValue("logoUrl", undefined);
+    setLogoPreview(null);
   }
 
   async function onSubmit(values: ActualizarTenantInput) {
@@ -284,11 +302,13 @@ function PasoNegocio({
               const file = e.dataTransfer.files?.[0];
               if (file) elegirLogo(file);
             }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => !subiendoLogo && fileInputRef.current?.click()}
             role="button"
             tabIndex={0}
+            aria-disabled={subiendoLogo}
             className={cn(
               "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-5 text-center transition-colors",
+              subiendoLogo && "pointer-events-none opacity-60",
               arrastrando ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
             )}
           >
@@ -300,17 +320,19 @@ function PasoNegocio({
                   alt="Logo elegido"
                   className="size-16 rounded-lg object-cover"
                 />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLogoPreview(null);
-                  }}
-                  aria-label="Quitar logo"
-                  className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full bg-error-text text-white"
-                >
-                  <X className="size-3" />
-                </button>
+                {!subiendoLogo && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      quitarLogo();
+                    }}
+                    aria-label="Quitar logo"
+                    className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full bg-error-text text-white"
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -324,6 +346,7 @@ function PasoNegocio({
                 </p>
               </>
             )}
+            {subiendoLogo && <p className="text-[11px] text-text-muted">Subiendo...</p>}
           </div>
           {logoError && <p className="text-xs text-error-text">{logoError}</p>}
           <input

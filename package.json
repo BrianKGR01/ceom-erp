@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
     "seed:tenant": "tsx --env-file=.env.local scripts/seed-tenant.ts",
-    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo-data.ts"
+    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo-data.ts",
+    "storage:setup": "tsx --env-file=.env.local scripts/setup-storage.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

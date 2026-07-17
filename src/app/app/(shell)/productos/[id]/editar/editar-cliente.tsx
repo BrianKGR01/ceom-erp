@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ProductForm, type ProductFormInitialValues } from "@/components/shared/product-form";
 import type { ProductoFormInput } from "@/modules/productos/validation";
-import { actualizarProductoAction } from "../../actions";
+import { actualizarProductoAction, subirImagenProductoAction } from "../../actions";
 
 export function EditarCliente({
   productoId,
@@ -32,6 +32,7 @@ export function EditarCliente({
       categorias={categorias}
       sucursales={[]}
       costoBloqueado={costoBloqueado}
+      onSubirImagen={(file) => subirImagenProductoAction(file, productoId)}
       onSubmit={onSubmit}
     />
   );

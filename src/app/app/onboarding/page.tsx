@@ -24,6 +24,7 @@ export default async function OnboardingPage() {
             monedaPrincipal: tenant.monedaPrincipal,
             canalesVenta: tenant.canalesVenta,
             nichoId: tenant.nichoId,
+            logoUrl: tenant.logoUrl,
           }}
         />
       </div>

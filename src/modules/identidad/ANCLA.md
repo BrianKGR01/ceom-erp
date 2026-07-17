@@ -257,4 +257,44 @@
   "se aplicó bien" — `drizzle-kit migrate` puede terminar en exit code 1
   sin imprimir el error real de Postgres.
 
+- **Bug de seguridad real encontrado y corregido — `current_tenant_id()` tenía
+  recursión infinita bajo el rol `authenticated`** (migración
+  `0025_fix_current_tenant_id_security_definer.sql`). La función
+  (`security invoker`, migración `0003`) resuelve
+  `select tenant_id from usuarios where id = auth.uid()` — pero `usuarios`
+  tiene su propia policy de RLS (`crudPolicy()`) que exige
+  `tenant_id = (select current_tenant_id())`. Para evaluar esa policy, Postgres
+  necesita `current_tenant_id()`, que a su vez necesita evaluar esa misma
+  policy de nuevo — recursión circular. Nunca se detectó porque **todo** el
+  acceso a datos de la app corre bajo el rol `postgres` (superusuario, vía
+  `DATABASE_URL`/`DIRECT_URL`), que bypassea RLS por completo — la RLS de
+  **todas** las tablas de negocio (`crudPolicy()`, la "segunda capa de
+  defensa" de `AGENTS.md` regla 6) era código muerto, nunca ejercitado bajo
+  el rol `authenticated` real, hasta que la integración de Storage (ver
+  abajo) hizo la primera llamada real vía `crearClienteServidor()` (que sí
+  usa la sesión JWT del usuario, rol `authenticated`) y Postgres cortó la
+  recursión con el error `54001 statement_too_complex`. **Fix:** la función
+  ahora es `security definer` (+ `search_path` explícito) — su consulta
+  interna corre con los privilegios de quien la creó, sin re-evaluar la
+  policy de `usuarios`, rompiendo el ciclo. Sigue siendo segura: el `WHERE`
+  de la función es siempre `id = auth.uid()`, nunca puede devolver el
+  `tenant_id` de otro usuario sin importar quién la llame. **Cualquier
+  módulo que en el futuro haga una llamada real (no solo de test) usando el
+  cliente de sesión de Supabase (no el rol `postgres`) contra una tabla con
+  `crudPolicy()` ahora sí queda protegido de verdad — antes no lo estaba.**
+
+- **Storage: `tenants.logoUrl` ya está conectado de punta a punta.** El
+  dropzone de Onboarding Paso 1 sube a Storage apenas se elige el archivo
+  (`subirLogoAction`, `src/app/app/onboarding/actions.ts`) y persiste la URL
+  real con `actualizarTenant()` al guardar el formulario — antes era
+  preview local únicamente (`logoUrl` nunca viajaba). Ver
+  `src/lib/supabase/storage.ts` y su ANCLA en Productos (mismo mecanismo,
+  documentado una sola vez ahí para no duplicar). **Gap conocido no
+  resuelto en esta tarea:** el botón "Quitar logo" solo limpia el campo del
+  formulario a `undefined` — como el update de Drizzle omite las columnas
+  `undefined` del `SET` (no las vuelve `NULL`), quitar el logo y guardar
+  **no borra** `logoUrl` en la base. Si se necesita "sacar el logo" de
+  verdad, hay que mandar `null` explícito (no `undefined`) y ajustar
+  `actualizarTenantSchema`/`actualizarTenant` para aceptarlo.
+
 ## Última actualización: 2026-07-16 — Shell de `/app` (Fase 1 UI): agregó `onboardingCompletadoEn`/`completarOnboarding` para forzar el redirect a Onboarding en el primer ingreso

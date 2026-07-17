@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Upload, X } from "lucide-react";
@@ -34,6 +34,7 @@ const UNIDADES: { value: ProductoFormInput["unidadVenta"]; label: string }[] = [
 export interface ProductFormInitialValues {
   categoriaId?: string;
   nombre?: string;
+  imagenUrl?: string;
   unidadVenta?: ProductoFormInput["unidadVenta"];
   precioVenta?: number;
   costoOperativoVigente?: number;
@@ -42,12 +43,17 @@ export interface ProductFormInitialValues {
   activo?: boolean;
 }
 
+export type ResultadoSubidaImagen =
+  | { ok: true; data: { url: string } }
+  | { ok: false; error: string };
+
 export function ProductForm({
   mode,
   initialValues,
   categorias,
   sucursales,
   costoBloqueado,
+  onSubirImagen,
   onSubmit,
 }: {
   mode: "crear" | "editar";
@@ -57,6 +63,11 @@ export function ProductForm({
   /** true cuando tipoOrigenProducto === "produccion_nicho" — el costo lo
    * actualiza el Módulo Operativo, nunca se edita a mano (Modulo_02 regla 2). */
   costoBloqueado?: boolean;
+  /** Sube la imagen a Storage y devuelve su URL pública — inyectada por el
+   * caller (nuevo-cliente.tsx/editar-cliente.tsx) en vez de importarse acá
+   * directo, para que este componente compartido no dependa de la Server
+   * Action de una ruta puntual (docs/dev-practices/dev-practices.md §9). */
+  onSubirImagen: (file: File) => Promise<ResultadoSubidaImagen>;
   onSubmit: (values: ProductoFormInput) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const form = useForm<ProductoFormInput>({
@@ -64,6 +75,7 @@ export function ProductForm({
     defaultValues: {
       categoriaId: initialValues?.categoriaId ?? "",
       nombre: initialValues?.nombre ?? "",
+      imagenUrl: initialValues?.imagenUrl,
       unidadVenta: initialValues?.unidadVenta ?? "unidad",
       precioVenta: initialValues?.precioVenta,
       costoOperativoVigente: initialValues?.costoOperativoVigente,
@@ -79,21 +91,16 @@ export function ProductForm({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Imagen del producto: preview local unicamente, mismo criterio que el
-  // logo del negocio (Onboarding Paso 1) — no se sube ni se persiste
-  // todavia (imagen_url no se manda en el submit real, ver ANCLA.md).
+  // Imagen del producto: se sube a Storage apenas se elige (onSubirImagen),
+  // no recien al guardar el formulario — mismo criterio que el logo del
+  // negocio (Onboarding Paso 1).
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(initialValues?.imagenUrl ?? null);
   const [imagenError, setImagenError] = useState<string | null>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [arrastrando, setArrastrando] = useState(false);
 
-  useEffect(() => {
-    return () => {
-      if (imagenPreview) URL.revokeObjectURL(imagenPreview);
-    };
-  }, [imagenPreview]);
-
-  function elegirImagen(file: File) {
+  async function elegirImagen(file: File) {
     setImagenError(null);
     if (!["image/png", "image/jpeg"].includes(file.type)) {
       setImagenError("Solo se aceptan imágenes PNG o JPG.");
@@ -103,7 +110,26 @@ export function ProductForm({
       setImagenError("La imagen no puede pesar más de 5MB.");
       return;
     }
-    setImagenPreview(URL.createObjectURL(file));
+
+    const preview = URL.createObjectURL(file);
+    setSubiendoImagen(true);
+    setImagenPreview(preview);
+    const resultado = await onSubirImagen(file);
+    setSubiendoImagen(false);
+    URL.revokeObjectURL(preview);
+
+    if (!resultado.ok) {
+      setImagenError(resultado.error);
+      setImagenPreview(initialValues?.imagenUrl ?? null);
+      return;
+    }
+    form.setValue("imagenUrl", resultado.data.url);
+    setImagenPreview(resultado.data.url);
+  }
+
+  function quitarImagen() {
+    form.setValue("imagenUrl", undefined);
+    setImagenPreview(null);
   }
 
   async function handleSubmit(values: ProductoFormInput) {
@@ -288,11 +314,13 @@ export function ProductForm({
                 const file = e.dataTransfer.files?.[0];
                 if (file) elegirImagen(file);
               }}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => !subiendoImagen && fileInputRef.current?.click()}
               role="button"
               tabIndex={0}
+              aria-disabled={subiendoImagen}
               className={cn(
                 "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-5 text-center transition-colors",
+                subiendoImagen && "pointer-events-none opacity-60",
                 arrastrando ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
               )}
             >
@@ -304,17 +332,22 @@ export function ProductForm({
                     alt="Imagen del producto"
                     className="size-28 rounded-lg object-cover"
                   />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImagenPreview(null);
-                    }}
-                    aria-label="Quitar imagen"
-                    className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full bg-error-text text-white"
-                  >
-                    <X className="size-3" />
-                  </button>
+                  {!subiendoImagen && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        quitarImagen();
+                      }}
+                      aria-label="Quitar imagen"
+                      className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full bg-error-text text-white"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  )}
+                  {subiendoImagen && (
+                    <p className="mt-1.5 text-[11px] text-text-muted">Subiendo...</p>
+                  )}
                 </div>
               ) : (
                 <>

@@ -15,6 +15,7 @@ export const actualizarTenantSchema = z.object({
     .length(3, "Usá el código de 3 letras de tu moneda (ej. BOB, USD).")
     .toUpperCase(),
   canalesVenta: z.array(z.string()),
+  logoUrl: z.string().trim().optional(),
 });
 
 export type ActualizarTenantInput = z.infer<typeof actualizarTenantSchema>;

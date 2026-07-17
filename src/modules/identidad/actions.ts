@@ -367,8 +367,10 @@ export async function crearTenant(
  * "Configurar negocio" (Modulo_01 seccion 4.1). Mismo criterio de gate que
  * invitarUsuario/cambiarRolUsuario: solo el Owner, chequeo directo de
  * esOwner (identidad no esta en el enum modulo_permiso, ver ANCLA.md).
- * logoUrl es opcional a proposito — la pantalla de onboarding todavia no
- * pide logo (sin integracion de Storage en esta tarea).
+ * logoUrl es opcional (el negocio puede no tener logo) — se sube antes a
+ * Storage vía `subirLogoAction()` (`src/app/app/onboarding/actions.ts`,
+ * `src/lib/supabase/storage.ts`) y acá solo se persiste la URL ya
+ * resultante, mismo patrón que `productos.imagenUrl`.
  */
 export async function actualizarTenant(
   solicitante: UsuarioConRol,

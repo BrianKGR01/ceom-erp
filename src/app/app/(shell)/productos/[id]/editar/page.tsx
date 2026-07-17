@@ -51,6 +51,7 @@ export default async function EditarProductoPage({
           initialValues={{
             categoriaId: producto!.categoriaId ?? undefined,
             nombre: producto!.nombre,
+            imagenUrl: producto!.imagenUrl ?? undefined,
             unidadVenta: producto!.unidadVenta,
             precioVenta: Number(producto!.precioVenta),
             costoOperativoVigente:

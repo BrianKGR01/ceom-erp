@@ -101,10 +101,10 @@
       Edición ahora carga `fecha_vencimiento_referencia`, y la Ficha
       muestra `stock_minimo` — pero nadie llama a `configurarStockMinimo`
       todavía desde ninguna pantalla, así que ese campo siempre se ve como
-      "—"). `imagen_url` tampoco se persiste desde la UI: el dropzone de
-      Alta/Edición es preview local únicamente (mismo criterio que el logo
-      del negocio en Onboarding), no hay flujo de subida a Storage en todo
-      el proyecto todavía.
+      "—").
+- [x] `imagen_url` **ya se persiste desde la UI** — conectado a Storage,
+      ver "Actualización 2026-07-16 (2)" más abajo para el detalle completo
+      de la arquitectura del bucket.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/productos/schema.ts`
@@ -151,3 +151,58 @@
   y superan el default de Vitest (5000ms) contra la latencia real de red.
 
 ## Última actualización: 2026-07-16 — Rediseño visual de Catálogo/Ficha/Alta-Edición: Alta/Edición ahora carga `fecha_vencimiento_referencia` (backend ya lo aceptaba); se agregaron wrappers de ruta para el CRUD de categorías (ya existía en `actions.ts`, solo faltaba el wiring de UI); sin cambios de contrato
+
+## Actualización 2026-07-16 (2) — `imagen_url` conectado a Storage (arquitectura del bucket documentada acá)
+- `productoFormSchema` ganó `imagenUrl` (antes no existía — el dropzone de
+  `product-form.tsx` era preview local puro, nunca viajaba al submit). El
+  dropzone ahora sube apenas se elige el archivo
+  (`subirImagenProductoAction`, `src/app/app/(shell)/productos/actions.ts`)
+  y guarda la URL real devuelta en el propio formulario — se persiste recién
+  al enviar "Crear producto"/"Guardar cambios", igual que el resto de los
+  campos. Al editar, subir una imagen nueva borra la anterior del bucket
+  (busca el `imagenUrl` actual vía `fichaProducto()` antes de subir).
+- **Arquitectura de Storage (única para toda la app, documentada acá porque
+  Productos fue el segundo consumidor real después de Onboarding/logo —
+  ver `src/lib/supabase/storage.ts` y `storage-config.ts`):**
+  - Un solo bucket compartido, `tenant-uploads` (creado por
+    `scripts/setup-storage.ts`, `pnpm storage:setup` — idempotente, Drizzle
+    no modela buckets). **Público para lectura** (`getPublicUrl`, sin
+    expirar) — decisión deliberada: lo que se sube (logos, fotos de
+    producto) no es sensible y se renderiza en `<img src>` dentro de la
+    propia UI del tenant; nada de lo que existe hoy necesita URLs firmadas
+    que expiran. Si en el futuro se sube algo sensible (ej. un documento de
+    verificación), va a un bucket nuevo y privado — no se reutiliza este.
+  - Cada archivo vive bajo `{tenantId}/{carpeta}/{uuid}.{ext}` — el primer
+    segmento del path (`tenantId`) es lo que la RLS de `storage.objects`
+    usa para aislar por tenant (`drizzle/migrations/0024_storage_tenant_uploads_rls.sql`,
+    vía el helper nativo `storage.foldername()` + `current_tenant_id()` —
+    la misma función que ya usa `crudPolicy()` en el resto de la app, no
+    una copia). Escritura (INSERT/UPDATE/DELETE) exige estar autenticado y
+    pertenecer al tenant dueño de la carpeta.
+  - La subida real (`subirImagen()`) usa el cliente de Supabase atado a la
+    sesión del usuario (`crearClienteServidor()`), **nunca** el cliente
+    admin/service-role — así la RLS de arriba es una segunda capa de
+    defensa real, no solo de nombre (mismo criterio que el resto de la app,
+    `AGENTS.md` regla 6). El permiso real (`tienePermiso(..., "productos",
+    "crear")`) ya se valida en el Server Action antes de llegar a Storage.
+  - Validación de tipo/tamaño (PNG/JPG/WEBP, máx. 5MB) es server-side en
+    `subirImagen()` — la del cliente (dropzone) es solo feedback rápido,
+    nunca la única barrera.
+  - `next.config.ts` sube `experimental.serverActions.bodySizeLimit` a
+    `"5mb"` (default de Next.js es 1MB) — necesario para que las imágenes
+    de hasta 5MB lleguen completas al Server Action.
+  - **Bug de seguridad real encontrado al conectar esto** (no de este
+    módulo, de Identidad): la primera subida falló con
+    `54001 statement_too_complex` — `current_tenant_id()` tenía recursión
+    infinita bajo el rol `authenticated` real (nunca antes ejercitado, todo
+    el resto de la app usa el rol `postgres` que bypassea RLS). Corregido
+    marcando la función `security definer`
+    (`drizzle/migrations/0025_fix_current_tenant_id_security_definer.sql`)
+    — detalle completo en `src/modules/identidad/ANCLA.md`. Relevante para
+    cualquier módulo futuro que suba archivos o use el cliente de sesión de
+    Supabase contra una tabla con `crudPolicy()`.
+- **Gap conocido no resuelto en esta tarea:** igual que en Identidad,
+  "Quitar imagen" solo limpia el campo del formulario a `undefined` — el
+  update de Drizzle omite columnas `undefined` del `SET` (no las vuelve
+  `NULL`), así que no borra `imagen_url` en la base si se guarda después de
+  quitarla. Mismo fix pendiente que en Identidad si se necesita de verdad.

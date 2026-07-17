@@ -1,6 +1,6 @@
 "use server";
 
-import { obtenerUsuarioActual } from "@/modules/identidad/actions";
+import { obtenerUsuarioActual, tienePermiso } from "@/modules/identidad/actions";
 import {
   actualizarCategoria,
   actualizarProducto,
@@ -8,15 +8,46 @@ import {
   crearProducto,
   eliminarCategoria,
   eliminarProducto,
+  fichaProducto,
   listarMovimientosStock,
   registrarAjusteManualStock,
   registrarTransferenciaStock,
 } from "@/modules/productos/actions";
 import { productoFormSchema } from "@/modules/productos/validation";
+import { eliminarImagen, pathDesdeUrlPublica, subirImagen } from "@/lib/supabase/storage";
 
 export type ResultadoAccion<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; error: string };
+
+/** Sube la imagen del producto a Storage — igual que subirLogoAction
+ * (onboarding), se sube apenas se elige el archivo, no recien al guardar
+ * el formulario. `productoIdExistente` solo aplica al editar: si el
+ * producto ya tenía una imagen, se borra la anterior para no acumular
+ * huérfanos en el bucket. */
+export async function subirImagenProductoAction(
+  file: File,
+  productoIdExistente?: string
+): Promise<{ ok: true; data: { url: string } } | { ok: false; error: string }> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  if (!(await tienePermiso(usuario, usuario.tenantId, "productos", "crear"))) {
+    return { ok: false, error: "No tenés permiso para subir imágenes de producto." };
+  }
+
+  const resultado = await subirImagen(usuario.tenantId, "productos", file);
+  if (!resultado.ok) return resultado;
+
+  if (productoIdExistente) {
+    const ficha = await fichaProducto(usuario, productoIdExistente);
+    if (ficha.ok && ficha.data.producto?.imagenUrl) {
+      const pathAnterior = pathDesdeUrlPublica(ficha.data.producto.imagenUrl);
+      if (pathAnterior) await eliminarImagen(pathAnterior);
+    }
+  }
+
+  return { ok: true, data: { url: resultado.data.url } };
+}
 
 // Server Actions delgadas (mismo patron que src/app/app/onboarding/actions.ts):
 // resuelven la sesion server-side y delegan en productos/actions.ts.
@@ -79,6 +110,7 @@ export async function actualizarProductoAction(
   const {
     categoriaId,
     nombre,
+    imagenUrl,
     unidadVenta,
     precioVenta,
     costoOperativoVigente,
@@ -90,6 +122,7 @@ export async function actualizarProductoAction(
   const resultado = await actualizarProducto(usuario, productoId, {
     categoriaId: categoriaId || undefined,
     nombre,
+    imagenUrl,
     unidadVenta,
     precioVenta,
     costoOperativoVigente,

@@ -259,6 +259,18 @@ código de la sección 5.
   Lo común entre módulos vive en `src/components/ui/` (primitivos genéricos)
   o `src/components/shared/` (compuestos con forma de producto CEOM pero sin
   dueño de módulo, ej. estado vacío, modal de confirmación).
+- **Subida de archivos (imágenes) va por `src/lib/supabase/storage.ts`**,
+  nunca directo con `supabase-js` desde un componente. Un solo bucket
+  compartido (`tenant-uploads`, público para lectura), un path por
+  `{tenantId}/{carpeta}/{uuid}.{ext}`, aislado por tenant vía RLS de
+  `storage.objects` (`drizzle/migrations/0024_storage_tenant_uploads_rls.sql`).
+  Un componente compartido (ej. `product-form.tsx`) nunca importa la Server
+  Action de subida de una ruta puntual directo — la recibe como prop
+  (`onSubirImagen`), inyectada por el caller de esa ruta. Detalle completo
+  de la arquitectura (por qué público, por qué este cliente y no el admin,
+  el bug de RLS real que encontró y corrigió esta integración) en
+  `src/modules/productos/ANCLA.md`, sección "`imagen_url` conectado a
+  Storage".
 
 ### 9.1 Cierre de tanda
 

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ProductForm } from "@/components/shared/product-form";
 import type { ProductoFormInput } from "@/modules/productos/validation";
-import { crearProductoAction } from "../actions";
+import { crearProductoAction, subirImagenProductoAction } from "../actions";
 
 export function NuevoCliente({
   categorias,
@@ -22,6 +22,12 @@ export function NuevoCliente({
   }
 
   return (
-    <ProductForm mode="crear" categorias={categorias} sucursales={sucursales} onSubmit={onSubmit} />
+    <ProductForm
+      mode="crear"
+      categorias={categorias}
+      sucursales={sucursales}
+      onSubirImagen={(file) => subirImagenProductoAction(file)}
+      onSubmit={onSubmit}
+    />
   );
 }
