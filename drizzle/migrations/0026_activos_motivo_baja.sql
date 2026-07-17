@@ -1,0 +1,1 @@
+ALTER TABLE "activos" ADD COLUMN "motivo_baja" text;

@@ -96,6 +96,10 @@ export const activos = pgTable(
       { precision: 8, scale: 2 }
     ),
     estado: estadoActivoEnum("estado").notNull().default("activo"),
+    // Solo se completa al dar de baja (darDeBajaActivo) — auditoria de una
+    // accion irreversible, mismo criterio que el "motivo" obligatorio de
+    // registrarAjusteVenta/registrarAjusteManualStock en otros modulos.
+    motivoBaja: text("motivo_baja"),
     valorCompra: numeric("valor_compra", { precision: 12, scale: 2 }).notNull(),
     fechaAdquisicion: date("fecha_adquisicion").notNull(),
     // null = el activo no deprecia (ej. un terreno).

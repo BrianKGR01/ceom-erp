@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-16)
 
-**22 construidas · 0 parciales · 94 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**28 construidas · 0 parciales · 88 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -32,7 +32,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 |---|---|---|---|---|
 | 1. Identidad | 4 | 0 | 15 | 19 |
 | 2. Suscripción | 0 | 0 | 5 | 5 |
-| 3. Patrimonio | 0 | 0 | 12 | 12 |
+| **3. Patrimonio** | **6** | 0 | 6 | 12 |
 | 4. Proveedores/Compras | 0 | 0 | 9 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | 6. Nicho 1 (Insumos/Recetas/Producción) | 0 | 0 | 10 | 10 |
@@ -57,27 +57,19 @@ Detalle de decisiones y del bug de timezone encontrado y corregido: `src/modules
 
 ### Próxima tanda sugerida
 
-1. **Patrimonio (Activos/Pasivos)** — el próximo módulo de negocio completo sin ninguna pantalla
-   todavía (0/12 construidas). **⚠️ Gap de backend a cerrar antes de construir la UI:**
-   `src/modules/patrimonio/actions.ts` no expone `listarActivos`/`listarPasivos` ni fichas
-   completas (`obtenerActivoPorId`/`obtenerPasivoPorId`) — `repository.ts` ya los tiene
-   (`listarActivosPorTenant`, `listarPasivosPorTenant`, `obtenerActivoPorId`,
-   `obtenerPasivoPorId`), solo falta el wrapper público. La Ficha de Pasivo además necesita
-   exponer el historial completo de pagos (hoy solo `consultarPasivoDeActivo` da el saldo, no la
-   lista de pagos) — mismo tipo de gap chico ya resuelto varias veces en otros módulos. Pantallas
-   exactas de esta tanda (sección 3 de este documento):
-   - Listado de Activos
-   - Ficha de Activo
-   - Alta de Activo
-   - Editar Activo
-   - Dar de baja Activo
-   - Transferir Activo entre sucursales
+1. **Patrimonio (Activos/Pasivos)** — módulo en curso. **Tanda A (Activos) cerrada 2026-07-17,
+   6/12 construidas** — Listado de Activos, Ficha de Activo, Alta/Editar Activo, Dar de baja
+   Activo, Transferir Activo. **Tanda B (Pasivos) es la próxima** — el gap de backend que
+   bloqueaba esta tanda ya está resuelto (`listarPasivos`, `obtenerPasivoPorId`, `fichaPasivo` con
+   historial completo de pagos, todos en `actions.ts`). Pantallas exactas de la Tanda B (sección 3
+   de este documento):
    - Listado de Pasivos
    - Ficha de Pasivo
    - Alta de Pasivo
    - Refinanciar Pasivo
    - Registrar pago de Pasivo
-   - Valor patrimonial total (widget, probablemente embebido en el Dashboard de Reportes)
+   - Valor patrimonial total (widget, probablemente embebido en el Dashboard de Reportes) — cierra
+     el módulo completo
 2. **Proveedores / Compras** — después de Patrimonio, incluye el flujo de Landed Cost/Orden de
    Compra de Nicho 4.
 3. **Egresos y Gastos** — depende conceptualmente de tener Proveedores para los gastos con
@@ -239,39 +231,48 @@ Módulo 14 abajo). `/admin` sigue siendo landing provisoria, sin Panel Admin rea
 
 ## 3. Patrimonio / Activos
 
-> ⚠️ **Gap de backend transversal a todo este módulo:** `actions.ts` no expone listados
-> (`listarActivos`, `listarPasivos`) ni fichas completas (`obtenerActivoPorId`,
-> `obtenerPasivoPorId`) — el `repository.ts` sí los tiene (`listarActivosPorTenant`,
-> `listarPasivosPorTenant`, `obtenerActivoPorId`, `obtenerPasivoPorId`), solo falta el wrapper
-> público en `actions.ts`. Las pantallas de abajo describen la intención documentada en
-> `Modulo_05_patrimonio.md` §4, pero no se pueden maquetar con datos reales hasta cerrar esto.
+> Gap de backend transversal — **resuelto** (2026-07-16/17): `listarActivos`, `listarPasivos`,
+> `obtenerActivoPorId`, `obtenerPasivoPorId`, `fichaPasivo` ya están en `actions.ts`. Detalle en
+> `src/modules/patrimonio/ANCLA.md`.
 
-### `/app` — Activos (Owner + permiso `"patrimonio"`)
-**Listado de Activos** `[ ]` — con valor actual derivado por fila.
+### `/app` — Activos (Owner + permiso `"patrimonio"`) — Tanda A, cerrada 2026-07-17
+**Listado de Activos** `[x]` — `/app/patrimonio`, grid de cards (design-system §5.3) con
+búsqueda + filtro por estado (Todos/Activos/En mantenimiento/Dados de baja), valor actual
+derivado por card, y una franja con Activos operativos + Valor patrimonial total (agregados
+reales — se omitió "Próximos mantenimientos" de la referencia visual porque no existe esa
+entidad en el modelo de datos del módulo). Verificado end-to-end con datos reales.
 - Campos: `nombre`, `tipo`, `sucursalId`, `estado`, `valorCompra`, `fechaAdquisicion` + `valorActual` (`calcularValorActual()`).
-- Acción: ⚠️ falta `listarActivos(solicitante, tenantId)`.
+- Acción: `listarActivos(solicitante, tenantId)`.
 
-**Ficha de Activo** `[ ]` — detalle + su Pasivo si está financiado.
-- Campos: `nombre`, `tipo`, `capacidadProduccionCantidad`/`Unidad`, `capacidadAlmacenamientoCantidad`/`Unidad`, `disponibilidadHorariaSemanal`, `requiereDescansoEntreCiclos`, `tiempoDescansoMinutos`, `tiempoEstimadoPorCicloMinutos`, `estado`, `valorCompra`, `fechaAdquisicion`, `vidaUtilMeses`, `proveedorId`, `numeroSerie`, `vencimientoGarantia` + `valorActual` + pasivos asociados con `saldoPendiente`.
-- Subpantallas: "Dar de baja", "Transferir a otra sucursal", sección de Pasivo con "Registrar pago"/"Refinanciar".
-- Acciones: `consultarValorActual`, `consultarPasivoDeActivo`, `consultarCapacidad`.
+**Ficha de Activo** `[x]` — `/app/patrimonio/[id]`, detalle técnico/financiero + card de Pasivo
+asociado si está financiado (saldo pendiente, cuota, estado — sin "próximo pago", no hay cálculo
+real de esa fecha en el contrato actual). Botones Editar/Transferir/Dar de baja (estos dos
+últimos se ocultan si el activo ya está dado de baja). Verificado end-to-end.
+- Campos: `nombre`, `tipo`, `capacidadProduccionCantidad`/`Unidad`, `capacidadAlmacenamientoCantidad`/`Unidad`, `estado`, `valorCompra`, `fechaAdquisicion`, `vidaUtilMeses`, `proveedorId`, `numeroSerie`, `vencimientoGarantia`, `motivoBaja` + `valorActual` + pasivos asociados con `saldoPendiente`. **No incluidos en la UI de esta tanda** (existen en el schema/contrato pero sin campo en el formulario): `disponibilidadHorariaSemanal`, `requiereDescansoEntreCiclos`, `tiempoDescansoMinutos`, `tiempoEstimadoPorCicloMinutos` — mismo criterio que `configurarStockMinimo` en Productos (no todo campo de backend necesita UI día uno).
+- Acciones: `obtenerActivoPorId`, `consultarPasivoDeActivo`, `obtenerPasivoPorId`, `calcularValorActual`.
 
-**Alta de Activo** `[ ]` (formulario) — campos de entrada iguales a los de la ficha (sin `valorActual`, derivado). Acción: `crearActivo(solicitante, tenantId, input)`.
+**Alta de Activo** `[x]` y **Editar Activo** `[x]` — mismo componente (`ActivoForm`,
+`src/components/shared/activo-form.tsx`), solo cambia título/texto del botón. Tres secciones:
+Datos principales, Detalles de adquisición y operación, Capacidad (opcional). Verificado
+end-to-end (creación, edición con precarga correcta de todos los campos).
+- Acciones: `crearActivo(solicitante, tenantId, input)`, `actualizarActivo(solicitante, activoId, input)`.
 
-**Editar Activo.** `[ ]` Acción: `actualizarActivo(solicitante, activoId, input)`.
+**Dar de baja Activo** `[x]` (modal, `Dialog`) — motivo obligatorio (**cambio de contrato
+aditivo**: `darDeBajaActivo` ahora exige un tercer parámetro `motivo`, columna nueva
+`activos.motivo_baja`, migración `0026` — ver `src/modules/patrimonio/ANCLA.md` para el porqué).
+Verificado end-to-end. Acción: `darDeBajaActivo(solicitante, activoId, motivo)`.
 
-**Dar de baja Activo** `[ ]` (modal de confirmación — cambia `estado`, no elimina). Acción: `darDeBajaActivo(solicitante, activoId)`.
+**Transferir Activo entre sucursales** `[x]` (modal, `Dialog`). Verificado end-to-end.
+Campo: `nuevaSucursalId`. Acción: `transferirActivo(solicitante, activoId, nuevaSucursalId)`.
 
-**Transferir Activo entre sucursales** `[ ]` (modal). Campo: `nuevaSucursalId`. Acción: `transferirActivo(solicitante, activoId, nuevaSucursalId)`.
-
-### `/app` — Pasivos
+### `/app` — Pasivos (Tanda B, pendiente)
 **Listado de Pasivos** `[ ]` — con saldo pendiente por fila.
 - Campos: `montoTotal`, `cuotaPeriodica`, `frecuenciaCuota`, `plazoCuotas`, `fechaInicio`, `estado` (`activo`/`pagado`/`refinanciado`), `activoId?`.
-- Acción: ⚠️ falta `listarPasivos(solicitante, tenantId)`.
+- Acción: `listarPasivos(solicitante, tenantId)` — ya existe, sin UI todavía.
 
 **Ficha de Pasivo** `[ ]` — cronograma de pagos derivado del ledger.
 - Campos: los de arriba + `saldoPendiente` (derivado) + historial de pagos (`monto`, `fechaPago`, `origen`).
-- Acción: ⚠️ falta exponer historial completo de pagos (hoy solo `consultarPasivoDeActivo` da el saldo, no la lista de pagos).
+- Acción: `fichaPasivo(solicitante, pasivoId)` — ya existe (pasivo + saldo + historial completo de pagos), sin UI todavía.
 
 **Alta de Pasivo** `[ ]` (modal, normalmente junto con un Activo financiado).
 - Campos: `activoId?`, `montoTotal`, `cuotaPeriodica`, `frecuenciaCuota` (`mensual`/`semanal`/`quincenal`/`anual`), `plazoCuotas`, `fechaInicio`.

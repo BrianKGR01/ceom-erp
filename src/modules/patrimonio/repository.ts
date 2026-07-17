@@ -37,11 +37,12 @@ export async function actualizarActivo(
 export async function actualizarEstadoActivo(
   activoId: string,
   estado: (typeof activos.$inferSelect)["estado"],
-  modificadoPor: string
+  modificadoPor: string,
+  motivoBaja?: string
 ) {
   const [activo] = await db
     .update(activos)
-    .set({ estado, modificadoPor, modificadoEn: new Date() })
+    .set({ estado, motivoBaja, modificadoPor, modificadoEn: new Date() })
     .where(eq(activos.id, activoId))
     .returning();
   return activo;

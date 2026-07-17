@@ -183,6 +183,13 @@
       "when": 1784247344980,
       "tag": "0025_fix_current_tenant_id_security_definer",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784272885807,
+      "tag": "0026_activos_motivo_baja",
+      "breakpoints": true
     }
   ]
 }

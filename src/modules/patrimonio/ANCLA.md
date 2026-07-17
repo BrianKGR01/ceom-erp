@@ -20,7 +20,8 @@
 - Salidas que expone (`actions.ts`): `consultarCapacidad`,
   `consultarValorActual` (+ `calcularValorActual()` pura, exportada),
   `consultarPasivoDeActivo`, `consultarValorPatrimonialTotal`,
-  `crearActivo`, `actualizarActivo`, `darDeBajaActivo`, `transferirActivo`,
+  `crearActivo`, `actualizarActivo`, `darDeBajaActivo` (firma cambió — ver
+  "Actualización 2026-07-17"), `transferirActivo`,
   `crearPasivo`, `refinanciarPasivo`, `registrarPagoPasivo`,
   `listarActivos`, `obtenerActivoPorId`, `listarPasivos`,
   `obtenerPasivoPorId`, `fichaPasivo` (agregados para la UI de Patrimonio —
@@ -93,7 +94,39 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
-## Última actualización: 2026-07-16 — Gap de backend cerrado para la próxima tanda de UI
+## Última actualización: 2026-07-17 — Tanda A de UI (Activos): `motivoBaja` (cambio de contrato aditivo)
+La referencia visual de "Dar de baja Activo" pedía un motivo obligatorio — el doc del módulo
+(`Modulo_05_patrimonio.md`) no lo lista, es una adenda de esta tarea, mismo criterio que el motivo
+obligatorio ya existente en `registrarAjusteVenta`/`registrarAjusteManualStock` (auditoría de una
+acción irreversible). Se agregó la columna `activos.motivo_baja` (nullable, migración `0026`, solo
+`ALTER TABLE ADD COLUMN` — schema-driven, no SQL a mano) y `darDeBajaActivo(solicitante, activoId,
+motivo)` ahora **exige el tercer parámetro** (antes solo tomaba `activoId`) — rechaza si viene
+vacío. `repo.actualizarEstadoActivo()` gana un cuarto parámetro opcional `motivoBaja` para
+persistirlo. **Único caller a actualizar:** `patrimonio.test.ts` (ya corregido). Pantallas de esta
+tanda: Listado de Activos, Ficha de Activo, Alta/Editar Activo (mismo componente), Dar de baja
+Activo, Transferir Activo — ver `docs/ui/pantallas.md` sección 3 para el detalle completo.
+
+**Dónde vive la UI de esta tanda:**
+- `src/app/app/(shell)/patrimonio/page.tsx` + `activos-cliente.tsx` (Listado)
+- `src/app/app/(shell)/patrimonio/[id]/page.tsx` + `ficha-activo-cliente.tsx` (Ficha, con los
+  modales de Dar de baja/Transferir inline — Dialog, no rutas aparte)
+- `src/app/app/(shell)/patrimonio/nuevo/` y `[id]/editar/` (Alta/Editar, ambos delgados sobre
+  `src/components/shared/activo-form.tsx`, el componente compartido real)
+- `src/app/app/(shell)/patrimonio/actions.ts` (wrappers de ruta) +
+  `src/modules/patrimonio/validation.ts` (nuevo — el módulo no tenía schema de formulario todavía)
+- `src/components/shared/app-shell.tsx` ganó el ítem "Patrimonio" en el sidebar real (entre
+  Catálogo y Mi negocio) — las imágenes de referencia de esta tanda traían sidebars
+  inconsistentes entre sí, se ignoraron por completo.
+- **Esto es solo la Tanda A (Activos), 6/12 del módulo.** Pasivos (Tanda B) queda pendiente — el
+  backend ya está listo (`listarPasivos`/`obtenerPasivoPorId`/`fichaPasivo`, actualización
+  anterior), falta la UI. No cerrar el "Cierre de tanda" completo de `pantallas.md` hasta que
+  Pasivos también esté construido y verificado.
+- Verificado end-to-end en navegador (alta, ficha con depreciación calculada correctamente,
+  editar con precarga completa de todos los campos, transferir, dar de baja con motivo
+  persistido y botones ocultos post-baja). El activo de prueba quedó soft-eliminado
+  (`eliminado_en`) al cerrar — caso real de "error de carga" que ese campo ya contemplaba.
+
+## Última actualización anterior: 2026-07-16 — Gap de backend cerrado para la próxima tanda de UI
 (`docs/ui/pantallas.md` sección 3): se agregaron los wrappers públicos que faltaban en
 `actions.ts` — `listarActivos`, `obtenerActivoPorId`, `listarPasivos`, `obtenerPasivoPorId`
 (los cuatro gateados por `tienePermiso(..., "patrimonio", "ver")`, mismo patrón que el resto del

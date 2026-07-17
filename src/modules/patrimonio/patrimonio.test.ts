@@ -137,7 +137,7 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
       expect(consulta.data[0].saldoPendiente).toBe(12000);
     }
 
-    const baja = await darDeBajaActivo(owner!, activo.data.activoId);
+    const baja = await darDeBajaActivo(owner!, activo.data.activoId, "Vendido a terceros");
     expect(baja.ok).toBe(true);
 
     const activoActualizado = await repo.obtenerActivoPorId(activo.data.activoId);

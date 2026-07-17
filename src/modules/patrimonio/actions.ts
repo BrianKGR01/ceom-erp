@@ -293,10 +293,15 @@ export async function actualizarActivo(
 }
 
 /** "Dado de baja" es un estado de negocio, nunca una eliminacion (seccion
- * 3, regla 2) — no cancela el pasivo asociado (regla 3). */
+ * 3, regla 2) — no cancela el pasivo asociado (regla 3). `motivo`
+ * obligatorio: adenda no explicita del doc, agregada al construir la UI
+ * (ver ANCLA) — mismo criterio que el motivo obligatorio de
+ * registrarAjusteVenta/registrarAjusteManualStock, auditoria de una accion
+ * irreversible. */
 export async function darDeBajaActivo(
   solicitante: UsuarioConRol,
-  activoId: string
+  activoId: string,
+  motivo: string
 ): Promise<Resultado<true>> {
   const activo = await repo.obtenerActivoPorId(activoId);
   if (!activo) return { ok: false, error: "Activo no encontrado." };
@@ -305,8 +310,11 @@ export async function darDeBajaActivo(
   ) {
     return { ok: false, error: "No tenés permiso para dar de baja este activo." };
   }
+  if (!motivo.trim()) {
+    return { ok: false, error: "El motivo de la baja es obligatorio." };
+  }
 
-  await repo.actualizarEstadoActivo(activoId, "dado_de_baja", solicitante.id);
+  await repo.actualizarEstadoActivo(activoId, "dado_de_baja", solicitante.id, motivo);
   return { ok: true, data: true };
 }
 

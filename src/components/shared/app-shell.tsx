@@ -3,7 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, LogOut, Menu, Package, Settings, ShoppingCart, X } from "lucide-react";
+import {
+  Building2,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  Package,
+  Settings,
+  ShoppingCart,
+  X,
+} from "lucide-react";
 import { Icono } from "@/components/brand/icono";
 import { Logo } from "@/components/brand/logo";
 import { cerrarSesion } from "@/lib/supabase/actions";
@@ -45,6 +54,7 @@ export function AppShell({
     { href: "/app", label: "Inicio", icono: LayoutGrid },
     { href: "/app/ventas", label: "Ventas", icono: ShoppingCart },
     { href: "/app/productos", label: "Catálogo", icono: Package },
+    { href: "/app/patrimonio", label: "Patrimonio", icono: Building2 },
     ...(esOwner
       ? [{ href: "/app/onboarding", label: "Mi negocio", icono: Settings }]
       : []),
