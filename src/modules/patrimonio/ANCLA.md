@@ -128,11 +128,11 @@ no se fabricaron:**
   congelado, el nuevo arranca `activo` sin historial). Datos de prueba soft-eliminados
   (`eliminado_en`) al cerrar.
 
-**Módulo Patrimonio completo: 11/11 pantallas de negocio construidas y verificadas.** Único
-pendiente: el widget "Valor patrimonial total" (`consultarValorPatrimonialTotal`, ya existe la
-acción) — se construye junto con el Dashboard de Reportes, no como pantalla propia de este
-módulo. Ver `docs/ui/pantallas.md` sección 3 para el detalle completo y sección "Próxima tanda
-sugerida" para lo que sigue (Proveedores/Compras).
+**Módulo Patrimonio completo: 12/12 — 11/11 pantallas de negocio + el widget "Valor patrimonial
+total".** El widget (`consultarValorPatrimonialTotal`, sin cambio de contrato) quedó embebido en
+Reportes → Resumen Financiero (`/app/reportes`, tanda cerrada el 2026-07-17) en vez de vivir como
+pantalla propia de este módulo — ver `docs/ui/pantallas.md` sección 3 y `reportes/ANCLA.md` para
+el detalle.
 
 ## Última actualización: 2026-07-17 — Tanda A de UI (Activos): `motivoBaja` (cambio de contrato aditivo)
 La referencia visual de "Dar de baja Activo" pedía un motivo obligatorio — el doc del módulo

@@ -52,8 +52,23 @@
       `inicio-actions.ts`, pantalla de Inicio): Sección A completa del
       Dashboard (Resumen del período, Flujo de Caja, Productos más
       vendidos, Gastos por categoría, Merma) — cierra el "camino dorado"
-      del MVP (`docs/ui/pantallas.md`). Sección B (Reportes Detallados)
-      sigue sin construir.
+      del MVP (`docs/ui/pantallas.md`).
+- [x] **Sección B — Reportes Detallados** (`src/app/app/(shell)/reportes/`,
+      route actions.ts propio en `reportes/actions.ts` a nivel de ruta,
+      wrapper de las funciones del módulo — no confundir con este archivo):
+      4 pantallas — Resumen Financiero (`/app/reportes`, con mockup, Estado
+      de Resultados formal + Flujo de Caja reusado + **Valor Patrimonial
+      Total** embebido, cierra el pendiente de Patrimonio), Margen por
+      Canal y Producto (`/app/reportes/margen-canal-producto`, con mockup,
+      pivot table producto × canal), Histórico de Ventas
+      (`/app/reportes/historico-ventas`, sin mockup — reusa literalmente el
+      gráfico de barras y la paleta del Dashboard) e Ranking de Productos —
+      vista completa (`/app/reportes/ranking-productos`, sin mockup — reusa
+      literalmente el widget de ranking del Dashboard, sin límite de N, con
+      filtro de canal agregado). Botón "Ver reportes detallados" del
+      Dashboard conectado. Módulo 14 queda 9/9 pantallas. Sin cambio de
+      contrato de `actions.ts` del módulo — todo consumido tal cual ya
+      existía.
 - ⚠️ **Limitación real de filtro conocida**: el selector de sucursal del
   Dashboard solo filtra `resumenPeriodo`/`flujoCaja` (que sí aceptan
   `sucursalId` opcional) — `rankingProductos`, `distribucionGastos` y
@@ -98,3 +113,5 @@
   módulos.
 
 ## Última actualización: 2026-07-16 — primera UI real (Dashboard, Sección A) — cierra el camino dorado del MVP; sin cambio de contrato de `actions.ts`
+
+## Última actualización: 2026-07-17 — Sección B (Reportes Detallados) completa, módulo 14 al 9/9; widget Valor Patrimonial Total de Patrimonio embebido en Resumen Financiero; sin cambio de contrato de `actions.ts`

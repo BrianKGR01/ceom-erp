@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-17)
 
-**58 construidas · 0 parciales · 58 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**69 construidas · 0 parciales · 47 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -32,18 +32,18 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 |---|---|---|---|---|
 | 1. Identidad | 4 | 0 | 15 | 19 |
 | 2. Suscripción | 0 | 0 | 5 | 5 |
-| **3. Patrimonio** | **11** | 0 | 1 | 12 |
+| **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
 | **6. Nicho 1 (Insumos/Recetas/Producción)** | **10** | 0 | 0 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
-| 9. Financiero | 0 | 0 | 3 | 3 |
+| 9. Financiero | 2 | 0 | 1 | 3 |
 | 10. Gateway de Consentimiento | 0 | 0 | 9 | 9 |
 | 11. Monitoreo Institucional + Panel Admin | 0 | 0 | 10 | 10 |
 | 12. Nicho 4 | 0 | 0 | 1 | 1 |
 | 13. Simulaciones | 0 | 0 | 5 | 5 |
-| **14. Reportes y Dashboard** | **1** | 0 | 8 | 9 |
+| **14. Reportes y Dashboard** | **9** | 0 | 0 | 9 |
 
 **Camino dorado (sección "Resumen" al final de este doc): 5 de 5 completo.** Login, Onboarding,
 Catálogo, Punto de Venta y ahora Dashboard/Resumen Ejecutivo ya están construidos y verificados
@@ -116,18 +116,43 @@ directo — todo pasa por la capa pública ya expuesta, respetando el límite de
 Strategy Pattern (`CEOM_Arquitectura.md` §5.1). Detalle completo:
 `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
 
+**Tanda cerrada el 2026-07-17: Reportes Detallados, Módulo 14 completo (9/9).** Antes de tocar UI
+se verificaron las 4 adendas de agregación anotadas en `Modulo_10_reportes.md` (`rankingProductos`,
+`historicoVentas`, `margenPorCanalYProducto`, `consultarMermaPeriodo`) — las 4 ya estaban
+implementadas de una sesión anterior, solo se corrigió la doc del módulo que las seguía marcando
+como pendientes (ningún código nuevo hizo falta ahí). Construidas las 4 pantallas de Sección B:
+**Resumen Financiero** (`/app/reportes`, con mockup) — reusa el widget de Flujo de Caja del
+Dashboard, agrega el Estado de Resultados formal (`FilaResultado` por línea + total "Utilidad
+real") y embebe el widget **Valor Patrimonial Total** pendiente de Patrimonio (cierra ese gap
+también); se omitió a propósito el botón de Export (fuera de alcance documentado) y el desglose
+transaccional ítem por ítem del mockup (sin soporte de backend — se usó el shape agregado real de
+4 campos). **Margen por Canal y Producto** (`/app/reportes/margen-canal-producto`, con mockup) —
+tabla cruzada producto × canal, Total Ponderado/Promedio por Canal recalculados desde
+`ingresos`/`costos` crudos (nunca promediando `margenPct` ya calculados). **Histórico de Ventas**
+y **Ranking de Productos — vista completa** (sin mockup, por instrucción explícita: reusar
+literalmente los patrones ya construidos en el Dashboard) — mismo gráfico de barras y misma
+paleta categórica validada para daltonismo (`COLOR_REGULAR`/`COLOR_EVENTO` = mismo par usado en el
+Dashboard), y el mismo widget de ranking horizontal extendido a lista completa con filtro de canal
+agregado. Conectado el botón "Ver reportes detallados" del Dashboard (quedaba deshabilitado a
+propósito desde la tanda anterior). Verificado end-to-end en navegador contra el tenant de prueba,
+incluyendo interactividad de Selects/checkbox (toggle de eventos, cambio de período con
+re-bucketing día↔mes, filtro de canal, toggle rotación/margen con re-ordenamiento confirmado
+contra la respuesta real del servidor). Detalle completo: `src/modules/reportes/ANCLA.md`.
+
 ### Próxima tanda sugerida
 
-1. **Reportes Detallados (Módulo 14, Sección B)** — Estado de Resultados, Histórico de Ventas,
-   Margen por Canal y Producto, Ranking completo — habilita agregar de vuelta el botón "Ver
-   reportes detallados" que se omitió del Dashboard por no tener destino todavía, y es donde va el
-   widget "Valor patrimonial total" pendiente de Patrimonio.
-2. **Financiero como pantallas propias** (Flujo de Caja, Estado de Resultados) — capa de
-   agregación pura sobre Ventas/Gastos/Proveedores, sin tablas propias; puede compartir trabajo con
-   el ítem anterior si se construyen juntos.
-3. El resto (Financiero como pantallas propias, Simulaciones, Nicho 4, Gateway de Consentimiento,
-   Monitoreo Institucional, Panel Admin CEOM, Suscripción) — funcionalidad real pero ninguna
-   bloquea el uso diario del producto; se ordenan cuando lleguemos ahí.
+1. **Simulaciones (Módulo 13)** — Simular Precio, Punto de Equilibrio, Comparativo Multi-SKU,
+   Configuración de umbral de alerta, Historial de Simulaciones (5 pantallas) — es la última pieza
+   de funcionalidad "de uso diario" que queda fuera del camino dorado; sin gaps de backend
+   conocidos (a confirmar al iniciar, mismo criterio de siempre).
+2. **Financiero — Margen por Producto** (único ítem que le queda al módulo 9; Flujo de Caja y
+   Estado de Resultados ya quedaron cubiertos como parte de Reportes → Resumen Financiero, sin
+   necesidad de ruta propia) — selector de producto + período, `margenPorProducto`.
+3. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
+   cualquiera de las tandas anteriores.
+4. El resto (Gateway de Consentimiento, Monitoreo Institucional, Panel Admin CEOM, Suscripción,
+   Identidad pendiente) — funcionalidad real pero ninguna bloquea el uso diario del producto; se
+   ordenan cuando lleguemos ahí.
 
 ---
 
@@ -346,7 +371,7 @@ monto, igual que la referencia. Verificado end-to-end.
 - Acción: `registrarPagoPasivo(solicitante, pasivoId, input)`.
 
 ### `/app` — Resumen patrimonial
-**Valor patrimonial total** `[ ]` (widget, probablemente embebido en el Dashboard de Reportes).
+**Valor patrimonial total** `[x]` — embebido en Reportes → Resumen Financiero (`/app/reportes`), no como pantalla propia de Patrimonio.
 - Campo: `valorPatrimonialTotal`. Acción: `consultarValorPatrimonialTotal(solicitante, tenantId)`.
 
 ---
@@ -683,14 +708,14 @@ seed). Verificado end-to-end.
 
 Sin tablas propias — capa de agregación pura sobre Ventas, Gastos y Proveedores. Todas las pantallas en `/app`, gateadas por permiso `"financiero"` × `ver`.
 
-**Flujo de Caja** `[ ]` — caja real (`Pago de Venta − Pago de Compra − Pago de Gasto`, por fecha de pago).
+**Flujo de Caja** `[x]` — caja real (`Pago de Venta − Pago de Compra − Pago de Gasto`, por fecha de pago). Resuelto: vive como widget en Reportes (Dashboard Sección A y Resumen Financiero Sección B), no como ruta propia de Financiero — ver nota de diseño abajo.
 - Campos: `flujoCaja`, `pagosVenta`, `pagosCompra`, `pagosGasto`. Filtros: período + sucursal opcional.
 - Acción: `flujoCaja(solicitante, tenantId, periodo, { sucursalId? })`.
 
-**Estado de Resultados** `[ ]` — resultado devengado (ingresos − COGS − gastos ± ajustes), por fecha de ocurrencia económica.
+**Estado de Resultados** `[x]` — resultado devengado (ingresos − COGS − gastos ± ajustes), por fecha de ocurrencia económica. Resuelto: vista formal en Reportes → Resumen Financiero (`/app/reportes`), mismo criterio que Flujo de Caja.
 - Campos: `estadoResultados`, `ingresos`, `costos`, `gastos`, `ajustesVenta`.
 - Acción: `estadoResultados(solicitante, tenantId, periodo, { sucursalId? })`.
-- **Nota de diseño:** Reportes (Módulo 14) re-expone literalmente estas dos mismas funciones para su propio Dashboard — es una decisión de UI (no de backend) si Flujo de Caja y Estado de Resultados terminan viviendo como pantallas propias de Financiero, como widgets dentro del Dashboard, o ambas cosas a la vez.
+- **Nota de diseño:** Reportes (Módulo 14) re-expone literalmente estas dos mismas funciones para su propio Dashboard y para Resumen Financiero — decisión tomada: viven como widgets/vistas dentro de Reportes, no como pantallas propias separadas de Financiero (evita duplicar la misma UI en dos rutas).
 
 **Margen por Producto.** `[ ]`
 - Campos: `margenPorcentaje` (nullable si no hubo ingresos), `ingresosAjustados`, `costos`. Selector de producto + período.
@@ -834,9 +859,9 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 
 **Filtro global implementado:** selector de período (4 presets calculados en cliente: Hoy/Últimos 7 días/Este mes/Este año — sin backend de rangos custom) + sucursal opcional/consolidado. Confirmado en la implementación: el filtro de sucursal solo afecta `resumenPeriodo`/`flujoCaja` — `rankingProductos`/`distribucionGastos`/`controlMerma` no reciben `sucursalId` en su firma real (limitación de backend, no de la pantalla — ver `reportes/ANCLA.md`).
 
-**Gráficas nuevas agregadas sobre lo documentado** (paleta categórica validada con la skill de dataviz, primera vez que la app necesita una — ver `dashboard-resumen.tsx`): barras horizontales Ingresos/Costos/Gastos en Resumen del Período, barra de 2 segmentos Entradas/Salidas en Flujo de Caja, barras por fila en Productos más vendidos, dona SVG en Gastos por categoría (sin librería, no hay ninguna instalada).
+**Gráficas nuevas agregadas sobre lo documentado** (paleta categórica validada con la skill de dataviz, primera vez que la app necesita una — ver `dashboard-resumen.tsx`): barras horizontales Ingresos/Costos/Gastos en Resumen del Período, barra de 2 segmentos Entradas/Salidas en Flujo de Caja, barras por fila en Productos más vendidos, dona SVG en Gastos por categoría (sin librería, no hay ninguna instalada). Misma paleta reutilizada en Sección B para Histórico de Ventas (`COLOR_REGULAR`/`COLOR_EVENTO`).
 
-**Desviación:** sin botón "Ver reportes detallados" — la Sección B (abajo) no tiene ninguna pantalla construida todavía, no se linkea a algo que no existe.
+**Botón "Ver reportes detallados" conectado** — navega a `/app/reportes` (Sección B, abajo), ya construida completa.
 
 ### Sección A — Resumen Ejecutivo (visible al entrar, sin acción del usuario) — `[x]` construida completa
 1. **Resumen del Período** `[x]` (card destacada) — `estadoResultados`, `ingresos`, `costos`, `gastos`, `ajustesVenta`. Agrega delta real "% vs período anterior" (fetch adicional del período equivalente inmediatamente anterior). Acción: `resumenPeriodo` (delega en Financiero). Rol: `financiero` × `ver`.
@@ -845,13 +870,13 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 4. **Distribución de Gastos por Categoría** `[x]` (dona) — `categoriaId`, `total`. Estado vacío real implementado (tenant sin Gastos construido/cargado todavía). Acción: `distribucionGastos`. Rol: `costos_gastos` × `ver`.
 5. **Control de Merma** `[x]` (card chica — 0 naturalmente en tenants sin producción, no error; texto distingue "0 real" de "hay merma, dentro del margen") — `mermaCostoTotal`, % contra `costos` del mismo período (derivado en la pantalla). Acción: `controlMerma` (delega en Nicho 1). Rol: `operativo` × `ver`.
 
-### Sección B — Reportes Detallados (tab aparte, el usuario la abre a propósito, con sus propios filtros)
-6. **Estado de Resultados** `[ ]` (vista formal, mismos campos que el widget 1). Acción: `estadoResultados`.
-7. **Histórico de Ventas** `[ ]` (tabla/serie temporal, toggle "incluir eventos/ferias") — `ventaId`, `fechaVenta`, `canalVentaId`, `eventoId?`, `montoTotal`. Acción: `historicoVentas`.
-8. **Margen por Canal y Producto** `[ ]` (tabla cruzada canal × producto) — `canalVentaId`, `productoId`, `ingresos`, `costos`, `margenPct`. Acción: `margenPorCanalYProducto`.
-9. **Ranking de Productos — vista completa** `[ ]` (misma acción que el widget 3, sin límite de N, con filtro de canal/criterio explícitos).
+### Sección B — Reportes Detallados (tab aparte, el usuario la abre a propósito, con sus propios filtros) — `[x]` construida completa
+6. **Resumen Financiero / Estado de Resultados** `[x]` (`/app/reportes`, con mockup) — vista formal del Estado de Resultados (`FilaResultado` por línea + total "Utilidad real") + reuso del widget de Flujo de Caja del Dashboard + **Valor Patrimonial Total** embebido (cierra el pendiente de Patrimonio). Acción: `estadoResultados`, `flujoCaja`, `consultarValorPatrimonialTotal`.
+7. **Histórico de Ventas** `[x]` (`/app/reportes/historico-ventas`, sin mockup — reusa literalmente el gráfico de barras del Dashboard) — bucketing día/mes según período, toggle "incluir eventos/ferias" (refetch real, no solo ocultar la serie) — `ventaId`, `fechaVenta`, `canalVentaId`, `eventoId?`, `montoTotal`. Acción: `historicoVentas`.
+8. **Margen por Canal y Producto** `[x]` (`/app/reportes/margen-canal-producto`, con mockup) — tabla cruzada producto × canal, Total Ponderado/Promedio por Canal recalculados desde `ingresos`/`costos` crudos — `canalVentaId`, `productoId`, `ingresos`, `costos`, `margenPct`. Acción: `margenPorCanalYProducto`.
+9. **Ranking de Productos — vista completa** `[x]` (`/app/reportes/ranking-productos`, sin mockup — reusa literalmente el widget de ranking horizontal del Dashboard) — misma acción que el widget 3, sin límite de N, con filtro de canal + toggle rotación/margen explícitos (ordenamiento verificado contra la respuesta real del servidor).
 
-*(`distribucionGastos` y `controlMerma` pueden reutilizar el mismo componente en ambas secciones con distinto tamaño — no necesitan una vista "detallada" separada dado lo compacto de sus campos.)*
+*(`distribucionGastos` y `controlMerma` reutilizan el mismo componente en ambas secciones con distinto tamaño — no se construyó una vista "detallada" separada dado lo compacto de sus campos, como estaba previsto.)*
 
 **Exportación PDF/Excel:** confirmado fuera de alcance de esta fase (el propio módulo lo documenta) — no se propone pantalla/botón para esto todavía.
 

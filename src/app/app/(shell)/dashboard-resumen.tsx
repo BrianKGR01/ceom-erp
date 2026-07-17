@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BarChart3,
   MapPin,
   Package,
   Trash2,
   Wallet,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -85,6 +88,10 @@ export function DashboardResumen({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button render={<Link href="/app/reportes" />} nativeButton={false} variant="outline">
+          <BarChart3 className="size-4" />
+          Ver reportes detallados
+        </Button>
         <Select
           items={Object.fromEntries(PERIODOS_PRESET.map((p) => [p.id, p.label]))}
           value={periodoId}
