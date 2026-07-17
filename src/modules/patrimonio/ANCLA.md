@@ -21,7 +21,10 @@
   `consultarValorActual` (+ `calcularValorActual()` pura, exportada),
   `consultarPasivoDeActivo`, `consultarValorPatrimonialTotal`,
   `crearActivo`, `actualizarActivo`, `darDeBajaActivo`, `transferirActivo`,
-  `crearPasivo`, `refinanciarPasivo`, `registrarPagoPasivo`.
+  `crearPasivo`, `refinanciarPasivo`, `registrarPagoPasivo`,
+  `listarActivos`, `obtenerActivoPorId`, `listarPasivos`,
+  `obtenerPasivoPorId`, `fichaPasivo` (agregados para la UI de Patrimonio —
+  ver "Última actualización").
 
 ## Estado actual
 - [x] Schema Drizzle (`activos`, `pasivos`, `pagos_pasivo`) + RLS
@@ -90,4 +93,14 @@
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
 
-## Última actualización: 2026-07-14 — FK real `activos.proveedor_id -> proveedores.id` cerrada (migración 0016)
+## Última actualización: 2026-07-16 — Gap de backend cerrado para la próxima tanda de UI
+(`docs/ui/pantallas.md` sección 3): se agregaron los wrappers públicos que faltaban en
+`actions.ts` — `listarActivos`, `obtenerActivoPorId`, `listarPasivos`, `obtenerPasivoPorId`
+(los cuatro gateados por `tienePermiso(..., "patrimonio", "ver")`, mismo patrón que el resto del
+módulo) — antes solo existían en `repository.ts`. También se agregó `fichaPasivo`, que combina el
+pasivo + `saldoPendiente` (ya existía, agregado sobre `pagos_pasivo`) + el **historial completo de
+pagos** (`repo.listarPagosPorPasivo`, nuevo — antes no había ninguna función que listara
+`pagos_pasivo` fila por fila, solo el agregado de saldo). Sin cambios de contrato — todo aditivo,
+no se tocó ninguna función existente. Cubierto por 2 tests nuevos en `patrimonio.test.ts`.
+
+## Última actualización anterior: 2026-07-14 — FK real `activos.proveedor_id -> proveedores.id` cerrada (migración 0016)

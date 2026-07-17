@@ -114,6 +114,79 @@ export async function consultarPasivoDeActivo(
   return { ok: true, data };
 }
 
+export async function listarActivos(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  opts: { excluirDadosDeBaja?: boolean } = {}
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarActivosPorTenant>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver activos en este tenant." };
+  }
+  return { ok: true, data: await repo.listarActivosPorTenant(tenantId, opts) };
+}
+
+export async function obtenerActivoPorId(
+  solicitante: UsuarioConRol,
+  activoId: string
+): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerActivoPorId>>>>> {
+  const activo = await repo.obtenerActivoPorId(activoId);
+  if (!activo) return { ok: false, error: "Activo no encontrado." };
+  if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver este activo." };
+  }
+  return { ok: true, data: activo };
+}
+
+export async function listarPasivos(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  opts: { soloActivos?: boolean } = {}
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarPasivosPorTenant>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver pasivos en este tenant." };
+  }
+  return { ok: true, data: await repo.listarPasivosPorTenant(tenantId, opts) };
+}
+
+export async function obtenerPasivoPorId(
+  solicitante: UsuarioConRol,
+  pasivoId: string
+): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerPasivoPorId>>>>> {
+  const pasivo = await repo.obtenerPasivoPorId(pasivoId);
+  if (!pasivo) return { ok: false, error: "Pasivo no encontrado." };
+  if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver este pasivo." };
+  }
+  return { ok: true, data: pasivo };
+}
+
+/** Ficha de Pasivo (pantallas.md sección 3): el pasivo + su saldo derivado
+ * + el historial completo de pagos — antes solo existía el saldo agregado
+ * (consultarPasivoDeActivo), sin la lista de pagos individuales. */
+export async function fichaPasivo(
+  solicitante: UsuarioConRol,
+  pasivoId: string
+): Promise<
+  Resultado<{
+    pasivo: NonNullable<Awaited<ReturnType<typeof repo.obtenerPasivoPorId>>>;
+    saldoPendiente: number;
+    pagos: Awaited<ReturnType<typeof repo.listarPagosPorPasivo>>;
+  }>
+> {
+  const pasivo = await repo.obtenerPasivoPorId(pasivoId);
+  if (!pasivo) return { ok: false, error: "Pasivo no encontrado." };
+  if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver este pasivo." };
+  }
+
+  const [saldoPendiente, pagos] = await Promise.all([
+    repo.obtenerSaldoPendiente(pasivoId),
+    repo.listarPagosPorPasivo(pasivoId),
+  ]);
+
+  return { ok: true, data: { pasivo, saldoPendiente, pagos } };
+}
+
 /** Caso de uso 6: suma de valor_actual de activos no dados de baja, menos
  * saldo_pendiente de pasivos activos. */
 export async function consultarValorPatrimonialTotal(

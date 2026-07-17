@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { activos, pagosPasivo, pasivos } from "./schema";
 
@@ -143,6 +143,16 @@ export async function obtenerSaldoPendiente(pasivoId: string): Promise<number> {
     .where(eq(pagosPasivo.pasivoId, pasivoId));
 
   return Number(pasivo.montoTotal) - Number(totalPagado);
+}
+
+/** Historial completo de pagos de un pasivo, mas antiguo primero — mismo
+ * criterio que listarPagosPorVenta (Ventas). */
+export async function listarPagosPorPasivo(pasivoId: string) {
+  return db
+    .select()
+    .from(pagosPasivo)
+    .where(eq(pagosPasivo.pasivoId, pasivoId))
+    .orderBy(asc(pagosPasivo.fechaPago));
 }
 
 /**

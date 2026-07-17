@@ -12,6 +12,11 @@ import {
   crearActivo,
   crearPasivo,
   darDeBajaActivo,
+  fichaPasivo,
+  listarActivos,
+  listarPasivos,
+  obtenerActivoPorId,
+  obtenerPasivoPorId,
   refinanciarPasivo,
   registrarPagoPasivo,
   transferirActivo,
@@ -218,6 +223,75 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
     expect(activoActualizado?.modificadoPor).toBe(ownerId);
     expect(activoActualizado?.modificadoEn).not.toBeNull();
   });
+
+  it("listarActivos/obtenerActivoPorId: wrappers de lectura gateados por permiso", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const activo = await crearActivo(owner!, tenantId, {
+      nombre: "Estante de prueba",
+      tipo: "mobiliario",
+      valorCompra: 200,
+      fechaAdquisicion: "2025-01-01",
+    });
+    if (!activo.ok) throw new Error("setup fallo");
+
+    const listado = await listarActivos(owner!, tenantId);
+    expect(listado.ok).toBe(true);
+    if (listado.ok) {
+      expect(listado.data.some((a) => a.id === activo.data.activoId)).toBe(true);
+    }
+
+    const ficha = await obtenerActivoPorId(owner!, activo.data.activoId);
+    expect(ficha.ok).toBe(true);
+    if (ficha.ok) expect(ficha.data.nombre).toBe("Estante de prueba");
+
+    const inexistente = await obtenerActivoPorId(owner!, "00000000-0000-0000-0000-000000000000");
+    expect(inexistente.ok).toBe(false);
+  });
+
+  it("listarPasivos/obtenerPasivoPorId/fichaPasivo: historial completo de pagos, no solo el saldo", async () => {
+    // Timeout mas alto que el default (5000ms) — este test hace 5
+    // round-trips secuenciales contra Supabase Cloud real (crearPasivo +
+    // listarPasivos + obtenerPasivoPorId + 2x registrarPagoPasivo +
+    // fichaPasivo), mismo criterio que ventas.test.ts.
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const pasivo = await crearPasivo(owner!, tenantId, {
+      montoTotal: 1000,
+      cuotaPeriodica: 500,
+      frecuenciaCuota: "mensual",
+      plazoCuotas: 2,
+      fechaInicio: "2025-01-01",
+    });
+    if (!pasivo.ok) throw new Error("setup fallo");
+
+    const listado = await listarPasivos(owner!, tenantId);
+    expect(listado.ok).toBe(true);
+    if (listado.ok) {
+      expect(listado.data.some((p) => p.id === pasivo.data.pasivoId)).toBe(true);
+    }
+
+    const soloPasivo = await obtenerPasivoPorId(owner!, pasivo.data.pasivoId);
+    expect(soloPasivo.ok).toBe(true);
+
+    await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+      monto: 400,
+      fechaPago: "2025-02-01",
+    });
+    await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+      monto: 200,
+      fechaPago: "2025-03-01",
+    });
+
+    const ficha = await fichaPasivo(owner!, pasivo.data.pasivoId);
+    expect(ficha.ok).toBe(true);
+    if (ficha.ok) {
+      expect(ficha.data.saldoPendiente).toBe(400);
+      expect(ficha.data.pagos).toHaveLength(2);
+      expect(Number(ficha.data.pagos[0].monto)).toBe(400);
+      expect(Number(ficha.data.pagos[1].monto)).toBe(200);
+    }
+  }, 20000);
 
   it("consultarValorPatrimonialTotal: suma valor_actual de activos menos saldo_pendiente de pasivos activos", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
