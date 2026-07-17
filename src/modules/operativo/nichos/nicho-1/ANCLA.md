@@ -24,11 +24,13 @@
   `registrarAjusteManualInsumo`, `registrarMermaAlmacenamiento`) +
   `registrarProduccion`, `registrarProduccionDeAjuste`, `listarProducciones`,
   `consultarMermaPeriodo` + `consultarCapacidadProduccionUsada`,
-  `consultarCapacidadAlmacenamientoUsada` + fórmulas puras
-  (`calcularCostoPromedioPonderado`, `calcularRendimientoTeorico`,
-  `calcularMerma`, `calcularCostoOperativoProduccion`,
-  `calcularCapacidadProduccionPeriodo`, `calcularPorcentajeCapacidadUsada`,
-  `signoMovimientoInsumo`).
+  `consultarCapacidadAlmacenamientoUsada` + `fichaInsumo`,
+  `listarMovimientosInsumo`, `fichaReceta` (las tres nuevas, agregadas para
+  cerrar los gaps de backend de la tanda de UI — ver "Última actualización")
+  + fórmulas puras (`calcularCostoPromedioPonderado`,
+  `calcularRendimientoTeorico`, `calcularMerma`,
+  `calcularCostoOperativoProduccion`, `calcularCapacidadProduccionPeriodo`,
+  `calcularPorcentajeCapacidadUsada`, `signoMovimientoInsumo`).
 
 ## Estado actual
 - [x] Schema Drizzle (`insumos`, `movimientos_insumo`, `stock_insumo`,
@@ -137,4 +139,31 @@
   confirmada explícitamente con el usuario antes de implementar Nicho 4, no
   un desvío silencioso.
 
-## Última actualización: 2026-07-15 — roadmap ítem #12 (Nicho 4) conectó `registrarEntradaCompraInsumo` como caller real; Nicho 4 reutiliza `calcularPorcentajeCapacidadUsada()`
+## Última actualización: 2026-07-17 — Gaps de backend cerrados para la próxima tanda de UI (10 pantallas)
+`docs/ui/pantallas.md` sección 6 documentaba un "doble gap" para la Ficha de Insumo: (1) no había
+una `fichaInsumo()` que juntara insumo+stock en una sola llamada, y (2) no existía ninguna función,
+ni siquiera en `repository.ts`, que listara `movimientos_insumo`. Ambos cerrados con el mismo
+patrón que Módulo 2 (`fichaProducto()`/`listarMovimientosStock()`): `repo.listarStockPorInsumo(insumoId)`
++ `repo.listarMovimientosPorInsumo(insumoId, sucursalId)` nuevas en `repository.ts`, expuestas como
+`fichaInsumo(solicitante, insumoId)` y `listarMovimientosInsumo(solicitante, insumoId, sucursalId)`
+en `actions.ts`, mismo gate (`"operativo"` × `"ver"`) que el resto del módulo.
+
+**Tercer gap encontrado durante esta misma revisión** (no estaba en el "doble gap" original, pero
+es la misma clase de problema): no había forma de leer la composición de una Receta a partir de su
+`recetaId` directo — `obtenerRecetaDeProducto()` ya devuelve receta+composición, pero solo
+llegando por `productoId` a través de una `Vinculación` ya creada. Eso no alcanza para la pantalla
+"Gestión de Recetas", donde hace falta ver/editar la composición de una Receta que puede no tener
+ningún producto vinculado todavía (se crea la receta primero, se vincula después). Cerrado con
+`fichaReceta(solicitante, recetaId)`, que reutiliza `repo.obtenerComposicionReceta()` (ya existía
+en `repository.ts`, simplemente no estaba expuesta con su propio gate de permiso).
+
+Ningún cambio de contrato en funciones existentes — las tres son aditivas. Ninguna de las tres
+importa nada de `productos/schema.ts` ni `productos/repository.ts` directo: leen únicamente las
+tablas propias de este módulo (`insumos`, `stock_insumo`, `movimientos_insumo`, `recetas`,
+`receta_insumos`), respetando el límite de caja negra del Strategy Pattern
+(`CEOM_Arquitectura.md` sección 5.1) — el Módulo Operativo no toca las tablas de Productos e
+Inventario directo, solo las consume vía su capa pública, y estas tres funciones nuevas no
+necesitaron hacerlo en absoluto. Cubierto por 3 tests nuevos en `operativo-nicho1.test.ts`
+(integración contra Supabase Cloud real, reutilizando el fixture SanttiCampo ya existente).
+
+## Última actualización anterior: 2026-07-15 — roadmap ítem #12 (Nicho 4) conectó `registrarEntradaCompraInsumo` como caller real; Nicho 4 reutiliza `calcularPorcentajeCapacidadUsada()`

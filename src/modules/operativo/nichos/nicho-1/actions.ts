@@ -172,6 +172,46 @@ export async function consultarStockInsumo(
   return { ok: true, data: { cantidadActual: fila ? Number(fila.cantidadActual) : 0 } };
 }
 
+/** ficha_insumo(insumo_id) — insumo + stock por sucursal en una sola
+ * llamada, mismo patron que fichaProducto() en Modulo 2. Cierra el gap de
+ * backend documentado en docs/ui/pantallas.md seccion 6 ("no hay una
+ * fichaInsumo() que junte insumo+stock en una llamada"). */
+export async function fichaInsumo(
+  solicitante: UsuarioConRol,
+  insumoId: string
+): Promise<
+  Resultado<{
+    insumo: Awaited<ReturnType<typeof repo.obtenerInsumoPorId>>;
+    stockPorSucursal: Awaited<ReturnType<typeof repo.listarStockPorInsumo>>;
+  }>
+> {
+  const insumo = await repo.obtenerInsumoPorId(insumoId);
+  if (!insumo) return { ok: false, error: "Insumo no encontrado." };
+  if (!(await tienePermiso(solicitante, insumo.tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver este insumo." };
+  }
+
+  const stockPorSucursal = await repo.listarStockPorInsumo(insumoId);
+  return { ok: true, data: { insumo, stockPorSucursal } };
+}
+
+/** Historial de movimientos de un Insumo en una sucursal — mismo patron y
+ * mismo gate que listarMovimientosStock() en Modulo 2. Cierra el segundo
+ * gap documentado en docs/ui/pantallas.md seccion 6 ("no existe ninguna
+ * funcion, ni en el repository, que liste movimientos_insumo"). */
+export async function listarMovimientosInsumo(
+  solicitante: UsuarioConRol,
+  insumoId: string,
+  sucursalId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarMovimientosPorInsumo>>>> {
+  const insumo = await repo.obtenerInsumoPorId(insumoId);
+  if (!insumo) return { ok: false, error: "Insumo no encontrado." };
+  if (!(await tienePermiso(solicitante, insumo.tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+  }
+  return { ok: true, data: await repo.listarMovimientosPorInsumo(insumoId, sucursalId) };
+}
+
 // --- Ledger de Insumo ---------------------------------------------------------
 
 /** entrada_compra (seccion 3.1 y 3.6) — hoy sin caller real (Proveedores no
@@ -349,6 +389,33 @@ export async function listarRecetas(
     return { ok: false, error: "No tenés permiso para ver recetas en este tenant." };
   }
   return { ok: true, data: await repo.listarRecetasPorTenant(tenantId) };
+}
+
+/** ficha_receta(receta_id) — receta + composicion en una sola llamada, por
+ * recetaId directo. `obtenerRecetaDeProducto()` ya cubre este mismo dato
+ * pero solo llegando por productoId a traves de una Vinculacion — no sirve
+ * para la pantalla "Gestión de Recetas", donde se edita la composicion de
+ * una Receta que puede no tener ningun producto vinculado todavia. Tercer
+ * gap cerrado en esta tanda (no estaba en el "doble gap" original de
+ * Ficha de Insumo, pero es la misma clase de problema: faltaba el wrapper
+ * de lectura combinada). */
+export async function fichaReceta(
+  solicitante: UsuarioConRol,
+  recetaId: string
+): Promise<
+  Resultado<{
+    receta: Awaited<ReturnType<typeof repo.obtenerRecetaPorId>>;
+    composicion: Awaited<ReturnType<typeof repo.obtenerComposicionReceta>>;
+  }>
+> {
+  const receta = await repo.obtenerRecetaPorId(recetaId);
+  if (!receta) return { ok: false, error: "Receta no encontrada." };
+  if (!(await tienePermiso(solicitante, receta.tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver esta receta." };
+  }
+
+  const composicion = await repo.obtenerComposicionReceta(recetaId);
+  return { ok: true, data: { receta, composicion } };
 }
 
 export async function actualizarComposicionReceta(

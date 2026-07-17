@@ -97,6 +97,24 @@ export async function obtenerStockInsumo(insumoId: string, sucursalId: string) {
   return filas[0] ?? null;
 }
 
+/** Stock de un Insumo en todas sus sucursales — mismo patron que
+ * listarStockPorProducto en Modulo 2, usado por fichaInsumo(). */
+export async function listarStockPorInsumo(insumoId: string) {
+  return db.select().from(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
+}
+
+/** Historial de movimientos de un Insumo en una sucursal — mismo patron que
+ * listarMovimientosStock en Modulo 2, usado por listarMovimientosInsumo(). */
+export async function listarMovimientosPorInsumo(insumoId: string, sucursalId: string) {
+  return db
+    .select()
+    .from(movimientosInsumo)
+    .where(
+      and(eq(movimientosInsumo.insumoId, insumoId), eq(movimientosInsumo.sucursalId, sucursalId))
+    )
+    .orderBy(movimientosInsumo.creadoEn);
+}
+
 /**
  * Recalcula cantidad_actual desde movimientos_insumo (fuente de verdad) y
  * hace upsert de stock_insumo, dentro de la misma transaccion que inserta

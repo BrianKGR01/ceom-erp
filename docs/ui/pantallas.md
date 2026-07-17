@@ -456,15 +456,19 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 
 ## 6. Módulo Operativo — Nicho 1 (Alimentos/Bebidas por Lotes)
 
+> **Gaps de backend cerrados el 2026-07-17**, antes de construir UI — detalle completo:
+> `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
+
 ### `/app` — Insumos (Owner + permiso `"operativo"`)
 **Catálogo de Insumos.** `[ ]`
 - Campos: `nombre`, `unidadMedida`, `vidaUtilDias`, `costoUnitarioVigente` (derivado), `stockMinimo`.
-- ⚠️ No trae stock por sucursal en la misma llamada — se pide aparte con `consultarStockInsumo`.
+- ⚠️ No trae stock por sucursal en la misma llamada — se pide aparte con `consultarStockInsumo`, o vía `fichaInsumo()` si se necesita para varios insumos a la vez (mismo criterio que Productos: no es un gap, es un patrón ya asumido).
 - Acción: `listarInsumos`.
 
 **Ficha de Insumo con historial de movimientos.** `[ ]`
-- ⚠️ **Doble gap de backend**: (1) no hay una `fichaInsumo()` que junte insumo+stock en una llamada; (2) **no existe ninguna función, ni en el repository, que liste `movimientos_insumo`** — a diferencia de Productos, acá el historial de movimientos requiere trabajo de backend nuevo, no solo exponer un wrapper.
-- Campos disponibles hoy: `nombre`, `unidadMedida`, `vidaUtilDias`, `costoUnitarioVigente`, `stockMinimo` + `cantidadActual` por sucursal.
+- ✅ Gap resuelto: `fichaInsumo(solicitante, insumoId)` junta insumo + `stockPorSucursal[]` en una sola llamada (mismo patrón que `fichaProducto()`), y `listarMovimientosInsumo(solicitante, insumoId, sucursalId)` expone el historial de `movimientos_insumo` (mismo patrón que `listarMovimientosStock()`).
+- Campos: `nombre`, `unidadMedida`, `vidaUtilDias`, `costoUnitarioVigente`, `stockMinimo` + `stockPorSucursal[]` (`sucursalId`, `cantidadActual`) + historial de movimientos (`tipo`, `cantidad`, `costoUnitarioEnMovimiento`, `fechaVencimiento?`, `motivo?`, `creadoEn`).
+- Acciones: `fichaInsumo`, `listarMovimientosInsumo`.
 
 **Alta / Edición de Insumo.** `[ ]`
 - Campos: `nombre`, `unidadMedida` (`litros`/`ml`/`kg`/`g`/`unidad`/`metros`), `vidaUtilDias`, `stockMinimo`. `costoUnitarioVigente` nunca es editable a mano.
@@ -480,8 +484,9 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 
 ### `/app` — Recetas y Producción
 **Gestión de Recetas.** `[ ]`
+- ✅ Gap resuelto: `fichaReceta(solicitante, recetaId)` junta receta + composición por `recetaId` directo — `obtenerRecetaDeProducto()` ya existía pero solo llegaba a la composición a través de un producto ya vinculado, no servía para ver/editar una Receta recién creada sin vincular todavía.
 - Campos (receta): `nombre`, `rendimientoPorLote`, `unidadRendimiento`. Campos (composición): `insumoId`, `cantidadPorLote`, `costoUnitarioVigente`.
-- Acciones: `crearReceta`, `actualizarReceta`, `eliminarReceta`, `listarRecetas`, `actualizarComposicionReceta` (reemplaza toda la lista, no edición incremental).
+- Acciones: `crearReceta`, `actualizarReceta`, `eliminarReceta`, `listarRecetas`, `fichaReceta`, `actualizarComposicionReceta` (reemplaza toda la lista, no edición incremental).
 
 **Registrar Producción de un lote** `[ ]` — pantalla central del módulo.
 - Antes de confirmar: mostrar preview de costo+merma usando las funciones puras exportadas (`calcularRendimientoTeorico`, `calcularMerma`, `calcularCostoOperativoProduccion`) sobre los datos de `obtenerRecetaDeProducto()`.

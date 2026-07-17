@@ -21,6 +21,9 @@ import {
   consultarCapacidadProduccionUsada,
   crearInsumo,
   crearReceta,
+  fichaInsumo,
+  fichaReceta,
+  listarMovimientosInsumo,
   registrarAjusteManualInsumo,
   registrarEntradaCompraInsumo,
   registrarProduccion,
@@ -252,6 +255,43 @@ describe.skipIf(!hasCredenciales)(
       },
       20000
     );
+
+    it("fichaInsumo junta insumo + stock por sucursal en una sola llamada", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const resultado = await fichaInsumo(owner!, insumoLecheId);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.insumo?.nombre).toBe("Leche");
+      const filaSucursal = resultado.data.stockPorSucursal.find((f) => f.sucursalId === sucursalId);
+      expect(filaSucursal).toBeDefined();
+      // Estado determinista en este punto de la secuencia: 100 (entrada
+      // inicial) - 2 (consumidos por la produccion del test anterior) = 98.
+      expect(Number(filaSucursal?.cantidadActual)).toBe(98);
+    });
+
+    it("listarMovimientosInsumo devuelve el historial de un Insumo en una sucursal", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const resultado = await listarMovimientosInsumo(owner!, insumoLecheId, sucursalId);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      // entrada_compra (beforeAll) + salida_produccion (test anterior).
+      expect(resultado.data).toHaveLength(2);
+      expect(resultado.data.every((m) => m.insumoId === insumoLecheId)).toBe(true);
+      expect(resultado.data.map((m) => m.tipo).sort()).toEqual(
+        ["entrada_compra", "salida_produccion"].sort()
+      );
+    });
+
+    it("fichaReceta junta receta + composicion por recetaId directo (sin pasar por un producto vinculado)", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const resultado = await fichaReceta(owner!, recetaId);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.receta?.nombre).toBe("Base Gelato Frutos Rojos");
+      expect(resultado.data.composicion).toHaveLength(1);
+      expect(resultado.data.composicion[0].insumoId).toBe(insumoLecheId);
+      expect(Number(resultado.data.composicion[0].cantidadPorLote)).toBe(2);
+    });
 
     it("regla 3.5 / caso borde 2: bloquea produccion sin insumo suficiente, salvo producir_sin_stock_insumo", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
