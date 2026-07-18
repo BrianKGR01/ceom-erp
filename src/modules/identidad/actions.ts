@@ -490,6 +490,15 @@ export async function invitarUsuario(
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
 
+  // Nunca asignar un rol de sistema (Owner/CEOM Admin) via invitacion — Owner
+  // se otorga solo por crearTenant()/transferirOwner(), y CEOM Admin es
+  // transversal a todos los tenants: darselo a un colaborador via este
+  // camino le otorgaria el bypass cross-tenant de tienePermiso() por error.
+  const rolInvitado = await repo.obtenerRolPorId(input.rolId);
+  if (!rolInvitado || rolInvitado.esRolSistema || rolInvitado.tenantId !== solicitante.tenantId) {
+    return { ok: false, error: "Rol inválido." };
+  }
+
   const admin = crearClienteAdmin();
   const { data: authData, error: authError } =
     await admin.auth.admin.inviteUserByEmail(input.email);
@@ -524,6 +533,14 @@ export async function cambiarRolUsuario(
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
+
+  // Mismo criterio que invitarUsuario(): nunca asignar un rol de sistema por
+  // este camino (Owner se otorga solo via transferirOwner(), CEOM Admin
+  // nunca a un colaborador de tenant).
+  const nuevoRol = await repo.obtenerRolPorId(nuevoRolId);
+  if (!nuevoRol || nuevoRol.esRolSistema || nuevoRol.tenantId !== solicitante.tenantId) {
+    return { ok: false, error: "Rol inválido." };
+  }
 
   await repo.actualizarRolUsuario(usuarioId, nuevoRolId, solicitante.id);
   return { ok: true, data: true };

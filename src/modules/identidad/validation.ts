@@ -25,3 +25,23 @@ export const asignarNichoSchema = z.object({
 });
 
 export type AsignarNichoInput = z.infer<typeof asignarNichoSchema>;
+
+export const invitarColaboradorSchema = z.object({
+  email: z.string().trim().email("Ingresá un email válido."),
+  nombreCompleto: z.string().trim().min(1, "Ponele un nombre al colaborador."),
+  rolId: z.string().min(1, "Elegí un rol."),
+});
+
+export type InvitarColaboradorInput = z.infer<typeof invitarColaboradorSchema>;
+
+export const editarColaboradorSchema = z.object({
+  rolId: z.string().min(1, "Elegí un rol."),
+});
+
+export type EditarColaboradorInput = z.infer<typeof editarColaboradorSchema>;
+
+export const crearRolFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre al rol."),
+});
+
+export type CrearRolFormInput = z.infer<typeof crearRolFormSchema>;

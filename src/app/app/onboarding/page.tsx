@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { OnboardingWizard } from "./onboarding-wizard";
@@ -17,6 +18,18 @@ export default async function OnboardingPage() {
   return (
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="mx-auto max-w-2xl py-10">
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
+          <span className="text-navy">Negocio</span>
+          <Link href="/app/mi-negocio/colaboradores" className="text-primary hover:underline">
+            Colaboradores
+          </Link>
+          <Link href="/app/mi-negocio/roles" className="text-primary hover:underline">
+            Roles
+          </Link>
+          <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
+            Capacidades Especiales
+          </Link>
+        </div>
         <OnboardingWizard
           tenant={{
             nombreNegocio: tenant.nombreNegocio,

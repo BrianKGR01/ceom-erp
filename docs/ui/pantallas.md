@@ -24,13 +24,14 @@
 
 ## Progreso (actualizado 2026-07-18)
 
-**98 construidas · 0 parciales · 18 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**110 construidas · 0 parciales · 7 pendientes**, de 117 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
-pantalla; este número es más fino y es el que se mantiene de acá en adelante).
+pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total con
+"Transferir Owner", que no estaba en el inventario original).
 
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
-| 1. Identidad | 4 | 0 | 15 | 19 |
+| 1. Identidad | 16 | 0 | 4 | 20 |
 | 2. Suscripción | 4 | 0 | 1 | 5 |
 | **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
@@ -189,17 +190,25 @@ Aprobar con subconjunto → eliminar Institución (soft delete). Detalle complet
 
 ### Próxima tanda sugerida
 
+**Módulo 1 (Identidad) cerrado del todo 2026-07-18** — Colaboradores/Roles/Capacidades Especiales
+(`/app/mi-negocio/`) era el último bloque pendiente, ver sección 1 más arriba para el detalle
+completo. Con esto, el roadmap ítem #1 queda `[x]` sin caveats (antes tenía la nota "queda para
+más adelante"). También cerró un bug real (`tieneCapacidadEspecial()` sin bypass de Owner) y un
+gap de seguridad real (`invitarUsuario`/`cambiarRolUsuario` sin validar contra roles de sistema).
+
 **Módulo 11 (Monitoreo Institucional + Panel Admin CEOM) cerrado 2026-07-18** — ver sección 11 más
 abajo para el detalle completo. De paso se cerró también el Catálogo de Planes de Suscripción
 (Módulo 2, item de roadmap #2) ya que su backend estaba 100% listo y el shell de `/admin` recién
 creado lo necesitaba de todas formas.
 
-1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
-   cualquiera de las tandas siguientes.
+Quedan solo ítems chicos, ninguno bloquea el camino dorado:
+
+1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla).
 2. **"Mi plan" (Módulo 2, `/app`)** — vista de solo lectura del plan vigente para el Owner del
-   tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`). Chica.
-3. **Identidad pendiente (Módulo 1)** — gestión de colaboradores/roles — funcionalidad de
-   administración de cuenta, no bloquea el uso diario del producto.
+   tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`).
+3. **Gestión de Tenants (`/admin`, Módulo 1)** — Alta de Tenant, Listado de Tenants, Ficha de
+   Tenant. Alta de Tenant es el único prerequisito real (no hay signup autoservicio); el resto
+   puede seguir operándose manualmente contra la base mientras no haya UI.
 
 ---
 
@@ -271,49 +280,93 @@ Tenant (4 tabs) ya están construidos sobre él** (Módulo 11, 2026-07-18).
 - Rol: Owner.
 - Acción: `completarOnboarding()` (tracking de `onboarding_completado_en` en `tenants`, gap de backend original ya cerrado).
 
-### `/app` — Gestión de colaboradores (Owner)
-**Listado de colaboradores** `[ ]` — usuarios del tenant con su rol y estado.
-- Campos esperados: `nombreCompleto`, `email`, rol, `activo`, `esOwner`, `ultimoAccesoEn`.
-- Rol: Owner.
-- Acción: **⚠️ gap de backend** — no existe `listarUsuarios(tenantId)`.
+### `/app/mi-negocio` — Gestión de colaboradores (Owner)
+Nueva sección dentro del hub "Mi negocio" (mismo nav item que Onboarding, `admin-shell.tsx` §5.1) —
+vive en `src/app/app/(shell)/mi-negocio/`, separada de `/app/onboarding` (que sigue fuera del route
+group `(shell)` a propósito, ver `identidad/ANCLA.md`) para no arriesgar el loop de redirect del
+primer ingreso. Las 3 pantallas comparten un sub-nav de texto (Negocio/Colaboradores/Roles/
+Capacidades Especiales), mismo patrón que los links de `/app/ventas`.
 
-**Invitar colaborador** `[ ]` (modal).
-- Campos: `email`, `nombreCompleto`, `rolId`.
-- Rol: Owner. Bloqueado si `estadoAcceso !== "activo"`.
-- Acción: `invitarUsuario(solicitante, { email, nombreCompleto, rolId })`.
+**Listado de Colaboradores** `[x]` (`/app/mi-negocio/colaboradores`, con mockup — mismo patrón de
+cards que Instituciones) — usuarios del tenant con su rol y estado.
+- Campos: `nombreCompleto`, `email`, `rol.nombre`, `activo`, `esOwner`. Búsqueda por nombre.
+- **El Owner nunca puede tocar su propio rol ni suspenderse a sí mismo** — la card del Owner
+  muestra los botones "Rol"/"Suspender" deshabilitados (verificado en navegador), consistente con
+  la sección 6.2 ("de forma permanente y no editable").
+- Rol: Owner. Acción: `listarUsuarios(solicitante)`.
 
-**Cambiar rol de un colaborador** `[ ]` (inline/modal desde el listado).
+**Invitar Colaborador** `[x]` (Dialog, mismo patrón que Nuevo Proveedor — react-hook-form + zod).
+- Campos: `email`, `nombreCompleto`, `rolId` (selector — **excluye roles de sistema**, ver
+  hallazgo de seguridad abajo).
+- Rol: Owner. Bloqueado si `estadoAcceso !== "activo"`. Acción: `invitarUsuario(solicitante, {
+  email, nombreCompleto, rolId })`.
+
+**Cambiar rol de un colaborador** `[x]` (Dialog simple desde la card — botón "Rol").
 - Rol: Owner. Acción: `cambiarRolUsuario(solicitante, usuarioId, nuevoRolId)`.
 
-**Suspender colaborador** `[ ]` (modal de confirmación).
-- Caso borde a mostrar: si es el único Owner activo, el server devuelve `"No se puede suspender al unico Owner del tenant."`.
-- Rol: Owner. Acción: `suspenderUsuario(solicitante, usuarioId)`.
+**Suspender / Reactivar colaborador** `[x]` (toggle inline en la card, sin modal — verificado en
+navegador: el badge y el label del botón cambian de inmediato).
+- Caso borde verificado: intentar suspender al único Owner está bloqueado a nivel de UI (botón
+  deshabilitado en su propia card) y de backend (`"No se puede suspender al unico Owner..."`).
+- Rol: Owner. Acciones: `suspenderUsuario`/`reactivarUsuario(solicitante, usuarioId)`.
 
-**Reactivar colaborador.** `[ ]`
-- Rol: Owner. Acción: `reactivarUsuario(solicitante, usuarioId)`.
+**Transferir Owner** `[x]` (Dialog de confirmación, no estaba en el inventario original — se sumó
+al construir esta tanda, sección 6.2/9.1).
+- Campos: colaborador destino (solo activos, no-Owner), rol nuevo para el Owner saliente (solo
+  roles personalizados del tenant — nunca de sistema, obligatorio, sin default implícito).
+- Copy explícito de irreversibilidad ("Solo puede haber un Owner por negocio"). Verificado en
+  navegador que el selector de destino solo lista colaboradores activos y el de rol solo roles
+  personalizados — la transferencia real en sí (mutación atómica) está cubierta por 6 tests
+  dedicados en `identidad.test.ts`, no se ejerció en vivo sobre el tenant de prueba persistente
+  (`owner@ceom.local`) para no alterar su identidad de Owner entre tandas.
+- Rol: Owner. Acción: `transferirOwner(solicitante, nuevoOwnerUsuarioId, rolParaOwnerSaliente)`.
 
-### `/app` — Gestión de roles personalizados (Owner)
-**Listado de roles** `[ ]` — roles del tenant + roles de sistema (no editables/eliminables).
-- Campos: `nombre`, `esRolSistema`.
-- Rol: Owner. Acción: **⚠️ gap de backend** — no existe `listarRolesPorTenant(tenantId)`.
+### `/app/mi-negocio/roles` — Gestión de roles personalizados (Owner)
+**Gestión de Roles** `[x]` (con mockup) — cards de Owner/CEOM Admin (badge "Rol de sistema", sin
+iconos de editar/eliminar, descripción estática ya que `roles` no tiene campo `descripcion`) +
+roles personalizados (editables, con conteo de colaboradores) + panel "Matriz de Permisos" que se
+abre al elegir un rol o "+ Nuevo Rol".
+- Campos: `nombre`, `esRolSistema`, conteo de colaboradores (relativo al tenant, incluso para
+  roles de sistema). Matriz: filas = los 10 módulos del enum (`productos`, `inventario`, `ventas`,
+  `costos_gastos`, `patrimonio`, `operativo`, `financiero`, `simulaciones`, `reportes`,
+  `proveedores`), columnas = `ver`/`crear`/`editar`/`anular_ajustar`.
+- Rol: Owner. Acciones: `listarRoles`, `listarPermisosPorRol`, `crearRolPersonalizado`,
+  `actualizarPermisosRol`.
 
-**Crear rol personalizado** `[ ]` — nombre + matriz módulo × acción.
-- Subpantalla: matriz de permisos — filas = los 10 módulos del enum (`productos`, `inventario`, `ventas`, `costos_gastos`, `patrimonio`, `operativo`, `financiero`, `simulaciones`, `reportes`, `proveedores`), columnas = `ver`/`crear`/`editar`/`anular_ajustar`.
-- Rol: Owner. Acción: `crearRolPersonalizado(solicitante, { nombre, permisos })`.
-
-**Editar permisos de un rol** `[ ]` — misma matriz, precargada. No aplica a roles de sistema.
-- Rol: Owner. Acción: `actualizarPermisosRol(solicitante, rolId, permisos)`.
-
-**Eliminar rol** `[ ]` (modal de confirmación).
-- Caso borde: si hay usuarios activos con ese rol, el server devuelve `"Hay N usuario(s) con este rol; reasignalos antes de eliminarlo."`.
+**Eliminar rol** `[x]` (modal de confirmación simple si no tiene colaboradores; modal de
+reasignación forzada si sí los tiene — verificado en navegador de punta a punta: crear 2 roles,
+asignar un colaborador a uno, intentar eliminarlo, reasignar desde el modal al otro rol, confirmar
+que el rol se elimina y el colaborador queda en el nuevo).
+- Caso borde: `"Hay N usuario(s) con este rol; reasignalos antes de eliminarlo."` — el modal lista
+  esos colaboradores con un selector de rol destino cada uno (excluye el rol que se está
+  eliminando), reasigna todos y recién ahí reintenta `eliminarRol`.
 - Rol: Owner. Acción: `eliminarRol(solicitante, rolId)`.
 
-### `/app` — Capacidades especiales (Owner)
-**Capacidades especiales por rol** `[ ]` — toggles por rol para `vender_sin_stock`, `gestionar_eventos`, `importar_historico`, `producir_sin_stock_insumo`.
-- Rol: Owner. No aplica a roles de sistema. Acción: `otorgarCapacidadEspecialPorRol(solicitante, rolId, capacidad, habilitado)`.
+### `/app/mi-negocio/capacidades` — Capacidades especiales (Owner)
+**Capacidades Especiales** `[x]` (con mockup) — "Capacidades por Rol" (tabla, solo roles
+personalizados — Owner/CEOM Admin **nunca aparecen**, ni con toggles deshabilitados: el bypass de
+Owner es incondicional según `tieneCapacidadEspecial()`, no hay nada que mostrarle) + "Overrides
+por Usuario" (cards, solo colaboradores con al menos un override ya otorgado — no todos los
+usuarios × las 4 capacidades).
+- Campos: `vender_sin_stock`, `gestionar_eventos`, `importar_historico`, `producir_sin_stock_insumo`
+  (catálogo `capacidadEspecialEnum`, ampliable). Banner explícito: "Este ajuste anula los permisos
+  del rol, aplicándose solo a esta persona."
+- Verificado en navegador: toggle por rol persiste tras refresh; "Agregar" override queda
+  deshabilitado si no hay colaboradores sin override todavía (el Owner nunca es candidato).
+- Rol: Owner. Acciones: `listarCapacidadesEspeciales`, `otorgarCapacidadEspecialPorRol`,
+  `otorgarCapacidadEspecialPorUsuario`.
 
-**Capacidades especiales por usuario** `[ ]` (override puntual, gana sobre el default de rol).
-- Rol: Owner. Acción: `otorgarCapacidadEspecialPorUsuario(solicitante, usuarioId, capacidad, habilitado)`.
+**Bug real corregido en esta tanda (2026-07-18):** `tieneCapacidadEspecial()` no bypasseaba al
+Owner — un Owner sin override puntual no podía usar ninguna capacidad especial, contra el
+espíritu de la sección 6.2. Corregido: Owner ahora es el primer paso de la resolución,
+incondicional. Detalle completo y verificación de que esto no invalida las pruebas end-to-end
+previas de Ventas/Productos/Nicho 1 en `identidad/ANCLA.md`.
+
+**Hallazgo de seguridad real corregido en esta tanda:** `invitarUsuario`/`cambiarRolUsuario` no
+validaban que el rol asignado fuera personalizado — un llamado directo a la Server Action (no solo
+la UI) podía asignarle `ROL_CEOM_ADMIN_ID` a un colaborador de tenant, otorgándole el bypass
+cross-tenant real de `tienePermiso()`. Corregido en el backend (no solo ocultando la opción en el
+selector de la UI) — ver `identidad/ANCLA.md`.
 
 ### `/admin` — Gestión de Tenants (ceom_admin)
 **Alta de Tenant.** `[ ]`
@@ -957,7 +1010,7 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 ## Resumen
 
 ### Conteo total
-**116 pantallas/modales** trackeados en este documento (conteo fino), distribuidos en 14 módulos + Login, across 3 superficies:
+**117 pantallas/modales** trackeados en este documento (conteo fino), distribuidos en 14 módulos + Login, across 3 superficies:
 - `/app` (Owner/Colaborador): la gran mayoría — el workspace operativo diario.
 - `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (salud agregada + Ficha con 3 tabs), Planes (CRUD completo), Instituciones, Logs.**
 - `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle. **Construido completo (2026-07-18).**

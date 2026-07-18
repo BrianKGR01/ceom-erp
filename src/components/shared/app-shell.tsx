@@ -62,7 +62,7 @@ export function AppShell({
     { href: "/app/patrimonio", label: "Patrimonio", icono: Building2 },
     { href: "/app/proveedores", label: "Proveedores", icono: Truck },
     ...(esOwner
-      ? [{ href: "/app/onboarding", label: "Mi negocio", icono: Settings }]
+      ? [{ href: "/app/mi-negocio/colaboradores", label: "Mi negocio", icono: Settings }]
       : []),
     { href: "/app/gastos", label: "Gastos", icono: Receipt },
     { href: "/app/produccion", label: "Producción", icono: ChefHat },
@@ -72,6 +72,13 @@ export function AppShell({
 
   function esActivo(href: string) {
     if (href === "/app") return pathname === "/app";
+    // "Mi negocio" cubre tanto el hub nuevo (Colaboradores/Roles/
+    // Capacidades, dentro del shell) como el asistente de Onboarding
+    // (fuera del shell a propósito, ver src/app/app/(shell)/layout.tsx) —
+    // ambos se resaltan como la misma sección.
+    if (href.startsWith("/app/mi-negocio")) {
+      return pathname.startsWith("/app/mi-negocio") || pathname.startsWith("/app/onboarding");
+    }
     return pathname.startsWith(href);
   }
 

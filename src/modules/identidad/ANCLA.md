@@ -6,13 +6,14 @@
   cuatro preguntas de `docs/modules/Modulo_01...md` sección 0 (a qué tenant
   pertenece un dato, quién es el usuario, qué puede hacer, está permitida
   esta acción ahora mismo).
-- NO hace: no tiene pantallas de UI todavía (alcance de esta tarea: solo
-  backend). No implementa el Panel Administrativo CEOM, Instituciones ni el
+- NO hace: no implementa el Panel Administrativo CEOM, Instituciones ni el
   Gateway de Consentimiento institucional (sección 7.2 del módulo — ver
   `src/modules/suscripcion/ANCLA.md`, es trabajo del roadmap ítem #10). No
   corre un scheduler real para transición de etapas de suscripción —
   `calcularEstadoAcceso()` es una función pura, algo externo tiene que
-  invocarla periódicamente cuando exista esa infraestructura.
+  invocarla periódicamente cuando exista esa infraestructura. No implementa
+  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant) — único
+  bloque de UI de este módulo que sigue pendiente (2026-07-18).
 - Entradas que consume: `obtenerPlanPorId()` de `src/modules/suscripcion/actions.ts`
   (para validar/defaultear el plan al dar de alta un tenant — ver
   decisiones abajo). Fuera de eso, ninguna de otro módulo (es la base,
@@ -129,6 +130,39 @@
       acción distinta ("sumar" vs "ceder"), sin urgencia de negocio real
       hoy; se aborda como su propia tanda chica si algún tenant con ese
       plan la necesita.
+- [x] **UI construida (2026-07-18): Colaboradores/Roles/Capacidades
+      Especiales** — último bloque de UI pendiente del módulo, roadmap
+      ítem #1 pasa a `[x]` sin caveats. `/app/mi-negocio/{colaboradores,
+      roles,capacidades}` (dentro del route group `(shell)`, separado a
+      propósito de `/app/onboarding` — ver decisión sobre el loop de
+      redirect más abajo). Mockup de referencia solo para Gestión de Roles
+      y Capacidades Especiales; Listado de Colaboradores reusa el patrón
+      de cards de Instituciones, Invitar/Editar reusan el patrón de Dialog
+      de Nuevo Proveedor. "Transferir Owner" y "Eliminar rol con
+      colaboradores asignados" (modal de reasignación forzada) no estaban
+      en el inventario original de `docs/ui/pantallas.md` — se sumaron acá.
+      Detalle completo de campos por pantalla en `docs/ui/pantallas.md`
+      sección 1.
+- [x] **Bug de seguridad real encontrado y corregido durante la
+      verificación en navegador de esta misma tanda (2026-07-18):
+      `invitarUsuario`/`cambiarRolUsuario` no validaban que el rol
+      asignado no fuera de sistema.** Antes del fix, un llamado directo a
+      cualquiera de las dos Server Actions (no solo a través de la UI —
+      las Server Actions de Next.js son invocables directo) podía
+      asignarle `ROL_CEOM_ADMIN_ID` a un colaborador de un tenant
+      cualquiera. Como `tienePermiso()` resuelve el bypass cross-tenant de
+      CEOM Admin mirando únicamente `solicitante.rol.esRolSistema &&
+      solicitante.rolId === ROL_CEOM_ADMIN_ID` (nunca valida que el
+      usuario pertenezca de verdad al tenant "CEOM Ops"), ese colaborador
+      quedaba con acceso administrativo real cross-tenant. **Fix:** ambas
+      funciones ahora rechazan si el rol destino `esRolSistema` o no
+      pertenece al mismo tenant del solicitante — mismo criterio que ya
+      usaban `eliminarRol`/`actualizarPermisosRol`/
+      `otorgarCapacidadEspecialPorRol`. La UI también deja de listar
+      Owner/CEOM Admin como opciones seleccionables (defensa en
+      profundidad, no la única barrera). Cubierto por un test dedicado en
+      `identidad.test.ts` ("cambiarRolUsuario/invitarUsuario rechazan
+      asignar un rol de sistema").
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -141,8 +175,26 @@
   clientes de sesión/admin de Supabase en `src/lib/supabase/server.ts`.
 - Migraciones relevantes: `drizzle/migrations/0002` (tablas), `0003`
   (`current_tenant_id()`), `0004` (RLS), `0005` (seed CEOM Ops/roles).
+- UI de Onboarding: `src/app/app/onboarding/` (fuera del route group
+  `(shell)`, ver decisión abajo). UI de Colaboradores/Roles/Capacidades
+  Especiales: `src/app/app/(shell)/mi-negocio/` (`actions.ts` compartido +
+  un subdirectorio por pantalla: `colaboradores/`, `roles/`, `capacidades/`).
+  Schemas de formulario: `src/modules/identidad/validation.ts`.
 
 ## Decisiones tomadas que un agente no debe revertir
+- **`/app/mi-negocio/*` (Colaboradores/Roles/Capacidades) vive dentro del
+  route group `(shell)`, separado de `/app/onboarding` — no fusionarlos.**
+  `/app/onboarding` está fuera de `(shell)` a propósito (ver
+  `src/app/app/(shell)/layout.tsx`) para que el asistente de primer ingreso
+  del Owner nunca quede envuelto en el sidebar ni en loop de redirect. El
+  nav item "Mi negocio" de `app-shell.tsx` apunta a
+  `/app/mi-negocio/colaboradores`, y `esActivo()` tiene un caso especial
+  que resalta el mismo item tanto para `/app/mi-negocio/*` como para
+  `/app/onboarding` (visualmente es "la misma sección" para el Owner,
+  aunque técnicamente son dos route groups distintos). Las 4 pantallas
+  (Negocio/Colaboradores/Roles/Capacidades) se enlazan entre sí con un
+  sub-nav de texto duplicado por archivo, mismo criterio que los links de
+  `/app/ventas`.
 - **`tenants.onboarding_completado_en` es independiente de `nicho_id`** —
   no reusar `nicho_id IS NOT NULL` como señal de "onboarding terminado".
   Modo Básico deja `nicho_id = null` a propósito y para siempre (Modulo_01

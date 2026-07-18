@@ -10,6 +10,7 @@ import {
   crearRolPersonalizado,
   crearTenant,
   eliminarRol,
+  invitarUsuario,
   listarCapacidadesEspeciales,
   listarPermisosPorRol,
   listarRoles,
@@ -245,6 +246,23 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     // de estar bloqueado (caso borde 9.3 resuelto).
     const eliminar = await eliminarRol(owner!, rolAnteriorId);
     expect(eliminar.ok).toBe(true);
+  });
+
+  it("cambiarRolUsuario/invitarUsuario rechazan asignar un rol de sistema (Owner/CEOM Admin) — nunca por este camino", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    const cambioAOwner = await cambiarRolUsuario(owner!, colaboradorId, ROL_OWNER_ID);
+    expect(cambioAOwner.ok).toBe(false);
+
+    const cambioACeomAdmin = await cambiarRolUsuario(owner!, colaboradorId, ROL_CEOM_ADMIN_ID);
+    expect(cambioACeomAdmin.ok).toBe(false);
+
+    const invitacionComoOwner = await invitarUsuario(owner!, {
+      email: `no-deberia-invitarse-${Date.now()}@ceom-erp.test`,
+      nombreCompleto: "No deberia invitarse",
+      rolId: ROL_CEOM_ADMIN_ID,
+    });
+    expect(invitacionComoOwner.ok).toBe(false);
   });
 
   it("suspenderUsuario: bloquea suspender al unico Owner (caso borde 9.1)", async () => {
