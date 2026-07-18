@@ -11,9 +11,11 @@
   `src/modules/suscripcion/ANCLA.md`, es trabajo del roadmap ítem #10). No
   corre un scheduler real para transición de etapas de suscripción —
   `calcularEstadoAcceso()` es una función pura, algo externo tiene que
-  invocarla periódicamente cuando exista esa infraestructura. No implementa
-  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant) — único
-  bloque de UI de este módulo que sigue pendiente (2026-07-18).
+  invocarla periódicamente cuando exista esa infraestructura. La UI de
+  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant) es el único
+  bloque de UI de este módulo que sigue pendiente — el backend (`crearTenant`,
+  `cambiarPlanTenant`, `cambiarEstadoSuscripcion`) ya está 100% cerrado
+  (2026-07-18).
 - Entradas que consume: `obtenerPlanPorId()` de `src/modules/suscripcion/actions.ts`
   (para validar/defaultear el plan al dar de alta un tenant — ver
   decisiones abajo). Fuera de eso, ninguna de otro módulo (es la base,
@@ -21,7 +23,9 @@
   para la sesión y para crear usuarios.
 - Salidas que expone (`actions.ts`): `obtenerUsuarioActual`,
   `calcularEstadoAcceso`, `tienePermiso`, `tieneCapacidadEspecial`,
-  `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
+  `crearTenant`, `cambiarPlanTenant`, `cambiarEstadoSuscripcion` (las dos
+  últimas agregadas 2026-07-18, gap de backend cerrado antes de la UI de
+  Gestión de Tenants), `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
   `reactivarUsuario`, `crearRolPersonalizado`, `actualizarPermisosRol`,
   `eliminarRol`, `obtenerTenantPorId`, `obtenerEstadoAccesoTenant` (las dos
   últimas agregadas en Módulo 10 — Gateway de Consentimiento),
@@ -163,6 +167,28 @@
       profundidad, no la única barrera). Cubierto por un test dedicado en
       `identidad.test.ts` ("cambiarRolUsuario/invitarUsuario rechazan
       asignar un rol de sistema").
+- [x] **`cambiarPlanTenant`/`cambiarEstadoSuscripcion` (2026-07-18)** —
+      gaps de backend confirmados y cerrados antes de tocar la UI de
+      Gestión de Tenants en `/admin` (mismo criterio de siempre). Ambas
+      gateadas a `solicitante.rolId === ROL_CEOM_ADMIN_ID` directo (mismo
+      criterio que `crearTenant`, no `tienePermiso()` — "identidad" no está
+      en `moduloPermisoEnum`). `cambiarPlanTenant` valida el plan destino
+      contra `obtenerPlanPorId()` de Suscripción (existe + `activo=true`),
+      igual que `crearTenant`. `cambiarEstadoSuscripcion` acepta
+      `fechaProximoPago` opcional — relevante al pasar a `"vencida"`, que
+      es el ancla desde la que `calcularEstadoAcceso()` mide la etapa de
+      gracia (sin ella el tenant queda `bloqueado` de inmediato, mismo
+      comportamiento ya documentado en esa función, no un caso especial
+      nuevo). **Pendiente documentado, no silencioso:** ninguna de las dos
+      fuerza la regla de sección 6.2 ("un downgrade a un plan sin
+      `permite_multiples_owners` debe forzar un solo Owner primero") —
+      hoy no existe ningún camino para que un tenant tenga más de un Owner
+      (`transferirOwner()` es 1-a-1, "agregar Owner adicional" quedó fuera
+      de alcance a propósito), así que la regla es inalcanzable en la
+      práctica; revisar si algún día se construye esa funcionalidad.
+      `crearTenant` ya estaba completo (confirmado, no se tocó): crea
+      Tenant+Sucursal principal+Usuario Owner atómicamente vía
+      `repo.crearTenantConOwner()` y dispara la invitación real por email.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -404,4 +430,4 @@
   verdad, hay que mandar `null` explícito (no `undefined`) y ajustar
   `actualizarTenantSchema`/`actualizarTenant` para aceptarlo.
 
-## Última actualización: 2026-07-18 — Gaps de backend cerrados para UI de Colaboradores/Roles (`listarUsuarios`/`listarRoles`/`listarPermisosPorRol`/`listarCapacidadesEspeciales`/`transferirOwner`) + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+## Última actualización: 2026-07-18 — Gap de backend cerrado antes de la UI de Gestión de Tenants: `cambiarPlanTenant`/`cambiarEstadoSuscripcion` (`crearTenant` ya estaba completo, confirmado). Actualización previa el mismo día: Colaboradores/Roles/Capacidades Especiales (`listarUsuarios`/`listarRoles`/`listarPermisosPorRol`/`listarCapacidadesEspeciales`/`transferirOwner`) + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)

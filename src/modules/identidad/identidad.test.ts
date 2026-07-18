@@ -6,6 +6,8 @@ import {
   actualizarPermisosRol,
   actualizarTenant,
   asignarNicho,
+  cambiarEstadoSuscripcion,
+  cambiarPlanTenant,
   cambiarRolUsuario,
   crearRolPersonalizado,
   crearTenant,
@@ -24,6 +26,8 @@ import {
   suspenderUsuario,
 } from "./actions";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "./constants";
+import { crearPlan, PLAN_BASICO_ID } from "@/modules/suscripcion/actions";
+import { planes } from "@/modules/suscripcion/schema";
 import * as repo from "./repository";
 import {
   permisos,
@@ -83,6 +87,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
   });
 
   afterAll(async () => {
+    await db.delete(planes).where(eq(planes.nombre, `Plan QA ${sufijo}`));
     await db.delete(permisosEspecialesPorUsuario).where(
       inArray(permisosEspecialesPorUsuario.usuarioId, [ownerId, colaboradorId])
     );
@@ -491,6 +496,107 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       planId: "00000000-0000-0000-0000-000000000000",
     });
     expect(resultado.ok).toBe(false);
+  });
+
+  it("cambiarPlanTenant: rechaza a un no-ceom_admin y un plan inexistente/inactivo, persiste un cambio valido", async () => {
+    const fakeCeomAdmin: repo.UsuarioConRol = {
+      id: "00000000-0000-0000-0000-000000000001",
+      tenantId: CEOM_OPS_TENANT_ID,
+      nombreCompleto: "CEOM Admin (test)",
+      email: "admin-test@ceom.lat",
+      telefono: null,
+      rolId: ROL_CEOM_ADMIN_ID,
+      esOwner: false,
+      activo: true,
+      ultimoAccesoEn: null,
+      creadoPor: null,
+      creadoEn: new Date(),
+      modificadoPor: null,
+      modificadoEn: null,
+      eliminadoEn: null,
+      rol: {
+        id: ROL_CEOM_ADMIN_ID,
+        tenantId: null,
+        nombre: "CEOM Admin",
+        esRolSistema: true,
+        creadoEn: new Date(),
+        eliminadoEn: null,
+      },
+    };
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    const rechazoNoAdmin = await cambiarPlanTenant(owner!, tenantId, PLAN_BASICO_ID);
+    expect(rechazoNoAdmin.ok).toBe(false);
+
+    const rechazoPlanInexistente = await cambiarPlanTenant(
+      fakeCeomAdmin,
+      tenantId,
+      "00000000-0000-0000-0000-000000000000"
+    );
+    expect(rechazoPlanInexistente.ok).toBe(false);
+
+    const planNuevo = await crearPlan(
+      { rolId: ROL_CEOM_ADMIN_ID },
+      { nombre: `Plan QA ${sufijo}`, precioMensual: 10, moneda: "BOB" }
+    );
+    expect(planNuevo.ok).toBe(true);
+    if (!planNuevo.ok) return;
+
+    const cambioOk = await cambiarPlanTenant(fakeCeomAdmin, tenantId, planNuevo.data.planId);
+    expect(cambioOk.ok).toBe(true);
+
+    const tenantActualizado = await repo.obtenerTenantPorId(tenantId);
+    expect(tenantActualizado?.planId).toBe(planNuevo.data.planId);
+
+    // Deja el tenant en el plan Básico de nuevo, sin efecto para otros tests.
+    await cambiarPlanTenant(fakeCeomAdmin, tenantId, PLAN_BASICO_ID);
+  });
+
+  it("cambiarEstadoSuscripcion: rechaza a un no-ceom_admin, persiste estado + fecha_proximo_pago", async () => {
+    const fakeCeomAdmin: repo.UsuarioConRol = {
+      id: "00000000-0000-0000-0000-000000000001",
+      tenantId: CEOM_OPS_TENANT_ID,
+      nombreCompleto: "CEOM Admin (test)",
+      email: "admin-test@ceom.lat",
+      telefono: null,
+      rolId: ROL_CEOM_ADMIN_ID,
+      esOwner: false,
+      activo: true,
+      ultimoAccesoEn: null,
+      creadoPor: null,
+      creadoEn: new Date(),
+      modificadoPor: null,
+      modificadoEn: null,
+      eliminadoEn: null,
+      rol: {
+        id: ROL_CEOM_ADMIN_ID,
+        tenantId: null,
+        nombre: "CEOM Admin",
+        esRolSistema: true,
+        creadoEn: new Date(),
+        eliminadoEn: null,
+      },
+    };
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    const rechazoNoAdmin = await cambiarEstadoSuscripcion(owner!, tenantId, "pausada");
+    expect(rechazoNoAdmin.ok).toBe(false);
+
+    const fechaProximoPago = "2026-08-01";
+    const cambioOk = await cambiarEstadoSuscripcion(
+      fakeCeomAdmin,
+      tenantId,
+      "vencida",
+      fechaProximoPago
+    );
+    expect(cambioOk.ok).toBe(true);
+
+    const tenantActualizado = await repo.obtenerTenantPorId(tenantId);
+    expect(tenantActualizado?.estadoSuscripcion).toBe("vencida");
+    expect(tenantActualizado?.fechaProximoPago).toBe(fechaProximoPago);
+
+    // Deja el tenant activo de nuevo, sin efecto para otros tests.
+    await cambiarEstadoSuscripcion(fakeCeomAdmin, tenantId, "activa");
   });
 
   // transferirOwner al final del archivo: cambia esOwner de forma permanente,
