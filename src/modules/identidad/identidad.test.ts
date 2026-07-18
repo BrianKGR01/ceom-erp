@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
@@ -83,7 +83,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
 
   afterAll(async () => {
     await db.delete(permisosEspecialesPorUsuario).where(
-      eq(permisosEspecialesPorUsuario.usuarioId, colaboradorId)
+      inArray(permisosEspecialesPorUsuario.usuarioId, [ownerId, colaboradorId])
     );
     await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
 
@@ -260,6 +260,25 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
 
     const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
     expect(colaborador?.activo).toBe(false);
+  });
+
+  it("tieneCapacidadEspecial: el Owner tiene bypass incondicional (seccion 6.2), incluso sobre un override propio en false", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    // Sin ningun override cargado: el Owner igual pasa (antes de este fix,
+    // esto devolvia false — el bug que esta tarea cierra).
+    expect(await tieneCapacidadEspecial(owner!, "vender_sin_stock")).toBe(true);
+
+    // Incondicional de verdad: ni siquiera un override explicito del propio
+    // Owner en false lo puede reducir (seccion 6.2: "de forma permanente y
+    // no editable").
+    await db.insert(permisosEspecialesPorUsuario).values({
+      usuarioId: ownerId,
+      capacidad: "vender_sin_stock",
+      habilitado: false,
+      creadoPor: ownerId,
+    });
+    expect(await tieneCapacidadEspecial(owner!, "vender_sin_stock")).toBe(true);
   });
 
   it("tieneCapacidadEspecial: override por usuario gana sobre el override por rol (seccion 13.1)", async () => {

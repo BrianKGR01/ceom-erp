@@ -138,12 +138,16 @@
   del doc (sección 3)** — se agregó porque `stock_minimo` es un campo real
   del schema (sección 2.4) y no existía ninguna otra forma de cargarlo. No
   crea movimiento ni toca `cantidad_actual`, solo el umbral de alerta.
-- **Owner y `tieneCapacidadEspecial()`**: a diferencia de `tienePermiso()`
-  (que el Owner bypassea vía `esOwner`), `tieneCapacidadEspecial()` no tiene
-  ese bypass — ni el Owner tiene `vender_sin_stock` habilitado por defecto,
-  hay que otorgárselo explícitamente vía `permisos_especiales_por_usuario`
-  o `permisos_especiales_por_rol`, igual que a cualquier otro usuario (ver
-  `productos.test.ts`, caso "regla 4").
+- **Corregido en `identidad/actions.ts` (2026-07-18) — `tieneCapacidadEspecial()`
+  ahora SÍ bypassea al Owner**, igual que `tienePermiso()` (Modulo_01 sección
+  6.2: "todos los permisos... de forma permanente y no editable"). Antes de
+  este fix el Owner necesitaba un override explícito de `vender_sin_stock`
+  igual que cualquier otro usuario — así se verificó originalmente (ver
+  `productos.test.ts`, caso "regla 4", y la verificación en navegador
+  documentada en `docs/ui/pantallas.md`), y esos casos siguen siendo válidos
+  (ejercitan el camino real de override, el mismo que usaría un colaborador
+  no-Owner) — pero ya no hace falta otorgarle el override al Owner para que
+  funcione. Detalle completo del fix en `identidad/ANCLA.md`.
 - Los tests de integración corren contra el Supabase Cloud de desarrollo
   real (rol `postgres`, bypassea RLS), mismo criterio que los otros tres
   módulos. Dos tests (`vender_sin_stock` y transferencia) necesitan
@@ -206,3 +210,5 @@
   update de Drizzle omite columnas `undefined` del `SET` (no las vuelve
   `NULL`), así que no borra `imagen_url` en la base si se guarda después de
   quitarla. Mismo fix pendiente que en Identidad si se necesita de verdad.
+
+## Última actualización: 2026-07-18 — Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), las verificaciones previas de `vender_sin_stock` (con override explícito) siguen siendo válidas.

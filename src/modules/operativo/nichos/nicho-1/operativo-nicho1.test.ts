@@ -1,10 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { crearRolPersonalizado } from "@/modules/identidad/actions";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import {
+  permisos,
   permisosEspecialesPorUsuario,
   roles,
   sucursales,
@@ -52,6 +54,7 @@ describe.skipIf(!hasCredenciales)(
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
+    let colaboradorId: string | undefined;
     let sucursalId: string;
     let activoId: string;
     let insumoLecheId: string;
@@ -128,9 +131,10 @@ describe.skipIf(!hasCredenciales)(
     });
 
     afterAll(async () => {
+      const usuarioIds = colaboradorId ? [ownerId, colaboradorId] : [ownerId];
       await db
         .delete(permisosEspecialesPorUsuario)
-        .where(eq(permisosEspecialesPorUsuario.usuarioId, ownerId));
+        .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds));
 
       const produccionesDelTenant = await db
         .select({ id: producciones.id })
@@ -169,10 +173,17 @@ describe.skipIf(!hasCredenciales)(
 
       await db.delete(activos).where(eq(activos.tenantId, tenantId));
       await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+      await db.delete(permisos).where(
+        inArray(
+          permisos.rolId,
+          db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
+        )
+      );
       await db.delete(roles).where(eq(roles.tenantId, tenantId));
       await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
       await db.delete(tenants).where(eq(tenants.id, tenantId));
       await admin.auth.admin.deleteUser(ownerId);
+      if (colaboradorId) await admin.auth.admin.deleteUser(colaboradorId);
     });
 
     it("regla 3.4 / caso borde 4: registrarProduccion sin vinculacion se bloquea", async () => {
@@ -293,7 +304,7 @@ describe.skipIf(!hasCredenciales)(
       expect(Number(resultado.data.composicion[0].cantidadPorLote)).toBe(2);
     });
 
-    it("regla 3.5 / caso borde 2: bloquea produccion sin insumo suficiente, salvo producir_sin_stock_insumo", async () => {
+    it("regla 3.5 / caso borde 2: bloquea produccion sin insumo suficiente, salvo producir_sin_stock_insumo (y el Owner nunca se bloquea, seccion 6.2)", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const producto = await crearProducto(owner!, tenantId, {
         nombre: "Gelato Frutos Rojos — Litro",
@@ -309,8 +320,37 @@ describe.skipIf(!hasCredenciales)(
         cantidadBaseConsumidaPorUnidad: 1,
       });
 
+      // El Owner tiene bypass incondicional (identidad/actions.ts,
+      // tieneCapacidadEspecial) — nunca se bloquea, con o sin override. Esta
+      // rama prueba la regla con un colaborador NO-Owner (unico actor que
+      // puede quedar bloqueado de verdad).
+      const rolColaborador = await crearRolPersonalizado(owner!, {
+        nombre: `Produccion sin stock ${sufijo}`,
+        permisos: [{ modulo: "operativo", accion: "crear", permitido: true }],
+      });
+      if (!rolColaborador.ok) throw new Error("setup de rol fallo");
+
+      const { data: authColaborador, error: errorAuth } = await admin.auth.admin.createUser({
+        email: `operativo-colab-${sufijo}@ceom-erp.test`,
+        email_confirm: true,
+      });
+      if (errorAuth || !authColaborador.user) throw errorAuth ?? new Error("setup de auth fallo");
+      colaboradorId = authColaborador.user.id;
+
+      await identidadRepo.insertarUsuario({
+        id: colaboradorId,
+        tenantId,
+        nombreCompleto: "Colaborador produccion",
+        email: `operativo-colab-${sufijo}@ceom-erp.test`,
+        rolId: rolColaborador.data.rolId,
+        esOwner: false,
+        activo: true,
+        creadoPor: ownerId,
+      });
+      const colaborador = await identidadRepo.obtenerUsuarioConRolPorId(colaboradorId);
+
       // pide una cantidad de lotes absurda para agotar el stock de leche.
-      const bloqueada = await registrarProduccion(owner!, tenantId, {
+      const bloqueada = await registrarProduccion(colaborador!, tenantId, {
         productoId,
         sucursalId,
         activoId,
@@ -320,15 +360,28 @@ describe.skipIf(!hasCredenciales)(
       });
       expect(bloqueada.ok).toBe(false);
 
+      // El Owner, en cambio, nunca se bloquea (sin override cargado) —
+      // usa una cantidad chica para no volver a agotar el stock de leche
+      // antes de la asercion del colaborador con override, mas abajo.
+      const ownerSinStock = await registrarProduccion(owner!, tenantId, {
+        productoId,
+        sucursalId,
+        activoId,
+        fechaProduccion: "2026-02-02",
+        cantidadLotesProducidos: 1000,
+        cantidadRealObtenida: 3000,
+      });
+      expect(ownerSinStock.ok).toBe(true);
+
       await db.insert(permisosEspecialesPorUsuario).values({
-        usuarioId: ownerId,
+        usuarioId: colaboradorId,
         capacidad: "producir_sin_stock_insumo",
         habilitado: true,
         creadoPor: ownerId,
       });
-      const propietarioConCapacidad = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const colaboradorConCapacidad = await identidadRepo.obtenerUsuarioConRolPorId(colaboradorId);
 
-      const permitida = await registrarProduccion(propietarioConCapacidad!, tenantId, {
+      const permitida = await registrarProduccion(colaboradorConCapacidad!, tenantId, {
         productoId,
         sucursalId,
         activoId,

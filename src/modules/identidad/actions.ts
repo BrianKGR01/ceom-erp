@@ -263,11 +263,18 @@ export async function solicitanteGateway(): Promise<UsuarioConRol> {
   };
 }
 
-/** Resolucion: override por usuario > override por rol > false (seccion 13.1). */
+/**
+ * Resolucion: Owner (bypass, seccion 6.2: "todos los permisos... de forma
+ * permanente y no editable") > override por usuario > override por rol >
+ * false (seccion 13.1). El bypass de Owner es incondicional, igual que en
+ * tienePermiso() — nunca puede quedar reducido por un override puntual.
+ */
 export async function tieneCapacidadEspecial(
   solicitante: UsuarioConRol,
   capacidad: Capacidad
 ): Promise<boolean> {
+  if (solicitante.esOwner) return true;
+
   const overrideUsuario = await repo.obtenerCapacidadEspecialPorUsuario(
     solicitante.id,
     capacidad

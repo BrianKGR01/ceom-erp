@@ -139,13 +139,21 @@
   proyecto, `AGENTS.md` regla 5 prohíbe `DELETE` físico) rompería la
   importación igual — limitación teórica, no real dado el resto de reglas
   del proyecto.
-- **`gestionar_eventos` no tiene bypass de Owner** — igual que
-  `tieneCapacidadEspecial()` en general (ver ANCLA de Módulo 2/6), el Owner
-  necesita el override explícito en `permisos_especiales_por_usuario` o
-  `permisos_especiales_por_rol`, no lo tiene gratis. `importar_historico` sí
-  tiene bypass expreso para Owner (`solicitante.esOwner ||`), porque el doc
-  lo pide explícitamente en la sección 6.2 ("restringida al rol Owner, o a
-  un rol con la capacidad especial...").
+- **Corregido en `identidad/actions.ts` (2026-07-18) — `tieneCapacidadEspecial()`
+  ahora SÍ bypassea al Owner** (Modulo_01 sección 6.2), igual que
+  `tienePermiso()`. Antes de este fix `gestionar_eventos` no tenía bypass de
+  Owner — así se verificó originalmente en navegador (override otorgado
+  temporalmente al Owner de prueba, ver más abajo en este archivo), y esa
+  verificación sigue siendo válida (ejercitó el camino real de override).
+  Detalle completo del fix en `identidad/ANCLA.md`.
+- **`importarVentaHistorica` tiene un `!solicitante.esOwner &&` explícito
+  antes de llamar a `tieneCapacidadEspecial(solicitante, "importar_historico")`**
+  (workaround pre-fix, cuando el bypass de Owner no existía todavía dentro
+  de `tieneCapacidadEspecial()`). Ahora es redundante — `tieneCapacidadEspecial()`
+  ya resuelve `esOwner` internamente — pero sigue siendo funcionalmente
+  correcto, no se tocó en el fix de Identidad (cambio de otro módulo, fuera
+  de ese alcance). Limpiarlo es una simplificación segura si se retoma este
+  módulo, no bloqueante.
 - Los tests de integración corren contra el Supabase Cloud de desarrollo
   real (rol `postgres`, bypassea RLS), mismo criterio que los demás módulos.
   Este archivo fija `testTimeout: 20000` para todo el archivo (`vi.setConfig`)
@@ -266,3 +274,5 @@ Las 5 pantallas que quedaban pendientes del módulo Ventas + Clientes quedan `[x
 Patrimonio (Activos/Pasivos) — requiere cerrar primero un gap chico de backend
 (`listarActivos`/`listarPasivos`/fichas completas sin wrapper público en `actions.ts`), ver
 `docs/ui/pantallas.md` sección "Próxima tanda sugerida".
+
+## Última actualización: 2026-07-18 — Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), la verificación previa de `gestionar_eventos` (con override explícito) sigue siendo válida. `importarVentaHistorica` conserva un `!solicitante.esOwner &&` ahora redundante (no bloqueante).

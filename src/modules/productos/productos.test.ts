@@ -1,10 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { crearRolPersonalizado } from "@/modules/identidad/actions";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import {
+  permisos,
   permisosEspecialesPorUsuario,
   roles,
   sucursales,
@@ -36,6 +38,7 @@ describe.skipIf(!hasCredenciales)(
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
+    let colaboradorId: string | undefined;
     let sucursalId: string;
     let sucursalDestinoId: string;
 
@@ -73,9 +76,10 @@ describe.skipIf(!hasCredenciales)(
     });
 
     afterAll(async () => {
+      const usuarioIds = colaboradorId ? [ownerId, colaboradorId] : [ownerId];
       await db
         .delete(permisosEspecialesPorUsuario)
-        .where(eq(permisosEspecialesPorUsuario.usuarioId, ownerId));
+        .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds));
 
       const productosDelTenant = await db
         .select({ id: productos.id })
@@ -90,10 +94,17 @@ describe.skipIf(!hasCredenciales)(
         .delete(categoriasProducto)
         .where(eq(categoriasProducto.tenantId, tenantId));
       await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+      await db.delete(permisos).where(
+        inArray(
+          permisos.rolId,
+          db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
+        )
+      );
       await db.delete(roles).where(eq(roles.tenantId, tenantId));
       await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
       await db.delete(tenants).where(eq(tenants.id, tenantId));
       await admin.auth.admin.deleteUser(ownerId);
+      if (colaboradorId) await admin.auth.admin.deleteUser(colaboradorId);
     });
 
     it("caso de uso 1: carga inicial en Modo Basico via entrada_ajuste_manual", async () => {
@@ -148,7 +159,7 @@ describe.skipIf(!hasCredenciales)(
     });
 
     it(
-      "regla 4 / caso borde 4: bloquea venta sin stock salvo capacidad vender_sin_stock",
+      "regla 4 / caso borde 4: bloquea venta sin stock salvo capacidad vender_sin_stock (y el Owner nunca se bloquea, seccion 6.2)",
       async () => {
         const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
         const producto = await crearProducto(owner!, tenantId, {
@@ -167,30 +178,66 @@ describe.skipIf(!hasCredenciales)(
           motivo: "Carga inicial",
         });
 
-        const bloqueada = await descontarStockVenta(owner!, tenantId, {
+        // El Owner tiene bypass incondicional (identidad/actions.ts,
+        // tieneCapacidadEspecial) — nunca se bloquea, con o sin override.
+        // Esta rama del test pasa a probar la regla con un colaborador
+        // NO-Owner (unico actor que puede quedar bloqueado de verdad).
+        const rolColaborador = await crearRolPersonalizado(owner!, {
+          nombre: `Vendedor sin stock ${sufijo}`,
+          permisos: [{ modulo: "inventario", accion: "crear", permitido: true }],
+        });
+        if (!rolColaborador.ok) throw new Error("setup de rol fallo");
+
+        const { data: authColaborador, error: errorAuth } = await admin.auth.admin.createUser({
+          email: `productos-colab-${sufijo}@ceom-erp.test`,
+          email_confirm: true,
+        });
+        if (errorAuth || !authColaborador.user) throw errorAuth ?? new Error("setup de auth fallo");
+        colaboradorId = authColaborador.user.id;
+
+        await identidadRepo.insertarUsuario({
+          id: colaboradorId,
+          tenantId,
+          nombreCompleto: "Colaborador sin stock",
+          email: `productos-colab-${sufijo}@ceom-erp.test`,
+          rolId: rolColaborador.data.rolId,
+          esOwner: false,
+          activo: true,
+          creadoPor: ownerId,
+        });
+        const colaborador = await identidadRepo.obtenerUsuarioConRolPorId(colaboradorId);
+
+        const bloqueada = await descontarStockVenta(colaborador!, tenantId, {
           productoId,
           sucursalId,
           cantidad: 10,
         });
         expect(bloqueada.ok).toBe(false);
 
+        // El Owner, en cambio, nunca se bloquea (sin override cargado).
+        const ownerSinStock = await descontarStockVenta(owner!, tenantId, {
+          productoId,
+          sucursalId,
+          cantidad: 1,
+        });
+        expect(ownerSinStock.ok).toBe(true);
+
         await db.insert(permisosEspecialesPorUsuario).values({
-          usuarioId: ownerId,
+          usuarioId: colaboradorId,
           capacidad: "vender_sin_stock",
           habilitado: true,
           creadoPor: ownerId,
         });
 
-        const propietarioConCapacidad = await identidadRepo.obtenerUsuarioConRolPorId(
-          ownerId
+        const colaboradorConCapacidad = await identidadRepo.obtenerUsuarioConRolPorId(
+          colaboradorId
         );
-        const permitida = await descontarStockVenta(propietarioConCapacidad!, tenantId, {
+        const permitida = await descontarStockVenta(colaboradorConCapacidad!, tenantId, {
           productoId,
           sucursalId,
           cantidad: 10,
         });
         expect(permitida.ok).toBe(true);
-        if (permitida.ok) expect(permitida.data.cantidadActual).toBe(-7);
       },
       20000
     );

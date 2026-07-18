@@ -311,21 +311,33 @@
   cliente de sesión de Supabase (no el rol `postgres`) contra una tabla con
   `crudPolicy()` ahora sí queda protegido de verdad — antes no lo estaba.**
 
-- **Hallazgo NO corregido en esta tarea, documentado para no perderlo:
-  `tieneCapacidadEspecial()` no tiene bypass para `esOwner`.** A diferencia
-  de `tienePermiso()` (que resuelve `es_owner` en código antes de tocar la
-  matriz), `tieneCapacidadEspecial()` solo resuelve usuario→rol→false
-  (sección 13.1) — y como Owner es rol de sistema, nunca puede tener una
-  fila en `permisos_especiales_por_rol` (`otorgarCapacidadEspecialPorRol`
-  la rechaza explícitamente). Resultado real: un Owner sin un override
-  puntual por usuario **no puede** `vender_sin_stock`/`gestionar_eventos`/
-  etc. — no es el comportamiento esperado según el espíritu de la sección
-  6.2 ("todos los permisos, de forma permanente"), pero tampoco es un bug
-  introducido acá, es preexistente. No se tocó porque no fue pedido y
-  cambiar el orden de resolución de `tieneCapacidadEspecial()` afecta a
-  todos los módulos que ya la llaman (Ventas, Productos, Operativo Nicho
-  1) — es una decisión que amerita su propia confirmación explícita, no un
-  fix de paso.
+- **Bug real corregido (2026-07-18): `tieneCapacidadEspecial()` ahora
+  bypassea al Owner incondicionalmente**, primer paso de la resolución,
+  antes de override por usuario/rol (Modulo_01 sección 6.2: "todos los
+  permisos en todos los módulos, de forma permanente y no editable" — igual
+  criterio que ya tenía `tienePermiso()`). Antes de este fix, un Owner sin
+  un override puntual por usuario **no podía** `vender_sin_stock`/
+  `gestionar_eventos`/`producir_sin_stock_insumo`, porque Owner es rol de
+  sistema y nunca puede tener una fila en `permisos_especiales_por_rol`
+  (`otorgarCapacidadEspecialPorRol` la rechaza explícitamente) — el override
+  por usuario era la única vía, y nadie se lo otorgaba al Owner por
+  default. Cubierto por un test explícito en `identidad.test.ts`
+  ("el Owner tiene bypass incondicional"), que además confirma que ni
+  siquiera un override propio del Owner en `false` puede reducirlo — el
+  bypass es incondicional de verdad, no solo "el default si no hay override".
+  **Verificado que esto NO invalida las verificaciones end-to-end previas**
+  de `vender_sin_stock` (Productos), `gestionar_eventos` (Ventas),
+  `producir_sin_stock_insumo` (Operativo Nicho 1): las tres se hicieron
+  otorgando explícitamente el override a la cuenta de prueba antes de
+  probar (nunca confiando en un bypass de Owner inexistente), así que
+  ejercitaron el camino real de override — el mismo que usaría cualquier
+  colaborador no-Owner. Detalle en `productos/ANCLA.md` y `ventas/ANCLA.md`
+  (actualizados en el mismo cambio). Único cabo suelto, no bloqueante:
+  `ventas/actions.ts` → `importarVentaHistorica()` tiene un
+  `!solicitante.esOwner &&` explícito antes de llamar a
+  `tieneCapacidadEspecial()` (workaround de cuando el bypass no existía
+  ahí) — ahora redundante pero no incorrecto, no se tocó (cambio de otro
+  módulo, fuera de este commit).
 - **Storage: `tenants.logoUrl` ya está conectado de punta a punta.** El
   dropzone de Onboarding Paso 1 sube a Storage apenas se elige el archivo
   (`subirLogoAction`, `src/app/app/onboarding/actions.ts`) y persiste la URL
@@ -340,4 +352,4 @@
   verdad, hay que mandar `null` explícito (no `undefined`) y ajustar
   `actualizarTenantSchema`/`actualizarTenant` para aceptarlo.
 
-## Última actualización: 2026-07-16 — Shell de `/app` (Fase 1 UI): agregó `onboardingCompletadoEn`/`completarOnboarding` para forzar el redirect a Onboarding en el primer ingreso
+## Última actualización: 2026-07-18 — Gaps de backend cerrados para UI de Colaboradores/Roles (`listarUsuarios`/`listarRoles`/`listarPermisosPorRol`/`listarCapacidadesEspeciales`/`transferirOwner`) + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
