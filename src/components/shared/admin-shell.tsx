@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Landmark, ListChecks, LogOut, Menu, X } from "lucide-react";
+import { Building2, CreditCard, Landmark, ListChecks, LogOut, Menu, X } from "lucide-react";
 import { Icono } from "@/components/brand/icono";
 import { Logo } from "@/components/brand/logo";
 import { cerrarSesion } from "@/lib/supabase/actions";
@@ -15,11 +15,8 @@ interface ItemNav {
   icono: typeof Landmark;
 }
 
-// Shell de /admin — primera vez que esta superficie tiene sidebar real
-// (hasta ahora era una landing provisoria). Mismo lenguaje visual que
-// AppShell (design-system.md seccion 5.1), version simplificada sin modo
-// colapsado — el Panel Admin CEOM completo (Suscripciones/Configuración)
-// es roadmap ítem #11, esos nav items no se agregan todavía.
+// Shell de /admin — mismo lenguaje visual que AppShell (design-system.md
+// seccion 5.1), version simplificada sin modo colapsado.
 export function AdminShell({
   nombreCompleto,
   children,
@@ -31,6 +28,8 @@ export function AdminShell({
   const pathname = usePathname();
 
   const items: ItemNav[] = [
+    { href: "/admin/tenants", label: "Tenants", icono: Building2 },
+    { href: "/admin/planes", label: "Planes", icono: CreditCard },
     { href: "/admin/instituciones", label: "Instituciones", icono: Landmark },
     { href: "/admin/logs", label: "Logs de Acceso", icono: ListChecks },
   ];

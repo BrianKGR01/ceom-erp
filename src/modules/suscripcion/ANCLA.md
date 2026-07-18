@@ -33,8 +33,17 @@
 - [x] `crearTenant()` de Identidad ahora valida/defaultea el plan (ver
       ANCLA.md de Identidad).
 - [x] Tests de integración contra Supabase Cloud real (`suscripcion.test.ts`).
-- [ ] Panel Administrativo CEOM, Instituciones, Gateway, Código de Acceso —
-      explícitamente fuera de esta tarea, ver arriba.
+- [x] UI del catálogo de Planes construida (2026-07-18): `/admin/planes`
+      (`src/app/admin/(shell)/planes/`) — listado de cards + un solo Dialog
+      reutilizado para crear/editar (no maestro-detalle, Plan es una
+      entidad chica y plana), toggle Desactivar/Reactivar sobre el booleano
+      `activo`. `nichoId` queda fuera del formulario (uuid sin FK real,
+      nada contra qué resolverlo todavía). Nav item "Planes" agregado a
+      `admin-shell.tsx`.
+- [ ] Panel Administrativo CEOM (salud agregada), Instituciones, Gateway,
+      Código de Acceso — ya construidos en tandas posteriores (Módulo 10 y
+      11), no en este módulo. "Mi plan" (`/app`, solo lectura para el
+      Owner) sigue pendiente.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/suscripcion/schema.ts`
@@ -75,4 +84,4 @@
   arquitectura, no se corrigió en esta tarea (avisado explícitamente, no
   silencioso).
 
-## Última actualización: 2026-07-14 — versión mínima (Fase 1, ítem 2 del roadmap)
+## Última actualización: 2026-07-18 — UI del catálogo de Planes construida (`/admin/planes`)

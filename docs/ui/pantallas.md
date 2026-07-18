@@ -22,16 +22,16 @@
 
 ---
 
-## Progreso (actualizado 2026-07-17)
+## Progreso (actualizado 2026-07-18)
 
-**84 construidas · 0 parciales · 32 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**95 construidas · 0 parciales · 21 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
 | 1. Identidad | 4 | 0 | 15 | 19 |
-| 2. Suscripción | 0 | 0 | 5 | 5 |
+| 2. Suscripción | 4 | 0 | 1 | 5 |
 | **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
@@ -40,7 +40,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante)
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
 | **9. Financiero** | **3** | 0 | 0 | 3 |
 | **10. Gateway de Consentimiento** | **9** | 0 | 0 | 9 |
-| 11. Monitoreo Institucional + Panel Admin | 0 | 0 | 10 | 10 |
+| **11. Monitoreo Institucional + Panel Admin** | **10** | 0 | 0 | 10 |
 | 12. Nicho 4 | 0 | 0 | 1 | 1 |
 | **13. Simulaciones** | **5** | 0 | 0 | 5 |
 | **14. Reportes y Dashboard** | **9** | 0 | 0 | 9 |
@@ -189,18 +189,17 @@ Aprobar con subconjunto → eliminar Institución (soft delete). Detalle complet
 
 ### Próxima tanda sugerida
 
-1. **Monitoreo Institucional + Panel Admin CEOM (Módulo 11)** — depende del módulo recién cerrado;
-   separa en dos superficies: `/portal` (Mi Cartera + 4 tabs de detalle por tenant, gateados
-   individualmente vía `tieneConsentimiento()` — financiero/operativo/inventario, con la regla de
-   privacidad de nunca mezclar "no autorizado" con "sin datos") y `/admin` (listado de tenants con
-   salud agregada). ~10 pantallas. **El gap de `email`/magic link ya se cerró** (2026-07-18,
-   `src/modules/consentimiento/ANCLA.md`) — la Institución ya puede volver a entrar a `/portal`
-   después del primer canje, verificado con un click real de email. Mi Cartera puede construirse
-   directamente sobre `obtenerInstitucionActual()`.
-2. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
+**Módulo 11 (Monitoreo Institucional + Panel Admin CEOM) cerrado 2026-07-18** — ver sección 11 más
+abajo para el detalle completo. De paso se cerró también el Catálogo de Planes de Suscripción
+(Módulo 2, item de roadmap #2) ya que su backend estaba 100% listo y el shell de `/admin` recién
+creado lo necesitaba de todas formas.
+
+1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
    cualquiera de las tandas siguientes.
-3. **Suscripción (Módulo 2) e Identidad pendiente (Módulo 1)** — gestión de colaboradores/roles,
-   planes — funcionalidad de administración de cuenta, no bloquea el uso diario del producto.
+2. **"Mi plan" (Módulo 2, `/app`)** — vista de solo lectura del plan vigente para el Owner del
+   tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`). Chica.
+3. **Identidad pendiente (Módulo 1)** — gestión de colaboradores/roles — funcionalidad de
+   administración de cuenta, no bloquea el uso diario del producto.
 
 ---
 
@@ -233,15 +232,16 @@ rol cruzado, credenciales inválidas). **Actualización:** la landing de `/app` 
 provisoria — hoy es Inicio (checklist de sub-onboarding + placeholder de dashboard, ver Módulo 1 y
 Módulo 14 abajo). **Actualización 2026-07-17:** `/admin` tiene su primer shell real
 (`admin-shell.tsx`, route group `src/app/admin/(shell)/`) con Instituciones y Logs de Acceso — la
-landing en `src/app/admin/page.tsx` sigue siendo provisoria (fuera de ese route group a propósito),
-el Panel Admin CEOM completo (salud agregada de tenants) es Módulo 11. `/portal` tiene su primera
-pantalla real (`src/app/portal/`, Canjear Código de Acceso) — pública, sin `layout.tsx` de auth
-porque no hace falta sesión para esta pantalla puntual (`canjearCodigoAcceso()` no recibe
-`solicitante`, a propósito). **Actualización 2026-07-18:** `/portal` también tiene el mecanismo de
-reingreso por magic link completo (`instituciones.email`/`auth_user_id`, `obtenerInstitucionActual()`,
-`src/app/portal/auth/callback/route.ts`, decisión completa en `CEOM_Arquitectura.md` §8.3),
-verificado con un click real de email — falta únicamente el contenido real de "Mi Cartera", que es
-Módulo 11.
+landing en `src/app/admin/page.tsx` sigue siendo provisoria (fuera de ese route group a propósito).
+**Actualización 2026-07-18:** `admin-shell.tsx` ganó 2 nav items más — Tenants (salud agregada +
+Ficha de Tenant con 3 tabs auditados, Módulo 11) y Planes (catálogo completo, Módulo 2) — quedan 4
+nav items: Tenants, Planes, Instituciones, Logs de Acceso. `/portal` tiene su primera pantalla real
+(`src/app/portal/`, Canjear Código de Acceso) — pública, sin `layout.tsx` de auth porque no hace
+falta sesión para esta pantalla puntual (`canjearCodigoAcceso()` no recibe `solicitante`, a
+propósito). El mecanismo de reingreso por magic link (`instituciones.email`/`auth_user_id`,
+`obtenerInstitucionActual()`, `src/app/portal/auth/callback/route.ts`, decisión completa en
+`CEOM_Arquitectura.md` §8.3) está verificado con un click real de email, y **Mi Cartera + Ficha de
+Tenant (4 tabs) ya están construidos sobre él** (Módulo 11, 2026-07-18).
 
 ---
 
@@ -346,15 +346,12 @@ Módulo 11.
 - Rol: cualquier usuario del tenant. Acción: `obtenerPlanPorId(tenant.planId)`.
 
 ### `/admin` — Catálogo de Planes (ceom_admin)
-**Listado de Planes.** `[ ]` Acción: `listarPlanes({ soloActivos })`.
-
-**Crear Plan** `[ ]` (formulario).
-- Campos: `nombre`, `nichoId?`, `incluyeSucursales`, `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias` (default 7), `duracionEtapaSoloLecturaDias` (default 3), `modulosVeedorPermitidos` (multi-select: `financiero`/`operativo`/`inventario_operativo`), `precioMensual`, `moneda`.
-- Rol: `ceom_admin`. Acción: `crearPlan(solicitante, input)`.
-
-**Editar Plan** `[ ]` — mismo formulario precargado. Acción: `actualizarPlan(solicitante, planId, input)`.
-
-**Desactivar / Reactivar Plan** `[ ]` (modal de confirmación, no borra). Acciones: `desactivarPlan` / `reactivarPlan`.
+**Listado de Planes + Crear/Editar/Desactivar/Reactivar.** `[x]` (`/admin/planes`, sin mockup —
+lista de cards + un solo Dialog reutilizado para crear/editar, no maestro-detalle: Plan es una
+entidad chica y plana, sin sub-listados propios).
+- Campos: `nombre`, `incluyeSucursales`, `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias` (default 7), `duracionEtapaSoloLecturaDias` (default 3), `modulosVeedorPermitidos` (multi-select: `financiero`/`operativo`/`inventario_operativo`, reusa `MODULOS_VEEDOR_INFO` de Consentimiento), `precioMensual`, `moneda` (`BOB`/`USD`, mismo criterio que `monedaPrincipal` de Tenant). `nichoId` del schema queda fuera del formulario a propósito — es un `uuid` sin FK real todavía (el módulo de Nicho no existe, ya documentado en `suscripcion/ANCLA.md`), no hay nada contra qué resolverlo.
+- Desactivar/Reactivar es el toggle `activo` (sin `eliminado_en` — la baja ES ese booleano, por diseño del schema).
+- Rol: `ceom_admin`. Acciones: `listarPlanes` (pública, sin gate), `crearPlan`/`actualizarPlan`/`desactivarPlan`/`reactivarPlan` (gateadas).
 
 ---
 
@@ -849,34 +846,37 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 ## 11. Monitoreo Institucional + Panel Admin CEOM
 
 ### `/portal` (Institución, después de loguearse)
-**Mi Cartera.** `[ ]`
-- Campos: `tenantId`, `cohorte`, `fechaInicio`, `fechaFin`, `nombreNegocio`, `nichoId`, `planId`, `estadoAcceso`.
+**Mi Cartera.** `[x]` (`/portal`, con mockup)
+- Campos: `tenantId`, `cohorte` (o fecha de inicio formateada si no hay cohorte cargada), `fechaInicio`, `fechaFin`, `nombreNegocio`, `nichoId`, `planId` (resuelto a nombre vía `listarPlanes`), `estadoAcceso`. 4 cards de KPI (total/activos/solo lectura/bloqueados) derivadas en cliente, búsqueda por nombre.
+- **Corrección de scope frente al mockup de referencia:** el mockup traía un botón "+Nuevo" y sugería checklist de onboarding/actividad reciente/alertas de inactividad — ninguno de los tres existe en el backend (`listarCartera()` no los expone, y una Institución no tiene acción para dar de alta un tenant), así que no se construyeron. Si se quieren más adelante, son gaps de backend a abrir aparte.
 - No requiere módulo veedor aprobado (es metadato de la relación, no dato de negocio).
 - Acciones: `listarCartera`, `estadoTenant` (ficha básica de un tenant puntual).
 
-**Por cada tenant de la cartera — 4 tabs, cada uno gateado individualmente vía `tieneConsentimiento()`:** `[ ]` los 4
+**Por cada tenant de la cartera — 4 tabs, cada uno gateado individualmente vía `tieneConsentimiento()`:** `[x]` los 4 (`/portal/cartera/[tenantId]`, con mockup — **una sola pantalla con tabs de cliente**, no rutas separadas, mismo criterio ya usado en Simulaciones y en la Ficha de Tenant de `/admin`).
 
 1. **Tendencia de Ventas** (gateada bajo módulo veedor `"financiero"`). Campos: `{ autorizado, detalle: { ingresos } }`. Acción: `tendenciaVentas`.
 2. **Detalle Financiero** (si `financiero` aprobado). Campos: `flujoCaja`, `estadoResultados`, `costoFijoTotal`. Acción: `detalleFinanciero`.
-3. **Detalle Operativo** (si `operativo` aprobado). Campos: `producciones`, `mermaCostoTotal`. Acción: `detalleOperativo`. Pendiente documentado: `consultarCapacidadProduccionUsada` queda fuera (falta un `activoId` veedor-seguro).
+3. **Detalle Operativo** (si `operativo` aprobado). Campos: `producciones` (fecha + cantidad obtenida — sin nombre de producto, `productoId` es un uuid sin resolver a nombre en la respuesta veedor-segura), `mermaCostoTotal`. Acción: `detalleOperativo`. Pendiente documentado: `consultarCapacidadProduccionUsada` queda fuera (falta un `activoId` veedor-seguro).
 4. **Detalle de Inventario Operativo** (si `inventario_operativo` aprobado). Campos: `insumos` (catálogo + costo vigente). Acción: `detalleInventarioOperativo`. Pendiente documentado: `consultarStockInsumo` queda fuera (falta `insumoId`+`sucursalId` veedor-seguros).
+- Selector de período compartido (los 4 presets de Reportes/Dashboard, `periodo-presets.ts`) para Ventas/Financiero/Operativo — Inventario Operativo no lo usa (su acción no recibe período).
 
-**Regla de privacidad central (no es un detalle menor):** las 4 funciones devuelven siempre `{ autorizado: true, detalle } | { autorizado: false }` — nunca datos parciales. Si `autorizado=false`, la UI debe mostrar explícitamente "no autorizado" u ocultar el tab — nunca confundir "no hay datos" con "no tenés permiso para verlos".
+**Regla de privacidad central (no es un detalle menor) — implementada así:** las 4 funciones devuelven siempre `{ autorizado: true, detalle } | { autorizado: false }` — nunca datos parciales. **Decisión de UI tomada:** los 4 tabs se muestran siempre (set fijo, nunca se ocultan), pero el tab de un módulo no aprobado se ve con ícono de candado y, al abrirlo, muestra un estado "No autorizado" explícito ("Este tenant no aprobó el módulo X para tu institución todavía") — nunca una tabla vacía ni un tab oculto, para no confundir "sin permiso" con "sin datos".
 
 ### `/admin` (ceom_admin)
-**Listado de tenants con salud agregada.** `[ ]`
+**Listado de tenants con salud agregada.** `[x]` (`/admin/tenants`, sin mockup — reusa el patrón de KPIs+búsqueda de Mi Cartera)
 - Campos agregados: `totalTenants`, `porEstadoAcceso`, `porPlan`, `porNicho` (`saludAgregadaPlataforma`) + tabla fila-por-fila de `listarTenants` (Identidad) para navegar a cada ficha.
+- **Alcance real de "salud":** solo estos 4 agregados — `% onboarding completado` y `% retención` (mencionados en Módulo_11 sección 2.2 como visión del módulo) **no están implementados**, decisión ya confirmada en `panel-admin-ceom/ANCLA.md` (no hay checklist de onboarding ni definición de retención en el proyecto todavía).
 - No dispara `registrarAccesoAdminCeom` (es consulta cross-tenant, no de un tenant puntual).
 
-**Ficha de Tenant** `[ ]` — detalle completo de un tenant.
+**Ficha de Tenant** `[x]` (`/admin/tenants/[tenantId]`, sin mockup) — detalle básico (nombre, ciudad, moneda, estado de suscripción/acceso, fechas de suscripción) + tabs.
 - Acción: `consultarTenantDetalle`. Nota: esta consulta específica **no** queda logueada en `LogAccesoAdminCEOM` ("identidad" no es un valor de `moduloPermisoEnum` — pendiente documentado desde Módulo 10).
 
-**Subpantallas/tabs de la Ficha de Tenant — 3 lecturas veedor-seguras, SÍ logueadas:** `[ ]` las 3
+**Subpantallas/tabs de la Ficha de Tenant — 3 lecturas veedor-seguras, SÍ logueadas:** `[x]` las 3, mismo selector de período compartido que `/portal` (Inventario Operativo sin período).
 1. **Financiero** — `flujoCaja`, `estadoResultados`, `costoFijoTotal`. Acción: `consultarFinancieroTenant` (loguea `moduloConsultado: "financiero"`).
 2. **Operativo** — `producciones`, `mermaCostoTotal`. Acción: `consultarOperativoTenant` (loguea `"operativo"`).
 3. **Inventario Operativo** — `insumos`. Acción: `consultarInventarioOperativoTenant` (loguea también `"operativo"`, no un valor separado — `moduloPermisoEnum` de Identidad no distingue insumos de producción, solo el `moduloVeedorEnum` del Gateway lo hace; importante para no confundir al leer la pantalla de Logs de Acceso).
 
-`ceom_admin` no pasa por `tieneConsentimiento()` en ninguna de estas — su acceso está cubierto por Términos de Servicio, solo queda trazado, nunca bloqueado.
+`ceom_admin` no pasa por `tieneConsentimiento()` en ninguna de estas — su acceso está cubierto por Términos de Servicio, solo queda trazado, nunca bloqueado. Sin candado/"no autorizado" en esta superficie — a propósito, es la diferencia real entre `/portal` (consentimiento explícito) y `/admin` (ToS).
 
 ---
 
@@ -959,8 +959,8 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 ### Conteo total
 **116 pantallas/modales** trackeados en este documento (conteo fino), distribuidos en 14 módulos + Login, across 3 superficies:
 - `/app` (Owner/Colaborador): la gran mayoría — el workspace operativo diario.
-- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs.
-- `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle.
+- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (salud agregada + Ficha con 3 tabs), Planes (CRUD completo), Instituciones, Logs.**
+- `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle. **Construido completo (2026-07-18).**
 
 ### Las 5 pantallas más urgentes (flujo navegable de punta a punta) — **5 de 5 construidas ✅**
 En este orden, porque cada una depende de la anterior para tener sentido:
@@ -975,8 +975,7 @@ Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un product
 
 ### Lo que puede esperar
 - Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Nicho 4, Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
-- Todo `/admin` salvo Alta de Tenant (que sí es prerequisito real, ya que no hay signup autoservicio) — el resto (catálogo de Planes, Instituciones, Logs) puede operarse manualmente contra la base mientras no haya UI.
-- Todo `/portal` — depende de que exista al menos un tenant con Ventas/Financiero cargados para tener algo que mostrarle a una Institución, y del gap de backend del campo `email`.
+- Alta de Tenant (`/admin`) sigue siendo el único prerequisito real, ya que no hay signup autoservicio — el resto de `/admin` (Tenants, Planes, Instituciones, Logs) ya está construido (2026-07-18).
 - Exportación PDF/Excel de Reportes — explícitamente fuera de alcance, ya documentado en el propio módulo.
 
 ### Gaps de backend encontrados durante este análisis (consolidado)

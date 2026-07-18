@@ -46,8 +46,13 @@
 - [ ] `detalleFinanciero` **no incluye** `margenPorProducto` — necesita
       `productoId`, mismo motivo (no hay listado de productos
       veedor-seguro todavía).
-- [ ] No hay UI ni Portal de Entidades Veedoras — 100% `actions.ts`, sin
-      pantallas.
+- [x] UI construida (2026-07-18): `/portal` — Mi Cartera (`src/app/portal/`)
+      + Ficha de Tenant con 4 tabs (`src/app/portal/cartera/[tenantId]/`),
+      una sola pantalla con tabs de cliente. Los tabs no autorizados
+      muestran candado + mensaje explícito "No autorizado", nunca se
+      ocultan ni se ven como sección vacía — implementa directo la regla de
+      `ConAutorizacion<T>` de este archivo. Ver `docs/ui/pantallas.md`
+      sección 11 para el detalle completo de campos por pantalla.
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`):
@@ -95,4 +100,4 @@
   aprobado — no es un error, es un estado legítimo que la UI debe poder
   distinguir de una falla real.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, roadmap ítem #11, módulo 1 de 2)
+## Última actualización: 2026-07-18 — UI construida (Mi Cartera + Ficha de Tenant, `/portal`)

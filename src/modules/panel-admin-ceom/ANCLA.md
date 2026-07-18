@@ -58,7 +58,12 @@
       `moduloPermisoEnum` no distingue insumos de producción, ambos viven
       bajo el mismo permiso interno `"operativo"`. Solo `moduloVeedorEnum`
       (Gateway) hace esa distinción, es un enum aparte.
-- [ ] No hay UI — 100% `actions.ts`, sin pantallas.
+- [x] UI construida (2026-07-18): `/admin/tenants` — listado con salud
+      agregada + Ficha de Tenant (`/admin/tenants/[tenantId]`) con 3 tabs
+      auditados (Financiero/Operativo/Inventario Operativo). Nav item
+      "Tenants" agregado a `admin-shell.tsx`. Sin candado/"no autorizado" en
+      esta superficie a propósito — `ceom_admin` no pasa por
+      `tieneConsentimiento()`, ver `docs/ui/pantallas.md` sección 11.
 
 ## Cambio de contrato en Identidad
 - `listarTenants(solicitante)` — listado cross-tenant completo, gateado a
@@ -88,4 +93,4 @@
   plan_id inexistente") — no hay un usuario CEOM Admin real sembrado en
   ningún entorno todavía.
 
-## Última actualización: 2026-07-14 — implementación inicial (Fase 1, roadmap ítem #11, módulo 2 de 2)
+## Última actualización: 2026-07-18 — UI construida (Tenants con salud agregada, `/admin`)
