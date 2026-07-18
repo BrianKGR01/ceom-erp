@@ -23,7 +23,10 @@
   **`tieneConsentimiento`** (el Gateway propiamente dicho),
   `generarCodigoAcceso`/`revocarCodigoAcceso`/`canjearCodigoAcceso`,
   `registrarAccesoAdminCeom`/`listarLogsAcceso`, `listarCarteraPropia`
-  (roadmap ítem #11, ver abajo).
+  (roadmap ítem #11, ver abajo). **Identidad de Institución (magic link,
+  nueva):** `obtenerInstitucionActual`, `vincularInstitucionAutenticada`,
+  `solicitarMagicLinkInstitucion` — ver sección propia abajo y
+  `CEOM_Arquitectura.md` sección 8.3 para la decisión completa.
 
 ## Estado actual
 - [x] Schema Drizzle (`instituciones`, `cartera_institucional`,
@@ -110,6 +113,52 @@
       antes/después de cada revocación) — pedido explícito del usuario dado
       que este módulo es "el único punto de privacidad de la plataforma"
       (`CEOM_Arquitectura.md` §6.9).
+- [x] **Identidad de Institución vía magic link (Supabase Auth)** — cierra
+      el gap señalado al terminar la UI del módulo: una Institución no tenía
+      forma de volver a `/portal` después del primer canje. Decisión de
+      arquitectura completa en `CEOM_Arquitectura.md` sección 8.3 (por qué
+      `instituciones.id` NO se unifica con `auth.users.id` como sí pasa con
+      `usuarios.id`, y por qué `tienePermiso()` no se toca). Resumen de lo
+      construido:
+      - `instituciones` gana `email` y `auth_user_id` (ambas nullable,
+        índices únicos parciales) — migración `0027`, puramente aditiva.
+      - `obtenerInstitucionActual()` — análogo de `obtenerUsuarioActual()`
+        para esta identidad, resuelve por `auth_user_id`.
+      - `vincularInstitucionAutenticada(email, authUserId)` — vínculo
+        perezoso (lazy link), llamado únicamente desde el Route Handler de
+        callback.
+      - `solicitarMagicLinkInstitucion(email, emailRedirectTo)` — nunca
+        crea un `auth.users` huérfano para un email sin Institución
+        asociada; siempre devuelve éxito genérico (anti-enumeración).
+      - `src/app/portal/auth/callback/route.ts` — **primer Route Handler
+        del proyecto** (justificado: el link del correo lo visita el
+        navegador directo por GET, una Server Action no puede ser destino
+        de un email).
+      - `DatosInstitucion` gana `email?` — se captura en el alta mínima del
+        wizard de canje existente (no es un paso nuevo) y en el CRUD de
+        `/admin`.
+      - Nueva env var `NEXT_PUBLIC_SITE_URL` (`.env.example`) para
+        construir `emailRedirectTo` sin depender de headers de la request.
+      - **Verificado:** vínculo perezoso + idempotencia (3 tests nuevos en
+        `consentimiento.test.ts`, contra Supabase Cloud real), anti-
+        enumeración (confirmado que no se crea `auth.users` para un email
+        sin Institución), rutas de error del callback en navegador
+        (`?error=enlace_invalido` sin `code`, mensaje mostrado correctamente
+        en `/portal` — bug real encontrado y corregido: la página
+        redirigía con el query param pero nunca lo leía). `pnpm typecheck`/
+        `lint`/`test` completos en verde (153 tests).
+      - **⚠️ NO verificado end-to-end con un click real de email:**
+        `admin.auth.admin.generateLink()` (la única forma de generar un
+        link sin una bandeja real) devuelve formato *implicit* (tokens en
+        el fragmento `#`), mientras que `crearClienteServidor()`
+        (`@supabase/ssr`, confirmado en su código fuente instalado) fuerza
+        `flowType: "pkce"` — son dos caminos de Supabase distintos, el de
+        `generateLink()` no es representativo del que realmente dispara
+        `signInWithOtp()` en producción. No hay forma de simular el click
+        real sin acceso a una bandeja de entrada real. **Recomendado antes
+        de dar esto por completamente probado:** un ciclo real (canjear con
+        un email real → pedir reingreso → click en el correo real → cotejar
+        que `/portal` muestre el estado logueado).
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`): se agregaron
@@ -130,14 +179,17 @@
 - Tests: `src/modules/consentimiento/consentimiento.test.ts`
 - Migraciones relevantes: `drizzle/migrations/0017` (tablas + RLS),
   `0018` (agrega `aprobaciones_tenant.codigo_acceso_id`, aislada, ver
-  decisiones abajo).
+  decisiones abajo), `0027` (agrega `instituciones.email`/`auth_user_id` +
+  2 índices únicos parciales, puramente aditiva).
 - UI `/app`: `src/app/app/(shell)/consentimiento/` (route actions.ts +
   `page.tsx`/`generar-cliente.tsx` con `NavConsentimiento`/
   `MODULOS_VEEDOR_INFO` compartidos, `codigos/`, `aprobaciones/`,
   `solicitudes/`).
-- UI `/portal`: `src/app/portal/` (`page.tsx`, `canjear-cliente.tsx`,
-  `actions.ts`) — primera pantalla real de esta superficie, sin
-  `layout.tsx` de auth (pública a propósito).
+- UI `/portal`: `src/app/portal/` (`page.tsx` ahora chequea
+  `obtenerInstitucionActual()` primero, `canjear-cliente.tsx` con el
+  toggle de reingreso, `actions.ts` con
+  `solicitarMagicLinkInstitucionAction`/`cerrarSesionInstitucionAction`,
+  `auth/callback/route.ts` — primer Route Handler del proyecto).
 - UI `/admin`: `src/app/admin/(shell)/` (`layout.tsx` nuevo con
   `AdminShell`, `instituciones/`, `logs/`) — primer shell real de
   `/admin`, ver `src/components/shared/admin-shell.tsx`.
@@ -177,6 +229,19 @@
   real (rol `postgres`, bypassea RLS), mismo criterio que los demás
   módulos. `testTimeout: 20000` para todo el archivo (`vi.setConfig`),
   mismo motivo que Módulo 3/4/7.
+- **`admin.auth.admin.generateLink()` NO sirve para simular un magic link
+  real en tests/QA** — descubierto al intentar verificar el flujo
+  end-to-end sin bandeja de entrada real. Devuelve un link de formato
+  *implicit* (tokens en el fragmento `#access_token=...`, nunca llega al
+  servidor), mientras que `crearClienteServidor()` (`@supabase/ssr`) fuerza
+  `flowType: "pkce"` internamente (confirmado en
+  `node_modules/@supabase/ssr/dist/main/createServerClient.js`) — son dos
+  caminos de Supabase distintos. `exchangeCodeForSession()` en el Route
+  Handler de callback espera el formato PKCE (`?code=`), que es el que
+  realmente genera `signInWithOtp()` llamado desde `crearClienteServidor()`
+  en producción — no confundir un fallo de `generateLink()` con un bug del
+  Route Handler. Si un agente futuro necesita probar el flujo real sin
+  bandeja de entrada, no hay atajo conocido: hace falta un email real.
 
 ## Última actualización: 2026-07-14 — roadmap ítem #11 agregó `listarCarteraPropia` y cerró el caller real de `registrarAccesoAdminCeom` (acotado a panel-admin-ceom)
 
@@ -192,3 +257,13 @@
   `ceom_admin` de QA en otra pestaña del navegador pisó la cookie (mismo cookie jar) — se
   restauró la contraseña original documentada en `reference_tenant_prueba_owner` (memoria del
   agente) para volver a entrar. Password final: la de siempre, sin cambios netos.
+
+## Última actualización: 2026-07-18 — magic link de Instituciones (Supabase Auth), cierra el gap de reingreso a `/portal`
+Decisión de arquitectura completa en `CEOM_Arquitectura.md` sección 8.3 (por qué `instituciones.id`
+NO se unifica con `auth.users.id`, y por qué `tienePermiso()` no se toca). Resumen técnico y estado
+de verificación: ver el bullet nuevo en "Estado actual" arriba. La institución/usuario de Auth
+usados para probar el vínculo perezoso vía Vitest se crearon y eliminaron en el mismo ciclo, sin
+residuo. El smoke test manual en navegador del canje con email (código `XEEBPSZS`, institución
+"Incubadora Smoke Test", email `smoke-test@ceom-erp.test`) sí quedó como dato de prueba real en
+`owner@ceom.local` — no se pudo limpiar sin un cascade manual por 3 tablas (mismo criterio de
+"append-only, sin acción de borrado expuesta" ya aplicado a la tanda anterior de este módulo).

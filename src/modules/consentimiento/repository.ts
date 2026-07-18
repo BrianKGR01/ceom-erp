@@ -10,6 +10,7 @@ import {
 } from "./schema";
 
 export type NuevaInstitucion = typeof instituciones.$inferInsert;
+export type Institucion = typeof instituciones.$inferSelect;
 export type NuevaCarteraInstitucional = typeof carteraInstitucional.$inferInsert;
 export type NuevaSolicitudSeguimiento = typeof solicitudesSeguimiento.$inferInsert;
 export type NuevaAprobacionTenant = typeof aprobacionesTenant.$inferInsert;
@@ -55,6 +56,54 @@ export async function eliminarInstitucionSoft(institucionId: string) {
 
 export async function listarInstituciones() {
   return db.select().from(instituciones).where(isNull(instituciones.eliminadoEn));
+}
+
+// --- Identidad de Institucion (magic link, CEOM_Arquitectura.md 8.3) -------------------------------
+
+export async function obtenerInstitucionPorAuthUserId(authUserId: string) {
+  const filas = await db
+    .select()
+    .from(instituciones)
+    .where(and(eq(instituciones.authUserId, authUserId), isNull(instituciones.eliminadoEn)))
+    .limit(1);
+  return filas[0] ?? null;
+}
+
+/** Solo instituciones SIN auth_user_id todavia — el vinculo es de una sola
+ * vez (ver vincularAuthUserAInstitucion). */
+export async function obtenerInstitucionPorEmailSinVincular(email: string) {
+  const filas = await db
+    .select()
+    .from(instituciones)
+    .where(
+      and(
+        eq(instituciones.email, email),
+        isNull(instituciones.authUserId),
+        isNull(instituciones.eliminadoEn)
+      )
+    )
+    .limit(1);
+  return filas[0] ?? null;
+}
+
+/** Para decidir si vale la pena llamar signInWithOtp() — no filtra por
+ * auth_user_id, a diferencia de la funcion de arriba. */
+export async function obtenerInstitucionPorEmail(email: string) {
+  const filas = await db
+    .select()
+    .from(instituciones)
+    .where(and(eq(instituciones.email, email), isNull(instituciones.eliminadoEn)))
+    .limit(1);
+  return filas[0] ?? null;
+}
+
+export async function vincularAuthUserAInstitucion(institucionId: string, authUserId: string) {
+  const [institucion] = await db
+    .update(instituciones)
+    .set({ authUserId })
+    .where(eq(instituciones.id, institucionId))
+    .returning();
+  return institucion;
 }
 
 // --- Cartera Institucional ---------------------------------------------------------

@@ -3,6 +3,7 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { obtenerEstadoAccesoTenant, obtenerTenantPorId } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
 import type { moduloPermisoEnum } from "@/modules/identidad/schema";
+import { crearClienteServidor } from "@/lib/supabase/server";
 import { obtenerPlanPorId } from "@/modules/suscripcion/actions";
 import * as repo from "./repository";
 import type { tipoInstitucionEnum } from "./schema";
@@ -57,6 +58,11 @@ export interface DatosInstitucion {
   nombre: string;
   tipo: TipoInstitucion;
   contacto?: string;
+  // Habilita el magic link de reingreso a /portal (CEOM_Arquitectura.md
+  // 8.3) — opcional: una Institucion puede existir sin email todavia (alta
+  // por ceom_admin sin dato de contacto), el vinculo con Supabase Auth se
+  // completa recien en el primer login exitoso.
+  email?: string;
 }
 
 export async function crearInstitucion(
@@ -69,6 +75,7 @@ export async function crearInstitucion(
     nombre: input.nombre,
     tipo: input.tipo,
     contacto: input.contacto,
+    email: input.email,
     creadoPor: solicitante.id,
   });
   return { ok: true, data: { institucionId: institucion.id } };
@@ -128,6 +135,77 @@ export async function obtenerInstitucionPorId(
       contacto: institucion.contacto,
     },
   };
+}
+
+// --- Identidad de Institucion (magic link, CEOM_Arquitectura.md 8.3) -------------------------------
+//
+// Institucion NO es un Usuario de tenant: no tiene tenant_id, nunca pasa
+// por tienePermiso(), y su sesion de Supabase Auth es un concepto separado
+// de la de Usuario (Modulo 1). obtenerInstitucionActual() es el analogo
+// exacto de obtenerUsuarioActual() (Identidad) para esta otra identidad —
+// vive aca, no en Identidad, porque Institucion es una tabla propia de este
+// modulo. Si la sesion actual de Supabase Auth pertenece a un Usuario en
+// vez de una Institucion, esta funcion devuelve null (no hay fila en
+// instituciones con ese auth_user_id) — no hace falta ningun chequeo
+// especial para evitar que una Institucion se cuele como Usuario de un
+// tenant: obtenerUsuarioActual() ya devuelve null por el mismo motivo en el
+// sentido inverso (nunca hay fila en `usuarios` con id = auth.uid() de una
+// Institucion), y cada layout protegido de /app y /admin ya redirige a
+// /login cuando eso pasa.
+
+/**
+ * Sin gate: establecer "quien esta pidiendo esto" es siempre el primer
+ * paso, antes de poder gatear nada (mismo criterio que obtenerUsuarioActual()).
+ */
+export async function obtenerInstitucionActual(): Promise<repo.Institucion | null> {
+  const supabase = await crearClienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  return repo.obtenerInstitucionPorAuthUserId(user.id);
+}
+
+/**
+ * Vinculo perezoso (lazy link) — se llama desde el Route Handler de
+ * callback del magic link (/portal/auth/callback), nunca antes. Busca una
+ * Institucion con ese email que TODAVIA no tenga auth_user_id (una
+ * Institucion solo se vincula una vez) y completa el vinculo. Devuelve
+ * `null` si no hay ninguna fila que vincular (email desconocido, o ya
+ * vinculada a otro auth_user_id — caso borde raro, tratado como error por
+ * el caller).
+ */
+export async function vincularInstitucionAutenticada(
+  email: string,
+  authUserId: string
+): Promise<repo.Institucion | null> {
+  const existente = await repo.obtenerInstitucionPorAuthUserId(authUserId);
+  if (existente) return existente;
+
+  const institucion = await repo.obtenerInstitucionPorEmailSinVincular(email);
+  if (!institucion) return null;
+  return repo.vincularAuthUserAInstitucion(institucion.id, authUserId);
+}
+
+/**
+ * Sin `solicitante`, a proposito (mismo criterio que canjearCodigoAcceso()):
+ * lo llama la Institucion desde /portal, que no tiene cuenta CEOM. Nunca
+ * crea un usuario de Supabase Auth para un email sin Institucion asociada
+ * — evita auth.users huerfanos y de paso evita filtrar (via el efecto
+ * secundario de "se envio o no se envio el correo") que direcciones estan
+ * registradas. El caller siempre debe mostrar el mismo mensaje generico sin
+ * importar el resultado real.
+ */
+export async function solicitarMagicLinkInstitucion(
+  email: string,
+  emailRedirectTo: string
+): Promise<Resultado<true>> {
+  const institucion = await repo.obtenerInstitucionPorEmail(email);
+  if (!institucion) return { ok: true, data: true };
+
+  const supabase = await crearClienteServidor();
+  await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo } });
+  return { ok: true, data: true };
 }
 
 // --- Cartera Institucional (gate ROL_CEOM_ADMIN_ID) ---------------------------------------------------------
@@ -391,6 +469,7 @@ export async function canjearCodigoAcceso(input: {
       nombre: input.institucionNueva.nombre,
       tipo: input.institucionNueva.tipo,
       contacto: input.institucionNueva.contacto,
+      email: input.institucionNueva.email,
       creadoPor: null,
     });
     institucionId = institucion.id;

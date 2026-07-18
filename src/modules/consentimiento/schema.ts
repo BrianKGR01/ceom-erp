@@ -13,7 +13,7 @@ import { authenticatedRole } from "drizzle-orm/supabase";
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
 import { crudPolicy } from "../../db/rls";
-import { moduloPermisoEnum, tenants, usuarios } from "../identidad/schema";
+import { authUsers, moduloPermisoEnum, tenants, usuarios } from "../identidad/schema";
 // Reutiliza el enum ya existente de Suscripcion (financiero/operativo/
 // inventario_operativo) en vez de crear un catalogo nuevo de "funciones
 // expuestas" — decision del plan: es el modelo de datos concreto que
@@ -50,6 +50,16 @@ export const instituciones = pgTable(
     nombre: text("nombre").notNull(),
     tipo: tipoInstitucionEnum("tipo").notNull(),
     contacto: text("contacto"),
+    // Identidad de Supabase Auth de la propia Institucion (magic link,
+    // CEOM_Arquitectura.md seccion 8.3) — deliberadamente NO es el mismo id
+    // que la PK de esta tabla (a diferencia de usuarios.id, que si coincide
+    // con auth.users.id): una Institucion puede existir mucho antes de tener
+    // identidad de Auth (alta por ceom_admin sin email, o canje sin
+    // completar nunca el magic link). Nullable hasta el primer login
+    // exitoso, que la vincula de forma perezosa (ver
+    // vincularAuthUserAInstitucion en repository.ts).
+    email: text("email"),
+    authUserId: uuid("auth_user_id").references(() => authUsers.id),
     // Nullable: una Institucion tambien puede crearse en el acto al
     // canjear un Codigo de Acceso (seccion 3.4), sin que haya un
     // ceom_admin dandola de alta.
@@ -57,12 +67,20 @@ export const instituciones = pgTable(
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
-  () => [
+  (table) => [
     pgPolicy("instituciones_select_authenticated", {
       for: "select",
       to: authenticatedRole,
       using: sql`true`,
     }),
+    // Parciales (WHERE ... IS NOT NULL): filas antiguas o recien creadas sin
+    // email/auth_user_id todavia no compiten por unicidad entre si.
+    uniqueIndex("instituciones_email_unique")
+      .on(table.email)
+      .where(sql`${table.email} is not null`),
+    uniqueIndex("instituciones_auth_user_id_unique")
+      .on(table.authUserId)
+      .where(sql`${table.authUserId} is not null`),
   ]
 ).enableRLS();
 

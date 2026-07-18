@@ -253,6 +253,60 @@ Las versiones anteriores dejaban una lista de preguntas abiertas. Al revisarlas 
 - **En nichos sin ese ciclo `pedido`/`recibido`** (Nicho 1, Modo Básico), `Compra` nace directamente en `recibido` (el default) — mismo modelo de datos, sin un paso de aprobación extra, coherente con "cero fricción, primero".
 - Esta jerarquía es la que se implementó en el Módulo 8 (Proveedores) extendido por el roadmap ítem #12 — ver `src/modules/proveedores/ANCLA.md` y `src/modules/operativo/nichos/nicho-4/ANCLA.md`.
 
+### 8.3 Identidad de Institución — por qué NO es un Usuario de tenant (decisión de arquitectura, no solo de UI)
+
+**Contexto:** `/portal` (Módulo 10, Gateway de Consentimiento) necesitaba una forma de que una
+Institución vuelva a entrar después del primer canje de Código de Acceso, sin repetir el código
+cada vez. Modulo_01 sección 10 ya fija el criterio técnico único de autenticación del proyecto
+("delegada a Supabase Auth, no se construye un sistema propio, `Usuario.id` coincide con el `id`
+de Supabase Auth") — la pregunta de diseño real era **cómo aplicar ese mismo criterio a una
+identidad que no es un Usuario de ningún tenant**, sin forzarla a encajar en el modelo de Usuario.
+
+**Decisión: Institución tiene su propio mecanismo de sesión, deliberadamente separado del de
+Usuario — no una variante ni una extensión de `tienePermiso()`/`obtenerUsuarioActual()`.**
+
+- **`instituciones.id` sigue siendo su propio PK, independiente de Supabase Auth.** A diferencia
+  de Usuario (donde la fila en `usuarios` nunca existe sin que exista antes su identidad en
+  Supabase Auth), una Institución puede existir mucho antes de tener una identidad de Auth — alta
+  manual por `ceom_admin` sin email, o auto-alta al canjear un código sin completar nunca el magic
+  link. Se agregan dos columnas nullable en su lugar: `email` y `auth_user_id` (FK a
+  `auth.users.id`, único), vinculadas **de forma perezosa**: recién en el primer magic link
+  exitoso, el sistema busca una Institución con ese email sin `auth_user_id` todavía, y completa
+  el vínculo ahí. Forzar `id = auth.users.id` habría exigido reescribir un PK ya referenciado por
+  FK desde 4 tablas (`cartera_institucional`, `solicitudes_seguimiento`, `aprobaciones_tenant`,
+  `codigos_acceso.institucionId`) en el momento del vínculo — costo real sin beneficio.
+- **`tienePermiso()` no reconoce Institución, y no debe hacerlo.** Sigue siendo exclusivo de
+  `UsuarioConRol` (un Usuario de un tenant específico). El Gateway de Consentimiento ya tiene su
+  propia función de autorización, deliberadamente separada: `tieneConsentimiento(institucionId,
+  tenantId, moduloVeedor)` (sección 5.2/8.1), que nunca recibe `solicitante: UsuarioConRol` — fue
+  diseñada desde el Módulo 10 para ser llamada por una parte externa sin cuenta CEOM. Institución
+  no necesita "colarse" en el motor de Usuario; ya tiene el suyo.
+- **El "reconocimiento" de una Institución autenticada es `obtenerInstitucionActual()`**
+  (`src/modules/consentimiento/actions.ts`) — el análogo exacto de `obtenerUsuarioActual()`
+  (Identidad), pero resolviendo contra `instituciones.auth_user_id` en vez de `usuarios.id`. Vive
+  en Consentimiento, no en Identidad, porque Institución es una tabla propia de ese módulo (regla
+  de caja negra, sección 5.4).
+- **El aislamiento entre las dos identidades ya existe por construcción, verificado explícitamente
+  (no solo asumido):** si una sesión de Institución llega a golpear `/app` o `/admin`,
+  `obtenerUsuarioActual()` busca en `usuarios` por `id = auth.uid()` y no encuentra nada (una
+  Institución nunca tiene fila ahí) — devuelve `null`, y cada `layout.tsx` protegido ya redirige a
+  `/login`. Y viceversa: `obtenerInstitucionActual()` nunca resuelve una sesión de Usuario, porque
+  busca por `auth_user_id` en `instituciones`, tabla donde un Usuario tampoco tiene fila. No hizo
+  falta ningún cambio de código para lograr este aislamiento — la propiedad ya se sostenía sola por
+  cómo están modeladas las dos tablas; queda documentada acá para que un agente futuro no tenga que
+  re-descubrirla leyendo código.
+- **RLS no participa de este mecanismo.** Toda lectura/escritura de negocio del proyecto pasa por
+  el rol `postgres` vía Drizzle (sección 6.2), nunca por el rol `authenticated` de Supabase — la
+  sesión de Institución solo se usa para leer `auth.getUser()`/`exchangeCodeForSession()`, nunca
+  para consultar tablas de negocio directamente.
+- **Anti-enumeración deliberada:** pedir un magic link para un email sin Institución asociada
+  nunca crea un usuario de Supabase Auth ni revela si el email existe — el mensaje al usuario final
+  es siempre el mismo, sin importar el resultado real (mismo criterio de no filtrar información por
+  un canal lateral que ya sigue el resto del proyecto en sus mensajes de error).
+
+Detalle de implementación completo (columnas, migración, Route Handler del callback, tests):
+`src/modules/consentimiento/ANCLA.md`.
+
 ---
 
 ## 9. Estado de este documento

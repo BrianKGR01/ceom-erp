@@ -26,6 +26,7 @@ export default async function InstitucionesPage() {
           nombre: i.nombre,
           tipo: i.tipo,
           contacto: i.contacto,
+          email: i.email,
         }))}
         tenants={tenants.map((t) => ({
           id: t.id,

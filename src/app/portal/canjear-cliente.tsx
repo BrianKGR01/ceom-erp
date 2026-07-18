@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, KeyRound, Lock } from "lucide-react";
+import { CheckCircle2, KeyRound, Lock, Mail } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { canjearCodigoAccesoAction } from "./actions";
+import { canjearCodigoAccesoAction, solicitarMagicLinkInstitucionAction } from "./actions";
 
 const TIPOS_INSTITUCION: { value: "universidad" | "incubadora" | "organizacion"; label: string }[] = [
   { value: "universidad", label: "Universidad" },
@@ -21,12 +21,16 @@ const TIPOS_INSTITUCION: { value: "universidad" | "incubadora" | "organizacion";
   { value: "organizacion", label: "Organización" },
 ];
 
+type Paso = "codigo" | "reingreso" | "reingreso_enviado" | "institucion" | "listo";
+
 export function CanjearCliente() {
-  const [paso, setPaso] = useState<"codigo" | "institucion" | "listo">("codigo");
+  const [paso, setPaso] = useState<Paso>("codigo");
   const [codigo, setCodigo] = useState("");
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState<"universidad" | "incubadora" | "organizacion">("organizacion");
   const [contacto, setContacto] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailReingreso, setEmailReingreso] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,11 +48,20 @@ export function CanjearCliente() {
       setError("Ponele un nombre a tu institución.");
       return;
     }
+    if (!email.trim()) {
+      setError("Ingresá tu email — es lo que te va a permitir volver a entrar más adelante.");
+      return;
+    }
     setEnviando(true);
     setError(null);
     const resultado = await canjearCodigoAccesoAction({
       codigo: codigo.trim(),
-      institucionNueva: { nombre: nombre.trim(), tipo, contacto: contacto.trim() || undefined },
+      institucionNueva: {
+        nombre: nombre.trim(),
+        tipo,
+        contacto: contacto.trim() || undefined,
+        email: email.trim(),
+      },
     });
     setEnviando(false);
     if (!resultado.ok) {
@@ -56,6 +69,18 @@ export function CanjearCliente() {
       return;
     }
     setPaso("listo");
+  }
+
+  async function enviarMagicLink() {
+    if (!emailReingreso.trim()) {
+      setError("Ingresá tu email.");
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    await solicitarMagicLinkInstitucionAction(emailReingreso.trim());
+    setEnviando(false);
+    setPaso("reingreso_enviado");
   }
 
   if (paso === "listo") {
@@ -67,9 +92,27 @@ export function CanjearCliente() {
         <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Acceso otorgado</h1>
         <p className="mt-2 text-sm text-text-muted">
           Ya podés hacer seguimiento de este negocio. El panel donde vas a ver los datos
-          compartidos está por construirse — mientras tanto, guardá este código, te va a servir
-          para volver a entrar.
+          compartidos está por construirse — mientras tanto, guardá tu email: la próxima vez podés
+          volver a entrar desde &ldquo;¿Ya tenés acceso?&rdquo; sin el código.
         </p>
+      </div>
+    );
+  }
+
+  if (paso === "reingreso_enviado") {
+    return (
+      <div className="w-full max-w-sm rounded-2xl bg-card p-8 text-center shadow-card">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+          <Mail className="size-7" />
+        </span>
+        <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Revisá tu correo</h1>
+        <p className="mt-2 text-sm text-text-muted">
+          Si existe una cuenta con ese email, te enviamos un enlace para entrar. Puede tardar
+          unos minutos en llegar.
+        </p>
+        <Button variant="outline" onClick={() => setPaso("codigo")} className="mt-6 w-full justify-center">
+          Volver
+        </Button>
       </div>
     );
   }
@@ -117,10 +160,72 @@ export function CanjearCliente() {
             Ingresar
           </Button>
 
-          <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-text-muted">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setPaso("reingreso");
+            }}
+            className="mt-4 w-full text-center text-xs font-medium text-primary hover:underline"
+          >
+            ¿Ya tenés acceso? Iniciá con tu email
+          </button>
+
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-text-muted">
             <Lock className="size-3.5 text-success-text" />
             Acceso seguro y encriptado.
           </p>
+        </>
+      ) : paso === "reingreso" ? (
+        <>
+          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+            <Mail className="size-5" />
+          </span>
+          <h1 className="mt-3 text-center font-heading text-lg font-semibold text-navy">
+            Iniciar con tu email
+          </h1>
+          <p className="mt-1 text-center text-sm text-text-muted">
+            Te enviamos un enlace de acceso único a tu correo — sin contraseña.
+          </p>
+
+          <div className="mt-6 space-y-1.5">
+            <Label
+              htmlFor="email-reingreso"
+              className="text-[11px] font-normal tracking-wide text-text-muted uppercase"
+            >
+              Email
+            </Label>
+            <Input
+              id="email-reingreso"
+              type="email"
+              value={emailReingreso}
+              onChange={(e) => setEmailReingreso(e.target.value)}
+              placeholder="tu@correo.com"
+              onKeyDown={(e) => e.key === "Enter" && enviarMagicLink()}
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <p role="alert" className="mt-2 text-xs text-error-text">
+              {error}
+            </p>
+          )}
+
+          <Button onClick={enviarMagicLink} disabled={enviando} className="mt-4 w-full justify-center">
+            {enviando ? "Enviando..." : "Enviar enlace"}
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setPaso("codigo");
+            }}
+            className="mt-4 w-full text-center text-xs font-medium text-primary hover:underline"
+          >
+            Volver a ingresar código
+          </button>
         </>
       ) : (
         <>
@@ -163,12 +268,25 @@ export function CanjearCliente() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="contacto">Contacto (opcional)</Label>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@correo.com"
+              />
+              <p className="text-[11px] text-text-muted">
+                Lo vas a usar para volver a entrar más adelante, sin el código.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contacto">Otro contacto (opcional)</Label>
               <Input
                 id="contacto"
                 value={contacto}
                 onChange={(e) => setContacto(e.target.value)}
-                placeholder="Email o teléfono"
+                placeholder="Teléfono, por ejemplo"
               />
             </div>
           </div>

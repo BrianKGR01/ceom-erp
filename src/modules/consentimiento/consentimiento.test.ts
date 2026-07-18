@@ -16,7 +16,9 @@ import {
   listarInstituciones,
   revocarCodigoAcceso,
   revocarConsentimiento,
+  solicitarMagicLinkInstitucion,
   tieneConsentimiento,
+  vincularInstitucionAutenticada,
 } from "./actions";
 import {
   aprobacionesTenant,
@@ -148,6 +150,72 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     expect(permitido.ok).toBe(true);
     if (!permitido.ok) return;
     expect(permitido.data.some((i) => i.id === institucionId)).toBe(true);
+  });
+
+  it(
+    "magic link: vincula perezosamente una Institucion sin auth_user_id, por email, y es idempotente",
+    async () => {
+      const email = `institucion-magic-${sufijo}@ceom-erp.test`;
+      const institucionMagic = await crearInstitucion(
+        { rolId: ROL_CEOM_ADMIN_ID },
+        { nombre: `Institucion Magic Link ${sufijo}`, tipo: "organizacion", email }
+      );
+      if (!institucionMagic.ok) throw new Error("setup fallo: crearInstitucion con email");
+
+      // Usuario real de Supabase Auth (mismo email) — simula lo que
+      // exchangeCodeForSession() devolvería tras clickear el link.
+      const { data: authData, error: authError } = await admin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+      });
+      if (authError || !authData.user) throw authError ?? new Error("setup fallo: createUser");
+
+      const vinculada = await vincularInstitucionAutenticada(email, authData.user.id);
+      expect(vinculada?.id).toBe(institucionMagic.data.institucionId);
+      expect(vinculada?.authUserId).toBe(authData.user.id);
+
+      // Idempotente: una segunda llamada con la misma auth_user_id no
+      // falla ni intenta re-vincular — devuelve la misma Institucion.
+      const vinculadaDeNuevo = await vincularInstitucionAutenticada(email, authData.user.id);
+      expect(vinculadaDeNuevo?.id).toBe(institucionMagic.data.institucionId);
+
+      await db
+        .delete(instituciones)
+        .where(eq(instituciones.id, institucionMagic.data.institucionId));
+      await admin.auth.admin.deleteUser(authData.user.id);
+    },
+    20000
+  );
+
+  it("magic link: no vincula nada si el email no tiene ninguna Institucion asociada", async () => {
+    const { data: authData, error: authError } = await admin.auth.admin.createUser({
+      email: `sin-institucion-${sufijo}@ceom-erp.test`,
+      email_confirm: true,
+    });
+    if (authError || !authData.user) throw authError ?? new Error("setup fallo: createUser");
+
+    const resultado = await vincularInstitucionAutenticada(
+      `email-que-no-existe-${sufijo}@ceom-erp.test`,
+      authData.user.id
+    );
+    expect(resultado).toBeNull();
+
+    await admin.auth.admin.deleteUser(authData.user.id);
+  });
+
+  it("solicitarMagicLinkInstitucion NO crea un usuario de Supabase Auth para un email sin Institucion (anti-enumeracion)", async () => {
+    const emailDesconocido = `nunca-registrado-${sufijo}@ceom-erp.test`;
+
+    const resultado = await solicitarMagicLinkInstitucion(
+      emailDesconocido,
+      "http://localhost:3000/portal/auth/callback"
+    );
+    // Siempre "ok" — el mensaje al usuario final es el mismo sin importar
+    // si el email existe o no (ver comentario en actions.ts).
+    expect(resultado.ok).toBe(true);
+
+    const { data } = await admin.auth.admin.listUsers();
+    expect(data.users.some((u) => u.email === emailDesconocido)).toBe(false);
   });
 
   it("caso borde 3: revocarConsentimiento deniega de inmediato la siguiente consulta", async () => {

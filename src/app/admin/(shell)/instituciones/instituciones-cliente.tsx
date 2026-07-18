@@ -54,6 +54,7 @@ interface Institucion {
   nombre: string;
   tipo: TipoInstitucion;
   contacto: string | null;
+  email: string | null;
 }
 
 interface Tenant {
@@ -453,6 +454,7 @@ function DatosContactoTab({
   const [nombre, setNombre] = useState(institucion.nombre);
   const [tipo, setTipo] = useState<TipoInstitucion>(institucion.tipo);
   const [contacto, setContacto] = useState(institucion.contacto ?? "");
+  const [email, setEmail] = useState(institucion.email ?? "");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
@@ -469,13 +471,20 @@ function DatosContactoTab({
       nombre: nombre.trim(),
       tipo,
       contacto: contacto.trim() || undefined,
+      email: email.trim() || undefined,
     });
     setGuardando(false);
     if (!resultado.ok) {
       setError(resultado.error);
       return;
     }
-    onActualizada({ id: institucion.id, nombre: nombre.trim(), tipo, contacto: contacto.trim() || null });
+    onActualizada({
+      id: institucion.id,
+      nombre: nombre.trim(),
+      tipo,
+      contacto: contacto.trim() || null,
+      email: email.trim() || null,
+    });
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
   }
@@ -506,8 +515,18 @@ function DatosContactoTab({
         </Select>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="contacto-contacto">Contacto (opcional)</Label>
-        <Input id="contacto-contacto" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Email o teléfono" />
+        <Label htmlFor="email-contacto">Email</Label>
+        <Input
+          id="email-contacto"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Habilita el magic link de reingreso a /portal"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="contacto-contacto">Otro contacto (opcional)</Label>
+        <Input id="contacto-contacto" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Teléfono, por ejemplo" />
       </div>
       {error && <p className="text-xs text-error-text">{error}</p>}
       {guardado && <p className="text-xs text-success-text">Guardado.</p>}
@@ -531,6 +550,7 @@ function InstitucionFormDialog({
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState<TipoInstitucion>("organizacion");
   const [contacto, setContacto] = useState("");
+  const [email, setEmail] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -545,15 +565,23 @@ function InstitucionFormDialog({
       nombre: nombre.trim(),
       tipo,
       contacto: contacto.trim() || undefined,
+      email: email.trim() || undefined,
     });
     setGuardando(false);
     if (!resultado.ok) {
       setError(resultado.error);
       return;
     }
-    onGuardada({ id: resultado.data.institucionId, nombre: nombre.trim(), tipo, contacto: contacto.trim() || null });
+    onGuardada({
+      id: resultado.data.institucionId,
+      nombre: nombre.trim(),
+      tipo,
+      contacto: contacto.trim() || null,
+      email: email.trim() || null,
+    });
     setNombre("");
     setContacto("");
+    setEmail("");
     setTipo("organizacion");
   }
 
@@ -589,8 +617,18 @@ function InstitucionFormDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contacto-nueva">Contacto (opcional)</Label>
-            <Input id="contacto-nueva" value={contacto} onChange={(e) => setContacto(e.target.value)} />
+            <Label htmlFor="email-nueva">Email (opcional)</Label>
+            <Input
+              id="email-nueva"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Habilita el magic link de reingreso a /portal"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="contacto-nueva">Otro contacto (opcional)</Label>
+            <Input id="contacto-nueva" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Teléfono, por ejemplo" />
           </div>
           {error && <p className="text-xs text-error-text">{error}</p>}
         </div>

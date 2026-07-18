@@ -27,6 +27,9 @@ export const institucionFormSchema = z.object({
   nombre: z.string().trim().min(1, "Ponele un nombre a la institución."),
   tipo: z.enum(TIPOS_INSTITUCION),
   contacto: z.string().trim().optional(),
+  // Habilita el magic link de reingreso a /portal — opcional (ver
+  // CEOM_Arquitectura.md 8.3, consentimiento/ANCLA.md).
+  email: z.string().trim().email("Ingresá un email válido.").optional(),
 });
 export type InstitucionFormInput = z.infer<typeof institucionFormSchema>;
 
@@ -34,6 +37,11 @@ export const canjearCodigoFormSchema = z.object({
   codigo: z.string().trim().min(1, "Ingresá el código de acceso."),
 });
 export type CanjearCodigoFormInput = z.infer<typeof canjearCodigoFormSchema>;
+
+export const solicitarMagicLinkSchema = z.object({
+  email: z.string().trim().email("Ingresá un email válido."),
+});
+export type SolicitarMagicLinkInput = z.infer<typeof solicitarMagicLinkSchema>;
 
 export const carteraFormSchema = z.object({
   tenantId: z.string().min(1, "Elegí un tenant."),
