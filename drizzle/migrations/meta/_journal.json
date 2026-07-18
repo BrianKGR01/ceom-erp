@@ -1,0 +1,202 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784012963713,
+      "tag": "0000_cool_mongoose",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784013084645,
+      "tag": "0001_colossal_echo",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784016167161,
+      "tag": "0002_concerned_colleen_wing",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784016246732,
+      "tag": "0003_current_tenant_id_function",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784016396809,
+      "tag": "0004_amused_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784016439146,
+      "tag": "0005_seed_ceom_ops_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784023146717,
+      "tag": "0006_happy_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784023212945,
+      "tag": "0007_seed_plan_basico",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784024159188,
+      "tag": "0008_uneven_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784037408856,
+      "tag": "0009_careful_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784038492370,
+      "tag": "0010_young_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784038601916,
+      "tag": "0011_free_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784040358797,
+      "tag": "0012_petite_ken_ellis",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784042371764,
+      "tag": "0013_organic_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784043960225,
+      "tag": "0014_remarkable_robbie_robertson",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1784057022417,
+      "tag": "0015_daily_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1784058247071,
+      "tag": "0016_modern_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784061455031,
+      "tag": "0017_curved_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784061883934,
+      "tag": "0018_premium_thor_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784110279262,
+      "tag": "0019_proveedores_nicho4_landed_cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784110316577,
+      "tag": "0020_proveedores_drop_item_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784118868026,
+      "tag": "0021_simulaciones",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784145356627,
+      "tag": "0022_public_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784202816854,
+      "tag": "0023_high_marvex",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784245901310,
+      "tag": "0024_storage_tenant_uploads_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784247344980,
+      "tag": "0025_fix_current_tenant_id_security_definer",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784272885807,
+      "tag": "0026_activos_motivo_baja",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784331396164,
+      "tag": "0027_nappy_squirrel_girl",
+      "breakpoints": true
+    }
+  ]
+}

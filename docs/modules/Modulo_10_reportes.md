@@ -15,31 +15,38 @@ Esto es consistente con cómo terminaron Financiero (Módulo 7) y Simulaciones (
 | Vista | Origen del dato | ¿Existe ya la función, o hace falta agregarla? |
 |---|---|---|
 | Resumen del período (ventas, gasto, margen) | Ventas + Financiero | Existe (`estado_resultados()`, agregados simples) |
-| Ranking histórico de rotación y margen por producto, filtro por canal | Ventas | **Falta agregar** `ranking_productos(periodo, canal_venta_id?, criterio: rotacion\|margen)` — adenda al Módulo 3 |
+| Ranking histórico de rotación y margen por producto, filtro por canal | Ventas | ✅ Cerrada: `rankingProductos(solicitante, tenantId, periodo, {canalVentaId?, criterio})` — `src/modules/ventas/actions.ts`, re-expuesta en `src/modules/reportes/actions.ts` (calcula `margenPct` ahí, ver sección 2.1) |
 | Distribución de gastos por categoría | Costos y Gastos | Ya existe: `consultar_distribucion_por_categoria(periodo)` (Módulo 4) |
-| Histórico de ventas diferenciado (regulares vs. eventos) | Ventas | **Falta agregar** `historico_ventas(periodo, incluir_eventos: boolean)`, filtrando por `evento_id` — adenda al Módulo 3 |
+| Histórico de ventas diferenciado (regulares vs. eventos) | Ventas | ✅ Cerrada: `historicoVentas(solicitante, tenantId, periodo, {incluirEventos})` — `src/modules/ventas/actions.ts`, filtra por `eventoId` |
 | Estado de Resultados simplificado | Financiero | Ya existe: `estado_resultados(periodo)` (Módulo 7) |
 | Flujo de Caja del período | Financiero | Ya existe: `flujo_caja(periodo)` (Módulo 7) |
-| Cruce canal × producto × margen | Ventas | **Falta agregar** `margen_por_canal_y_producto(periodo)` — adenda al Módulo 3 |
-| Control de merma por período (costo de merma en Bs) | Módulo Operativo (Producción) | **Falta agregar** `consultar_merma_periodo(periodo)` — adenda al Módulo 6 |
+| Cruce canal × producto × margen | Ventas | ✅ Cerrada: `margenPorCanalYProducto(solicitante, tenantId, periodo)` — `src/modules/ventas/actions.ts` |
+| Control de merma por período (costo de merma en Bs) | Módulo Operativo (Producción) | ✅ Cerrada: `consultarMermaPeriodo(solicitante, tenantId, periodo)` — `src/modules/operativo/nichos/nicho-1/actions.ts`, re-expuesta como `controlMerma` en Reportes |
 
-**Tres adendas necesarias**, todas del mismo tipo: funciones de consulta agregada sobre datos que el módulo ya tiene, sin tablas nuevas ni cambios de modelo.
+**Las cuatro adendas están cerradas** (roadmap ítem #14 + revisión 2026-07-17) — funciones de
+consulta agregada sobre datos que cada módulo ya tenía, sin tablas nuevas ni cambios de modelo.
+Cubiertas por tests de integración en `ventas.test.ts`, `operativo-nicho1.test.ts` y
+`reportes.test.ts`. Detalle de las decisiones de diseño (por qué `margenPct` se calcula en
+Reportes y no en Ventas, evitando un ciclo de imports con Financiero): `src/modules/reportes/
+ANCLA.md`, sección "Decisiones".
 
 ---
 
 ## 2. Adendas concretas a módulos ya cerrados
 
-### 2.1 Adenda al Módulo 3 (Ventas)
+### 2.1 Adenda al Módulo 3 (Ventas) — ✅ cerrada
 
-Se agregan tres funciones de solo lectura, sin tablas nuevas — todas agregan sobre `Detalle de Venta` (que ya tiene `producto_id`, `canal_venta_id`, `evento_id`, `precio_venta_snapshot`, `costo_unitario_snapshot`):
+Tres funciones de solo lectura, sin tablas nuevas — todas agregan sobre `Detalle de Venta` (que ya
+tenía `producto_id`, `canal_venta_id`, `evento_id`, `precio_venta_snapshot`,
+`costo_unitario_snapshot`), en `src/modules/ventas/actions.ts` + `repository.ts`:
 
-- `ranking_productos(periodo, canal_venta_id?, criterio)` → lista de productos ordenada por unidades vendidas o por margen real, según `criterio`.
+- `ranking_productos(periodo, canal_venta_id?, criterio)` → lista de productos ordenada por unidades vendidas o por margen real, según `criterio`. Devuelve `ingresos`/`costos` crudos (no `margenPct`) — Ventas no puede importar `calcularMargenPorcentaje()` de Financiero sin crear un ciclo de imports (Financiero ya importa Ventas); Reportes, que importa ambos, calcula el `margenPct` final.
 - `historico_ventas(periodo, incluir_eventos)` → serie de ventas del período, separando las que tienen `evento_id` no nulo de las que no, para no distorsionar el histórico regular con volúmenes de feria (regla ya fijada en el Módulo 3).
-- `margen_por_canal_y_producto(periodo)` → tabla cruzada canal × producto × margen real.
+- `margen_por_canal_y_producto(periodo)` → tabla cruzada canal × producto × margen real (mismo criterio de `ingresos`/`costos` crudos que `ranking_productos`).
 
-### 2.2 Adenda al Módulo 6 (Módulo Operativo — Nicho 1)
+### 2.2 Adenda al Módulo 6 (Módulo Operativo — Nicho 1) — ✅ cerrada
 
-- `consultar_merma_periodo(periodo)` → suma de `merma_costo` de todas las `Producción` del período — el dato ya existe campo por campo (Módulo 6, sección 1.7), solo faltaba la función de agregación.
+- `consultar_merma_periodo(periodo)` → suma de `merma_costo` de todas las `Producción` del período — el dato ya existía campo por campo (Módulo 6, sección 1.7); la función de agregación vive en `src/modules/operativo/nichos/nicho-1/actions.ts`/`repository.ts`. Reportes la reexpone directo como `controlMerma`, sin lógica de dispatch por nicho — para un tenant sin Producciones (Nicho 4, Modo Básico) el resultado ya da 0 de forma natural.
 
 ---
 

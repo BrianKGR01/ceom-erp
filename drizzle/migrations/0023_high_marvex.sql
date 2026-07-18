@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "onboarding_completado_en" timestamp with time zone;

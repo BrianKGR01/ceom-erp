@@ -1,0 +1,190 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dejamos la directiva de dark mode declarada (algunos componentes de
+   shadcn traen clases "dark:") pero nunca se aplica la clase .dark en
+   ningun lado — docs/design-system.md principio 7: modo claro unicamente
+   por ahora. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-poppins);
+  --font-heading: var(--font-poppins);
+  --font-accent: var(--font-quicksand);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Tokens propios del design-system CEOM (docs/design-system.md seccion 2),
+     sin equivalente directo en las variables semanticas de shadcn. */
+  --color-navy: var(--navy);
+  --color-sidebar-from: var(--sidebar-from);
+  --color-sidebar-to: var(--sidebar-to);
+  --color-pastel-blue: var(--pastel-blue);
+  --color-pastel-blue-bg: var(--pastel-blue-bg);
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --color-error-bg: var(--error-bg);
+  --color-error-text: var(--error-text);
+  --color-info-bg: var(--info-bg);
+  --color-info-text: var(--info-text);
+  --color-gray-border: var(--gray-border);
+  --color-gray-bg: var(--gray-bg);
+  --color-text-body: var(--text-body);
+  --color-text-muted: var(--text-muted);
+
+  /* Sombra "casi imperceptible" de las cards (seccion 1). */
+  --shadow-card: 0 1px 4px rgba(9, 49, 84, 0.05), 0 2px 8px rgba(9, 49, 84, 0.06);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Base: 8px -> radius-lg (botones, seccion 5.7) = 8px exacto;
+     radius-2xl (cards, seccion 1) = 14.4px, dentro del rango 12-14px. */
+  --radius: 0.5rem;
+
+  --background: #ffffff;
+  --foreground: var(--text-body);
+  --card: #ffffff;
+  --card-foreground: var(--text-body);
+  --popover: #ffffff;
+  --popover-foreground: var(--text-body);
+  --primary: #2176bd;
+  --primary-foreground: #ffffff;
+  --secondary: var(--pastel-blue-bg);
+  --secondary-foreground: var(--navy);
+  --muted: var(--gray-bg);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--pastel-blue-bg);
+  --accent-foreground: var(--navy);
+  --destructive: var(--error-text);
+  --border: var(--gray-border);
+  --input: var(--gray-border);
+  --ring: #2176bd;
+
+  --sidebar: var(--sidebar-from);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #2176bd;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #2176bd;
+
+  /* Paleta CEOM — docs/design-system.md seccion 2 */
+  --navy: #094979;
+  --sidebar-from: #0e2a47;
+  --sidebar-to: #0b2038;
+  --pastel-blue: #abd8ff;
+  --pastel-blue-bg: #eaf3fd;
+  --gray-border: #d9d9d9;
+  --gray-bg: #eaedf1;
+  --text-body: #545454;
+  --text-muted: #6b7280;
+  --success-bg: #e7f6ec;
+  --success-text: #227a44;
+  --warning-bg: #fcf3d9;
+  --warning-text: #8a6d1d;
+  --error-bg: #fcebea;
+  --error-text: #d64545;
+  --info-bg: #eaf3fd;
+  --info-text: #2176bd;
+}
+
+/* Shell de /app (src/components/shared/app-shell.tsx) — CSS a mano en vez
+   de utilidades responsive de Tailwind (max-lg:/lg:) porque el build de
+   Turbopack en dev reproducidamente genero esas variantes duplicadas sin
+   envolver en @media (confirmado con -translate-x-full + lg:translate-x-0
+   Y con lg:hidden — ambas pisaban el estado que debian ocultar). Con
+   reglas propias, sin ese problema. Evitar lg:/max-lg: en este arbol.
+   min-width: 1024px = breakpoint "lg" de Tailwind (--breakpoint-lg). */
+.app-mobile-bar {
+  display: flex;
+}
+.app-mobile-close {
+  display: inline-flex;
+}
+.app-sidebar {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 50;
+  width: 16rem;
+  transform: translateX(-100%);
+}
+.app-sidebar.app-sidebar--abierto {
+  transform: translateX(0);
+}
+.app-shell-main {
+  margin-left: 0;
+}
+@media (min-width: 1024px) {
+  .app-mobile-bar {
+    display: none;
+  }
+  .app-mobile-close {
+    display: none;
+  }
+  .app-sidebar {
+    transform: none;
+  }
+  .app-sidebar.app-sidebar--colapsado {
+    width: 4.75rem;
+  }
+  .app-sidebar.app-sidebar--colapsado.app-sidebar--hover {
+    width: 16rem;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .app-shell-main {
+    margin-left: 16rem;
+    transition: margin-left 200ms ease;
+  }
+  .app-shell-main.app-shell-main--colapsado {
+    margin-left: 4.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

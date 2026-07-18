@@ -1,0 +1,202 @@
+# ANCLA — Módulo Operativo: Nicho 1 (Alimentos y Bebidas por Lotes)
+
+## Contrato (no romper sin actualizar este archivo)
+- Responsabilidad: implementa la interfaz "Módulo Operativo" (Strategy
+  Pattern, `CEOM_Arquitectura.md` sección 5.1) para el Nicho 1 — Inventario
+  Operativo (insumos), Operaciones/Producción (recetas + lotes) y Capacidad
+  Operativa (solo lectura). Caso real: SanttiCampo.
+- NO hace: no calcula capacidad usada con alertas automáticas (solo
+  consulta, MVP). No es dueño del activo, solo lee su capacidad desde
+  Patrimonio. Nunca define el precio de venta (eso siempre es Módulo 2).
+- Entradas que consume: `tienePermiso()`/`tieneCapacidadEspecial()` de
+  Identidad (gate por `"operativo"` × acción, y `"producir_sin_stock_insumo"`
+  — ambos ya existían en el catálogo de Identidad, sin cambios de enum).
+  `fichaProducto()`, `enviarProductoAOperaciones()`, `registrarEntradaProduccion()`,
+  `consultarStock()` de Productos e Inventario (Módulo 2, caja negra vía
+  `actions.ts`, nunca su repository). `consultarCapacidad()` de Patrimonio
+  (Módulo 5, solo lectura, caja negra vía `actions.ts`). `tenants`/`sucursales`
+  de Identidad y `productos`/`activos` de Módulo 2/Patrimonio para FKs
+  (dirección de dependencia esperada por `CEOM_Arquitectura.md` sección 7 —
+  Operaciones depende de Productos e Inventario y de Patrimonio — no es la
+  excepción de caja negra documentada para `plan_id`).
+- Salidas que expone (`actions.ts`): CRUD de `Insumo`/`Receta`/`Vinculación
+  Producto-Receta` + ledger de Insumo (`registrarEntradaCompraInsumo`,
+  `registrarAjusteManualInsumo`, `registrarMermaAlmacenamiento`) +
+  `registrarProduccion`, `registrarProduccionDeAjuste`, `listarProducciones`,
+  `consultarMermaPeriodo` + `consultarCapacidadProduccionUsada`,
+  `consultarCapacidadAlmacenamientoUsada` + `fichaInsumo`,
+  `listarMovimientosInsumo`, `fichaReceta` (las tres nuevas, agregadas para
+  cerrar los gaps de backend de la tanda de UI — ver "Última actualización")
+  + fórmulas puras (`calcularCostoPromedioPonderado`,
+  `calcularRendimientoTeorico`, `calcularMerma`,
+  `calcularCostoOperativoProduccion`, `calcularCapacidadProduccionPeriodo`,
+  `calcularPorcentajeCapacidadUsada`, `signoMovimientoInsumo`).
+
+## Estado actual
+- [x] Schema Drizzle (`insumos`, `movimientos_insumo`, `stock_insumo`,
+      `recetas`, `receta_insumos`, `vinculaciones_producto_receta`,
+      `producciones`, `producciones_ajuste`) + RLS (`crudPolicy()` en las
+      tablas con `tenant_id` directo; policy vía subquery en las demás,
+      mismo patrón que Módulo 2/Proveedores).
+- [x] Costo promedio ponderado real (fórmula 3.1) — se recalcula en cada
+      `registrarEntradaCompraInsumo`, usando el stock ANTES de esa entrada.
+- [x] `registrarProduccion` calcula costo real con merma incorporada
+      (fórmula 3.2), bloquea sin vinculación (regla 3.4) y sin insumo
+      suficiente salvo `producir_sin_stock_insumo` (regla 3.5), auto-calcula
+      `fecha_vencimiento_lote` desde `vida_util_dias` del producto (sección
+      3.6) — **y acredita de verdad el stock/costo en Productos e
+      Inventario** vía `registrarEntradaProduccion()` (Módulo 2). No es un
+      stub: es la primera integración cross-módulo real del proyecto además
+      del `plan_id`/FK de Identidad-Suscripción.
+- [x] `vincularProductoAReceta` hace en un solo paso lo que el doc describe
+      como "Vincular a proceso operativo": valida el producto vía
+      `fichaProducto()`, llama a `enviarProductoAOperaciones()` de Módulo 2
+      (pasa `tipo_origen_producto` a `produccion_nicho`), y recién ahí crea
+      la fila de vinculación.
+- [x] `consultarCapacidadProduccionUsada`/`Almacenamiento` (sección 4) leen
+      `consultarCapacidad()` de Patrimonio + actividad real propia.
+      Almacenamiento deriva qué productos se guardaron en un Activo desde el
+      historial de `producciones` (decisión de esta tarea — Productos e
+      Inventario no sabe nada de Activos, no había otro cruce posible sin
+      tocar su contrato).
+- [x] Tests: `formulas.test.ts` (puro, 6 fórmulas) + `operativo-nicho1.test.ts`
+      (integración contra Supabase Cloud real, caso SanttiCampo).
+- [ ] **Gap de atomicidad cruzada, aceptado a propósito** (decidido en el
+      plan de esta tarea): `registrarProduccion` descuenta insumos y crea la
+      `Producción` en una sola transacción propia, pero la llamada a
+      `registrarEntradaProduccion()` de Módulo 2 ocurre DESPUÉS, fuera de
+      esa transacción — cada módulo es una caja negra, no comparten el
+      objeto de transacción de Drizzle. Si esa llamada falla, el stock de
+      insumo ya quedó descontado sin que el producto terminado se acredite.
+      No hay compensación automática; el resultado de `registrarProduccion`
+      expone `acreditacionProductos` (`{ok, error}`) para que el caller
+      pueda detectarlo y reintentar a mano. Mismo criterio que el usuario
+      huérfano de Supabase Auth en Identidad.
+- [x] `registrarEntradaCompraInsumo` **ya tiene caller real (roadmap ítem
+      #12)** — `registrarCompra()`/`recibirCompra()` de Proveedores lo
+      llaman de verdad cuando una Compra `tipo="insumo"` llega a
+      `estado="recibido"`. Ver `proveedores/ANCLA.md`.
+- [ ] `Movimiento de Insumo.costo_unitario_en_movimiento` para
+      `entrada_ajuste_manual`/`salida_ajuste_manual`/`salida_merma_almacenamiento`
+      usa `insumo.costo_unitario_vigente` (o `0` si nunca hubo compra) como
+      mejor estimación disponible — el doc no especifica qué costo usar en
+      esos tipos de movimiento fuera de `entrada_compra`/`salida_producción`.
+- [ ] `vinculaciones_producto_receta` no tiene un constraint de "un producto
+      = una vinculación activa a la vez" a nivel de DB — se confía en que
+      `vincularProductoAReceta`/`obtenerVinculacionPorProducto` lo traten
+      como tal en la práctica; revisar si hace falta un índice único parcial
+      cuando se construya la UI.
+
+## Dónde está cada cosa
+- Esquema de BD (Drizzle): `src/modules/operativo/nichos/nicho-1/schema.ts`
+- Repository: `src/modules/operativo/nichos/nicho-1/repository.ts`
+- Server actions: `src/modules/operativo/nichos/nicho-1/actions.ts`
+- Tests: `src/modules/operativo/nichos/nicho-1/formulas.test.ts`,
+  `src/modules/operativo/nichos/nicho-1/operativo-nicho1.test.ts`
+- Migración relevante: `drizzle/migrations/0013` (tablas + RLS, todo en una
+  sola migración).
+
+## Decisiones tomadas que un agente no debe revertir
+- **Ubicación fuera de `src/modules/<módulo>/` plano** — vive en
+  `src/modules/operativo/nichos/nicho-1/`, tal como fija `AGENTS.md` regla 1
+  ("Esa lógica vive solo en `src/modules/operativo/nichos/<nicho>/`"). Si se
+  construye Nicho 4 (roadmap ítem #12), va en
+  `src/modules/operativo/nichos/nicho-4/`, como implementación hermana de la
+  misma interfaz "Operaciones" — cualquier función pública nueva acá debería
+  existir también, aunque sea como stub, en Nicho 4 (Strategy Pattern, no se
+  puede romper esa simetría sin decirlo explícitamente — ver plantilla de
+  `AGENTS.md` por módulo en `dev-practices.md` sección 3).
+- **`costo_unitario_en_movimiento` es un snapshot por movimiento, no el
+  promedio recalculado** — igual criterio que `costo_unitario` en Compras
+  (Proveedores): fijo desde el momento del movimiento, nunca se recalcula
+  retroactivamente. Una Producción usa siempre `costo_unitario_vigente`
+  **al momento de producir** (caso borde 3) — no se recalculan producciones
+  pasadas cuando cambia el costo del insumo.
+- **`merma_cantidad`/`merma_costo` nunca negativos** — `calcularMerma()`
+  satura en 0 (`Math.max(0, ...)`), mismo espíritu que la depreciación en
+  Patrimonio.
+- **`actualizarComposicionReceta` reemplaza toda la composición** (delete +
+  insert en una transacción), no hay CRUD incremental de líneas — mismo
+  patrón que `reemplazarPermisosRol` en Identidad.
+- **`registrarProduccionDeAjuste` no revierte movimientos de stock/insumo**
+  — es corrección contable/de trazabilidad únicamente (caso borde 5: puede
+  haber ventas posteriores sobre ese stock). Si en el futuro se necesita
+  reversión física real, es una función nueva, no una extensión de esta.
+- Los tests de integración corren contra el Supabase Cloud de desarrollo
+  real (rol `postgres`, bypassea RLS), mismo criterio que los demás módulos.
+  Dos tests (insumo insuficiente y producción de ajuste) necesitan
+  `20000`ms de timeout explícito por las mismas razones que en Módulo 2.
+
+- **Nicho 4 (roadmap ítem #12) ya existe** en
+  `src/modules/operativo/nichos/nicho-4/` — pero NO es un espejo completo:
+  no tiene Insumo/Receta/Producción (ese dominio no aplica, Nicho 4 no
+  produce, solo revende). La única función compartida es
+  `calcularPorcentajeCapacidadUsada()` (pura), que Nicho 4 importa
+  directamente desde acá en vez de duplicarla. La regla de "toda función
+  pública nueva debe existir aunque sea como stub en la otra
+  implementación" (sección 3 de `dev-practices.md`) no aplicó tal cual acá
+  porque el dominio de ambos nichos no tiene el mismo shape — decisión
+  confirmada explícitamente con el usuario antes de implementar Nicho 4, no
+  un desvío silencioso.
+
+## Última actualización: 2026-07-17 (2) — Tanda de UI completa: Nicho 1, 10/10 pantallas — módulo cerrado
+Todas las pantallas del contrato (`docs/ui/pantallas.md` sección 6) construidas y verificadas
+end-to-end contra el tenant de prueba, incluyendo la cadena cross-módulo real completa: alta de
+Insumo → entrada de compra (recalcula costo promedio ponderado) → Receta con composición → producto
+vinculado (`vincularProductoAReceta`, ya existía) → `registrarProduccion` → descuento real de
+insumo + acreditación real de stock/costo en Productos e Inventario (`registrarEntradaProduccion`,
+Módulo 2) — verificado leyendo el historial de movimientos de ambos lados después de producir.
+
+UI: `src/app/app/(shell)/produccion/` — Catálogo/Ficha/Alta-Editar de Insumo son el mismo patrón
+que Productos e Inventario ya establece (`fichaInsumo`/`listarMovimientosInsumo` del punto
+anterior lo hacen posible sin fetches extra). Gestión de Recetas es un maestro-detalle con
+composición editable inline; la composición de TODAS las recetas se precarga server-side en una
+sola tanda (`fichaReceta` por receta vía `Promise.all`) para que cambiar de selección no dispare
+una llamada nueva. Registrar Producción de un lote resultó, según el mockup de referencia, ser una
+sola pantalla con secciones (no un wizard de pasos secuenciales reales) — el panel "Resumen" en
+vivo obligó a duplicar a propósito 3 fórmulas puras (`calcularRendimientoTeorico`, `calcularMerma`,
+`calcularCostoOperativoProduccion`) directo en el Client Component, porque
+`nicho-1/actions.ts` no es `"use server"` (importa `db`) y no se puede cruzar al bundle de cliente
+— ver el comentario en `nueva-produccion-cliente.tsx`. Capacidad Operativa reutiliza literalmente
+la barra de progreso (`h-1.5 rounded-full`) ya usada en el Dashboard de Reportes, no un componente
+nuevo.
+
+**QA de esta tanda requirió setup fuera de la UI existente dos veces**, vía scripts de un solo uso
+(no committeados): (1) vincular un producto real a una receta de prueba, porque "Vincular a
+proceso operativo" (Módulo 5, Ficha de Producto) sigue `[ ]` — no hay pantalla propia todavía; y
+(2) crear un Activo de prueba con capacidad de producción/almacenamiento cargada, porque el tenant
+no tenía ninguno. Ambos se limpiaron al cerrar (desvinculación + Activo dado de baja). El registro
+de Producción y su Producción de Ajuste de prueba **no se pudieron eliminar** — el módulo no expone
+ninguna acción de borrado para `Producción` (por diseño: "una producción real ya consumida se
+corrige con Produccion de Ajuste, no se borra ni edita", ver más abajo), así que quedan como
+artefactos residuales inevitables en el tenant de prueba, igual criterio que la plantilla de
+`GastoRecurrente` pausada documentada en `gastos/ANCLA.md`.
+
+## Última actualización: 2026-07-17 — Gaps de backend cerrados para la próxima tanda de UI (10 pantallas)
+`docs/ui/pantallas.md` sección 6 documentaba un "doble gap" para la Ficha de Insumo: (1) no había
+una `fichaInsumo()` que juntara insumo+stock en una sola llamada, y (2) no existía ninguna función,
+ni siquiera en `repository.ts`, que listara `movimientos_insumo`. Ambos cerrados con el mismo
+patrón que Módulo 2 (`fichaProducto()`/`listarMovimientosStock()`): `repo.listarStockPorInsumo(insumoId)`
++ `repo.listarMovimientosPorInsumo(insumoId, sucursalId)` nuevas en `repository.ts`, expuestas como
+`fichaInsumo(solicitante, insumoId)` y `listarMovimientosInsumo(solicitante, insumoId, sucursalId)`
+en `actions.ts`, mismo gate (`"operativo"` × `"ver"`) que el resto del módulo.
+
+**Tercer gap encontrado durante esta misma revisión** (no estaba en el "doble gap" original, pero
+es la misma clase de problema): no había forma de leer la composición de una Receta a partir de su
+`recetaId` directo — `obtenerRecetaDeProducto()` ya devuelve receta+composición, pero solo
+llegando por `productoId` a través de una `Vinculación` ya creada. Eso no alcanza para la pantalla
+"Gestión de Recetas", donde hace falta ver/editar la composición de una Receta que puede no tener
+ningún producto vinculado todavía (se crea la receta primero, se vincula después). Cerrado con
+`fichaReceta(solicitante, recetaId)`, que reutiliza `repo.obtenerComposicionReceta()` (ya existía
+en `repository.ts`, simplemente no estaba expuesta con su propio gate de permiso).
+
+Ningún cambio de contrato en funciones existentes — las tres son aditivas. Ninguna de las tres
+importa nada de `productos/schema.ts` ni `productos/repository.ts` directo: leen únicamente las
+tablas propias de este módulo (`insumos`, `stock_insumo`, `movimientos_insumo`, `recetas`,
+`receta_insumos`), respetando el límite de caja negra del Strategy Pattern
+(`CEOM_Arquitectura.md` sección 5.1) — el Módulo Operativo no toca las tablas de Productos e
+Inventario directo, solo las consume vía su capa pública, y estas tres funciones nuevas no
+necesitaron hacerlo en absoluto. Cubierto por 3 tests nuevos en `operativo-nicho1.test.ts`
+(integración contra Supabase Cloud real, reutilizando el fixture SanttiCampo ya existente).
+
+## Última actualización anterior: 2026-07-15 — roadmap ítem #12 (Nicho 4) conectó `registrarEntradaCompraInsumo` como caller real; Nicho 4 reutiliza `calcularPorcentajeCapacidadUsada()`

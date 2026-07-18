@@ -1,0 +1,2 @@
+CREATE TYPE "public"."nicho" AS ENUM('nicho_1', 'nicho_4');--> statement-breakpoint
+ALTER TABLE "tenants" ALTER COLUMN "nicho_id" SET DATA TYPE "public"."nicho" USING "nicho_id"::text::"public"."nicho";

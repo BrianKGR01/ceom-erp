@@ -1,0 +1,1 @@
+ALTER TABLE "activos" ADD CONSTRAINT "activos_proveedor_id_proveedores_id_fk" FOREIGN KEY ("proveedor_id") REFERENCES "public"."proveedores"("id") ON DELETE no action ON UPDATE no action;

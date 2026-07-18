@@ -1,0 +1,34 @@
+-- Custom SQL migration file, put your code below! --
+
+-- Bug real encontrado y corregido (encontrado al conectar Storage — es la
+-- primera vez que un codepath real de la app pasa por el rol "authenticated"
+-- de Supabase; hasta ahora TODO el acceso a datos usa el rol "postgres"
+-- (superusuario) via DATABASE_URL, que bypassea RLS por completo — ver
+-- src/db/rls.ts). Esto significa que la RLS de TODAS las tablas de negocio
+-- (la "segunda capa de defensa" de AGENTS.md regla 6) nunca se habia
+-- ejercitado de verdad hasta esta tarea.
+--
+-- current_tenant_id() (migracion 0003) es "security invoker": corre con los
+-- privilegios de quien la llama. Su cuerpo hace
+-- "select tenant_id from usuarios where id = auth.uid()" — pero esa misma
+-- tabla "usuarios" tiene una policy de RLS que exige
+-- "tenant_id = (select current_tenant_id())" (migracion 0009/schema.ts,
+-- crudPolicy() generico). Resultado: para resolver current_tenant_id() hay
+-- que evaluar la policy de "usuarios", que a su vez llama a
+-- current_tenant_id() de nuevo — recursion circular infinita. Postgres la
+-- corta con un error de planificador (54001, "statement too complex"),
+-- descubierto recien al insertar en storage.objects (migracion 0024), que
+-- si pasa por el rol "authenticated" real via crearClienteServidor().
+--
+-- Fix estandar (el mismo patron documentado por Supabase para funciones
+-- "resolver mi tenant/org actual"): marcar la funcion SECURITY DEFINER, para
+-- que su consulta interna corra con los privilegios de quien la creo
+-- (bypassea RLS) en vez de los del caller — rompe el ciclo. Es seguro
+-- porque el WHERE de la funcion es siempre "id = auth.uid()": nunca puede
+-- devolver el tenant_id de otro usuario, sin importar quien la llame.
+-- set search_path explicito (hardening estandar de Postgres para toda
+-- funcion SECURITY DEFINER, evita ataques de search_path hijacking) — el
+-- cuerpo ya usa "public.usuarios" calificado, así que esto es documentacion
+-- deliberada, no un cambio de comportamiento.
+alter function public.current_tenant_id() security definer;
+alter function public.current_tenant_id() set search_path = public, pg_temp;

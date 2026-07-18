@@ -1,0 +1,1 @@
+DROP TABLE "setup_healthcheck" CASCADE;

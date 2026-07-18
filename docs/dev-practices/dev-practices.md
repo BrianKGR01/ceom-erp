@@ -161,6 +161,41 @@ pnpm drizzle-kit migrate
 
 ---
 
+## 7.1. Scripts de bootstrap (`scripts/`)
+
+Para tareas puntuales que no encajan en un Server Action (necesitan correr
+una sola vez, fuera del ciclo de vida de Next.js — ej. sembrar el primer
+usuario `ceom_admin` cuando el entorno recién se levanta) usamos
+`scripts/*.ts`, corridos con **`tsx`** (devDependency — Node nativo no
+resuelve el alias `@/*` que usa casi todo `src/modules/**`, `tsx` sí porque
+lee `tsconfig.json`).
+
+```bash
+pnpm seed:admin <email> ["Nombre completo"]
+```
+
+Convención para cualquier script nuevo en esta carpeta:
+- Reutilizar los `actions.ts`/`repository.ts` de los módulos existentes
+  igual que el resto del código — un script no es una excusa para duplicar
+  lógica de negocio.
+- **No** importar `src/lib/supabase/server.ts` completo si solo hace falta
+  `crearClienteAdmin()` — ese archivo también exporta `crearClienteServidor`,
+  que importa `next/headers` (asume runtime de Next.js). Armar el cliente
+  admin de Supabase inline si el script corre fuera de Next.js.
+- Cerrar la conexión de Postgres al final (`await client.end()`, exportado
+  desde `src/db/client.ts` junto a `db`) — si no, el proceso de Node queda
+  colgado.
+- Idempotente cuando sea razonable (ver `scripts/seed-admin.ts`: si el
+  usuario ya existe, no hace nada en vez de fallar).
+- **Cargar el `.env.local` con `node --env-file=.env.local` en el comando de
+  `package.json`, nunca con `process.loadEnvFile()` dentro del script** —
+  los `import` estáticos se hoistean antes que cualquier código del cuerpo
+  del archivo, así que `src/db/client.ts` (que lee `DATABASE_URL` al
+  importarse) ya se evalúa con el env todavía vacío si `loadEnvFile()` se
+  llama después de los imports. Bug real encontrado durante esta tarea.
+
+---
+
 ## 8. Integración continua (GitHub Actions)
 
 ```yaml
@@ -192,7 +227,72 @@ Se amplía más adelante con el job de Playwright (necesita un entorno con Supab
 
 ---
 
-## 9. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
+## 9. Convenciones de UI
+
+Reglas específicas para el trabajo de frontend (`src/app/`, `src/components/`,
+`src/modules/<módulo>/components/`), complementarias a las convenciones de
+código de la sección 5.
+
+- **Server Components por defecto.** Un componente pasa a Client Component
+  (`"use client"`) solo cuando hay interacción real que lo exige: formularios,
+  modales, carrito de venta, cualquier `useState`/`onClick`/etc. Si un
+  componente solo lee y renderiza datos, se queda como Server Component.
+- **Estado local, no estado global.** `useState`/`useReducer` para estado de
+  UI. Nada de librería de estado global (Redux, Zustand, Jotai, etc.) sin
+  aprobación explícita del dueño del proyecto — no se instala "por si acaso".
+- **Un solo Context de sesión.** Tenant, usuario, rol y permisos viven en un
+  único Context de solo lectura, poblado en el layout raíz de `/app` a partir
+  de `obtenerUsuarioActual()` (`src/modules/identidad/actions.ts`). Ningún
+  componente vuelve a pedir esos datos por su cuenta ni mantiene su propia
+  copia mutable.
+- **Formularios con `react-hook-form` + `zod`**, reutilizando el mismo schema
+  de validación que ya usa la Server Action correspondiente — nunca un schema
+  de formulario distinto del que valida en el servidor, para no tener dos
+  fuentes de verdad sobre qué es un dato válido.
+- **`loading.tsx` y `error.tsx` por ruta.** Nunca un spinner o un mensaje de
+  error armado a mano dentro de una pantalla — se usan los archivos especiales
+  de Next.js App Router para que la carga y el error sean consistentes en toda
+  la app.
+- **Un componente de módulo nunca importa un componente de otro módulo.**
+  Mismo principio de caja negra que rige el backend (`AGENTS.md`, regla 2):
+  `src/modules/<A>/components/` no importa de `src/modules/<B>/components/`.
+  Lo común entre módulos vive en `src/components/ui/` (primitivos genéricos)
+  o `src/components/shared/` (compuestos con forma de producto CEOM pero sin
+  dueño de módulo, ej. estado vacío, modal de confirmación).
+- **Subida de archivos (imágenes) va por `src/lib/supabase/storage.ts`**,
+  nunca directo con `supabase-js` desde un componente. Un solo bucket
+  compartido (`tenant-uploads`, público para lectura), un path por
+  `{tenantId}/{carpeta}/{uuid}.{ext}`, aislado por tenant vía RLS de
+  `storage.objects` (`drizzle/migrations/0024_storage_tenant_uploads_rls.sql`).
+  Un componente compartido (ej. `product-form.tsx`) nunca importa la Server
+  Action de subida de una ruta puntual directo — la recibe como prop
+  (`onSubirImagen`), inyectada por el caller de esa ruta. Detalle completo
+  de la arquitectura (por qué público, por qué este cliente y no el admin,
+  el bug de RLS real que encontró y corrigió esta integración) en
+  `src/modules/productos/ANCLA.md`, sección "`imagen_url` conectado a
+  Storage".
+
+### 9.1 Cierre de tanda
+
+Al terminar de construir y verificar todas las pantallas de una tanda de UI:
+
+1. Actualizar `docs/ui/pantallas.md` por completo — cada pantalla construida pasa a `[x]` con su
+   nota de detalle, y la sección "Próxima tanda sugerida" se reescribe para reflejar el estado
+   real, no se deja desactualizada.
+2. Nunca cerrar con un genérico "decime cómo seguir". Siempre anunciar explícitamente, sin que se
+   pregunte: cuál es la siguiente tanda según el orden ya fijado (roadmap + matriz de
+   dependencias de `CEOM_Arquitectura.md` sección 7), y el listado exacto de pantallas/modales
+   que la componen, por nombre, tal como aparecen en `pantallas.md` — para que puedan pasarse
+   directamente como pedido de diseño a otra herramienta.
+3. Si la siguiente tanda todavía no tiene el contrato de backend completo (ej. le falta una
+   Server Action o un wrapper en `actions.ts`), avisarlo ahí mismo, no descubrirlo a mitad de la
+   implementación de UI.
+4. Commitear después de cada pantalla construida y verificada — no acumular varias sin
+   commitear.
+
+---
+
+## 10. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
 
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` pasan localmente.
 - [ ] La prueba de caja negra del módulo (sección 6) está cubierta por un test real, no solo mencionada.
