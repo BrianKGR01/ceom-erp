@@ -1,6 +1,15 @@
 "use server";
 
-import { obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  cambiarEstadoSuscripcion,
+  cambiarPlanTenant,
+  crearTenant,
+  obtenerUsuarioActual,
+} from "@/modules/identidad/actions";
+import {
+  cambiarEstadoSuscripcionSchema,
+  crearTenantFormSchema,
+} from "@/modules/identidad/validation";
 import type { PeriodoFinanciero } from "@/modules/financiero/actions";
 import {
   consultarFinancieroTenant,
@@ -72,4 +81,45 @@ export async function consultarInventarioOperativoTenantAction(tenantId: string)
   if (!usuario)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   return consultarInventarioOperativoTenant(usuario, tenantId);
+}
+
+export async function crearTenantAction(input: unknown) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = crearTenantFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  return crearTenant(usuario, {
+    nombreNegocio: parsed.data.nombreNegocio,
+    monedaPrincipal: parsed.data.monedaPrincipal,
+    planId: parsed.data.planId,
+    fechaInicioSuscripcion: parsed.data.fechaInicioSuscripcion,
+    ownerEmail: parsed.data.ownerEmail,
+    ownerNombreCompleto: parsed.data.ownerNombreCompleto,
+  });
+}
+
+export async function cambiarPlanTenantAction(tenantId: string, nuevoPlanId: string) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return cambiarPlanTenant(usuario, tenantId, nuevoPlanId);
+}
+
+export async function cambiarEstadoSuscripcionAction(tenantId: string, input: unknown) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = cambiarEstadoSuscripcionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  return cambiarEstadoSuscripcion(
+    usuario,
+    tenantId,
+    parsed.data.nuevoEstado,
+    parsed.data.fechaProximoPago
+  );
 }

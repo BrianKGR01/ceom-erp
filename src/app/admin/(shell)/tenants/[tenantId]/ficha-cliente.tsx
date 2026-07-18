@@ -2,11 +2,32 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Banknote, Boxes, Factory } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Banknote, Boxes, CreditCard, Factory, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/app/app/(shell)/periodo-presets";
 import { cn } from "@/lib/utils";
 import {
+  cambiarEstadoSuscripcionAction,
+  cambiarPlanTenantAction,
   consultarFinancieroTenantAction,
   consultarInventarioOperativoTenantAction,
   consultarOperativoTenantAction,
@@ -30,11 +51,24 @@ interface TenantDetalle {
   ciudadBase: string | null;
   monedaPrincipal: string;
   canalesVenta: string[];
+  planId: string | null;
   estadoSuscripcion: string;
   estadoAcceso: string;
   fechaInicioSuscripcion: string;
   fechaProximoPago: string | null;
 }
+
+interface Plan {
+  id: string;
+  nombre: string;
+  activo: boolean;
+}
+
+const ESTADOS_SUSCRIPCION: { id: "activa" | "pausada" | "vencida"; label: string }[] = [
+  { id: "activa", label: "Activa" },
+  { id: "pausada", label: "Pausada" },
+  { id: "vencida", label: "Vencida" },
+];
 
 type TabId = "financiero" | "operativo" | "inventario";
 
@@ -66,7 +100,211 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
   );
 }
 
-export function FichaTenantAdminCliente({ tenantId, tenant }: { tenantId: string; tenant: TenantDetalle }) {
+function CambiarPlanDialog({
+  open,
+  onOpenChange,
+  tenantId,
+  planActualId,
+  planes,
+  onCambiado,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenantId: string;
+  planActualId: string | null;
+  planes: Plan[];
+  onCambiado: () => void;
+}) {
+  const [planId, setPlanId] = useState(planActualId ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmar() {
+    if (!planId) {
+      setError("Elegí un plan.");
+      return;
+    }
+    setGuardando(true);
+    setError(null);
+    const resultado = await cambiarPlanTenantAction(tenantId, planId);
+    setGuardando(false);
+    if (!resultado.ok) {
+      setError(resultado.error);
+      return;
+    }
+    onOpenChange(false);
+    onCambiado();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+              <CreditCard className="size-4" />
+            </span>
+            <DialogTitle>Cambiar Plan</DialogTitle>
+          </div>
+          <DialogDescription>Upgrade o downgrade del plan de este tenant.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="nuevo-plan">Plan</Label>
+          <Select
+            items={Object.fromEntries(planes.map((p) => [p.id, p.nombre]))}
+            value={planId}
+            onValueChange={(v) => v && setPlanId(v)}
+          >
+            <SelectTrigger id="nuevo-plan" className="w-full">
+              <SelectValue placeholder="Elegí un plan" />
+            </SelectTrigger>
+            <SelectContent>
+              {planes.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {error && <p className="text-xs text-error-text">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CambiarEstadoSuscripcionDialog({
+  open,
+  onOpenChange,
+  tenantId,
+  estadoActual,
+  fechaProximoPagoActual,
+  onCambiado,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenantId: string;
+  estadoActual: string;
+  fechaProximoPagoActual: string | null;
+  onCambiado: () => void;
+}) {
+  const estadoValido = (["activa", "pausada", "vencida"] as const).includes(
+    estadoActual as "activa" | "pausada" | "vencida"
+  )
+    ? (estadoActual as "activa" | "pausada" | "vencida")
+    : "activa";
+  const [nuevoEstado, setNuevoEstado] = useState<"activa" | "pausada" | "vencida">(estadoValido);
+  const [fechaProximoPago, setFechaProximoPago] = useState(fechaProximoPagoActual ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmar() {
+    setGuardando(true);
+    setError(null);
+    const resultado = await cambiarEstadoSuscripcionAction(tenantId, {
+      nuevoEstado,
+      fechaProximoPago: fechaProximoPago || undefined,
+    });
+    setGuardando(false);
+    if (!resultado.ok) {
+      setError(resultado.error);
+      return;
+    }
+    onOpenChange(false);
+    onCambiado();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+              <RefreshCw className="size-4" />
+            </span>
+            <DialogTitle>Cambiar Estado de Suscripción</DialogTitle>
+          </div>
+          <DialogDescription>
+            Gestión manual desde soporte/cobranza — no reemplaza el ciclo automático de facturación
+            (todavía no existe).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="nuevo-estado">Estado</Label>
+            <Select
+              items={Object.fromEntries(ESTADOS_SUSCRIPCION.map((e) => [e.id, e.label]))}
+              value={nuevoEstado}
+              onValueChange={(v) => v && setNuevoEstado(v as "activa" | "pausada" | "vencida")}
+            >
+              <SelectTrigger id="nuevo-estado" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ESTADOS_SUSCRIPCION.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {nuevoEstado === "vencida" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha-proximo-pago">Fecha de próximo pago</Label>
+              <Input
+                id="fecha-proximo-pago"
+                type="date"
+                value={fechaProximoPago}
+                onChange={(e) => setFechaProximoPago(e.target.value)}
+              />
+              <p className="text-[11px] text-text-muted">
+                Ancla desde donde se mide la etapa de gracia (solo lectura) antes del bloqueo total.
+              </p>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-error-text">{error}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function FichaTenantAdminCliente({
+  tenantId,
+  tenant,
+  planes,
+}: {
+  tenantId: string;
+  tenant: TenantDetalle;
+  planes: Plan[];
+}) {
+  const router = useRouter();
+  const [dialogoPlan, setDialogoPlan] = useState(false);
+  const [dialogoEstado, setDialogoEstado] = useState(false);
   const [tabActivo, setTabActivo] = useState<TabId>("financiero");
   const [presetId, setPresetId] = useState<PeriodoPresetId>("mes");
   const periodo = calcularRangoPreset(presetId);
@@ -118,13 +356,27 @@ export function FichaTenantAdminCliente({ tenantId, tenant }: { tenantId: string
           <h1 className="font-heading text-2xl font-semibold text-navy">{tenant.nombreNegocio}</h1>
           <p className="text-sm text-text-muted">Ficha de Tenant</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant={estadoSuscripcion.variant}>{estadoSuscripcion.label}</Badge>
           <Badge variant={estadoAcceso.variant}>{estadoAcceso.label}</Badge>
+          <Button variant="outline" size="sm" onClick={() => setDialogoPlan(true)}>
+            <CreditCard className="size-3.5" />
+            Cambiar Plan
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setDialogoEstado(true)}>
+            <RefreshCw className="size-3.5" />
+            Cambiar Estado de Suscripción
+          </Button>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 rounded-2xl bg-card p-4 shadow-card sm:grid-cols-4">
+        <div>
+          <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Plan</p>
+          <p className="text-sm text-navy">
+            {tenant.planId ? (planes.find((p) => p.id === tenant.planId)?.nombre ?? "—") : "Sin plan"}
+          </p>
+        </div>
         <div>
           <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Ciudad</p>
           <p className="text-sm text-navy">{tenant.ciudadBase ?? "—"}</p>
@@ -259,6 +511,23 @@ export function FichaTenantAdminCliente({ tenantId, tenant }: { tenantId: string
             ))}
         </div>
       </div>
+
+      <CambiarPlanDialog
+        open={dialogoPlan}
+        onOpenChange={setDialogoPlan}
+        tenantId={tenantId}
+        planActualId={tenant.planId}
+        planes={planes.filter((p) => p.activo || p.id === tenant.planId)}
+        onCambiado={() => router.refresh()}
+      />
+      <CambiarEstadoSuscripcionDialog
+        open={dialogoEstado}
+        onOpenChange={setDialogoEstado}
+        tenantId={tenantId}
+        estadoActual={tenant.estadoSuscripcion}
+        fechaProximoPagoActual={tenant.fechaProximoPago}
+        onCambiado={() => router.refresh()}
+      />
     </div>
   );
 }

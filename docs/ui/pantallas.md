@@ -201,14 +201,15 @@ abajo para el detalle completo. De paso se cerró también el Catálogo de Plane
 (Módulo 2, item de roadmap #2) ya que su backend estaba 100% listo y el shell de `/admin` recién
 creado lo necesitaba de todas formas.
 
-Quedan solo ítems chicos, ninguno bloquea el camino dorado:
+**Gestión de Tenants (`/admin`, Módulo 1) cerrada 2026-07-18** — Alta de Tenant (con mockup),
+botón "+ Nuevo Tenant" en el listado, y panel de acciones (Cambiar Plan / Cambiar Estado de
+Suscripción) en la Ficha de Tenant. Detalle completo en la sección 1 más abajo.
+
+Quedan solo 2 ítems chicos, ninguno bloquea el camino dorado:
 
 1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla).
 2. **"Mi plan" (Módulo 2, `/app`)** — vista de solo lectura del plan vigente para el Owner del
    tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`).
-3. **Gestión de Tenants (`/admin`, Módulo 1)** — Alta de Tenant, Listado de Tenants, Ficha de
-   Tenant. Alta de Tenant es el único prerequisito real (no hay signup autoservicio); el resto
-   puede seguir operándose manualmente contra la base mientras no haya UI.
 
 ---
 
@@ -369,19 +370,49 @@ cross-tenant real de `tienePermiso()`. Corregido en el backend (no solo ocultand
 selector de la UI) — ver `identidad/ANCLA.md`.
 
 ### `/admin` — Gestión de Tenants (ceom_admin)
-**Alta de Tenant.** `[ ]`
-- Campos de entrada: `nombreNegocio`, `ciudadBase?`, `monedaPrincipal`, `canalesVenta?`, `planId?` (default Plan Básico), `fechaInicioSuscripcion`, `ownerEmail`, `ownerNombreCompleto`.
-- Salida: `tenantId`, `sucursalId`, `usuarioOwnerId`.
+**Alta de Tenant** `[x]` (`/admin/tenants/nuevo`, con mockup — página dedicada, no Dialog: el
+formulario tiene demasiados campos para el patrón chico de Proveedores/Instituciones). El mockup no
+traía `nombreNegocio` ni `monedaPrincipal` (ambos requeridos por el contrato real de `crearTenant`)
+— se sumó una sección "Datos del Negocio" no prevista en el diseño. Las cards de plan del mockup
+mostraban descripciones ficticias; `Plan` no tiene campo `descripcion` en el schema, así que las
+cards reales muestran solo `nombre` + `precioMensual`/`moneda`.
+- Campos de entrada: `nombreNegocio`, `monedaPrincipal`, `planId` (cards seleccionables, planes
+  activos), `fechaInicioSuscripcion`, `ownerNombreCompleto`, `ownerEmail`.
+- Salida: `tenantId`, `sucursalId`, `usuarioOwnerId`. Botón "+ Nuevo Tenant" agregado al listado
+  (mismo lugar que "+ Nueva institución" en Instituciones).
 - Rol: `ceom_admin` únicamente. Acción: `crearTenant(solicitante, input)`.
+- **Verificado end-to-end (2026-07-18):** tenant + sucursal principal + Owner creados atómicamente;
+  confirmado además, **independientemente de la UI**, que la invitación de Supabase Auth se disparó
+  de verdad — un script ad-hoc contra `admin.auth.admin.listUsers()` mostró `invited_at` seteado
+  para el email del Owner de prueba (`ceom.qa.alta.*@gmail.com`). Como es un email ficticio sin
+  bandeja real, **queda pendiente de validación manual** el click del link recibido (mismo criterio
+  ya usado para el magic link de Instituciones — ver pantalla de Consentimiento).
 
-**Listado de Tenants** `[ ]` (cross-tenant).
-- Campos: `id`, `nombreNegocio`, `planId`, `nichoId`, `estadoSuscripcion`, `fechaProximoPago`.
+**Listado de Tenants** `[x]` (`/admin/tenants`, cross-tenant, salud agregada).
+- Campos: `id`, `nombreNegocio`, `planId`, `nichoId`, `estadoAcceso` (derivado) + agregados
+  `porEstadoAcceso`/`porPlan`/`porNicho`.
 - Nota: `listarTenants()` **no pagina** todavía — a tener en cuenta si crece el volumen.
-- Rol: `ceom_admin`. Acción: `listarTenants(solicitante)`.
+- Rol: `ceom_admin`. Acción: `listarTenants(solicitante)`, `saludAgregadaPlataforma`.
 
-**Ficha de Tenant** `[ ]` (detalle, desde el listado).
-- Campos: `nombreNegocio`, `ciudadBase`, `monedaPrincipal`, `logoUrl`, `canalesVenta`, `nichoId`, `nichoAsignadoEn`, `planId`, `estadoSuscripcion`, `fechaInicioSuscripcion`, `fechaProximoPago`, `estadoAcceso` (derivado).
-- Rol: `ceom_admin`. Acción: `obtenerTenantPorId(solicitante, tenantId)`.
+**Ficha de Tenant** `[x]` (`/admin/tenants/[tenantId]`, detalle desde el listado + 3 tabs veedor
+auditados de Módulo 11 — ver pantalla en sección 11). Panel de acciones sumado esta tanda (sin
+mockup — mismo patrón Dialog ya usado en Planes/Aprobaciones), sin tocar los 3 tabs existentes:
+- **Cambiar Plan** `[x]` — Dialog con selector de plan (solo planes activos, más el plan actual del
+  tenant aunque esté desactivado, para que el selector nunca quede en blanco). Acción:
+  `cambiarPlanTenant(solicitante, tenantId, nuevoPlanId)`. Se agregó también un campo "Plan" al
+  grid de datos de la Ficha — antes no se mostraba en ningún lado fuera del Dialog transitorio.
+- **Cambiar Estado de Suscripción** `[x]` — Dialog con selector de estado. **Corrección respecto al
+  mockup pedido:** el diseño describía un selector `activa/solo_lectura/bloqueado`, mezclando dos
+  enums distintos — `estadoSuscripcion` (`activa`/`pausada`/`vencida`, el campo real y directamente
+  asignable) y `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`, **derivado**, nunca asignable a
+  mano — ver `identidad/ANCLA.md`). El Dialog implementado usa el enum real
+  `estadoSuscripcion`; si se elige `vencida`, pide `fechaProximoPago` (ancla de la etapa de gracia).
+  Acción: `cambiarEstadoSuscripcion(solicitante, tenantId, nuevoEstado, fechaProximoPago?)`.
+- **Verificado end-to-end (2026-07-18):** Cambiar Plan confirmado contra el listado (conteo "Por
+  plan" se movió correctamente). Cambiar Estado confirmado con las 3 transiciones: `vencida` sin
+  fecha bloqueado por el schema (`.refine()`), `vencida` con fecha guardado y `estadoAcceso`
+  recalculado correctamente a `solo_lectura` en la misma pantalla, y reseteado a `activa` al final.
+- Rol: `ceom_admin`. Acción: `consultarTenantDetalle`/`obtenerTenantPorId(solicitante, tenantId)`.
 
 ### `/app` — Estado propio (cualquier usuario del tenant)
 **Banner de estado del tenant** `[ ]` — visible cuando `estadoAcceso !== "activo"` (un tenant `bloqueado` deniega incluso `ver`, salvo esta pantalla).
@@ -1012,7 +1043,7 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 ### Conteo total
 **117 pantallas/modales** trackeados en este documento (conteo fino), distribuidos en 14 módulos + Login, across 3 superficies:
 - `/app` (Owner/Colaborador): la gran mayoría — el workspace operativo diario.
-- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (salud agregada + Ficha con 3 tabs), Planes (CRUD completo), Instituciones, Logs.**
+- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (Alta + Listado con salud agregada + Ficha con 3 tabs y panel Cambiar Plan/Estado), Planes (CRUD completo), Instituciones, Logs.**
 - `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle. **Construido completo (2026-07-18).**
 
 ### Las 5 pantallas más urgentes (flujo navegable de punta a punta) — **5 de 5 construidas ✅**
@@ -1028,7 +1059,8 @@ Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un product
 
 ### Lo que puede esperar
 - Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Nicho 4, Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
-- Alta de Tenant (`/admin`) sigue siendo el único prerequisito real, ya que no hay signup autoservicio — el resto de `/admin` (Tenants, Planes, Instituciones, Logs) ya está construido (2026-07-18).
+- Gestión de Tenants (`/admin`) cerrada 2026-07-18 — Alta de Tenant, Listado, Ficha con panel
+  Cambiar Plan/Estado. `/admin` completo: Tenants, Planes, Instituciones, Logs.
 - Exportación PDF/Excel de Reportes — explícitamente fuera de alcance, ya documentado en el propio módulo.
 
 ### Gaps de backend encontrados durante este análisis (consolidado)

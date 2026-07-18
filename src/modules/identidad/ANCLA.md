@@ -12,10 +12,9 @@
   corre un scheduler real para transición de etapas de suscripción —
   `calcularEstadoAcceso()` es una función pura, algo externo tiene que
   invocarla periódicamente cuando exista esa infraestructura. La UI de
-  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant) es el único
-  bloque de UI de este módulo que sigue pendiente — el backend (`crearTenant`,
-  `cambiarPlanTenant`, `cambiarEstadoSuscripcion`) ya está 100% cerrado
-  (2026-07-18).
+  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant, con panel
+  Cambiar Plan/Cambiar Estado de Suscripción) quedó cerrada 2026-07-18 —
+  detalle completo más abajo.
 - Entradas que consume: `obtenerPlanPorId()` de `src/modules/suscripcion/actions.ts`
   (para validar/defaultear el plan al dar de alta un tenant — ver
   decisiones abajo). Fuera de eso, ninguna de otro módulo (es la base,
@@ -189,6 +188,21 @@
       `crearTenant` ya estaba completo (confirmado, no se tocó): crea
       Tenant+Sucursal principal+Usuario Owner atómicamente vía
       `repo.crearTenantConOwner()` y dispara la invitación real por email.
+- [x] **UI construida (2026-07-18): Gestión de Tenants** — cierra el único
+      bloque de UI pendiente del módulo. `/admin/tenants/nuevo` (Alta, con
+      mockup — página dedicada, no Dialog), botón "+ Nuevo Tenant" en el
+      listado, y panel de acciones en la Ficha de Tenant existente (sin
+      mockup, sin tocar sus 3 tabs veedor de Módulo 11): "Cambiar Plan"
+      (Dialog, `cambiarPlanTenant`) y "Cambiar Estado de Suscripción"
+      (Dialog, `cambiarEstadoSuscripcion`). Detalle completo de campos en
+      `docs/ui/pantallas.md` sección 1. **Verificado end-to-end en
+      navegador**, incluida la invitación real: confirmado con un script
+      ad-hoc contra `admin.auth.admin.listUsers()` que `invited_at` quedó
+      seteado para el Owner de prueba — no solo "no tiró error", prueba
+      independiente de que Supabase Auth efectivamente encoló el correo.
+      Como el email de prueba es ficticio (sin bandeja real), el click del
+      link **queda pendiente de validación manual**, mismo criterio que el
+      magic link de Instituciones.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -430,4 +444,25 @@
   verdad, hay que mandar `null` explícito (no `undefined`) y ajustar
   `actualizarTenantSchema`/`actualizarTenant` para aceptarlo.
 
-## Última actualización: 2026-07-18 — Gap de backend cerrado antes de la UI de Gestión de Tenants: `cambiarPlanTenant`/`cambiarEstadoSuscripcion` (`crearTenant` ya estaba completo, confirmado). Actualización previa el mismo día: Colaboradores/Roles/Capacidades Especiales (`listarUsuarios`/`listarRoles`/`listarPermisosPorRol`/`listarCapacidadesEspeciales`/`transferirOwner`) + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+- **El Dialog "Cambiar Estado de Suscripción" (`/admin/tenants/[tenantId]`)
+  usa el enum real `estadoSuscripcion` (`activa`/`pausada`/`vencida`), no
+  `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`).** El pedido original
+  de esta pantalla describía un selector con los 3 valores de
+  `estadoAcceso` — mezcla incorrecta de dos enums distintos, corregida sin
+  preguntar porque ya está documentado arriba como invariante de
+  arquitectura: `estadoAcceso` es **derivado** (`calcularEstadoAcceso()`),
+  nunca asignable a mano. Si algún agente futuro ve un pedido de UI que
+  menciona "activo/solo_lectura/bloqueado" como algo seleccionable por un
+  admin, es casi seguro el mismo error — verificar contra esta nota antes
+  de implementarlo literal.
+- **La Ficha de Tenant de `/admin` ahora también muestra el nombre del plan
+  vigente en su grid de datos** (antes solo aparecía transitoriamente
+  dentro del Dialog "Cambiar Plan"). El selector del Dialog solo lista
+  planes `activo=true` (más el plan actual del tenant si ese quedó
+  desactivado, para que el Select nunca quede vacío) — el campo de
+  visualización del grid, en cambio, busca contra el catálogo completo
+  (`listarPlanes()` sin `soloActivos`), porque un tenant puede seguir en un
+  plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
+  igual.
+
+## Última actualización: 2026-07-18 — Cierre de Gestión de Tenants: UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email (confirmada vía Admin API, no solo por ausencia de error). Roadmap: quedan solo 2 pantallas chicas (Nicho 4, Mi Plan). Actualización previa el mismo día: gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y, antes de eso, Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
