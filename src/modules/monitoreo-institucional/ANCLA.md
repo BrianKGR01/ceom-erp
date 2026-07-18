@@ -53,6 +53,14 @@
       ocultan ni se ven como sección vacía — implementa directo la regla de
       `ConAutorizacion<T>` de este archivo. Ver `docs/ui/pantallas.md`
       sección 11 para el detalle completo de campos por pantalla.
+- [x] **Verificado en vivo (2026-07-18, navegador real, no solo el test de
+      integración):** con la Ficha de Tenant abierta y el tab Financiero
+      autorizado, se revocó el consentimiento desde `/app/consentimiento/
+      aprobaciones` (lado Owner) mientras la Institución tenía esa pantalla
+      abierta. Al recargar, el tab pasó a candado/"No autorizado" sin
+      quedarse con datos viejos ni romperse — confirma que la propiedad de
+      privacidad central del módulo se sostiene end-to-end (UI incluida),
+      no solo a nivel de `tieneConsentimiento()` aislado.
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`):

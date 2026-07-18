@@ -24,7 +24,7 @@
 
 ## Progreso (actualizado 2026-07-18)
 
-**95 construidas · 0 parciales · 21 pendientes**, de 116 pantallas/modales trackeados a este nivel
+**98 construidas · 0 parciales · 18 pendientes**, de 116 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante).
 
@@ -860,7 +860,7 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 4. **Detalle de Inventario Operativo** (si `inventario_operativo` aprobado). Campos: `insumos` (catálogo + costo vigente). Acción: `detalleInventarioOperativo`. Pendiente documentado: `consultarStockInsumo` queda fuera (falta `insumoId`+`sucursalId` veedor-seguros).
 - Selector de período compartido (los 4 presets de Reportes/Dashboard, `periodo-presets.ts`) para Ventas/Financiero/Operativo — Inventario Operativo no lo usa (su acción no recibe período).
 
-**Regla de privacidad central (no es un detalle menor) — implementada así:** las 4 funciones devuelven siempre `{ autorizado: true, detalle } | { autorizado: false }` — nunca datos parciales. **Decisión de UI tomada:** los 4 tabs se muestran siempre (set fijo, nunca se ocultan), pero el tab de un módulo no aprobado se ve con ícono de candado y, al abrirlo, muestra un estado "No autorizado" explícito ("Este tenant no aprobó el módulo X para tu institución todavía") — nunca una tabla vacía ni un tab oculto, para no confundir "sin permiso" con "sin datos".
+**Regla de privacidad central (no es un detalle menor) — implementada así:** las 4 funciones devuelven siempre `{ autorizado: true, detalle } | { autorizado: false }` — nunca datos parciales. **Decisión de UI tomada:** los 4 tabs se muestran siempre (set fijo, nunca se ocultan), pero el tab de un módulo no aprobado se ve con ícono de candado y, al abrirlo, muestra un estado "No autorizado" explícito ("Este tenant no aprobó el módulo X para tu institución todavía") — nunca una tabla vacía ni un tab oculto, para no confundir "sin permiso" con "sin datos". **Verificado en vivo** (2026-07-18): revocando el consentimiento de Financiero desde `/app/consentimiento/aprobaciones` mientras la Institución tenía la Ficha de Tenant abierta, al recargar el tab pasó correctamente a candado/"No autorizado" — detalle completo en `monitoreo-institucional/ANCLA.md`.
 
 ### `/admin` (ceom_admin)
 **Listado de tenants con salud agregada.** `[x]` (`/admin/tenants`, sin mockup — reusa el patrón de KPIs+búsqueda de Mi Cartera)
@@ -996,3 +996,11 @@ Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios 
 | Ventas | `registrarPagoVentaSchema` (ruta) no reenviaba `fechaPago` — el módulo ya lo aceptaba | Registrar Pago de Venta con fecha explícita | **resuelto** |
 | Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | **resuelto** (2026-07-18, migración `0027`, verificado con un click real de email) |
 | Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | **resuelto** (cerrado el 2026-07-17, antes de construir CRUD de Instituciones) |
+
+### Pendientes de pulido visual (consolidado)
+Hallazgos de verificación manual en navegador que no afectan funcionalidad — ajustes de CSS/layout
+puntuales, no se corrigen en la misma tanda en que se detectan salvo que se pida explícitamente:
+
+| Pantalla | Hallazgo | Reportado |
+|---|---|---|
+| `/admin/planes` — Dialog de alta/edición de Plan | El modal se ve con estilo mobile (angosto) estando en viewport desktop | 2026-07-18 (verificación manual del usuario) |

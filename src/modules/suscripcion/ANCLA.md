@@ -39,7 +39,10 @@
       entidad chica y plana), toggle Desactivar/Reactivar sobre el booleano
       `activo`. `nichoId` queda fuera del formulario (uuid sin FK real,
       nada contra qué resolverlo todavía). Nav item "Planes" agregado a
-      `admin-shell.tsx`.
+      `admin-shell.tsx`. **Pendiente de pulido visual** (verificación manual
+      del usuario, 2026-07-18): el Dialog de alta/edición se ve con estilo
+      mobile en viewport desktop — no corregido a propósito, ver
+      `docs/ui/pantallas.md` sección "Pendientes de pulido visual".
 - [ ] Panel Administrativo CEOM (salud agregada), Instituciones, Gateway,
       Código de Acceso — ya construidos en tandas posteriores (Módulo 10 y
       11), no en este módulo. "Mi plan" (`/app`, solo lectura para el
