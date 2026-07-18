@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   permisos,
@@ -35,6 +35,15 @@ export async function obtenerUsuarioConRolPorId(
   return { ...fila.usuario, rol: fila.rol };
 }
 
+export async function listarUsuariosPorTenant(tenantId: string): Promise<UsuarioConRol[]> {
+  const filas = await db
+    .select({ usuario: usuarios, rol: roles })
+    .from(usuarios)
+    .innerJoin(roles, eq(usuarios.rolId, roles.id))
+    .where(and(eq(usuarios.tenantId, tenantId), isNull(usuarios.eliminadoEn)));
+  return filas.map((fila) => ({ ...fila.usuario, rol: fila.rol }));
+}
+
 export async function obtenerTenantPorId(tenantId: string) {
   const filas = await db
     .select()
@@ -67,6 +76,54 @@ export async function obtenerRolPorId(rolId: string) {
 
 export async function listarPermisosPorRol(rolId: string) {
   return db.select().from(permisos).where(eq(permisos.rolId, rolId));
+}
+
+/**
+ * Roles visibles para un tenant: los propios (tenant_id = tenantId) + los
+ * de sistema (tenant_id null, Owner/CEOM Admin) — mismo criterio que la
+ * policy de RLS de `roles` ("datos de referencia compartidos"). El conteo
+ * de colaboradores es siempre relativo a ESTE tenant, incluso para un rol
+ * de sistema (Owner tiene una fila por tenant, CEOM Admin da 0 acá).
+ */
+export async function listarRolesPorTenant(tenantId: string) {
+  const listaRoles = await db
+    .select()
+    .from(roles)
+    .where(
+      and(isNull(roles.eliminadoEn), sql`(${roles.tenantId} = ${tenantId} or ${roles.tenantId} is null)`)
+    );
+
+  const conteos = await db
+    .select({ rolId: usuarios.rolId, total: sql<number>`count(*)::int` })
+    .from(usuarios)
+    .where(and(eq(usuarios.tenantId, tenantId), eq(usuarios.activo, true), isNull(usuarios.eliminadoEn)))
+    .groupBy(usuarios.rolId);
+  const mapaConteos = new Map(conteos.map((c) => [c.rolId, c.total]));
+
+  return listaRoles.map((rol) => ({ ...rol, colaboradores: mapaConteos.get(rol.id) ?? 0 }));
+}
+
+/** Bulk — evita N llamadas a obtenerCapacidadEspecialPorRol al pintar la matriz completa. */
+export async function listarCapacidadesEspecialesPorRoles(rolIds: string[]) {
+  if (rolIds.length === 0) return [];
+  return db
+    .select()
+    .from(permisosEspecialesPorRol)
+    .where(inArray(permisosEspecialesPorRol.rolId, rolIds));
+}
+
+/** Bulk — mismo criterio que listarCapacidadesEspecialesPorRoles, para overrides por usuario. */
+export async function listarCapacidadesEspecialesPorUsuarios(usuarioIds: string[]) {
+  if (usuarioIds.length === 0) return [];
+  return db
+    .select()
+    .from(permisosEspecialesPorUsuario)
+    .where(
+      and(
+        inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds),
+        isNull(permisosEspecialesPorUsuario.eliminadoEn)
+      )
+    );
 }
 
 export async function obtenerCapacidadEspecialPorUsuario(
@@ -355,5 +412,45 @@ export async function upsertCapacidadEspecialUsuario(
       .values({ usuarioId, capacidad, habilitado, creadoPor })
       .returning();
     return fila;
+  });
+}
+
+/**
+ * Atomica (Modulo_01 seccion 6.2/9.1): el destino pasa a Owner, el saliente
+ * queda con el rol elegido y esOwner=false. Las validaciones de negocio
+ * (mismo tenant, activo, rol no-sistema) ya se resolvieron en actions.ts
+ * antes de llegar acá — este nivel solo persiste el cambio.
+ */
+export async function transferirOwner(input: {
+  ownerActualId: string;
+  nuevoOwnerId: string;
+  rolOwnerId: string;
+  rolParaOwnerSaliente: string;
+  modificadoPor: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [nuevoOwner] = await tx
+      .update(usuarios)
+      .set({
+        rolId: input.rolOwnerId,
+        esOwner: true,
+        modificadoPor: input.modificadoPor,
+        modificadoEn: new Date(),
+      })
+      .where(eq(usuarios.id, input.nuevoOwnerId))
+      .returning();
+
+    const [ownerSaliente] = await tx
+      .update(usuarios)
+      .set({
+        rolId: input.rolParaOwnerSaliente,
+        esOwner: false,
+        modificadoPor: input.modificadoPor,
+        modificadoEn: new Date(),
+      })
+      .where(eq(usuarios.id, input.ownerActualId))
+      .returning();
+
+    return { nuevoOwner, ownerSaliente };
   });
 }

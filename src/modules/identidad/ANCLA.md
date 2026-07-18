@@ -43,6 +43,10 @@
   `completarOnboarding` (agregada al construir el shell de `/app` — hacía
   falta forzar el redirect a Onboarding en el primer ingreso del Owner, y
   `nicho_id` solo no alcanza para saber si ya terminó, ver decisión abajo).
+  `listarUsuarios`, `listarRoles`, `listarPermisosPorRol`,
+  `listarCapacidadesEspeciales`, `transferirOwner` (agregadas para la UI de
+  Colaboradores/Roles — último ítem pendiente del roadmap original de este
+  módulo, ver detalle abajo).
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -101,6 +105,30 @@
 - [ ] `DATABASE_URL`/`SUPABASE_SECRET_KEY` como secrets de GitHub Actions —
       hasta que se configuren, `identidad.test.ts` se salta en CI (queda en
       verde pero sin cobertura real ahí; localmente sí corre).
+- [x] Gaps de backend cerrados para la UI de Colaboradores/Roles
+      (2026-07-18): `listarUsuarios(solicitante)` (colaboradores del propio
+      tenant), `listarRoles(solicitante)` (sistema + personalizados, con
+      conteo de colaboradores relativo al tenant), `listarPermisosPorRol(
+      solicitante, rolId)` (expone `repo.listarPermisosPorRol`, ya existía
+      en el repository sin wrapper), `listarCapacidadesEspeciales(
+      solicitante)` (bulk: `porRol` excluye roles de sistema — nunca tienen
+      fila, sección 13 —, `porUsuario` solo trae los overrides ya
+      otorgados). Las 4 gateadas igual que el resto de gestión de
+      Identidad: `solicitante.esOwner` directo.
+- [x] `transferirOwner(solicitante, nuevoOwnerUsuarioId,
+      rolParaOwnerSaliente)` (2026-07-18, sección 6.2/9.1) — atómica: el
+      destino pasa a `rolId=ROL_OWNER_ID, esOwner=true`; el saliente queda
+      con `rolParaOwnerSaliente` (obligatorio, sin default implícito) y
+      `esOwner=false`. Contrato confirmado explícitamente con el usuario
+      antes de implementar (mismo criterio que el magic link de
+      Instituciones). Validaciones: destino debe pertenecer al mismo tenant
+      y estar `activo=true`; `rolParaOwnerSaliente` no puede ser un rol de
+      sistema y debe pertenecer al mismo tenant. **"Agregar Owner adicional
+      sin perder la condición propia" (multi-owner vía
+      `planes.permiteMultiplesOwners`) queda fuera a propósito** — es una
+      acción distinta ("sumar" vs "ceder"), sin urgencia de negocio real
+      hoy; se aborda como su propia tanda chica si algún tenant con ese
+      plan la necesita.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -283,6 +311,21 @@
   cliente de sesión de Supabase (no el rol `postgres`) contra una tabla con
   `crudPolicy()` ahora sí queda protegido de verdad — antes no lo estaba.**
 
+- **Hallazgo NO corregido en esta tarea, documentado para no perderlo:
+  `tieneCapacidadEspecial()` no tiene bypass para `esOwner`.** A diferencia
+  de `tienePermiso()` (que resuelve `es_owner` en código antes de tocar la
+  matriz), `tieneCapacidadEspecial()` solo resuelve usuario→rol→false
+  (sección 13.1) — y como Owner es rol de sistema, nunca puede tener una
+  fila en `permisos_especiales_por_rol` (`otorgarCapacidadEspecialPorRol`
+  la rechaza explícitamente). Resultado real: un Owner sin un override
+  puntual por usuario **no puede** `vender_sin_stock`/`gestionar_eventos`/
+  etc. — no es el comportamiento esperado según el espíritu de la sección
+  6.2 ("todos los permisos, de forma permanente"), pero tampoco es un bug
+  introducido acá, es preexistente. No se tocó porque no fue pedido y
+  cambiar el orden de resolución de `tieneCapacidadEspecial()` afecta a
+  todos los módulos que ya la llaman (Ventas, Productos, Operativo Nicho
+  1) — es una decisión que amerita su propia confirmación explícita, no un
+  fix de paso.
 - **Storage: `tenants.logoUrl` ya está conectado de punta a punta.** El
   dropzone de Onboarding Paso 1 sube a Storage apenas se elige el archivo
   (`subirLogoAction`, `src/app/app/onboarding/actions.ts`) y persiste la URL

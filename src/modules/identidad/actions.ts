@@ -455,6 +455,20 @@ async function requireEscrituraHabilitada(
   return { ok: true, data: true };
 }
 
+/**
+ * Listado de colaboradores del propio tenant — mismo criterio de gate que
+ * el resto de gestión de Identidad ("identidad" no está en moduloPermisoEnum,
+ * se chequea solicitante.esOwner directo, ver decisiones en ANCLA.md).
+ */
+export async function listarUsuarios(
+  solicitante: UsuarioConRol
+): Promise<Resultado<UsuarioConRol[]>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede ver la lista de colaboradores." };
+  }
+  return { ok: true, data: await repo.listarUsuariosPorTenant(solicitante.tenantId) };
+}
+
 export async function invitarUsuario(
   solicitante: UsuarioConRol,
   input: { email: string; nombreCompleto: string; rolId: string }
@@ -550,7 +564,86 @@ export async function reactivarUsuario(
   return { ok: true, data: true };
 }
 
+/**
+ * Transferencia de la condicion de Owner (Modulo_01 seccion 6.2/9.1) —
+ * atomica: el destino pasa a Owner, el Owner saliente queda con el rol
+ * elegido explicitamente (nunca un default implicito, para no dejarlo con
+ * rolId=ROL_OWNER_ID + esOwner=false, un estado inconsistente que no
+ * corresponde a ningun permiso real). Fuera de alcance a proposito:
+ * "agregar Owner adicional sin perder la condicion propia" (multi-owner via
+ * planes.permiteMultiplesOwners) — es una accion distinta ("sumar" vs
+ * "ceder"), decision confirmada explicitamente con el usuario antes de
+ * implementar.
+ */
+export async function transferirOwner(
+  solicitante: UsuarioConRol,
+  nuevoOwnerUsuarioId: string,
+  rolParaOwnerSaliente: string
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede transferir su condición." };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  const destino = await repo.obtenerUsuarioConRolPorId(nuevoOwnerUsuarioId);
+  if (!destino || destino.tenantId !== solicitante.tenantId) {
+    return { ok: false, error: "El colaborador destino no pertenece a este tenant." };
+  }
+  if (!destino.activo) {
+    return { ok: false, error: "El colaborador destino no está activo." };
+  }
+
+  const rolSaliente = await repo.obtenerRolPorId(rolParaOwnerSaliente);
+  if (!rolSaliente || rolSaliente.esRolSistema || rolSaliente.tenantId !== solicitante.tenantId) {
+    return { ok: false, error: "El rol elegido para vos no es válido en este tenant." };
+  }
+
+  await repo.transferirOwner({
+    ownerActualId: solicitante.id,
+    nuevoOwnerId: nuevoOwnerUsuarioId,
+    rolOwnerId: ROL_OWNER_ID,
+    rolParaOwnerSaliente,
+    modificadoPor: solicitante.id,
+  });
+
+  return { ok: true, data: true };
+}
+
 // --- Roles y permisos (Modulo_01 seccion 6.3) ---------------------------------------------------------
+
+/**
+ * Roles visibles para el tenant (propios + de sistema, mismo criterio que
+ * la policy de RLS de `roles`), con conteo de colaboradores activos por
+ * rol para las cards de "Gestión de Roles".
+ */
+export async function listarRoles(
+  solicitante: UsuarioConRol
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarRolesPorTenant>>>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede ver la lista de roles." };
+  }
+  return { ok: true, data: await repo.listarRolesPorTenant(solicitante.tenantId) };
+}
+
+/** Precarga la Matriz de Permisos al editar un rol — vacío para Owner/CEOM Admin (no tienen filas, sección 6.2/6.5). */
+export async function listarPermisosPorRol(
+  solicitante: UsuarioConRol,
+  rolId: string
+): Promise<Resultado<{ modulo: Modulo; accion: Accion; permitido: boolean }[]>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede ver los permisos de un rol." };
+  }
+  const rol = await repo.obtenerRolPorId(rolId);
+  if (!rol || (rol.tenantId !== null && rol.tenantId !== solicitante.tenantId)) {
+    return { ok: false, error: "Rol no encontrado." };
+  }
+  const permisos = await repo.listarPermisosPorRol(rolId);
+  return {
+    ok: true,
+    data: permisos.map((p) => ({ modulo: p.modulo, accion: p.accion, permitido: p.permitido })),
+  };
+}
 
 export async function crearRolPersonalizado(
   solicitante: UsuarioConRol,
@@ -633,6 +726,49 @@ export async function eliminarRol(
  * otorgarCapacidadEspecialPorUsuario(). Nunca aplica a un rol de sistema
  * (Owner/CEOM Admin son globales, compartidos entre tenants).
  */
+/**
+ * Bulk — evita N llamadas para pintar la pantalla completa de Capacidades
+ * Especiales. `porRol` solo incluye roles personalizados del tenant (Owner/
+ * CEOM Admin nunca tienen fila acá, sección 13 — otorgarCapacidadEspecialPorRol
+ * ya rechaza roles de sistema). `porUsuario` son los overrides existentes
+ * de cualquier colaborador del tenant (no todos los usuarios × las 4
+ * capacidades — solo los que tienen una excepción puntual cargada).
+ */
+export async function listarCapacidadesEspeciales(solicitante: UsuarioConRol): Promise<
+  Resultado<{
+    porRol: { rolId: string; capacidad: Capacidad; habilitado: boolean }[];
+    porUsuario: { usuarioId: string; capacidad: Capacidad; habilitado: boolean }[];
+  }>
+> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el Owner puede ver las capacidades especiales." };
+  }
+
+  const [roles, usuariosTenant] = await Promise.all([
+    repo.listarRolesPorTenant(solicitante.tenantId),
+    repo.listarUsuariosPorTenant(solicitante.tenantId),
+  ]);
+  const rolesCustomIds = roles.filter((r) => !r.esRolSistema).map((r) => r.id);
+  const usuarioIds = usuariosTenant.map((u) => u.id);
+
+  const [porRol, porUsuario] = await Promise.all([
+    repo.listarCapacidadesEspecialesPorRoles(rolesCustomIds),
+    repo.listarCapacidadesEspecialesPorUsuarios(usuarioIds),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      porRol: porRol.map((f) => ({ rolId: f.rolId, capacidad: f.capacidad, habilitado: f.habilitado })),
+      porUsuario: porUsuario.map((f) => ({
+        usuarioId: f.usuarioId,
+        capacidad: f.capacidad,
+        habilitado: f.habilitado,
+      })),
+    },
+  };
+}
+
 export async function otorgarCapacidadEspecialPorRol(
   solicitante: UsuarioConRol,
   rolId: string,
@@ -695,3 +831,7 @@ export { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID };
 // necesita tipar su parametro "solicitante" sin importar el repository de
 // Identidad directamente.
 export type { UsuarioConRol } from "./repository";
+// Parte del contrato publico: la UI de Gestión de Roles/Capacidades
+// Especiales necesita tipar la Matriz de Permisos y el catálogo de
+// capacidades sin importar identidad/schema.ts directamente.
+export type { Accion, Capacidad, Modulo };

@@ -10,10 +10,16 @@ import {
   crearRolPersonalizado,
   crearTenant,
   eliminarRol,
+  listarCapacidadesEspeciales,
+  listarPermisosPorRol,
+  listarRoles,
+  listarUsuarios,
   otorgarCapacidadEspecialPorRol,
   otorgarCapacidadEspecialPorUsuario,
+  reactivarUsuario,
   tieneCapacidadEspecial,
   tienePermiso,
+  transferirOwner,
   suspenderUsuario,
 } from "./actions";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "./constants";
@@ -349,6 +355,65 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     expect(rolSistema.ok).toBe(false);
   }, 15000);
 
+  it("listarUsuarios: devuelve los colaboradores del tenant, rechaza a un no-Owner", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const resultado = await listarUsuarios(owner!);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+    expect(resultado.data.map((u) => u.id)).toContain(ownerId);
+    expect(resultado.data.map((u) => u.id)).toContain(colaboradorId);
+
+    const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+    const rechazo = await listarUsuarios(colaborador!);
+    expect(rechazo.ok).toBe(false);
+  });
+
+  it("listarRoles: incluye roles de sistema (Owner/CEOM Admin) + personalizados, con conteo de colaboradores relativo al tenant", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const resultado = await listarRoles(owner!);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+
+    const filaOwner = resultado.data.find((r) => r.id === ROL_OWNER_ID);
+    expect(filaOwner).toBeDefined();
+    expect(filaOwner!.colaboradores).toBe(1); // solo el Owner de este tenant
+
+    const filaCeomAdmin = resultado.data.find((r) => r.id === ROL_CEOM_ADMIN_ID);
+    expect(filaCeomAdmin).toBeDefined();
+    expect(filaCeomAdmin!.colaboradores).toBe(0); // CEOM Admin no tiene colaboradores en este tenant
+
+    const colaboradorActual = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+    const filaRolColaborador = resultado.data.find((r) => r.id === colaboradorActual!.rolId);
+    expect(filaRolColaborador!.tenantId).toBe(tenantId);
+  });
+
+  it("listarPermisosPorRol: devuelve la matriz de un rol personalizado, vacio para Owner (sin filas, seccion 6.2)", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+
+    const permisosOwner = await listarPermisosPorRol(owner!, ROL_OWNER_ID);
+    expect(permisosOwner.ok).toBe(true);
+    if (permisosOwner.ok) expect(permisosOwner.data).toEqual([]);
+
+    const permisosColaborador = await listarPermisosPorRol(owner!, colaborador!.rolId);
+    expect(permisosColaborador.ok).toBe(true);
+  });
+
+  it("listarCapacidadesEspeciales: porRol excluye roles de sistema, porUsuario refleja los overrides ya otorgados", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const resultado = await listarCapacidadesEspeciales(owner!);
+    expect(resultado.ok).toBe(true);
+    if (!resultado.ok) return;
+
+    expect(resultado.data.porRol.some((f) => f.rolId === ROL_OWNER_ID)).toBe(false);
+    // El override por usuario de "vender_sin_stock" (habilitado:false) se otorgo
+    // en el test de tieneCapacidadEspecial, mas arriba en este archivo.
+    const overrideUsuario = resultado.data.porUsuario.find(
+      (f) => f.usuarioId === colaboradorId && f.capacidad === "vender_sin_stock"
+    );
+    expect(overrideUsuario?.habilitado).toBe(false);
+  });
+
   it("crearTenant: rechaza un plan_id inexistente antes de invitar al Auth (Modulo 11)", async () => {
     // Fixture en memoria, no persistido — alcanza con que pase el gate de
     // rol para llegar a la validacion de plan. No hay un usuario CEOM Admin
@@ -389,5 +454,80 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       planId: "00000000-0000-0000-0000-000000000000",
     });
     expect(resultado.ok).toBe(false);
+  });
+
+  // transferirOwner al final del archivo: cambia esOwner de forma permanente,
+  // no debe correr antes de ningun test que asuma "owner!.esOwner === true".
+  describe("transferirOwner (Modulo_01 seccion 6.2/9.1)", () => {
+    it("rechaza si el solicitante no es Owner", async () => {
+      const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+      const resultado = await transferirOwner(colaborador!, ownerId, colaborador!.rolId);
+      expect(resultado.ok).toBe(false);
+    });
+
+    it("rechaza un destino de otro tenant", async () => {
+      const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      const resultado = await transferirOwner(
+        owner!,
+        "00000000-0000-0000-0000-000000000000",
+        owner!.rolId
+      );
+      expect(resultado.ok).toBe(false);
+    });
+
+    it("rechaza un destino inactivo (colaboradorId sigue suspendido desde el test de suspenderUsuario)", async () => {
+      const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      const colaborador = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+      expect(colaborador!.activo).toBe(false); // precondicion del test, no un fixture nuevo
+
+      const resultado = await transferirOwner(owner!, colaboradorId, colaborador!.rolId);
+      expect(resultado.ok).toBe(false);
+    });
+
+    it("rechaza un rol de sistema para el Owner saliente", async () => {
+      const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      await reactivarUsuario(owner!, colaboradorId); // reactiva para los tests siguientes de este describe
+      const resultado = await transferirOwner(owner!, colaboradorId, ROL_OWNER_ID);
+      expect(resultado.ok).toBe(false);
+    });
+
+    it("rechaza un rol de otro tenant para el Owner saliente", async () => {
+      const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      // Reusa el rol de sistema-como-otro-tenant: cualquier rolId que no
+      // pertenezca a este tenant y no sea de sistema sirve para probar el
+      // rechazo — no hay un segundo tenant de prueba en este archivo, asi
+      // que se valida contra un uuid que no existe (mismo efecto: la
+      // condicion "pertenece a este tenant" falla igual que "no existe").
+      const resultado = await transferirOwner(
+        owner!,
+        colaboradorId,
+        "00000000-0000-0000-0000-000000000000"
+      );
+      expect(resultado.ok).toBe(false);
+    });
+
+    it("transfiere la condicion de Owner de forma atomica", async () => {
+      const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      const rolParaSaliente = await crearRolPersonalizado(owner!, {
+        nombre: "Ex-Owner",
+        permisos: [],
+      });
+      expect(rolParaSaliente.ok).toBe(true);
+      if (!rolParaSaliente.ok) return;
+
+      const resultado = await transferirOwner(owner!, colaboradorId, rolParaSaliente.data.rolId);
+      expect(resultado.ok).toBe(true);
+
+      const nuevoOwner = await repo.obtenerUsuarioConRolPorId(colaboradorId);
+      expect(nuevoOwner?.esOwner).toBe(true);
+      expect(nuevoOwner?.rolId).toBe(ROL_OWNER_ID);
+
+      const exOwner = await repo.obtenerUsuarioConRolPorId(ownerId);
+      expect(exOwner?.esOwner).toBe(false);
+      expect(exOwner?.rolId).toBe(rolParaSaliente.data.rolId);
+
+      // El tenant sigue teniendo exactamente un Owner activo (nunca 0, nunca 2).
+      expect(await repo.contarOwnersActivos(tenantId)).toBe(1);
+    });
   });
 });
