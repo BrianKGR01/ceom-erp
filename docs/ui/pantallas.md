@@ -193,10 +193,10 @@ Aprobar con subconjunto → eliminar Institución (soft delete). Detalle complet
    separa en dos superficies: `/portal` (Mi Cartera + 4 tabs de detalle por tenant, gateados
    individualmente vía `tieneConsentimiento()` — financiero/operativo/inventario, con la regla de
    privacidad de nunca mezclar "no autorizado" con "sin datos") y `/admin` (listado de tenants con
-   salud agregada). ~10 pantallas. Antes de tocar UI: confirmar si el gap de `email` en
-   `instituciones` (magic link de `/portal`, anotado desde esta tanda) se resuelve ahora o se
-   pospone — sin eso, una Institución no tiene forma de volver a entrar a `/portal` después del
-   primer canje.
+   salud agregada). ~10 pantallas. **El gap de `email`/magic link ya se cerró** (2026-07-18,
+   `src/modules/consentimiento/ANCLA.md`) — la Institución ya puede volver a entrar a `/portal`
+   después del primer canje, verificado con un click real de email. Mi Cartera puede construirse
+   directamente sobre `obtenerInstitucionActual()`.
 2. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla) — chica, puede sumarse a
    cualquiera de las tandas siguientes.
 3. **Suscripción (Módulo 2) e Identidad pendiente (Módulo 1)** — gestión de colaboradores/roles,
@@ -213,7 +213,7 @@ subdominios separados por ahora — se evalúa recién en Fase 3 si hace falta):
 |---|---|---|
 | **`/app`** | Owner y Colaborador de un tenant | Supabase Auth (email/contraseña) — comparte login con `/admin` |
 | **`/admin`** | Equipo interno CEOM (`ceom_admin`) | Mismo Supabase Auth que `/app` — es el mismo motor de autorización (Módulo 1), no una app aparte. La diferencia es el **redirect post-login según rol**, no el mecanismo de entrada |
-| **`/portal`** | Institución / entidad veedora (sin cuenta CEOM) | Auth completamente separada: primera vez vía **Código de Acceso** de un solo uso; visitas siguientes vía **magic link** a un email — requiere agregar el campo `email` a `instituciones` (ver gap de backend en la sección 10, no implementado todavía) |
+| **`/portal`** | Institución / entidad veedora (sin cuenta CEOM) | Auth completamente separada: primera vez vía **Código de Acceso** de un solo uso; visitas siguientes vía **magic link** a un email (`instituciones.email`/`auth_user_id`, decisión completa en `CEOM_Arquitectura.md` §8.3) — **construido y verificado con un click real de email el 2026-07-18** |
 
 **Regla de seguridad no negociable para cuando se construya esto:** el gate de cada superficie se
 verifica **server-side a nivel de layout/middleware**, nunca solo ocultando componentes en el
@@ -237,8 +237,11 @@ landing en `src/app/admin/page.tsx` sigue siendo provisoria (fuera de ese route 
 el Panel Admin CEOM completo (salud agregada de tenants) es Módulo 11. `/portal` tiene su primera
 pantalla real (`src/app/portal/`, Canjear Código de Acceso) — pública, sin `layout.tsx` de auth
 porque no hace falta sesión para esta pantalla puntual (`canjearCodigoAcceso()` no recibe
-`solicitante`, a propósito); el resto de `/portal` (Mi Cartera + magic link) sigue sin construir,
-es Módulo 11.
+`solicitante`, a propósito). **Actualización 2026-07-18:** `/portal` también tiene el mecanismo de
+reingreso por magic link completo (`instituciones.email`/`auth_user_id`, `obtenerInstitucionActual()`,
+`src/app/portal/auth/callback/route.ts`, decisión completa en `CEOM_Arquitectura.md` §8.3),
+verificado con un click real de email — falta únicamente el contenido real de "Mi Cartera", que es
+Módulo 11.
 
 ---
 
@@ -807,10 +810,19 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 
 ### `/portal` (Institución, sin cuenta CEOM)
 **Canjear Código de Acceso** `[x]` (`/portal`, con mockup) — única puerta de entrada, superficie completamente nueva (sin `layout.tsx` de auth — pública a propósito, mismo criterio que `canjearCodigoAcceso()` sin `solicitante`). Reusa el layout split-screen del login (panel navy + card).
-- Wizard de 2 pasos: código primero; alta mínima (`nombre`, `tipo`, `contacto?`) solo si hace falta — no existe lookup de código sin canjear, así que la validación real ocurre recién al confirmar el alta.
-- ⚠️ **Gap de backend bloqueante, sigue pendiente (fuera de esta tanda):** para el magic link de visitas posteriores hace falta capturar `email` acá, pero **ese campo no existe hoy** en `DatosInstitucion` ni en la tabla `instituciones`. Falta: migración que agregue `email`, y el flujo de magic link vía Supabase Auth — corresponde a Módulo 11 (Monitoreo Institucional).
-- Campos de entrada: `codigo`, `institucionId` (si ya existe) o `institucionNueva`.
-- Acción: `canjearCodigoAcceso({ codigo, institucionId?, institucionNueva? })` — sin `solicitante`, a propósito. Tras canjear, la pantalla confirma el acceso otorgado pero aclara que el panel de seguimiento (Mi Cartera) todavía no existe — **verificado end-to-end: 2 canjes reales, ambos crearon la Institución y la Aprobación correctamente**.
+- Wizard de 2 pasos: código primero; alta mínima (`nombre`, `tipo`, `email`, `contacto?`) solo si hace falta — no existe lookup de código sin canjear, así que la validación real ocurre recién al confirmar el alta.
+- ✅ **Gap de backend cerrado el 2026-07-18:** `email` ya se captura en la alta mínima y se persiste en `instituciones`. Habilita el magic link de reingreso — ver pantalla siguiente y `CEOM_Arquitectura.md` §8.3.
+- Campos de entrada: `codigo`, `institucionId` (si ya existe) o `institucionNueva` (incluye `email`, obligatorio en este wizard aunque el campo del modelo es nullable a nivel de `DatosInstitucion`).
+- Acción: `canjearCodigoAcceso({ codigo, institucionId?, institucionNueva? })` — sin `solicitante`, a propósito. Tras canjear, la pantalla confirma el acceso otorgado y aclara que el panel de seguimiento (Mi Cartera) todavía no existe — **verificado end-to-end: múltiples canjes reales, todos crearon la Institución y la Aprobación correctamente**.
+- **Reingreso por magic link (2026-07-18, mismo `/portal`, toggle "¿Ya tenés acceso?" — no ruta propia):**
+  la Institución pide un enlace por `email` (`solicitarMagicLinkInstitucionAction` →
+  `solicitarMagicLinkInstitucion`, mensaje siempre genérico, nunca crea un `auth.users` huérfano),
+  lo recibe por correo real, y al hacer click cae en `src/app/portal/auth/callback/route.ts`
+  (primer Route Handler del proyecto) que resuelve el vínculo perezoso `email ↔ auth_user_id` y
+  redirige a `/portal`, que muestra el estado logueado vía `obtenerInstitucionActual()`. **Verificado
+  con un click real de correo (Gmail)** — no solo simulado. Decisión de arquitectura completa (por
+  qué Institución no es un Usuario de tenant) en `CEOM_Arquitectura.md` §8.3, detalle de
+  implementación en `src/modules/consentimiento/ANCLA.md`.
 
 ### `/admin` (ceom_admin)
 **CRUD de Instituciones.** `[x]` (`/admin/instituciones`, con mockup — maestro-detalle, primera vez que `/admin` tiene un shell real con sidebar, ver `admin-shell.tsx`).
@@ -983,5 +995,5 @@ Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios 
 | Ventas | `listarVentas`/`listarGastos` sin filtros de servidor; listado de Ventas sin monto total ni nombres (solo IDs) | Listado de Ventas/Gastos con volumen — aceptable para MVP, revisar si crece | **resuelto** para Ventas (`listarVentasConTotal`); Gastos sigue pendiente |
 | Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | pendiente |
 | Ventas | `registrarPagoVentaSchema` (ruta) no reenviaba `fechaPago` — el módulo ya lo aceptaba | Registrar Pago de Venta con fecha explícita | **resuelto** |
-| Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | pendiente |
+| Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | **resuelto** (2026-07-18, migración `0027`, verificado con un click real de email) |
 | Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | **resuelto** (cerrado el 2026-07-17, antes de construir CRUD de Instituciones) |

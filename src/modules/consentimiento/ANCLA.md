@@ -147,18 +147,21 @@
         en `/portal` — bug real encontrado y corregido: la página
         redirigía con el query param pero nunca lo leía). `pnpm typecheck`/
         `lint`/`test` completos en verde (153 tests).
-      - **⚠️ NO verificado end-to-end con un click real de email:**
-        `admin.auth.admin.generateLink()` (la única forma de generar un
-        link sin una bandeja real) devuelve formato *implicit* (tokens en
-        el fragmento `#`), mientras que `crearClienteServidor()`
-        (`@supabase/ssr`, confirmado en su código fuente instalado) fuerza
-        `flowType: "pkce"` — son dos caminos de Supabase distintos, el de
-        `generateLink()` no es representativo del que realmente dispara
-        `signInWithOtp()` en producción. No hay forma de simular el click
-        real sin acceso a una bandeja de entrada real. **Recomendado antes
-        de dar esto por completamente probado:** un ciclo real (canjear con
-        un email real → pedir reingreso → click en el correo real → cotejar
-        que `/portal` muestre el estado logueado).
+      - **✅ Validado end-to-end con un click real de email (2026-07-18).**
+        `admin.auth.admin.generateLink()` (usado antes para simular el
+        flujo sin bandeja real) devuelve formato *implicit* — no
+        representativo del flujo real, ver decisión abajo. El ciclo
+        completo se probó con una bandeja de correo real (Gmail): canje
+        con email → pedir reingreso desde `/portal` → click real en el
+        enlace recibido → `/portal` mostró "Hola, {nombre}" (el estado
+        logueado). Confirmado además contra la base:
+        `instituciones.auth_user_id` quedó vinculado a un usuario real de
+        Supabase Auth con `email_confirmed_at` y `last_sign_in_at`
+        poblados, ~1 minuto después de `created_at` — coincide exacto con
+        el timing real del click. `crearClienteServidor()` (`@supabase/ssr`)
+        generó correctamente un link `?code=` (PKCE) para el flujo real;
+        el Route Handler de callback lo procesó sin necesitar ningún
+        cambio de código.
 
 ## Cambios de contrato en otros 2 módulos
 - **Identidad** (`src/modules/identidad/actions.ts`): se agregaron
@@ -242,6 +245,18 @@
   en producción — no confundir un fallo de `generateLink()` con un bug del
   Route Handler. Si un agente futuro necesita probar el flujo real sin
   bandeja de entrada, no hay atajo conocido: hace falta un email real.
+  **Confirmado con un click real (2026-07-18):** el email que recibe una
+  Institución la primera vez dice "Confirm your email address" / "Follow
+  the link below to confirm this email address and finish signing up" —
+  no "magic link" — porque GoTrue trata el primer `signInWithOtp()` de un
+  email nunca visto como un signup implícito (crea el `auth.users` sin
+  confirmar y manda la plantilla de confirmación de cuenta). No es un bug:
+  el link funciona igual y completa el login. Reingresos posteriores del
+  mismo email (con `auth.users` ya confirmado) deberían usar la plantilla
+  real de "magic link" — no verificado en esta tanda por no ser necesario
+  para cerrar el gap, pero queda anotado por si un agente futuro lo ve y
+  se pregunta por la inconsistencia de copy entre el primer y segundo
+  ingreso.
 
 ## Última actualización: 2026-07-14 — roadmap ítem #11 agregó `listarCarteraPropia` y cerró el caller real de `registrarAccesoAdminCeom` (acotado a panel-admin-ceom)
 
@@ -263,7 +278,11 @@ Decisión de arquitectura completa en `CEOM_Arquitectura.md` sección 8.3 (por q
 NO se unifica con `auth.users.id`, y por qué `tienePermiso()` no se toca). Resumen técnico y estado
 de verificación: ver el bullet nuevo en "Estado actual" arriba. La institución/usuario de Auth
 usados para probar el vínculo perezoso vía Vitest se crearon y eliminaron en el mismo ciclo, sin
-residuo. El smoke test manual en navegador del canje con email (código `XEEBPSZS`, institución
-"Incubadora Smoke Test", email `smoke-test@ceom-erp.test`) sí quedó como dato de prueba real en
-`owner@ceom.local` — no se pudo limpiar sin un cascade manual por 3 tablas (mismo criterio de
-"append-only, sin acción de borrado expuesta" ya aplicado a la tanda anterior de este módulo).
+residuo. Dos artefactos de prueba quedaron en `owner@ceom.local` (mismo criterio ya aplicado antes
+en este módulo: entidades append-only, sin acción de borrado expuesta en la UI, y en este caso con
+FKs desde 3 tablas que hacen inviable un cascade manual sin tocar auditoría real):
+- **Smoke test del canje con email** (código `XEEBPSZS`, institución "Incubadora Smoke Test",
+  email `smoke-test@ceom-erp.test`) — hecho por el agente para probar la UI.
+- **Validación end-to-end real** (institución "institucion prueva", email real del usuario) — hecha
+  por el usuario mismo, con una bandeja de correo real (Gmail), confirmando que el click real
+  completa el login. Ver el bullet "✅ Validado end-to-end" arriba para el detalle.
