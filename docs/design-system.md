@@ -132,4 +132,87 @@ Jerarquía sugerida:
 
 ---
 
-*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. No quedan pendientes abiertos de diseño en este momento.*
+## 7. Layout de página estándar (Fase A del refactor de UI/UX, 2026-07-20)
+
+> Origen: `docs/ui/AUDITORIA-UI-UX.md`, hallazgo UI-009 — el ancho máximo del contenedor no seguía
+> ninguna regla (3 a 6 valores de `max-w` por módulo). Esta sección fija la regla, derivada de qué
+> valor ya usaba la mayoría de las pantallas que se ven bien — no se inventó ningún valor nuevo.
+
+### 7.1 Wrapper estándar
+
+Toda pantalla de `/app` y `/admin` (excepto `/login` y `/portal`, que tienen su propio layout de
+pantalla completa) usa exactamente:
+
+```tsx
+<div className="min-h-screen bg-gray-bg p-6">
+  <div className="mx-auto max-w-{TOKEN} space-y-4 py-6">
+    {/* contenido de la pantalla */}
+  </div>
+</div>
+```
+
+`space-y-4` es el valor por defecto; el Dashboard/Inicio y el Catálogo de Productos usan `space-y-6`
+porque agrupan secciones más grandes (varias cards por bloque) — mantenido tal cual, no es una
+inconsistencia a corregir.
+
+### 7.2 Tabla de `max-w` por tipo de pantalla
+
+| Tipo de pantalla | `max-w` | Por qué este valor | Pantalla de referencia (ya aplicada) |
+|---|---|---|---|
+| Dashboard / resumen ejecutivo | `max-w-5xl` | Ya era el valor mayoritario para pantallas con varias cards de KPI en grid | `/app` (Inicio) — ya cumplía, queda como referencia |
+| POS / flujo operativo de una sola pantalla | `max-w-5xl` | Necesita espacio para catálogo + panel de carrito lado a lado | `/app/ventas` (Vender) — ya cumplía, queda como referencia |
+| Listado denso (filas/tabla) | `max-w-4xl` | Valor mayoritario entre Historial de Ventas, Clientes, Pasivos, Logs de `/admin`, Ranking de Productos | `/app/ventas/eventos` — corregido de `5xl` a `4xl` |
+| Listado de cards / catálogo (grid) | `max-w-6xl` | Mismo ancho que Catálogo de Productos y Catálogo de Insumos, que ya necesitan 3-4 columnas | `/app/patrimonio` (Activos) — corregido de `5xl` a `6xl` |
+| Ficha de detalle (1 panel) | `max-w-4xl` | Valor mayoritario entre Ficha de Venta, Ficha de Gasto, Ficha de Producto, Ficha de Insumo | `/app/patrimonio/[id]` — corregido de `5xl` a `4xl` |
+| Maestro-detalle (2 paneles) | `max-w-6xl` | Necesita espacio para panel lateral + panel de detalle (Directorio de Proveedores, Gestión de Recetas ya lo usan) | sin cambios en esta fase — ya cumplía |
+| Formulario de 1 columna | `max-w-2xl` | Los 5 formularios compartidos (`ActivoForm`, `GastoForm`, `InsumoForm`, `PasivoForm`) ya se auto-limitan a `max-w-2xl` en su propio `<form>` — el wrapper de página en `4xl`/`5xl` no hacía nada, era ancho muerto. Bajar el wrapper de página a `2xl` elimina el doble contenedor sin cambiar ni un píxel de lo que el usuario ya ve. | `/app/patrimonio/nuevo` y `/app/patrimonio/[id]/editar` — corregidos de `4xl` a `2xl` |
+| Formulario multi-columna / con panel lateral | `max-w-4xl` a `max-w-6xl` según cantidad de columnas | Excepción documentada: `ProductForm` (grid de 2 columnas, sin auto-límite propio) necesita `max-w-4xl` de la página; "Registrar Producción" (formulario + panel de resumen) necesita `max-w-6xl`. No se tocan en esta fase — ya usaban estos valores. | `/app/productos/nuevo`, `/app/produccion/nuevo` — sin cambios, quedan como referencia de la excepción |
+
+**Regla para pantallas nuevas:** identificar el tipo de la tabla de arriba y usar ese `max-w`
+directamente. Si una pantalla nueva no encaja claramente en ningún tipo, es señal de que puede
+necesitar descomponerse (¿es en realidad un formulario multi-columna disfrazado de ficha?) antes de
+inventar un noveno valor de ancho.
+
+## 8. Componentes compartidos (Fase A en adelante)
+
+> Cada primitiva nueva se documenta acá con su API real y cuándo usarla, a medida que se construye.
+> Ver `src/components/ui/*.tsx` para la implementación.
+
+### 8.1 `Tabs` (`src/components/ui/tabs.tsx`)
+Extraído del patrón de tab-bar persistente que ya usaban Consentimiento y Simulaciones (el mecanismo
+mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es el mismo con estado
+`activo` derivado de `usePathname()` en vez de pasado a mano por archivo.
+
+- **Cuándo usar:** vistas múltiples de un mismo recurso/contexto de datos ya elegido (Ficha de
+  Tenant en `/admin` y `/portal`, Ficha de Proveedor) — regla de navegación completa en
+  `docs/ui/AUDITORIA-UI-UX.md` sección 4.2/4.4.
+- **Cuándo NO usar:** para moverse entre las secciones de un módulo (Ventas → Historial/Clientes/
+  etc.) — eso es el submenú de sidebar (sección 4 de la auditoría), no `Tabs`.
+- **API:**
+  ```tsx
+  <Tabs
+    items={[
+      { href: "/app/consentimiento", label: "Generar Código", icon: KeyRound },
+      { href: "/app/consentimiento/codigos", label: "Códigos Generados", icon: ListChecks },
+    ]}
+  />
+  ```
+  `href` se resuelve contra `usePathname()` automáticamente (coincidencia exacta para el ítem que no
+  tiene sub-rutas propias) — no recibe una prop `activo`, para que sea imposible que quede
+  desincronizado como pasaba con `NavReportes`/`NavSimulaciones` copiados a mano.
+
+### 8.2 `Dialog` — prop `size`
+- **Cuándo usar cada tamaño:** `sm` (default, 384px) para diálogos de 1-3 campos simples (confirmar
+  borrado, un solo input); `md` (480px) para diálogos de 4-6 campos; `lg` (640px) para formularios
+  densos como el de Plan (9 campos/controles); `xl` (768px) para diálogos con tabla o contenido
+  ancho.
+- Ver detalle completo de props en el propio archivo.
+
+### 8.3 `PageHeader` — `title: ReactNode`
+- Ahora acepta cualquier `ReactNode` como título, no solo `string` — permite poner un `<Badge>` de
+  estado junto al nombre (Ficha de Gasto, Ficha de Producto, Ficha de Tenant) sin reimplementar el
+  header a mano.
+
+---
+
+*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7 y 8 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`) y se siguen completando a medida que avanza el refactor — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
