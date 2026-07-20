@@ -6,6 +6,7 @@ import { FileText, History, Pencil, Tag, Trash2, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
+import { FormError } from "@/components/ui/form-error";
 import {
   ProveedorFormDialog,
   type ProveedorEditable,
@@ -135,7 +136,7 @@ export function FichaProveedorCliente({
           </div>
         </div>
 
-        {error && <p className="mt-2 text-xs text-error-text">{error}</p>}
+        <FormError className="mt-2">{error}</FormError>
 
         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-border pt-4 text-sm">
           <div>
