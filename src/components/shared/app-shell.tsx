@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  BarChart3,
   Building2,
   Calculator,
   ChefHat,
+  ChevronDown,
   KeyRound,
   LayoutGrid,
   LogOut,
@@ -25,10 +27,27 @@ import { Logo } from "@/components/brand/logo";
 import { cerrarSesion } from "@/lib/supabase/actions";
 import { cn } from "@/lib/utils";
 
+interface SubItemNav {
+  href: string;
+  label: string;
+}
+
 interface ItemNav {
   href: string;
   label: string;
   icono: typeof LayoutGrid;
+  // Prefijo contra el que se resalta el grupo entero como activo (ej. "Mi
+  // negocio" navega a /app/mi-negocio/colaboradores pero el grupo se
+  // resalta en cualquier /app/mi-negocio/* o /app/onboarding). Default: href.
+  grupoBase?: string;
+  // Submenu real de sidebar — reemplaza los 7 mecanismos ad-hoc distintos
+  // que documentaba docs/ui/AUDITORIA-UI-UX.md UI-002 (sub-nav de texto
+  // que solo vivía en la raíz, botón aislado, link suelto, etc.) para los
+  // módulos cuyas secciones son de uso diario y heterogéneo entre sí —
+  // decisión 6 del refactor de Fase A. Los módulos que ya resuelven bien
+  // su navegación con un tab-bar persistente (Reportes, Simulaciones,
+  // Consentimiento) quedan sin submenú a propósito: no se migran.
+  subitems?: SubItemNav[];
 }
 
 function formatoFecha(fecha: string): string {
@@ -94,6 +113,7 @@ export function AppShell({
   const [abierto, setAbierto] = useState(false);
   const [colapsado, setColapsado] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const [expandidosManual, setExpandidosManual] = useState<Set<string>>(new Set());
   const pathname = usePathname();
   const abrirBtnRef = useRef<HTMLButtonElement>(null);
   const asideRef = useRef<HTMLElement>(null);
@@ -144,29 +164,116 @@ export function AppShell({
 
   const items: ItemNav[] = [
     { href: "/app", label: "Inicio", icono: LayoutGrid },
-    { href: "/app/ventas", label: "Ventas", icono: ShoppingCart },
+    {
+      href: "/app/ventas",
+      label: "Ventas",
+      icono: ShoppingCart,
+      subitems: [
+        { href: "/app/ventas", label: "Vender" },
+        { href: "/app/ventas/historial", label: "Historial" },
+        { href: "/app/ventas/clientes", label: "Clientes" },
+        { href: "/app/ventas/canales", label: "Canales de venta" },
+        { href: "/app/ventas/metodos-pago", label: "Métodos de pago" },
+        { href: "/app/ventas/eventos", label: "Eventos" },
+        { href: "/app/ventas/importar", label: "Importar histórico" },
+      ],
+    },
     { href: "/app/productos", label: "Catálogo", icono: Package },
-    { href: "/app/patrimonio", label: "Patrimonio", icono: Building2 },
-    { href: "/app/proveedores", label: "Proveedores", icono: Truck },
+    {
+      href: "/app/patrimonio",
+      label: "Patrimonio",
+      icono: Building2,
+      subitems: [
+        { href: "/app/patrimonio", label: "Activos" },
+        { href: "/app/patrimonio/pasivos", label: "Pasivos" },
+      ],
+    },
+    {
+      href: "/app/proveedores",
+      label: "Proveedores",
+      icono: Truck,
+      subitems: [
+        { href: "/app/proveedores", label: "Directorio" },
+        { href: "/app/proveedores/compras", label: "Compras" },
+      ],
+    },
     ...(esOwner
-      ? [{ href: "/app/mi-negocio/colaboradores", label: "Mi negocio", icono: Settings }]
+      ? [
+          {
+            href: "/app/mi-negocio/colaboradores",
+            label: "Mi negocio",
+            icono: Settings,
+            grupoBase: "/app/mi-negocio",
+            subitems: [
+              { href: "/app/onboarding", label: "Negocio" },
+              { href: "/app/mi-negocio/colaboradores", label: "Colaboradores" },
+              { href: "/app/mi-negocio/roles", label: "Roles" },
+              { href: "/app/mi-negocio/capacidades", label: "Capacidades Especiales" },
+              { href: "/app/mi-negocio/plan", label: "Mi Plan" },
+            ],
+          } satisfies ItemNav,
+        ]
       : []),
-    { href: "/app/gastos", label: "Gastos", icono: Receipt },
-    { href: "/app/produccion", label: "Producción", icono: ChefHat },
+    {
+      href: "/app/gastos",
+      label: "Gastos",
+      icono: Receipt,
+      subitems: [
+        { href: "/app/gastos", label: "Gastos" },
+        { href: "/app/gastos/recurrentes", label: "Recurrentes" },
+      ],
+    },
+    {
+      href: "/app/produccion",
+      label: "Producción",
+      icono: ChefHat,
+      subitems: [
+        { href: "/app/produccion", label: "Producciones" },
+        { href: "/app/produccion/insumos", label: "Insumos" },
+        { href: "/app/produccion/recetas", label: "Recetas" },
+        { href: "/app/produccion/capacidad", label: "Capacidad" },
+      ],
+    },
     { href: "/app/simulaciones", label: "Simulaciones", icono: Calculator },
+    { href: "/app/reportes", label: "Reportes", icono: BarChart3 },
     { href: "/app/consentimiento", label: "Compartir Datos", icono: KeyRound },
   ];
 
-  function esActivo(href: string) {
-    if (href === "/app") return pathname === "/app";
+  function grupoActivo(item: ItemNav) {
+    const base = item.grupoBase ?? item.href;
+    if (base === "/app") return pathname === "/app";
     // "Mi negocio" cubre tanto el hub nuevo (Colaboradores/Roles/
     // Capacidades, dentro del shell) como el asistente de Onboarding
     // (fuera del shell a propósito, ver src/app/app/(shell)/layout.tsx) —
     // ambos se resaltan como la misma sección.
-    if (href.startsWith("/app/mi-negocio")) {
+    if (base === "/app/mi-negocio") {
       return pathname.startsWith("/app/mi-negocio") || pathname.startsWith("/app/onboarding");
     }
-    return pathname.startsWith(href);
+    return pathname.startsWith(base);
+  }
+
+  function subitemActivo(sub: SubItemNav) {
+    return pathname === sub.href;
+  }
+
+  function estaExpandido(item: ItemNav) {
+    if (!item.subitems) return false;
+    // El grupo activo siempre se muestra expandido — no se puede colapsar
+    // la sección en la que ya estás parado. Los demás grupos se expanden
+    // manualmente para "espiar" sin navegar.
+    return grupoActivo(item) || expandidosManual.has(item.href);
+  }
+
+  function toggleExpandido(href: string) {
+    setExpandidosManual((prev) => {
+      const siguiente = new Set(prev);
+      if (siguiente.has(href)) {
+        siguiente.delete(href);
+      } else {
+        siguiente.add(href);
+      }
+      return siguiente;
+    });
   }
 
   return (
@@ -236,29 +343,68 @@ export function AppShell({
         </div>
 
         <nav className="mt-2 flex-1 space-y-1 px-3">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setAbierto(false)}
-              title={mostrarExpandido ? undefined : item.label}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
-                esActivo(item.href) && "bg-sidebar-accent text-white",
-                !mostrarExpandido && "justify-center px-0"
-              )}
-            >
-              <item.icono className="size-4 shrink-0" />
-              <span
-                className={cn(
-                  "overflow-hidden whitespace-nowrap transition-all duration-200",
-                  mostrarExpandido ? "max-w-[160px] opacity-100" : "max-w-0 opacity-0"
+          {items.map((item) => {
+            const activo = grupoActivo(item);
+            const tieneSubitems = !!item.subitems && item.subitems.length > 0;
+            const expandido = tieneSubitems && mostrarExpandido && estaExpandido(item);
+            return (
+              <div key={item.href}>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={item.href}
+                    onClick={() => setAbierto(false)}
+                    title={mostrarExpandido ? undefined : item.label}
+                    className={cn(
+                      "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
+                      activo && "bg-sidebar-accent text-white",
+                      !mostrarExpandido && "justify-center px-0"
+                    )}
+                  >
+                    <item.icono className="size-4 shrink-0" />
+                    <span
+                      className={cn(
+                        "overflow-hidden whitespace-nowrap transition-all duration-200",
+                        mostrarExpandido ? "max-w-[160px] opacity-100" : "max-w-0 opacity-0"
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  </Link>
+                  {tieneSubitems && mostrarExpandido && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandido(item.href)}
+                      aria-expanded={expandido}
+                      aria-label={expandido ? `Contraer ${item.label}` : `Expandir ${item.label}`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-sidebar-accent hover:text-white"
+                    >
+                      <ChevronDown
+                        className={cn("size-4 transition-transform duration-200", expandido && "rotate-180")}
+                      />
+                    </button>
+                  )}
+                </div>
+
+                {expandido && (
+                  <div className="mt-1 ml-4 space-y-0.5 border-l border-white/10 pl-3">
+                    {item.subitems!.map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={() => setAbierto(false)}
+                        className={cn(
+                          "block rounded-lg px-3 py-1.5 text-sm text-white/70 transition-colors hover:bg-sidebar-accent hover:text-white",
+                          subitemActivo(sub) && "bg-sidebar-accent text-white"
+                        )}
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
                 )}
-              >
-                {item.label}
-              </span>
-            </Link>
-          ))}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="space-y-3 border-t border-white/10 px-3 py-4">
