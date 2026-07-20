@@ -455,6 +455,23 @@
   menciona "activo/solo_lectura/bloqueado" como algo seleccionable por un
   admin, es casi seguro el mismo error — verificar contra esta nota antes
   de implementarlo literal.
+- **Bug real encontrado y corregido (2026-07-18, `/app/mi-negocio/plan`): un
+  Server Component no puede importar una constante de datos (no-componente)
+  desde un archivo `"use client"` y esperar el valor real en el servidor.**
+  `page.tsx` (sin `"use client"`) importaba `MODULOS_VEEDOR_INFO` desde
+  `consentimiento/generar-cliente.tsx` (que sí es `"use client"`, mismo
+  patrón que ya usan `planes-cliente.tsx`/`instituciones-cliente.tsx` — pero
+  esos dos son ellos mismos Client Components, no Server Components). En el
+  servidor esa importación resolvió a una referencia vacía, no al objeto
+  real — `MODULOS_VEEDOR_INFO[m]` daba `undefined` y `.label` tiraba
+  `TypeError`. `tsc` no lo detecta (el tipo del import es correcto, solo el
+  valor en runtime está vacío). **Fix aplicado:** duplicar el mapeo
+  localmente en el Server Component en vez de importarlo (mismo criterio
+  que ya se usa para `SubnavMiNegocio`/`CAMPOS_BOOLEANOS`, copiados por
+  archivo en toda esta carpeta). **Regla general para cualquier pantalla
+  nueva de Server Component en este proyecto:** si necesitás una constante
+  que hoy vive en un archivo `"use client"`, no la importes — duplicala o
+  movela a un archivo sin directiva.
 - **La Ficha de Tenant de `/admin` ahora también muestra el nombre del plan
   vigente en su grid de datos** (antes solo aparecía transitoriamente
   dentro del Dialog "Cambiar Plan"). El selector del Dialog solo lista
@@ -465,4 +482,4 @@
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
 
-## Última actualización: 2026-07-18 — Cierre de Gestión de Tenants: UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email (confirmada vía Admin API, no solo por ausencia de error). Roadmap: quedan solo 2 pantallas chicas (Nicho 4, Mi Plan). Actualización previa el mismo día: gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y, antes de eso, Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+## Última actualización: 2026-07-18 — "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Roadmap: queda solo 1 pantalla chica (Nicho 4). Actualización previa el mismo día: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)

@@ -45,8 +45,19 @@
       `docs/ui/pantallas.md` sección "Pendientes de pulido visual".
 - [ ] Panel Administrativo CEOM (salud agregada), Instituciones, Gateway,
       Código de Acceso — ya construidos en tandas posteriores (Módulo 10 y
-      11), no en este módulo. "Mi plan" (`/app`, solo lectura para el
-      Owner) sigue pendiente.
+      11), no en este módulo.
+- [x] **UI de "Mi Plan" construida (2026-07-18):** `/app/mi-negocio/plan`
+      (dentro de `src/app/app/(shell)/mi-negocio/`, sub-nav compartido con
+      Colaboradores/Roles/Capacidades — no vive en este módulo, es una
+      pantalla de Identidad que **consume** `obtenerPlanPorId()` de acá, sin
+      exponer ninguna función nueva de este módulo). Vista de solo lectura
+      del plan vigente del tenant para cualquier colaborador autenticado (no
+      solo Owner) — cambiar de plan sigue siendo exclusivo de `ceom_admin`
+      desde `/admin/tenants/[tenantId]`. Sin gap de backend: compone
+      `obtenerTenantPorId`/`calcularEstadoAcceso` (Identidad, ya usadas por
+      el shell de `/app`) con `obtenerPlanPorId` (acá, ya usada por
+      `crearTenant`/`cambiarPlanTenant`). Detalle completo en
+      `docs/ui/pantallas.md` sección 2 y en `identidad/ANCLA.md`.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/suscripcion/schema.ts`
@@ -87,4 +98,4 @@
   arquitectura, no se corrigió en esta tarea (avisado explícitamente, no
   silencioso).
 
-## Última actualización: 2026-07-18 — UI del catálogo de Planes construida (`/admin/planes`)
+## Última actualización: 2026-07-18 — UI de "Mi Plan" construida (`/app/mi-negocio/plan`), cierra el último ítem pendiente de este módulo. Actualización previa el mismo día: UI del catálogo de Planes construida (`/admin/planes`)

@@ -205,11 +205,13 @@ creado lo necesitaba de todas formas.
 botón "+ Nuevo Tenant" en el listado, y panel de acciones (Cambiar Plan / Cambiar Estado de
 Suscripción) en la Ficha de Tenant. Detalle completo en la sección 1 más abajo.
 
-Quedan solo 2 ítems chicos, ninguno bloquea el camino dorado:
+**"Mi Plan" (Módulo 2, `/app`) cerrada 2026-07-18** — sin gap de backend (reusa
+`obtenerTenantPorId`/`calcularEstadoAcceso` de Identidad y `obtenerPlanPorId` de Suscripción, ya
+usados por el shell de `/app` y por `crearTenant`). Detalle completo en la sección 2 más abajo.
+
+Queda solo 1 ítem chico, no bloquea el camino dorado:
 
 1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla).
-2. **"Mi plan" (Módulo 2, `/app`)** — vista de solo lectura del plan vigente para el Owner del
-   tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`).
 
 ---
 
@@ -423,11 +425,30 @@ mockup — mismo patrón Dialog ya usado en Planes/Aprobaciones), sin tocar los 
 
 ## 2. Suscripción (versión mínima)
 
-### `/app` — Mi plan (Owner, solo lectura)
-**Mi plan** `[ ]`
-- Campos: `nombre`, `nichoId`, `incluyeSucursales`, `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias`, `duracionEtapaSoloLecturaDias`, `modulosVeedorPermitidos`, `precioMensual`, `moneda`, `activo`.
-- Sin acción de upgrade/downgrade autoservicio en el MVP (lo ejecuta `ceom_admin` manualmente).
-- Rol: cualquier usuario del tenant. Acción: `obtenerPlanPorId(tenant.planId)`.
+### `/app` — Mi Plan (Owner y cualquier colaborador, solo lectura)
+**Mi Plan** `[x]` (`/app/mi-negocio/plan`, sin mockup — dentro de "Mi negocio", mismo lugar que
+Colaboradores/Roles/Capacidades Especiales, sub-nav compartido).
+- Sin gap de backend: `obtenerMiPlanAction()` (nueva Server Action delgada en
+  `mi-negocio/actions.ts`) compone `obtenerTenantPorId(usuario, usuario.tenantId)` +
+  `calcularEstadoAcceso(tenant)` (ambas de Identidad, ya usadas por el shell de `/app`) +
+  `obtenerPlanPorId(tenant.planId)` (de Suscripción, ya usado por `crearTenant`/`cambiarPlanTenant`)
+  — ninguna función nueva en ningún módulo.
+- 2-3 cards de métrica arriba (mismo estilo KPI que el resto de la app): nombre del plan + precio
+  mensual; badges de `estadoSuscripcion`/`estadoAcceso` (mismos colores semánticos que en toda la
+  app); card de advertencia con fecha de próximo pago, solo si `estadoSuscripcion === "vencida"`.
+  Debajo, checklist de qué incluye el plan (sucursales/múltiples Owners/downgrade autogestionado,
+  mismo patrón visual de atributos que la Ficha de Activo) + badges de módulos veedor permitidos.
+  100% solo lectura — cambiar de plan sigue siendo exclusivo de `ceom_admin` desde `/admin`.
+- **Bug real encontrado y corregido durante la verificación en navegador:** un Server Component
+  (`page.tsx`, sin `"use client"`) importaba `MODULOS_VEEDOR_INFO` desde
+  `consentimiento/generar-cliente.tsx` (que sí es `"use client"`) — en el servidor esa importación
+  resuelve a una referencia vacía, no al objeto real, y `MODULOS_VEEDOR_INFO[m].label` tiraba
+  `TypeError: Cannot read properties of undefined (reading 'label')` en cada request. Fix: el mapeo
+  se duplicó localmente en `page.tsx` (mismo criterio ya usado para `CAMPOS_BOOLEANOS`, copiado de
+  `planes-cliente.tsx`) — no importar constantes de datos desde un archivo `"use client"` hacia un
+  Server Component, aunque typecheck no lo detecta (el tipo del import es correcto, el valor en
+  runtime no).
+- Rol: cualquier usuario autenticado del tenant (no solo Owner) — es puramente informativo.
 
 ### `/admin` — Catálogo de Planes (ceom_admin)
 **Listado de Planes + Crear/Editar/Desactivar/Reactivar.** `[x]` (`/admin/planes`, sin mockup —

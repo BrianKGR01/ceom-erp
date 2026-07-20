@@ -2,6 +2,7 @@
 
 import {
   actualizarPermisosRol,
+  calcularEstadoAcceso,
   cambiarRolUsuario,
   crearRolPersonalizado,
   eliminarRol,
@@ -10,6 +11,7 @@ import {
   listarPermisosPorRol,
   listarRoles,
   listarUsuarios,
+  obtenerTenantPorId,
   obtenerUsuarioActual,
   otorgarCapacidadEspecialPorRol,
   otorgarCapacidadEspecialPorUsuario,
@@ -25,6 +27,7 @@ import {
   invitarColaboradorSchema,
   crearRolFormSchema,
 } from "@/modules/identidad/validation";
+import { obtenerPlanPorId } from "@/modules/suscripcion/actions";
 
 // Server Actions delgadas (mismo patron que onboarding/actions.ts): resuelven
 // la sesion server-side y delegan en identidad/actions.ts.
@@ -137,4 +140,23 @@ export async function otorgarCapacidadEspecialPorUsuarioAction(
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   return otorgarCapacidadEspecialPorUsuario(usuario, usuarioId, capacidad, habilitado);
+}
+
+export async function obtenerMiPlanAction() {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const tenantRes = await obtenerTenantPorId(usuario, usuario.tenantId);
+  if (!tenantRes.ok) return tenantRes;
+  const tenant = tenantRes.data;
+  const plan = tenant.planId ? await obtenerPlanPorId(tenant.planId) : null;
+  return {
+    ok: true as const,
+    data: {
+      estadoSuscripcion: tenant.estadoSuscripcion,
+      estadoAcceso: calcularEstadoAcceso(tenant),
+      fechaInicioSuscripcion: tenant.fechaInicioSuscripcion,
+      fechaProximoPago: tenant.fechaProximoPago,
+      plan,
+    },
+  };
 }
