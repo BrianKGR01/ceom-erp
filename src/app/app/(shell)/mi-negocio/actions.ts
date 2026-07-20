@@ -145,6 +145,13 @@ export async function otorgarCapacidadEspecialPorUsuarioAction(
 export async function obtenerMiPlanAction() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  // Gate propio de la action, no solo del page — una Server Action es un
+  // endpoint POST invocable directamente, no puede confiar en que el page que
+  // la renderiza ya validó (UI-044). Los datos de plan/facturación son
+  // exclusivos del Owner, mismo criterio que listarUsuarios/listarRoles.
+  if (!usuario.esOwner) {
+    return { ok: false as const, error: "Solo el Owner puede ver el plan del negocio." };
+  }
   const tenantRes = await obtenerTenantPorId(usuario, usuario.tenantId);
   if (!tenantRes.ok) return tenantRes;
   const tenant = tenantRes.data;

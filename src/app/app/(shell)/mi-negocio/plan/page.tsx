@@ -58,6 +58,11 @@ function SubnavMiNegocio() {
 export default async function MiPlanPage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
+  // Datos de facturación del negocio — solo Owner, igual que sus 3 pantallas
+  // hermanas (Colaboradores/Roles/Capacidades). Ver UI-044 en
+  // docs/security/AUDITORIA-AUTORIZACION.md: la ausencia de este gate dejaba
+  // que cualquier colaborador leyera plan/precio/estado de suscripción.
+  if (!usuario.esOwner) redirect("/app");
 
   const resultado = await obtenerMiPlanAction();
 
