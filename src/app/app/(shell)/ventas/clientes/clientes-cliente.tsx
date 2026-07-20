@@ -232,11 +232,11 @@ export function ClientesCliente({ clientes }: { clientes: ClienteListado[] }) {
                       variant="destructive"
                       size="sm"
                       onClick={() => confirmarEliminar(cliente.id)}
-                      disabled={eliminando}
+                      loading={eliminando}
                     >
                       Sí, eliminar
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setEliminandoId(null)}>
+                    <Button variant="outline" size="sm" onClick={() => setEliminandoId(null)} disabled={eliminando}>
                       Cancelar
                     </Button>
                   </div>
