@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OptionCard } from "@/components/ui/option-card";
 import {
   Select,
   SelectContent,
@@ -14,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { gastoFormSchema, type GastoFormInput } from "@/modules/gastos/validation";
 
 const TIPOS: { value: GastoFormInput["tipo"]; label: string; descripcion: string }[] = [
@@ -81,21 +81,14 @@ export function GastoForm({
           <Label>Tipo de Gasto</Label>
           <div className="grid grid-cols-3 gap-2">
             {TIPOS.map((t) => (
-              <button
+              <OptionCard
                 key={t.value}
-                type="button"
+                selected={tipo === t.value}
                 disabled={mode === "editar"}
-                onClick={() => form.setValue("tipo", t.value)}
-                className={cn(
-                  "rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                  tipo === t.value
-                    ? "border-primary bg-pastel-blue-bg"
-                    : "border-gray-border hover:border-primary/50"
-                )}
-              >
-                <p className="text-sm font-medium text-navy">{t.label}</p>
-                <p className="mt-0.5 text-xs text-text-muted">{t.descripcion}</p>
-              </button>
+                onSelect={() => form.setValue("tipo", t.value)}
+                label={t.label}
+                description={t.descripcion}
+              />
             ))}
           </div>
           {mode === "editar" && (
