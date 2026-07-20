@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, CheckCircle2, Eye, Plus, Search, ShieldAlert } from "lucide-react";
+import { Building2, CheckCircle2, Eye, Plus, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 
 interface Tenant {
   id: string;
@@ -59,15 +59,12 @@ export function TenantsCliente({
           <p className="mt-1 text-sm text-text-muted">Salud agregada de la plataforma.</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative sm:w-64">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
-            <Input
-              placeholder="Buscar tenant..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+          <SearchInput
+            className="sm:w-64"
+            placeholder="Buscar tenant..."
+            value={busqueda}
+            onChange={setBusqueda}
+          />
           <Link href="/admin/tenants/nuevo">
             <Button>
               <Plus className="size-4" />
