@@ -202,10 +202,11 @@ mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es e
   desincronizado como pasaba con `NavReportes`/`NavSimulaciones` copiados a mano.
 
 ### 8.2 `Dialog` — prop `size`
-- **Cuándo usar cada tamaño:** `sm` (default, 384px) para diálogos de 1-3 campos simples (confirmar
-  borrado, un solo input); `md` (480px) para diálogos de 4-6 campos; `lg` (640px) para formularios
-  densos como el de Plan (9 campos/controles); `xl` (768px) para diálogos con tabla o contenido
-  ancho.
+- Escala corta de 3 valores, **default `md`** (antes todo diálogo heredaba `sm:max-w-sm`, 384px,
+  sin poder optar por otro ancho — causa raíz de UI-012/UI-018): `sm` (384px) para diálogos de 1-3
+  campos simples (confirmar borrado, un solo input); `md` (576px, **default**) para la mayoría de
+  los formularios de 4-9 campos — este cambio de default corrige de paso el Dialog de "Nuevo Plan"
+  en `/admin/planes` sin tocar ese archivo; `lg` (768px) para diálogos con tabla o contenido ancho.
 - Ver detalle completo de props en el propio archivo.
 
 ### 8.3 `PageHeader` — `title: ReactNode`
