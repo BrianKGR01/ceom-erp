@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { listarSucursalesPorTenant, obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarProductos } from "@/modules/productos/actions";
-import { construirDashboard } from "./inicio-actions";
+import { construirDashboard, obtenerCapacidadAlmacenamientoWidget } from "./inicio-actions";
 import { InicioContenido } from "./inicio-contenido";
 import { calcularRangoPreset } from "./periodo-presets";
 
@@ -25,7 +25,10 @@ export default async function AppHomePage() {
   const nombreNegocio = tenantResultado.ok ? tenantResultado.data.nombreNegocio : usuario.nombreCompleto;
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
 
-  const datosIniciales = await construirDashboard(usuario, calcularRangoPreset("mes"));
+  const [datosIniciales, capacidadAlmacenamiento] = await Promise.all([
+    construirDashboard(usuario, calcularRangoPreset("mes")),
+    obtenerCapacidadAlmacenamientoWidget(usuario),
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
@@ -36,6 +39,7 @@ export default async function AppHomePage() {
           tieneProductos={tieneProductos}
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
           datosIniciales={datosIniciales}
+          capacidadAlmacenamiento={capacidadAlmacenamiento}
         />
       </div>
     </div>

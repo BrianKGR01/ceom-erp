@@ -22,17 +22,31 @@
 
 ---
 
-## Progreso (actualizado 2026-07-18)
+## Progreso (actualizado 2026-07-20)
 
-**110 construidas · 0 parciales · 7 pendientes**, de 117 pantallas/modales trackeados a este nivel
+**115 construidas · 0 parciales · 2 pendientes**, de 117 pantallas/modales trackeados a este nivel
 de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
 pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total con
 "Transferir Owner", que no estaba en el inventario original).
 
+**Los 2 pendientes que quedan (detalle en sus secciones) — ninguno bloquea el camino dorado:**
+1. **Banner de estado del tenant** (`/app`, Identidad, sección 1) — visible cuando
+   `estadoAcceso !== "activo"`. `obtenerEstadoAccesoTenant()` ya existe y ya está expuesta sin gate,
+   nunca se construyó el banner que lo consume.
+2. **Vincular a proceso operativo** (modal en Ficha de Producto, sección 5) — vincula un Producto a
+   una Receta de Nicho 1 (`vincularProductoAReceta`/`desvincularProductoDeReceta`, ya existen y
+   probadas). Sin este modal, vincular un producto a una receta solo se puede hacer a mano contra la
+   base — Registrar Producción ya muestra el estado vacío que señala este gap explícitamente.
+
+Además, un caveat chico dentro de una pantalla ya `[x]`: **`eventoId` no tiene control de UI en el
+formulario de Registrar Venta** (`pos-cliente.tsx`) — Gestión de Eventos (CRUD completo) sí está
+construida, pero no hay forma de atribuir una venta a un evento desde el carrito todavía. Campo real
+del contrato de `registrarVenta`, sin backend gap — solo falta el selector.
+
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
-| 1. Identidad | 16 | 0 | 4 | 20 |
-| 2. Suscripción | 4 | 0 | 1 | 5 |
+| 1. Identidad | 19 | 0 | 1 | 20 |
+| 2. Suscripción | 5 | 0 | 0 | 5 |
 | **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
 | **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
@@ -42,7 +56,7 @@ pantalla; este número es más fino y es el que se mantiene de acá en adelante.
 | **9. Financiero** | **3** | 0 | 0 | 3 |
 | **10. Gateway de Consentimiento** | **9** | 0 | 0 | 9 |
 | **11. Monitoreo Institucional + Panel Admin** | **10** | 0 | 0 | 10 |
-| 12. Nicho 4 | 0 | 0 | 1 | 1 |
+| 12. Nicho 4 | 1 | 0 | 0 | 1 |
 | **13. Simulaciones** | **5** | 0 | 0 | 5 |
 | **14. Reportes y Dashboard** | **9** | 0 | 0 | 9 |
 
@@ -209,9 +223,14 @@ Suscripción) en la Ficha de Tenant. Detalle completo en la sección 1 más abaj
 `obtenerTenantPorId`/`calcularEstadoAcceso` de Identidad y `obtenerPlanPorId` de Suscripción, ya
 usados por el shell de `/app` y por `crearTenant`). Detalle completo en la sección 2 más abajo.
 
-Queda solo 1 ítem chico, no bloquea el camino dorado:
+**Nicho 4 (widget de Capacidad de Almacenamiento Usada) cerrado 2026-07-20** — sin gap de backend
+(`consultarCapacidadAlmacenamientoUsada` ya existía y ya estaba probada). Embebido en el Dashboard,
+sin nav propia. Detalle completo en la sección 12 más abajo.
 
-1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla).
+**Con esto se cierran las 3 tandas chicas que quedaban pendientes** (Gestión de Tenants, Mi Plan,
+Nicho 4) — **pero el inventario NO queda 100% en `[x]`: quedan 2 pantallas chicas reales sin
+construir** (Banner de estado del tenant, Vincular a proceso operativo), ninguna bloquea el camino
+dorado. Ver el detalle de las dos en "Progreso" más arriba y "Conteo total" más abajo.
 
 ---
 
@@ -989,10 +1008,28 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 
 Sin entidades propias — Landed Cost y Orden de Compra viven en `Compra` (Módulo 4, ya cubierto arriba). Lo único específico de Nicho 4 es un widget de solo lectura.
 
-**Widget: Capacidad de Almacenamiento Usada** `[ ]` — embebido en el Dashboard de Patrimonio o en el Home, **no es una sección de navegación propia**.
-- Campos: `capacidadAlmacenamientoCantidad` (de Patrimonio), `stockActualTotal` (de Productos), `porcentajeUsado` (`null` si el activo no tiene capacidad definida). Requiere `activoId` y `sucursalId` explícitos como input.
+**Widget: Capacidad de Almacenamiento Usada** `[x]` (2026-07-20) — embebido como una card más del
+Dashboard/Home (`src/app/app/(shell)/dashboard-resumen.tsx`), junto a "Merma registrada" —
+**no es una sección de navegación propia**, confirmado sin gap de backend antes de construir.
+- Campos: `capacidadAlmacenamientoCantidad` (de Patrimonio), `stockActualTotal` (de Productos),
+  `porcentajeUsado` (`null` si el activo no tiene capacidad definida — `×100` en la UI, la función
+  devuelve el ratio 0..1, no el porcentaje). Mismo patrón visual de barra de progreso que "Capacidad
+  Operativa" de Nicho 1 (`produccion/capacidad/capacidad-cliente.tsx`).
+- `activoId`/`sucursalId` no los elige el usuario (es un widget, no una página con Select): el
+  server (`obtenerCapacidadAlmacenamientoWidget()`, nuevo en `inicio-actions.ts`) elige el primer
+  Activo activo (no dado de baja) con `capacidadAlmacenamientoCantidad` definida — si ninguno la
+  tiene definida, usa el primero igual (así el widget puede mostrar "sin capacidad definida" en vez
+  de desaparecer); la sucursal es la marcada `esPrincipal`. Si el tenant no tiene ningún Activo
+  activo, el widget no se renderiza (`null`, mismo criterio que el `EmptyState` de Nicho 1).
+- **No se gatea por `tenant.nichoId === "nicho_4"`** — mismo criterio que el resto de la app
+  (`app-shell.tsx` no oculta nav por nicho; Modo Básico es un estado permanente válido). Cualquier
+  tenant con un Activo con capacidad de almacenamiento cargada ve el widget, sea cual sea su nicho.
+- **Verificado en navegador los 3 estados reales** (2026-07-20): con datos reales (stock/capacidad
+  → barra + %), con `capacidadAlmacenamientoCantidad = null` (mensaje "Sin capacidad definida —
+  cargala desde la Ficha del Activo en Patrimonio"), y sin ningún Activo activo (widget ausente).
 - Rol: permiso `"operativo"` × `ver`.
-- Acción: `consultarCapacidadAlmacenamientoUsada(solicitante, tenantId, activoId, sucursalId)`.
+- Acción: `consultarCapacidadAlmacenamientoUsada(solicitante, tenantId, activoId, sucursalId)` — ya
+  existía, sin cambios; nueva la composición `obtenerCapacidadAlmacenamientoWidget()`.
 
 ---
 
@@ -1079,10 +1116,14 @@ En este orden, porque cada una depende de la anterior para tener sentido:
 Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un producto, venderlo, y ver el resultado — el "camino dorado" mínimo del producto **ya está cerrado de punta a punta**. Verificado con datos de prueba reales (`pnpm seed:demo`, tenant `owner@ceom.local`).
 
 ### Lo que puede esperar
-- Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Nicho 4, Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
-- Gestión de Tenants (`/admin`) cerrada 2026-07-18 — Alta de Tenant, Listado, Ficha con panel
-  Cambiar Plan/Estado. `/admin` completo: Tenants, Planes, Instituciones, Logs.
+- Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
+- Gestión de Tenants (`/admin`), "Mi Plan" (`/app`) y el widget de Nicho 4 — las 3 tandas chicas que
+  quedaban pendientes, cerradas 2026-07-18/2026-07-20. `/admin` completo: Tenants, Planes,
+  Instituciones, Logs.
 - Exportación PDF/Excel de Reportes — explícitamente fuera de alcance, ya documentado en el propio módulo.
+- **Únicos 2 ítems chicos que quedan realmente sin construir en todo el inventario** (ninguno
+  bloquea el camino dorado): Banner de estado del tenant (`/app`, Identidad) y Vincular a proceso
+  operativo (modal en Ficha de Producto, Nicho 1) — ver "Progreso" al inicio del documento.
 
 ### Gaps de backend encontrados durante este análisis (consolidado)
 Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios recién cuando se implemente la pantalla correspondiente. **Los 3 marcados `resuelto` ya se cerraron durante la construcción de UI de esta sesión** — se dejan en la tabla para no perder el historial de qué gap habilitó qué pantalla:

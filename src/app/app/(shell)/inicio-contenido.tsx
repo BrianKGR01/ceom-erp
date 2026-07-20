@@ -6,7 +6,7 @@ import { Package, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardResumen } from "./dashboard-resumen";
-import type { DatosDashboard } from "./inicio-actions";
+import type { CapacidadAlmacenamientoWidget, DatosDashboard } from "./inicio-actions";
 
 // "Sub-onboarding" de la pantalla de Inicio: mientras el tenant no tenga
 // ni un producto cargado, se prioriza esta guía sobre el Dashboard real.
@@ -20,12 +20,14 @@ export function InicioContenido({
   tieneProductos,
   sucursales,
   datosIniciales,
+  capacidadAlmacenamiento,
 }: {
   tenantId: string;
   nombreNegocio: string;
   tieneProductos: boolean;
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
+  capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
 }) {
   const storageKey = `ceom_checklist_cerrado_${tenantId}`;
   const [cerradoManualmente, setCerradoManualmente] = useState(true);
@@ -47,7 +49,11 @@ export function InicioContenido({
     return (
       <div className="space-y-6">
         <PageHeader title={`¡Hola, ${nombreNegocio}!`} description="Así viene tu negocio en este período." />
-        <DashboardResumen sucursales={sucursales} datosIniciales={datosIniciales} />
+        <DashboardResumen
+          sucursales={sucursales}
+          datosIniciales={datosIniciales}
+          capacidadAlmacenamiento={capacidadAlmacenamiento}
+        />
       </div>
     );
   }

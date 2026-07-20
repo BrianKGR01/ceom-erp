@@ -41,8 +41,18 @@
       resuelto — la función exige `sucursalId` explícito y no suma across
       todas las sucursales del tenant. No bloquea el caso real esperado
       (una sucursal con depósito definido), pero queda documentado.
-- [ ] Sin UI — 100% `actions.ts`, sin pantallas, igual que el resto de
-      Fase 1.
+- [x] **UI construida (2026-07-20): widget "Capacidad de Almacenamiento Usada"** en el
+      Dashboard/Home de `/app` (`src/app/app/(shell)/dashboard-resumen.tsx`, junto a "Merma
+      registrada") — no es una sección de navegación propia, mismo criterio ya documentado acá
+      arriba ("este nicho no tiene entidades propias"). Sin gap de backend: `actions.ts` no cambió.
+      El server (`obtenerCapacidadAlmacenamientoWidget()`, nuevo en
+      `src/app/app/(shell)/inicio-actions.ts`) elige el primer Activo activo (no dado de baja) con
+      `capacidadAlmacenamientoCantidad` definida (si ninguno la tiene, usa el primero igual, para
+      mostrar "sin capacidad definida" en vez de esconder el widget) y la sucursal `esPrincipal`.
+      Si el tenant no tiene ningún Activo activo, el widget no se renderiza. **No se gatea por
+      `tenant.nichoId === "nicho_4"`** — mismo criterio de toda la app (`app-shell.tsx` no oculta
+      nav por nicho). Verificado en navegador los 3 estados: datos reales, capacidad `null`, y sin
+      Activo. Detalle completo en `docs/ui/pantallas.md` sección 12.
 
 ## Dónde está cada cosa
 - Sin `schema.ts` ni `repository.ts` — este módulo no tiene tablas propias
@@ -71,4 +81,4 @@
   caller, igual que ya hace `consultarStock()` en Módulo 2. Si el caso
   `null` se vuelve necesario, es una extensión futura, no un bug.
 
-## Última actualización: 2026-07-15 — implementación inicial (Fase 1, roadmap ítem #12)
+## Última actualización: 2026-07-20 — UI del widget "Capacidad de Almacenamiento Usada" construida en el Dashboard de `/app`, cierra el módulo por completo. Actualización previa: 2026-07-15 — implementación inicial (Fase 1, roadmap ítem #12)

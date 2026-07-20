@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
+  Archive,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
@@ -21,7 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { obtenerDashboardAction, type DatosDashboard } from "./inicio-actions";
+import {
+  obtenerDashboardAction,
+  type CapacidadAlmacenamientoWidget,
+  type DatosDashboard,
+} from "./inicio-actions";
 import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "./periodo-presets";
 
 // Primera vez que la app necesita una paleta de graficas — el design
@@ -39,9 +44,11 @@ function formatoMoneda(valor: number): string {
 export function DashboardResumen({
   sucursales,
   datosIniciales,
+  capacidadAlmacenamiento,
 }: {
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
+  capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [sucursalId, setSucursalId] = useState<string>("todas");
@@ -345,6 +352,42 @@ export function DashboardResumen({
               </p>
             </CardContent>
           </Card>
+
+          {capacidadAlmacenamiento && (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <CardTitle>Capacidad de Almacenamiento Usada</CardTitle>
+                <span className="flex size-8 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
+                  <Archive className="size-4" />
+                </span>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-xs text-text-muted uppercase">{capacidadAlmacenamiento.activoNombre}</p>
+                {capacidadAlmacenamiento.capacidadAlmacenamientoCantidad === null ? (
+                  <p className="text-sm text-text-muted">
+                    Sin capacidad definida — cargala desde la Ficha del Activo en Patrimonio.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-2xl font-semibold text-navy">
+                      {Math.min(100, Math.round((capacidadAlmacenamiento.porcentajeUsado ?? 0) * 100))}%
+                    </p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-bg">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{
+                          width: `${Math.min(100, Math.round((capacidadAlmacenamiento.porcentajeUsado ?? 0) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      {capacidadAlmacenamiento.stockActualTotal} / {capacidadAlmacenamiento.capacidadAlmacenamientoCantidad} unidades
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
