@@ -98,6 +98,9 @@ function SubnavMiNegocio() {
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
         Capacidades Especiales
       </Link>
+      <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
+        Mi Plan
+      </Link>
     </div>
   );
 }

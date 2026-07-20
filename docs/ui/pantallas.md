@@ -22,27 +22,37 @@
 
 ---
 
-## Progreso (actualizado 2026-07-18)
+## Progreso (actualizado 2026-07-20)
 
-**110 construidas · 0 parciales · 7 pendientes**, de 117 pantallas/modales trackeados a este nivel
-de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
-pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total con
-"Transferir Owner", que no estaba en el inventario original).
+**117 construidas · 0 parciales · 0 pendientes, de 117 pantallas/modales trackeados — inventario
+100% completo.** (El conteo original de "~85" era más grueso — agrupaba varios modales bajo una
+sola pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total
+con "Transferir Owner", que no estaba en el inventario original.)
+
+**Cierre final 2026-07-20** — los últimos 2 pendientes reales y 1 caveat se cerraron en la misma
+tanda, sin mockup, todos verificados end-to-end en navegador:
+1. **Banner de estado del tenant** (`/app`, en `AppShell`) — ámbar/rojo según `estadoAcceso`. Señal
+   visual únicamente; confirmado explícitamente que `tienePermiso()` ya bloqueaba crear/editar del
+   lado del servidor desde antes (probado: intento de creación rechazado en `solo_lectura`).
+2. **Vincular a proceso operativo** (modal en Ficha de Producto) — vincula/desvincula un Producto a
+   una Receta de Nicho 1, sin gap de backend.
+3. **Selector de Evento en Registrar Venta** — campo opcional en el carrito, filtrado a eventos
+   abiertos; cerró además un gap chico de validación (`eventoId` faltaba en `registrarVentaSchema`).
 
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
-| 1. Identidad | 16 | 0 | 4 | 20 |
-| 2. Suscripción | 4 | 0 | 1 | 5 |
+| 1. Identidad | 20 | 0 | 0 | 20 |
+| 2. Suscripción | 5 | 0 | 0 | 5 |
 | **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
-| **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
+| **5. Productos e Inventario** | **8** | 0 | 0 | 8 |
 | **6. Nicho 1 (Insumos/Recetas/Producción)** | **10** | 0 | 0 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
 | **9. Financiero** | **3** | 0 | 0 | 3 |
 | **10. Gateway de Consentimiento** | **9** | 0 | 0 | 9 |
 | **11. Monitoreo Institucional + Panel Admin** | **10** | 0 | 0 | 10 |
-| 12. Nicho 4 | 0 | 0 | 1 | 1 |
+| 12. Nicho 4 | 1 | 0 | 0 | 1 |
 | **13. Simulaciones** | **5** | 0 | 0 | 5 |
 | **14. Reportes y Dashboard** | **9** | 0 | 0 | 9 |
 
@@ -201,14 +211,22 @@ abajo para el detalle completo. De paso se cerró también el Catálogo de Plane
 (Módulo 2, item de roadmap #2) ya que su backend estaba 100% listo y el shell de `/admin` recién
 creado lo necesitaba de todas formas.
 
-Quedan solo ítems chicos, ninguno bloquea el camino dorado:
+**Gestión de Tenants (`/admin`, Módulo 1) cerrada 2026-07-18** — Alta de Tenant (con mockup),
+botón "+ Nuevo Tenant" en el listado, y panel de acciones (Cambiar Plan / Cambiar Estado de
+Suscripción) en la Ficha de Tenant. Detalle completo en la sección 1 más abajo.
 
-1. **Nicho 4** (widget de Capacidad de Almacenamiento Usada, 1 pantalla).
-2. **"Mi plan" (Módulo 2, `/app`)** — vista de solo lectura del plan vigente para el Owner del
-   tenant, único ítem que quedó fuera de la tanda de Planes (esa fue todo `/admin`).
-3. **Gestión de Tenants (`/admin`, Módulo 1)** — Alta de Tenant, Listado de Tenants, Ficha de
-   Tenant. Alta de Tenant es el único prerequisito real (no hay signup autoservicio); el resto
-   puede seguir operándose manualmente contra la base mientras no haya UI.
+**"Mi Plan" (Módulo 2, `/app`) cerrada 2026-07-18** — sin gap de backend (reusa
+`obtenerTenantPorId`/`calcularEstadoAcceso` de Identidad y `obtenerPlanPorId` de Suscripción, ya
+usados por el shell de `/app` y por `crearTenant`). Detalle completo en la sección 2 más abajo.
+
+**Nicho 4 (widget de Capacidad de Almacenamiento Usada) cerrado 2026-07-20** — sin gap de backend
+(`consultarCapacidadAlmacenamientoUsada` ya existía y ya estaba probada). Embebido en el Dashboard,
+sin nav propia. Detalle completo en la sección 12 más abajo.
+
+**Banner de estado del tenant, Vincular a proceso operativo y Selector de Evento cerrados
+2026-07-20** — los 2 últimos pendientes reales del inventario más 1 caveat chico. **Con esto el
+inventario completo de `docs/ui/pantallas.md` queda en `[x]` — 117/117, sin ningún ítem pendiente.**
+Ver el detalle en "Progreso" más arriba y "Conteo total" más abajo.
 
 ---
 
@@ -369,34 +387,98 @@ cross-tenant real de `tienePermiso()`. Corregido en el backend (no solo ocultand
 selector de la UI) — ver `identidad/ANCLA.md`.
 
 ### `/admin` — Gestión de Tenants (ceom_admin)
-**Alta de Tenant.** `[ ]`
-- Campos de entrada: `nombreNegocio`, `ciudadBase?`, `monedaPrincipal`, `canalesVenta?`, `planId?` (default Plan Básico), `fechaInicioSuscripcion`, `ownerEmail`, `ownerNombreCompleto`.
-- Salida: `tenantId`, `sucursalId`, `usuarioOwnerId`.
+**Alta de Tenant** `[x]` (`/admin/tenants/nuevo`, con mockup — página dedicada, no Dialog: el
+formulario tiene demasiados campos para el patrón chico de Proveedores/Instituciones). El mockup no
+traía `nombreNegocio` ni `monedaPrincipal` (ambos requeridos por el contrato real de `crearTenant`)
+— se sumó una sección "Datos del Negocio" no prevista en el diseño. Las cards de plan del mockup
+mostraban descripciones ficticias; `Plan` no tiene campo `descripcion` en el schema, así que las
+cards reales muestran solo `nombre` + `precioMensual`/`moneda`.
+- Campos de entrada: `nombreNegocio`, `monedaPrincipal`, `planId` (cards seleccionables, planes
+  activos), `fechaInicioSuscripcion`, `ownerNombreCompleto`, `ownerEmail`.
+- Salida: `tenantId`, `sucursalId`, `usuarioOwnerId`. Botón "+ Nuevo Tenant" agregado al listado
+  (mismo lugar que "+ Nueva institución" en Instituciones).
 - Rol: `ceom_admin` únicamente. Acción: `crearTenant(solicitante, input)`.
+- **Verificado end-to-end (2026-07-18):** tenant + sucursal principal + Owner creados atómicamente;
+  confirmado además, **independientemente de la UI**, que la invitación de Supabase Auth se disparó
+  de verdad — un script ad-hoc contra `admin.auth.admin.listUsers()` mostró `invited_at` seteado
+  para el email del Owner de prueba (`ceom.qa.alta.*@gmail.com`). Como es un email ficticio sin
+  bandeja real, **queda pendiente de validación manual** el click del link recibido (mismo criterio
+  ya usado para el magic link de Instituciones — ver pantalla de Consentimiento).
 
-**Listado de Tenants** `[ ]` (cross-tenant).
-- Campos: `id`, `nombreNegocio`, `planId`, `nichoId`, `estadoSuscripcion`, `fechaProximoPago`.
+**Listado de Tenants** `[x]` (`/admin/tenants`, cross-tenant, salud agregada).
+- Campos: `id`, `nombreNegocio`, `planId`, `nichoId`, `estadoAcceso` (derivado) + agregados
+  `porEstadoAcceso`/`porPlan`/`porNicho`.
 - Nota: `listarTenants()` **no pagina** todavía — a tener en cuenta si crece el volumen.
-- Rol: `ceom_admin`. Acción: `listarTenants(solicitante)`.
+- Rol: `ceom_admin`. Acción: `listarTenants(solicitante)`, `saludAgregadaPlataforma`.
 
-**Ficha de Tenant** `[ ]` (detalle, desde el listado).
-- Campos: `nombreNegocio`, `ciudadBase`, `monedaPrincipal`, `logoUrl`, `canalesVenta`, `nichoId`, `nichoAsignadoEn`, `planId`, `estadoSuscripcion`, `fechaInicioSuscripcion`, `fechaProximoPago`, `estadoAcceso` (derivado).
-- Rol: `ceom_admin`. Acción: `obtenerTenantPorId(solicitante, tenantId)`.
+**Ficha de Tenant** `[x]` (`/admin/tenants/[tenantId]`, detalle desde el listado + 3 tabs veedor
+auditados de Módulo 11 — ver pantalla en sección 11). Panel de acciones sumado esta tanda (sin
+mockup — mismo patrón Dialog ya usado en Planes/Aprobaciones), sin tocar los 3 tabs existentes:
+- **Cambiar Plan** `[x]` — Dialog con selector de plan (solo planes activos, más el plan actual del
+  tenant aunque esté desactivado, para que el selector nunca quede en blanco). Acción:
+  `cambiarPlanTenant(solicitante, tenantId, nuevoPlanId)`. Se agregó también un campo "Plan" al
+  grid de datos de la Ficha — antes no se mostraba en ningún lado fuera del Dialog transitorio.
+- **Cambiar Estado de Suscripción** `[x]` — Dialog con selector de estado. **Corrección respecto al
+  mockup pedido:** el diseño describía un selector `activa/solo_lectura/bloqueado`, mezclando dos
+  enums distintos — `estadoSuscripcion` (`activa`/`pausada`/`vencida`, el campo real y directamente
+  asignable) y `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`, **derivado**, nunca asignable a
+  mano — ver `identidad/ANCLA.md`). El Dialog implementado usa el enum real
+  `estadoSuscripcion`; si se elige `vencida`, pide `fechaProximoPago` (ancla de la etapa de gracia).
+  Acción: `cambiarEstadoSuscripcion(solicitante, tenantId, nuevoEstado, fechaProximoPago?)`.
+- **Verificado end-to-end (2026-07-18):** Cambiar Plan confirmado contra el listado (conteo "Por
+  plan" se movió correctamente). Cambiar Estado confirmado con las 3 transiciones: `vencida` sin
+  fecha bloqueado por el schema (`.refine()`), `vencida` con fecha guardado y `estadoAcceso`
+  recalculado correctamente a `solo_lectura` en la misma pantalla, y reseteado a `activa` al final.
+- Rol: `ceom_admin`. Acción: `consultarTenantDetalle`/`obtenerTenantPorId(solicitante, tenantId)`.
 
 ### `/app` — Estado propio (cualquier usuario del tenant)
-**Banner de estado del tenant** `[ ]` — visible cuando `estadoAcceso !== "activo"` (un tenant `bloqueado` deniega incluso `ver`, salvo esta pantalla).
-- Campos: `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`).
-- Rol: cualquier usuario autenticado del tenant. Acción: `obtenerEstadoAccesoTenant(tenantId)` (sin gate, a propósito).
+**Banner de estado del tenant** `[x]` (2026-07-20) — banner ámbar/rojo en `AppShell`
+(`src/components/shared/app-shell.tsx`), arriba de todo el contenido, en todas las pantallas de
+`/app` por igual. Ámbar (`solo_lectura`): "Tu suscripción está vencida — podés ver tus datos pero
+no crear ni editar hasta regularizar el pago, fecha de próximo pago: [fecha]". Rojo (`bloqueado`):
+"Acceso bloqueado — contactá a soporte para regularizar tu suscripción". Invisible si `activo`.
+- Campos: `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`), `fechaProximoPago`.
+- **Diferencia respecto al pedido original:** en vez de llamar a `obtenerEstadoAccesoTenant()`
+  desde el shell, se calcula `calcularEstadoAcceso(tenant)` directo sobre el `tenant` que
+  `src/app/app/(shell)/layout.tsx` **ya fetchea** (misma función pura por dentro) — evita un
+  round-trip redundante y, sobre todo, `obtenerEstadoAccesoTenant()` no devuelve
+  `fechaProximoPago` (necesario para el texto del banner ámbar), así que hacía falta el tenant
+  completo de todas formas.
+- **Es señal visual únicamente — el bloqueo real ya lo hacía `tienePermiso()` de antes, sin cambios
+  acá.** Verificado explícitamente en navegador: con el tenant en `vencida` (etapa de gracia,
+  `solo_lectura`), un intento de "Crear producto" fue rechazado server-side con "No tenés permiso
+  para crear productos en este tenant." — el banner solo informa lo que el servidor ya aplicaba.
+- Rol: cualquier usuario autenticado del tenant. No usa una Server Action nueva — el `tenant` ya
+  resuelto en el layout es suficiente.
 
 ---
 
 ## 2. Suscripción (versión mínima)
 
-### `/app` — Mi plan (Owner, solo lectura)
-**Mi plan** `[ ]`
-- Campos: `nombre`, `nichoId`, `incluyeSucursales`, `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias`, `duracionEtapaSoloLecturaDias`, `modulosVeedorPermitidos`, `precioMensual`, `moneda`, `activo`.
-- Sin acción de upgrade/downgrade autoservicio en el MVP (lo ejecuta `ceom_admin` manualmente).
-- Rol: cualquier usuario del tenant. Acción: `obtenerPlanPorId(tenant.planId)`.
+### `/app` — Mi Plan (Owner y cualquier colaborador, solo lectura)
+**Mi Plan** `[x]` (`/app/mi-negocio/plan`, sin mockup — dentro de "Mi negocio", mismo lugar que
+Colaboradores/Roles/Capacidades Especiales, sub-nav compartido).
+- Sin gap de backend: `obtenerMiPlanAction()` (nueva Server Action delgada en
+  `mi-negocio/actions.ts`) compone `obtenerTenantPorId(usuario, usuario.tenantId)` +
+  `calcularEstadoAcceso(tenant)` (ambas de Identidad, ya usadas por el shell de `/app`) +
+  `obtenerPlanPorId(tenant.planId)` (de Suscripción, ya usado por `crearTenant`/`cambiarPlanTenant`)
+  — ninguna función nueva en ningún módulo.
+- 2-3 cards de métrica arriba (mismo estilo KPI que el resto de la app): nombre del plan + precio
+  mensual; badges de `estadoSuscripcion`/`estadoAcceso` (mismos colores semánticos que en toda la
+  app); card de advertencia con fecha de próximo pago, solo si `estadoSuscripcion === "vencida"`.
+  Debajo, checklist de qué incluye el plan (sucursales/múltiples Owners/downgrade autogestionado,
+  mismo patrón visual de atributos que la Ficha de Activo) + badges de módulos veedor permitidos.
+  100% solo lectura — cambiar de plan sigue siendo exclusivo de `ceom_admin` desde `/admin`.
+- **Bug real encontrado y corregido durante la verificación en navegador:** un Server Component
+  (`page.tsx`, sin `"use client"`) importaba `MODULOS_VEEDOR_INFO` desde
+  `consentimiento/generar-cliente.tsx` (que sí es `"use client"`) — en el servidor esa importación
+  resuelve a una referencia vacía, no al objeto real, y `MODULOS_VEEDOR_INFO[m].label` tiraba
+  `TypeError: Cannot read properties of undefined (reading 'label')` en cada request. Fix: el mapeo
+  se duplicó localmente en `page.tsx` (mismo criterio ya usado para `CAMPOS_BOOLEANOS`, copiado de
+  `planes-cliente.tsx`) — no importar constantes de datos desde un archivo `"use client"` hacia un
+  Server Component, aunque typecheck no lo detecta (el tipo del import es correcto, el valor en
+  runtime no).
+- Rol: cualquier usuario autenticado del tenant (no solo Owner) — es puramente informativo.
 
 ### `/admin` — Catálogo de Planes (ceom_admin)
 **Listado de Planes + Crear/Editar/Desactivar/Reactivar.** `[x]` (`/admin/planes`, sin mockup —
@@ -566,9 +648,22 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 - Acción: `listarProductos(solicitante, tenantId)`.
 
 **Ficha de Producto** `[x]` — detalle + stock por sucursal, breadcrumb, layout 2 columnas.
-- Subpantallas construidas: Ajuste manual de stock, Transferencia de stock, Eliminar (con confirmación si stock > 0). **No construida:** Vincular/Desvincular a receta (depende de Nicho 1).
+- Subpantallas construidas: Ajuste manual de stock, Transferencia de stock, Eliminar (con confirmación si stock > 0), **Vincular/Desvincular a receta** (`[x]`, 2026-07-20 — modal, sin mockup).
 - Campos: todos los de `productos` + `stockPorSucursal[]` (`sucursalId`, `cantidadActual`, `stockMinimo`, `actualizadoEn`).
 - Acción: `fichaProducto(solicitante, productoId)`.
+
+**Vincular a proceso operativo** `[x]` (2026-07-20, modal desde Ficha de Producto). Selector de
+Receta (`listarRecetas`, Nicho 1) + `cantidadBaseConsumidaPorUnidad`, botón "Vincular". Si el
+producto ya está vinculado, muestra la receta actual (nombre + consumo por unidad) con opción
+"Desvincular", en vez del selector. Cierra el gap que ya señalaba explícitamente el estado vacío de
+"Registrar Producción" ("hace falta vincular uno primero desde Productos").
+- No hace falta gatear por `tipoOrigenProducto` — `vincularProductoAReceta()` ya lo setea a
+  `produccion_nicho` automáticamente vía `enviarProductoAOperaciones()` (ya existía, sin cambios).
+- Campos: `recetaId`, `cantidadBaseConsumidaPorUnidad`. Acciones (todas ya existían y ya estaban
+  probadas, sin gap de backend): `vincularProductoAReceta`, `desvincularProductoDeReceta`,
+  `obtenerRecetaDeProducto` (Nicho 1).
+- **Verificado end-to-end en navegador:** estado vacío sin Recetas cargadas, vinculación real
+  (persiste tras reload), desvinculación real (persiste tras reload).
 
 **Alta / Edición de Producto.** `[x]` Formulario en 2 columnas.
 - Campos: `categoriaId`, `nombre`, `imagenUrl` (dropzone, preview local sin persistir), `unidadVenta` (`unidad`/`kg`/`g`/`l`/`ml`/`docena`), `precioVenta`, `costoOperativoVigente`, `origenCosto` (`manual`/`nicho_sugerido`/`proveedor_reventa`, solo lectura), `tipoOrigenProducto` (solo `reventa_simple`/`manual` desde acá — `produccion_nicho` solo vía "Vincular a receta"), `fechaVencimientoReferencia`, `vidaUtilDias`, `activo`.
@@ -588,10 +683,10 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 **Historial de movimientos de stock de un producto.** `[x]` — panel dentro de la Ficha de Producto, con ícono de dirección por movimiento.
 - Wrapper público `listarMovimientosStock` ya expuesto en `actions.ts` (gap de backend original ya cerrado).
 
-**Vincular a proceso operativo** `[ ]` (modal, desde Ficha de Producto — solo si hay Nicho 1 activo).
-- Campos: selector de Receta + `cantidadBaseConsumidaPorUnidad`.
+**Vincular a proceso operativo** `[x]` (2026-07-20, modal desde Ficha de Producto — no gateado por
+nicho, disponible para cualquier tenant que tenga al menos una Receta cargada). Detalle completo de
+campos/acciones/verificación más arriba en esta misma sección ("Ficha de Producto").
 - Nota técnica: el botón dispara `vincularProductoAReceta()` de **Módulo 6** (Nicho 1), que internamente llama a `enviarProductoAOperaciones()` de este módulo.
-- Acción: `vincularProductoAReceta` / `desvincularProductoDeReceta` (Nicho 1).
 
 ---
 
@@ -650,7 +745,8 @@ Esas 3 fórmulas puras (`calcularRendimientoTeorico`, `calcularMerma`,
 importar de `nicho-1/actions.ts` porque ese archivo no es `"use server"` e importa `db` (rompería
 el bundle de cliente). Solo lista productos ya vinculados a una receta (`tipoOrigenProducto =
 produccion_nicho`); si no hay ninguno, muestra un estado vacío explicando que hace falta vincular
-uno primero desde Productos (pantalla `[ ]`, fuera de esta tanda). Verificado end-to-end de punta a
+uno primero desde Productos (pantalla `[x]` desde 2026-07-20, ver sección 5 "Vincular a proceso
+operativo"). Verificado end-to-end de punta a
 punta: descuento real de insumo, cálculo de merma/costo, y acreditación real de stock en Productos
 e Inventario.
 - Campos de entrada: `productoId`, `sucursalId`, `activoId` (equipo de Patrimonio), `fechaProduccion`, `cantidadLotesProducidos`, `cantidadRealObtenida`, `fechaVencimientoLote?`.
@@ -687,7 +783,13 @@ documentado en Patrimonio, no se resuelve acá). Verificado end-to-end.
 
 ### `/app` — Punto de Venta (Owner + permiso `"ventas"`)
 **Registrar Venta** `[x]` (carrito) — buscador + pills de categoría, canal y método de pago como cards/pills reales del tenant.
-- Campos de entrada: `sucursalId`, `clienteId` **o** `clienteNuevo` (`nombre`, `telefono?`, `email?`), `fechaVenta?`, `canalVentaId`, `eventoId?`, `lineas[]` (`productoId`, `cantidad`), `pagoInicial?` (`metodoPagoId`, `monto`), `origenRegistro?` (`en_vivo`/`offline_sincronizado`). `eventoId` no expuesto todavía en la UI (Gestión de Eventos sigue `[ ]`).
+- Campos de entrada: `sucursalId`, `clienteId` **o** `clienteNuevo` (`nombre`, `telefono?`, `email?`), `fechaVenta?`, `canalVentaId`, `eventoId?`, `lineas[]` (`productoId`, `cantidad`), `pagoInicial?` (`metodoPagoId`, `monto`), `origenRegistro?` (`en_vivo`/`offline_sincronizado`).
+- **Selector de Evento** `[x]` (2026-07-20) — campo opcional en el carrito, filtrado a eventos
+  `estado === "abierto"` (`listarEventos` de Ventas, ya existía). Sin eventos abiertos, el selector
+  no se muestra (mismo criterio que "Transferir stock" cuando hay 1 sola sucursal — no clutter).
+  `eventoId` no estaba en `registrarVentaSchema` (gap chico de validación, cerrado en el mismo
+  cambio). **Verificado end-to-end:** venta confirmada con evento elegido, `eventoId` persistido
+  correcto en la fila de `ventas` (confirmado contra la base, no solo por ausencia de error).
 - Antes de confirmar: precio vigente y total en vivo por línea (carrito). Stock disponible por línea no se muestra todavía (ver nota de "Poco stock" más abajo en Catálogo — mismo criterio, evita N+1 queries).
 - Salida manejada: `ventaId`, `totalVenta` — `descuentosStock[]`/avisos de stock insuficiente se calculan pero no se muestran explícitamente en la UI todavía.
 - Acción: `registrarVenta`.
@@ -937,10 +1039,28 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 
 Sin entidades propias — Landed Cost y Orden de Compra viven en `Compra` (Módulo 4, ya cubierto arriba). Lo único específico de Nicho 4 es un widget de solo lectura.
 
-**Widget: Capacidad de Almacenamiento Usada** `[ ]` — embebido en el Dashboard de Patrimonio o en el Home, **no es una sección de navegación propia**.
-- Campos: `capacidadAlmacenamientoCantidad` (de Patrimonio), `stockActualTotal` (de Productos), `porcentajeUsado` (`null` si el activo no tiene capacidad definida). Requiere `activoId` y `sucursalId` explícitos como input.
+**Widget: Capacidad de Almacenamiento Usada** `[x]` (2026-07-20) — embebido como una card más del
+Dashboard/Home (`src/app/app/(shell)/dashboard-resumen.tsx`), junto a "Merma registrada" —
+**no es una sección de navegación propia**, confirmado sin gap de backend antes de construir.
+- Campos: `capacidadAlmacenamientoCantidad` (de Patrimonio), `stockActualTotal` (de Productos),
+  `porcentajeUsado` (`null` si el activo no tiene capacidad definida — `×100` en la UI, la función
+  devuelve el ratio 0..1, no el porcentaje). Mismo patrón visual de barra de progreso que "Capacidad
+  Operativa" de Nicho 1 (`produccion/capacidad/capacidad-cliente.tsx`).
+- `activoId`/`sucursalId` no los elige el usuario (es un widget, no una página con Select): el
+  server (`obtenerCapacidadAlmacenamientoWidget()`, nuevo en `inicio-actions.ts`) elige el primer
+  Activo activo (no dado de baja) con `capacidadAlmacenamientoCantidad` definida — si ninguno la
+  tiene definida, usa el primero igual (así el widget puede mostrar "sin capacidad definida" en vez
+  de desaparecer); la sucursal es la marcada `esPrincipal`. Si el tenant no tiene ningún Activo
+  activo, el widget no se renderiza (`null`, mismo criterio que el `EmptyState` de Nicho 1).
+- **No se gatea por `tenant.nichoId === "nicho_4"`** — mismo criterio que el resto de la app
+  (`app-shell.tsx` no oculta nav por nicho; Modo Básico es un estado permanente válido). Cualquier
+  tenant con un Activo con capacidad de almacenamiento cargada ve el widget, sea cual sea su nicho.
+- **Verificado en navegador los 3 estados reales** (2026-07-20): con datos reales (stock/capacidad
+  → barra + %), con `capacidadAlmacenamientoCantidad = null` (mensaje "Sin capacidad definida —
+  cargala desde la Ficha del Activo en Patrimonio"), y sin ningún Activo activo (widget ausente).
 - Rol: permiso `"operativo"` × `ver`.
-- Acción: `consultarCapacidadAlmacenamientoUsada(solicitante, tenantId, activoId, sucursalId)`.
+- Acción: `consultarCapacidadAlmacenamientoUsada(solicitante, tenantId, activoId, sucursalId)` — ya
+  existía, sin cambios; nueva la composición `obtenerCapacidadAlmacenamientoWidget()`.
 
 ---
 
@@ -1012,7 +1132,7 @@ Estructura implementada: **una sola pantalla con 2 secciones**, no 8 pantallas s
 ### Conteo total
 **117 pantallas/modales** trackeados en este documento (conteo fino), distribuidos en 14 módulos + Login, across 3 superficies:
 - `/app` (Owner/Colaborador): la gran mayoría — el workspace operativo diario.
-- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (salud agregada + Ficha con 3 tabs), Planes (CRUD completo), Instituciones, Logs.**
+- `/admin` (ceom_admin): ~15 pantallas — gestión de tenants, planes, instituciones, logs. **Construido: Tenants (Alta + Listado con salud agregada + Ficha con 3 tabs y panel Cambiar Plan/Estado), Planes (CRUD completo), Instituciones, Logs.**
 - `/portal` (Institución): ~6 pantallas — Canjear código, Mi Cartera, 4 tabs de detalle. **Construido completo (2026-07-18).**
 
 ### Las 5 pantallas más urgentes (flujo navegable de punta a punta) — **5 de 5 construidas ✅**
@@ -1027,25 +1147,37 @@ En este orden, porque cada una depende de la anterior para tener sentido:
 Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un producto, venderlo, y ver el resultado — el "camino dorado" mínimo del producto **ya está cerrado de punta a punta**. Verificado con datos de prueba reales (`pnpm seed:demo`, tenant `owner@ceom.local`).
 
 ### Lo que puede esperar
-- Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Nicho 4, Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
-- Alta de Tenant (`/admin`) sigue siendo el único prerequisito real, ya que no hay signup autoservicio — el resto de `/admin` (Tenants, Planes, Instituciones, Logs) ya está construido (2026-07-18).
+- Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
+- Gestión de Tenants (`/admin`), "Mi Plan" (`/app`), el widget de Nicho 4, el Banner de estado del
+  tenant, Vincular a proceso operativo y el Selector de Evento — las últimas tandas chicas
+  pendientes, cerradas 2026-07-18/2026-07-20. `/admin` completo: Tenants, Planes, Instituciones,
+  Logs.
 - Exportación PDF/Excel de Reportes — explícitamente fuera de alcance, ya documentado en el propio módulo.
+
+**No queda ningún ítem pendiente en el inventario — 117/117 `[x]`.**
 
 ### Gaps de backend encontrados durante este análisis (consolidado)
 Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios recién cuando se implemente la pantalla correspondiente. **Los 3 marcados `resuelto` ya se cerraron durante la construcción de UI de esta sesión** — se dejan en la tabla para no perder el historial de qué gap habilitó qué pantalla:
 
+**Nota (2026-07-20):** varias filas marcadas `pendiente` en tandas anteriores quedaron
+desactualizadas — la pantalla que dependía de ellas ya se construyó en una tanda posterior y el gap
+se cerró junto con esa UI, sin que esta tabla se actualizara en su momento. Verificado contra el
+código real (no contra el historial) antes de corregir las marcas de abajo: `listarUsuarios`/
+`listarRoles` (Identidad), `listarActivos`/`listarPasivos` (Patrimonio) y `listarCompras`
+(Proveedores, wrapper de `listarComprasPorTenant`) **ya están expuestas** en sus `actions.ts`.
+
 | Módulo | Gap | Bloquea | Estado |
 |---|---|---|---|
-| Identidad | Falta `listarUsuarios(tenantId)`, `listarRolesPorTenant(tenantId)` | Listado de colaboradores, listado de roles | pendiente |
+| Identidad | Falta `listarUsuarios(tenantId)`, `listarRolesPorTenant(tenantId)` | Listado de colaboradores, listado de roles | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
 | Identidad | Falta `actualizarTenant()`, y una acción para fijar `nichoId` (ej. `asignarNicho`) | Onboarding del Owner | **resuelto** |
 | Identidad | Sin tracking persistido de progreso de onboarding | Checklist de bienvenida | **resuelto** (`onboarding_completado_en`) |
-| Patrimonio | `listarActivos`/`listarPasivos`/`obtenerActivoPorId`/`obtenerPasivoPorId` existen en `repository.ts` pero no están expuestas en `actions.ts` | Listado y ficha de Activos/Pasivos | pendiente |
-| Patrimonio | Sin función que exponga el historial completo de pagos de un Pasivo | Ficha de Pasivo (cronograma) | pendiente |
-| Proveedores | Falta `listarComprasPorTenant` con filtro por estado/estadoPago | Listado general de Compras | pendiente |
+| Patrimonio | `listarActivos`/`listarPasivos`/`obtenerActivoPorId`/`obtenerPasivoPorId` existen en `repository.ts` pero no están expuestas en `actions.ts` | Listado y ficha de Activos/Pasivos | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
+| Patrimonio | Sin función que exponga el historial completo de pagos de un Pasivo | Ficha de Pasivo (cronograma) | **resuelto** (Ficha de Pasivo con Registrar pago está `[x]` desde la tanda de Patrimonio) |
+| Proveedores | Falta `listarComprasPorTenant` con filtro por estado/estadoPago | Listado general de Compras | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
 | Productos | `listarMovimientosStock` existe en `repository.ts` pero no en `actions.ts` | Historial de movimientos de stock | **resuelto** |
-| Nicho 1 | No existe `fichaInsumo()` combinada, y **`listarMovimientosInsumo` no existe ni en el repository** (a diferencia de Productos) | Ficha de Insumo con historial — requiere trabajo de backend nuevo, no solo un wrapper | pendiente |
-| Ventas | `listarVentas`/`listarGastos` sin filtros de servidor; listado de Ventas sin monto total ni nombres (solo IDs) | Listado de Ventas/Gastos con volumen — aceptable para MVP, revisar si crece | **resuelto** para Ventas (`listarVentasConTotal`); Gastos sigue pendiente |
-| Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | pendiente |
+| Nicho 1 | No existe `fichaInsumo()` combinada, y **`listarMovimientosInsumo` no existe ni en el repository** (a diferencia de Productos) | Ficha de Insumo con historial — requiere trabajo de backend nuevo, no solo un wrapper | **resuelto** (Ficha de Insumo con historial está `[x]` desde la tanda de Nicho 1) |
+| Ventas | `listarVentas`/`listarGastos` sin filtros de servidor; listado de Ventas sin monto total ni nombres (solo IDs) | Listado de Ventas/Gastos con volumen — aceptable para MVP, revisar si crece | **resuelto** para Ventas (`listarVentasConTotal`); Gastos tiene su Listado `[x]` pero sin filtros server-side propios — nicety de escalabilidad, no bloquea la pantalla, no revisado en esta tanda |
+| Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | Gestión de Eventos está `[x]` (con "Cerrar" simple); el cierre agregado con total vendido sigue sin construir — mejora de UX futura, no bloquea la pantalla existente |
 | Ventas | `registrarPagoVentaSchema` (ruta) no reenviaba `fechaPago` — el módulo ya lo aceptaba | Registrar Pago de Venta con fecha explícita | **resuelto** |
 | Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | **resuelto** (2026-07-18, migración `0027`, verificado con un click real de email) |
 | Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | **resuelto** (cerrado el 2026-07-17, antes de construir CRUD de Instituciones) |

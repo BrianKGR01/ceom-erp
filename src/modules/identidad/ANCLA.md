@@ -11,9 +11,10 @@
   `src/modules/suscripcion/ANCLA.md`, es trabajo del roadmap ítem #10). No
   corre un scheduler real para transición de etapas de suscripción —
   `calcularEstadoAcceso()` es una función pura, algo externo tiene que
-  invocarla periódicamente cuando exista esa infraestructura. No implementa
-  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant) — único
-  bloque de UI de este módulo que sigue pendiente (2026-07-18).
+  invocarla periódicamente cuando exista esa infraestructura. La UI de
+  Gestión de Tenants en `/admin` (Alta/Listado/Ficha de Tenant, con panel
+  Cambiar Plan/Cambiar Estado de Suscripción) quedó cerrada 2026-07-18 —
+  detalle completo más abajo.
 - Entradas que consume: `obtenerPlanPorId()` de `src/modules/suscripcion/actions.ts`
   (para validar/defaultear el plan al dar de alta un tenant — ver
   decisiones abajo). Fuera de eso, ninguna de otro módulo (es la base,
@@ -21,7 +22,9 @@
   para la sesión y para crear usuarios.
 - Salidas que expone (`actions.ts`): `obtenerUsuarioActual`,
   `calcularEstadoAcceso`, `tienePermiso`, `tieneCapacidadEspecial`,
-  `crearTenant`, `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
+  `crearTenant`, `cambiarPlanTenant`, `cambiarEstadoSuscripcion` (las dos
+  últimas agregadas 2026-07-18, gap de backend cerrado antes de la UI de
+  Gestión de Tenants), `invitarUsuario`, `cambiarRolUsuario`, `suspenderUsuario`,
   `reactivarUsuario`, `crearRolPersonalizado`, `actualizarPermisosRol`,
   `eliminarRol`, `obtenerTenantPorId`, `obtenerEstadoAccesoTenant` (las dos
   últimas agregadas en Módulo 10 — Gateway de Consentimiento),
@@ -163,6 +166,59 @@
       profundidad, no la única barrera). Cubierto por un test dedicado en
       `identidad.test.ts` ("cambiarRolUsuario/invitarUsuario rechazan
       asignar un rol de sistema").
+- [x] **`cambiarPlanTenant`/`cambiarEstadoSuscripcion` (2026-07-18)** —
+      gaps de backend confirmados y cerrados antes de tocar la UI de
+      Gestión de Tenants en `/admin` (mismo criterio de siempre). Ambas
+      gateadas a `solicitante.rolId === ROL_CEOM_ADMIN_ID` directo (mismo
+      criterio que `crearTenant`, no `tienePermiso()` — "identidad" no está
+      en `moduloPermisoEnum`). `cambiarPlanTenant` valida el plan destino
+      contra `obtenerPlanPorId()` de Suscripción (existe + `activo=true`),
+      igual que `crearTenant`. `cambiarEstadoSuscripcion` acepta
+      `fechaProximoPago` opcional — relevante al pasar a `"vencida"`, que
+      es el ancla desde la que `calcularEstadoAcceso()` mide la etapa de
+      gracia (sin ella el tenant queda `bloqueado` de inmediato, mismo
+      comportamiento ya documentado en esa función, no un caso especial
+      nuevo). **Pendiente documentado, no silencioso:** ninguna de las dos
+      fuerza la regla de sección 6.2 ("un downgrade a un plan sin
+      `permite_multiples_owners` debe forzar un solo Owner primero") —
+      hoy no existe ningún camino para que un tenant tenga más de un Owner
+      (`transferirOwner()` es 1-a-1, "agregar Owner adicional" quedó fuera
+      de alcance a propósito), así que la regla es inalcanzable en la
+      práctica; revisar si algún día se construye esa funcionalidad.
+      `crearTenant` ya estaba completo (confirmado, no se tocó): crea
+      Tenant+Sucursal principal+Usuario Owner atómicamente vía
+      `repo.crearTenantConOwner()` y dispara la invitación real por email.
+- [x] **UI construida (2026-07-18): Gestión de Tenants** — cierra el único
+      bloque de UI pendiente del módulo. `/admin/tenants/nuevo` (Alta, con
+      mockup — página dedicada, no Dialog), botón "+ Nuevo Tenant" en el
+      listado, y panel de acciones en la Ficha de Tenant existente (sin
+      mockup, sin tocar sus 3 tabs veedor de Módulo 11): "Cambiar Plan"
+      (Dialog, `cambiarPlanTenant`) y "Cambiar Estado de Suscripción"
+      (Dialog, `cambiarEstadoSuscripcion`). Detalle completo de campos en
+      `docs/ui/pantallas.md` sección 1. **Verificado end-to-end en
+      navegador**, incluida la invitación real: confirmado con un script
+      ad-hoc contra `admin.auth.admin.listUsers()` que `invited_at` quedó
+      seteado para el Owner de prueba — no solo "no tiró error", prueba
+      independiente de que Supabase Auth efectivamente encoló el correo.
+      Como el email de prueba es ficticio (sin bandeja real), el click del
+      link **queda pendiente de validación manual**, mismo criterio que el
+      magic link de Instituciones.
+- [x] **UI construida (2026-07-20): Banner de estado del tenant** — cierra el
+      último ítem de UI de este módulo. Banner ámbar/rojo en `AppShell`
+      (`src/components/shared/app-shell.tsx`), visible en todas las pantallas
+      de `/app` cuando `estadoAcceso !== "activo"`. **Es señal visual
+      únicamente** — `tienePermiso()` ya bloqueaba crear/editar en
+      `solo_lectura`/`bloqueado` desde antes de esta tanda (líneas 95-97 de
+      este archivo), sin cambios. Verificado explícitamente: con el tenant
+      en `vencida` (etapa de gracia), un intento real de `crearProducto`
+      fue rechazado server-side con el mismo mensaje de siempre. Se calcula
+      con `calcularEstadoAcceso(tenant)` directo sobre el `tenant` que
+      `src/app/app/(shell)/layout.tsx` ya fetchea (no se llama a
+      `obtenerEstadoAccesoTenant()` por separado — mismo resultado, pero esa
+      función no devuelve `fechaProximoPago`, necesario para el texto del
+      banner ámbar, así que hacía falta el tenant completo de todas formas).
+      Con esto, roadmap ítem #1 de Identidad queda 100% cerrado — cero UI
+      pendiente en todo el módulo.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -404,4 +460,42 @@
   verdad, hay que mandar `null` explícito (no `undefined`) y ajustar
   `actualizarTenantSchema`/`actualizarTenant` para aceptarlo.
 
-## Última actualización: 2026-07-18 — Gaps de backend cerrados para UI de Colaboradores/Roles (`listarUsuarios`/`listarRoles`/`listarPermisosPorRol`/`listarCapacidadesEspeciales`/`transferirOwner`) + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+- **El Dialog "Cambiar Estado de Suscripción" (`/admin/tenants/[tenantId]`)
+  usa el enum real `estadoSuscripcion` (`activa`/`pausada`/`vencida`), no
+  `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`).** El pedido original
+  de esta pantalla describía un selector con los 3 valores de
+  `estadoAcceso` — mezcla incorrecta de dos enums distintos, corregida sin
+  preguntar porque ya está documentado arriba como invariante de
+  arquitectura: `estadoAcceso` es **derivado** (`calcularEstadoAcceso()`),
+  nunca asignable a mano. Si algún agente futuro ve un pedido de UI que
+  menciona "activo/solo_lectura/bloqueado" como algo seleccionable por un
+  admin, es casi seguro el mismo error — verificar contra esta nota antes
+  de implementarlo literal.
+- **Bug real encontrado y corregido (2026-07-18, `/app/mi-negocio/plan`): un
+  Server Component no puede importar una constante de datos (no-componente)
+  desde un archivo `"use client"` y esperar el valor real en el servidor.**
+  `page.tsx` (sin `"use client"`) importaba `MODULOS_VEEDOR_INFO` desde
+  `consentimiento/generar-cliente.tsx` (que sí es `"use client"`, mismo
+  patrón que ya usan `planes-cliente.tsx`/`instituciones-cliente.tsx` — pero
+  esos dos son ellos mismos Client Components, no Server Components). En el
+  servidor esa importación resolvió a una referencia vacía, no al objeto
+  real — `MODULOS_VEEDOR_INFO[m]` daba `undefined` y `.label` tiraba
+  `TypeError`. `tsc` no lo detecta (el tipo del import es correcto, solo el
+  valor en runtime está vacío). **Fix aplicado:** duplicar el mapeo
+  localmente en el Server Component en vez de importarlo (mismo criterio
+  que ya se usa para `SubnavMiNegocio`/`CAMPOS_BOOLEANOS`, copiados por
+  archivo en toda esta carpeta). **Regla general para cualquier pantalla
+  nueva de Server Component en este proyecto:** si necesitás una constante
+  que hoy vive en un archivo `"use client"`, no la importes — duplicala o
+  movela a un archivo sin directiva.
+- **La Ficha de Tenant de `/admin` ahora también muestra el nombre del plan
+  vigente en su grid de datos** (antes solo aparecía transitoriamente
+  dentro del Dialog "Cambiar Plan"). El selector del Dialog solo lista
+  planes `activo=true` (más el plan actual del tenant si ese quedó
+  desactivado, para que el Select nunca quede vacío) — el campo de
+  visualización del grid, en cambio, busca contra el catálogo completo
+  (`listarPlanes()` sin `soloActivos`), porque un tenant puede seguir en un
+  plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
+  igual.
+
+## Última actualización: 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)

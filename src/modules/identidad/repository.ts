@@ -246,6 +246,38 @@ export interface DatosActualizarTenant {
   logoUrl?: string;
 }
 
+export async function actualizarPlanTenant(
+  tenantId: string,
+  planId: string,
+  modificadoPor: string
+) {
+  const [tenant] = await db
+    .update(tenants)
+    .set({ planId, modificadoPor, modificadoEn: new Date() })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+  return tenant;
+}
+
+export async function actualizarEstadoSuscripcionTenant(
+  tenantId: string,
+  estadoSuscripcion: (typeof tenants.$inferSelect)["estadoSuscripcion"],
+  fechaProximoPago: string | undefined,
+  modificadoPor: string
+) {
+  const [tenant] = await db
+    .update(tenants)
+    .set({
+      estadoSuscripcion,
+      ...(fechaProximoPago !== undefined ? { fechaProximoPago } : {}),
+      modificadoPor,
+      modificadoEn: new Date(),
+    })
+    .where(eq(tenants.id, tenantId))
+    .returning();
+  return tenant;
+}
+
 export async function actualizarTenant(
   tenantId: string,
   data: DatosActualizarTenant,

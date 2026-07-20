@@ -5,7 +5,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarCategorias, listarProductos } from "@/modules/productos/actions";
-import { listarCanalesVenta, listarClientes, listarMetodosPago } from "@/modules/ventas/actions";
+import {
+  listarCanalesVenta,
+  listarClientes,
+  listarEventos,
+  listarMetodosPago,
+} from "@/modules/ventas/actions";
 import { PosCliente } from "./pos-cliente";
 
 export default async function PuntoDeVentaPage() {
@@ -19,6 +24,7 @@ export default async function PuntoDeVentaPage() {
     canalesResultado,
     metodosResultado,
     categoriasResultado,
+    eventosResultado,
   ] = await Promise.all([
     listarProductos(usuario, usuario.tenantId),
     listarSucursalesPorTenant(usuario, usuario.tenantId),
@@ -26,6 +32,7 @@ export default async function PuntoDeVentaPage() {
     listarCanalesVenta(usuario, usuario.tenantId),
     listarMetodosPago(usuario, usuario.tenantId),
     listarCategorias(usuario, usuario.tenantId),
+    listarEventos(usuario, usuario.tenantId),
   ]);
 
   const productos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
@@ -34,6 +41,9 @@ export default async function PuntoDeVentaPage() {
   const canales = canalesResultado.ok ? canalesResultado.data : [];
   const metodos = metodosResultado.ok ? metodosResultado.data : [];
   const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
+  const eventos = (eventosResultado.ok ? eventosResultado.data : []).filter(
+    (e) => e.estado === "abierto"
+  );
 
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
 
@@ -93,6 +103,7 @@ export default async function PuntoDeVentaPage() {
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
             metodosIniciales={metodos.map((m) => ({ id: m.id, nombre: m.nombre }))}
+            eventosIniciales={eventos.map((e) => ({ id: e.id, nombre: e.nombre }))}
           />
         )}
       </div>

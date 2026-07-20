@@ -105,6 +105,18 @@
 - [x] `imagen_url` **ya se persiste desde la UI** — conectado a Storage,
       ver "Actualización 2026-07-16 (2)" más abajo para el detalle completo
       de la arquitectura del bucket.
+- [x] **UI de "Vincular a proceso operativo" construida (2026-07-20)** —
+      modal en la Ficha de Producto (`src/app/app/(shell)/productos/[id]/`)
+      que llama directo a `vincularProductoAReceta`/
+      `desvincularProductoDeReceta`/`obtenerRecetaDeProducto` de Nicho 1
+      (que internamente llaman a `enviarProductoAOperaciones()` de este
+      módulo, sin cambios acá). Antes solo existía la Alta/Edición y el
+      backend — no había forma de vincular un producto a una receta desde
+      la UI, así que `tipo_origen_producto` solo podía llegar a
+      `produccion_nicho` a mano contra la base. Verificado end-to-end en
+      navegador: estado vacío sin Recetas, vinculación real (persiste tras
+      reload), desvinculación real (persiste tras reload). Detalle completo
+      en `docs/ui/pantallas.md` sección 5.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/productos/schema.ts`
@@ -211,4 +223,4 @@
   `NULL`), así que no borra `imagen_url` en la base si se guarda después de
   quitarla. Mismo fix pendiente que en Identidad si se necesita de verdad.
 
-## Última actualización: 2026-07-18 — Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), las verificaciones previas de `vender_sin_stock` (con override explícito) siguen siendo válidas.
+## Última actualización: 2026-07-20 — UI de "Vincular a proceso operativo" construida en la Ficha de Producto (modal, sin cambios de backend). Actualización previa el 2026-07-18: Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), las verificaciones previas de `vender_sin_stock` (con override explícito) siguen siendo válidas.

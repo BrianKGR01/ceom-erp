@@ -368,6 +368,73 @@ export async function crearTenant(
   };
 }
 
+/**
+ * Cambia el plan de un tenant (upgrade/downgrade manual desde /admin,
+ * Modulo_01 seccion 11/6.2). Mismo criterio de validacion que crearTenant():
+ * el plan tiene que existir y estar activo, validado contra Suscripcion
+ * (nunca contra su repository directo — regla de caja negra).
+ *
+ * Pendiente documentado, no silencioso: la seccion 6.2 exige forzar un solo
+ * Owner antes de completar un downgrade a un plan sin
+ * permite_multiples_owners si el tenant tiene cofundadores — no se chequea
+ * acá porque hoy no existe ningun camino para que un tenant tenga mas de
+ * un Owner (transferirOwner() es 1-a-1, "agregar Owner adicional" quedo
+ * fuera de alcance a proposito, ver mas abajo). Revisar este chequeo si
+ * algun dia se construye esa funcionalidad.
+ */
+export async function cambiarPlanTenant(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  nuevoPlanId: string
+): Promise<Resultado<true>> {
+  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+    return { ok: false, error: "Solo CEOM Admin puede cambiar el plan de un tenant." };
+  }
+
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+
+  const plan = await obtenerPlanPorId(nuevoPlanId);
+  if (!plan || !plan.activo) {
+    return { ok: false, error: "El plan indicado no existe o no está activo." };
+  }
+
+  await repo.actualizarPlanTenant(tenantId, nuevoPlanId, solicitante.id);
+  return { ok: true, data: true };
+}
+
+/**
+ * Cambia el estado de suscripcion de un tenant manualmente desde /admin
+ * (Modulo_01 seccion 9.5/11) — via soporte/cobranza, no el scheduler
+ * automatico (que no existe todavia, ver decisiones mas abajo).
+ * `fechaProximoPago` es opcional: relevante sobre todo al pasar a
+ * "vencida", que es el ancla desde donde `calcularEstadoAcceso()` mide la
+ * etapa de gracia — sin ella (o si ya era null), el tenant queda
+ * `bloqueado` de inmediato en vez de `solo_lectura` (mismo comportamiento
+ * ya documentado en `calcularEstadoAcceso()`, no un caso especial nuevo).
+ */
+export async function cambiarEstadoSuscripcion(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  nuevoEstado: EstadoSuscripcion,
+  fechaProximoPago?: string
+): Promise<Resultado<true>> {
+  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+    return { ok: false, error: "Solo CEOM Admin puede cambiar el estado de suscripción de un tenant." };
+  }
+
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+
+  await repo.actualizarEstadoSuscripcionTenant(
+    tenantId,
+    nuevoEstado,
+    fechaProximoPago,
+    solicitante.id
+  );
+  return { ok: true, data: true };
+}
+
 // --- Configuracion del tenant / Onboarding (Modulo_01 seccion 4) ---------------------------------------------------------
 
 /**

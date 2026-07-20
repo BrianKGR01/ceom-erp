@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  listarRecetas,
+  obtenerRecetaDeProducto,
+} from "@/modules/operativo/nichos/nicho-1/actions";
 import { fichaProducto, listarCategorias } from "@/modules/productos/actions";
 import { historialPrecio, listarProveedores } from "@/modules/proveedores/actions";
 import { FichaCliente } from "./ficha-cliente";
@@ -15,14 +19,23 @@ export default async function FichaProductoPage({
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [fichaResultado, sucursalesResultado, categoriasResultado, historialResultado, proveedoresResultado] =
-    await Promise.all([
-      fichaProducto(usuario, id),
-      listarSucursalesPorTenant(usuario, usuario.tenantId),
-      listarCategorias(usuario, usuario.tenantId),
-      historialPrecio(usuario, usuario.tenantId, { productoId: id }),
-      listarProveedores(usuario, usuario.tenantId),
-    ]);
+  const [
+    fichaResultado,
+    sucursalesResultado,
+    categoriasResultado,
+    historialResultado,
+    proveedoresResultado,
+    recetasResultado,
+    recetaVinculadaResultado,
+  ] = await Promise.all([
+    fichaProducto(usuario, id),
+    listarSucursalesPorTenant(usuario, usuario.tenantId),
+    listarCategorias(usuario, usuario.tenantId),
+    historialPrecio(usuario, usuario.tenantId, { productoId: id }),
+    listarProveedores(usuario, usuario.tenantId),
+    listarRecetas(usuario, usuario.tenantId),
+    obtenerRecetaDeProducto(usuario, id),
+  ]);
 
   if (!fichaResultado.ok || !fichaResultado.data.producto) redirect("/app/productos");
   const { producto, stockPorSucursal } = fichaResultado.data;
@@ -32,6 +45,15 @@ export default async function FichaProductoPage({
   const historialPrecios = historialResultado.ok ? historialResultado.data : [];
   const proveedores = proveedoresResultado.ok ? proveedoresResultado.data : [];
   const proveedorPorId = new Map(proveedores.map((p) => [p.id, p.nombre]));
+  const recetas = recetasResultado.ok ? recetasResultado.data : [];
+  const recetaVinculada =
+    recetaVinculadaResultado.ok && recetaVinculadaResultado.data && recetaVinculadaResultado.data.receta
+      ? {
+          recetaId: recetaVinculadaResultado.data.receta.id,
+          recetaNombre: recetaVinculadaResultado.data.receta.nombre,
+          cantidadBaseConsumidaPorUnidad: recetaVinculadaResultado.data.cantidadBaseConsumidaPorUnidad,
+        }
+      : null;
 
   const precio = Number(producto!.precioVenta);
   const costo =
@@ -68,6 +90,8 @@ export default async function FichaProductoPage({
             stockMinimo: f.stockMinimo,
           }))}
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
+          recetas={recetas.map((r) => ({ id: r.id, nombre: r.nombre }))}
+          recetaVinculada={recetaVinculada}
           historialPrecios={historialPrecios
             .slice()
             .reverse()

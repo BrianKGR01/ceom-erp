@@ -45,3 +45,30 @@ export const crearRolFormSchema = z.object({
 });
 
 export type CrearRolFormInput = z.infer<typeof crearRolFormSchema>;
+
+export const crearTenantFormSchema = z.object({
+  nombreNegocio: z.string().trim().min(1, "Contanos cómo se llama el negocio."),
+  monedaPrincipal: z
+    .string()
+    .trim()
+    .length(3, "Usá el código de 3 letras de la moneda (ej. BOB, USD).")
+    .toUpperCase(),
+  planId: z.string().min(1, "Elegí un plan."),
+  fechaInicioSuscripcion: z.string().min(1, "Elegí la fecha de inicio."),
+  ownerNombreCompleto: z.string().trim().min(1, "Ponele un nombre al Owner inicial."),
+  ownerEmail: z.string().trim().email("Ingresá un email válido."),
+});
+
+export type CrearTenantFormInput = z.infer<typeof crearTenantFormSchema>;
+
+export const cambiarEstadoSuscripcionSchema = z
+  .object({
+    nuevoEstado: z.enum(["activa", "pausada", "vencida"]),
+    fechaProximoPago: z.string().trim().optional(),
+  })
+  .refine((data) => (data.nuevoEstado === "vencida" ? Boolean(data.fechaProximoPago) : true), {
+    message: "Ingresá la fecha de próximo pago — es el ancla de la etapa de gracia.",
+    path: ["fechaProximoPago"],
+  });
+
+export type CambiarEstadoSuscripcionInput = z.infer<typeof cambiarEstadoSuscripcionSchema>;

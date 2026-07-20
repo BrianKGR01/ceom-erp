@@ -46,6 +46,7 @@ export function PosCliente({
   clientesIniciales,
   canalesIniciales,
   metodosIniciales,
+  eventosIniciales,
 }: {
   sucursalId: string;
   productos: ProductoParaVenta[];
@@ -53,6 +54,7 @@ export function PosCliente({
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
   metodosIniciales: Opcion[];
+  eventosIniciales: Opcion[];
 }) {
   const router = useRouter();
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
@@ -70,6 +72,9 @@ export function PosCliente({
   const [canalDialogAbierto, setCanalDialogAbierto] = useState(false);
   const [canalNuevoNombre, setCanalNuevoNombre] = useState("");
   const [creandoCanal, setCreandoCanal] = useState(false);
+
+  const [eventos] = useState(eventosIniciales);
+  const [eventoId, setEventoId] = useState<string>("sin_evento");
 
   const [metodos, setMetodos] = useState(metodosIniciales);
   const [metodoPagoId, setMetodoPagoId] = useState<string>("sin_pago");
@@ -170,6 +175,7 @@ export function PosCliente({
           ? { nombre: clienteNuevoNombre, telefono: clienteNuevoTelefono || undefined }
           : undefined,
       canalVentaId,
+      eventoId: eventoId !== "sin_evento" ? eventoId : undefined,
       lineas: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
       pagoInicial:
         metodoPagoId !== "sin_pago" && montoPagoInicial
@@ -333,6 +339,32 @@ export function PosCliente({
                 + Nuevo canal
               </button>
             </div>
+
+            {eventos.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Evento (opcional)</Label>
+                <Select
+                  items={{
+                    sin_evento: "Ninguno",
+                    ...Object.fromEntries(eventos.map((e) => [e.id, e.nombre])),
+                  }}
+                  value={eventoId}
+                  onValueChange={(v) => v && setEventoId(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sin_evento">Ninguno</SelectItem>
+                    {eventos.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Pago inicial (opcional)</Label>

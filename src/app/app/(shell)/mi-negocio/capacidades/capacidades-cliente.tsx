@@ -73,6 +73,9 @@ function SubnavMiNegocio() {
         Roles
       </Link>
       <span className="text-navy">Capacidades Especiales</span>
+      <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
+        Mi Plan
+      </Link>
     </div>
   );
 }
