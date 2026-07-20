@@ -4,6 +4,7 @@ import { AlertTriangle, Check, CreditCard, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
+import { formatFecha, formatMoneda } from "@/lib/format";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { obtenerMiPlanAction } from "../actions";
 
@@ -33,10 +34,6 @@ const CAMPOS_BOOLEANOS: { key: "incluyeSucursales" | "permiteMultiplesOwners" | 
   { key: "permiteMultiplesOwners", label: "Múltiples Owners", descripcion: "El tenant puede tener más de un usuario Owner." },
   { key: "permiteDowngradeAutogestionado", label: "Downgrade autogestionado", descripcion: "El tenant puede bajar de plan sin pasar por CEOM Admin." },
 ];
-
-function formatoFecha(fecha: string): string {
-  return new Date(fecha).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 function SubnavMiNegocio() {
   return (
@@ -98,9 +95,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Plan</p>
             <p className="font-heading text-xl font-semibold text-navy">{plan.nombre}</p>
-            <p className="text-xs text-text-muted">
-              {Number(plan.precioMensual).toFixed(2)} {plan.moneda} / mes
-            </p>
+            <p className="text-xs text-text-muted">{formatMoneda(plan.precioMensual, plan.moneda)} / mes</p>
           </div>
         </div>
 
@@ -111,7 +106,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
             <Badge variant={estadoAcceso.variant}>{estadoAcceso.label}</Badge>
           </div>
           <p className="mt-2 text-xs text-text-muted">
-            Suscripción desde {formatoFecha(datos.fechaInicioSuscripcion)}
+            Suscripción desde {formatFecha(datos.fechaInicioSuscripcion)}
           </p>
         </div>
 
@@ -125,7 +120,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
                 Fecha de próximo pago
               </p>
               <p className="font-heading text-xl font-semibold text-warning-text">
-                {datos.fechaProximoPago ? formatoFecha(datos.fechaProximoPago) : "—"}
+                {datos.fechaProximoPago ? formatFecha(datos.fechaProximoPago) : "—"}
               </p>
             </div>
           </div>
