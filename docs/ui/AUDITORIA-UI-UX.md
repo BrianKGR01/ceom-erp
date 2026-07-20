@@ -209,25 +209,23 @@ aplicación. Sí conviene:
 
 ---
 
-## 4. Arquitectura de navegación propuesta
+## 4. Arquitectura de navegación propuesta — **implementada en Fase A (2026-07-20), ver decisión 6**
 
-### 4.1 Árbol de sidebar — actual vs. propuesto
+> Esta sección se reescribió tras la Fase A para reflejar la decisión 6 (sección 7): a diferencia
+> de la propuesta original (que migraba **todos** los sub-módulos, incluidos Reportes/Simulaciones/
+> Consentimiento, a submenú de sidebar), la decisión final **mantiene dos patrones**, cada uno para
+> un caso de uso distinto — ver 4.2. El árbol de abajo y el comportamiento de 4.3 ya están
+> construidos y verificados en vivo en `src/components/shared/app-shell.tsx`.
 
-**Actual** (`src/components/shared/app-shell.tsx:102-115`, confirmado en vivo): 10 ítems planos,
-sin submenús, sin excepción:
+### 4.1 Árbol de sidebar — implementado
 
-```
-Inicio · Ventas · Catálogo · Patrimonio · Proveedores · Mi negocio (Owner) ·
-Gastos · Producción · Simulaciones · Compartir Datos
-```
+**Antes** (`src/components/shared/app-shell.tsx`, versión pre-Fase A): 10 ítems planos, sin
+submenús, sin excepción — `Inicio · Ventas · Catálogo · Patrimonio · Proveedores · Mi negocio
+(Owner) · Gastos · Producción · Simulaciones · Compartir Datos`. Reportes no estaba en el sidebar en
+absoluto (solo alcanzable con 3 clics desde el botón secundario "Ver reportes detallados" del
+Dashboard).
 
-**No están en el sidebar en absoluto:** Reportes (14 pantallas, solo alcanzable con 3 clics desde
-el botón secundario "Ver reportes detallados" del Dashboard) y, por construcción, Financiero (nunca
-tuvo rutas propias — vive repartido dentro de Reportes y Simulaciones, decisión ya documentada y
-razonable, no es un hallazgo).
-
-**Propuesto** — mismo set de 10-11 ítems de nivel superior (no se agranda el sidebar), pero cada uno
-que hoy resuelve su sub-navegación con un mecanismo ad-hoc pasa a un submenú real:
+**Implementado:**
 
 ```
 Inicio
@@ -254,66 +252,62 @@ Producción
 Gastos
   ├─ Gastos                     [default]
   └─ Recurrentes
-Simulaciones
-  ├─ Simulador                  [default]
-  ├─ Comparativo Multi-SKU
-  ├─ Historial
-  └─ Margen por Producto
-Reportes                        ← nuevo ítem de nivel superior, hoy ausente
-  ├─ Resumen Financiero          [default]
-  ├─ Histórico de Ventas
-  ├─ Margen por Canal
-  └─ Ranking de Productos
-Compartir Datos (Consentimiento)
-  ├─ Generar Código              [default]
-  ├─ Códigos Generados
-  ├─ Aprobaciones
-  └─ Solicitudes
 Mi negocio (solo Owner)
   ├─ Negocio
   ├─ Colaboradores               [default]
   ├─ Roles
   ├─ Capacidades Especiales
   └─ Mi Plan
+Simulaciones                    ← sin submenú, a propósito (ver 4.2)
+Reportes                        ← nuevo ítem de nivel superior, antes ausente; sin submenú
+Compartir Datos (Consentimiento) ← sin submenú, a propósito (ver 4.2)
 ```
 
+Simulaciones, Reportes y Compartir Datos abren su pantalla raíz con su tab-bar interno intacto —
+**no** se les agregó submenú de sidebar, ver decisión 6.
+
 `/admin` (`admin-shell.tsx`) ya está bien resuelto a nivel de sidebar (4 ítems planos, sin
-submódulos reales por debajo) — no requiere cambio de árbol, solo de consistencia interna (tabs de
-Ficha de Tenant, ver UI-002/UI-016).
+submódulos reales por debajo) — no requirió cambio de árbol; queda fuera de esta fase.
 
-### 4.2 Regla de cuándo usar sidebar-con-submenú / tabs / breadcrumb
+### 4.2 Regla de cuándo usar sidebar-con-submenú / tab-bar / breadcrumb — decisión 6
 
-Hoy no existe ninguna regla escrita — cada módulo decidió por su cuenta, y de ahí salen los 7
-mecanismos del hallazgo UI-002. Regla propuesta, derivada de lo que YA funciona bien en los
-lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-bar persistente):
+Antes de la Fase A no existía ninguna regla escrita — cada módulo decidió por su cuenta, y de ahí
+salieron los 7 mecanismos del hallazgo UI-002. La regla final (decisión 6, sección 7) reemplaza la
+propuesta original de esta sección — la diferencia clave: **no todos los sub-módulos migran a
+submenú de sidebar**, solo los de uso heterogéneo diario:
 
-- **Submenú de sidebar** cuando las secciones son del mismo nivel jerárquico que el módulo padre y
-  el usuario las visita con frecuencia comparable a lo largo del día (Ventas: POS/Historial/
-  Clientes son todas de uso diario). Es el caso de **todos** los sub-módulos listados en 4.1.
-- **Tabs horizontales dentro del content area** (debajo de `PageHeader`, mismo patrón ya usado por
-  Consentimiento/Simulaciones/Reportes) cuando las secciones comparten el **mismo recurso/contexto
-  de datos** y el usuario alterna vistas de un mismo objeto ya seleccionado — ej. Ficha de Tenant en
-  `/admin` (Financiero/Operativo/Inventario del mismo tenant), Ficha de Proveedor (Historial de
-  Compras/Precios del mismo proveedor), Ficha de Tenant en `/portal`. Esto **no** reemplaza al
-  submenú de sidebar — son conceptos distintos (uno navega entre objetos, el otro entre vistas de
-  un objeto ya elegido).
-- **Breadcrumb** siempre que la pantalla esté a ≥1 nivel de profundidad de un listado (toda ficha,
-  todo formulario de alta/edición). Nunca reemplaza al submenú — es wayfinding de "dónde estoy",
-  no un menú de hermanos.
-- **Nunca más** un link de texto suelto tipo "Ver pasivos"/"Ver activos" o un botón aislado como
-  único mecanismo entre 2 secciones de igual jerarquía (Patrimonio, Gastos↔Recurrentes) — eso pasa
-  a ser parte del submenú de sidebar.
+- **Submenú de sidebar** — para los módulos cuyas secciones son de uso diario y heterogéneo entre
+  sí: **Ventas, Producción, Patrimonio, Proveedores, Gastos, Mi Negocio**. Implementado en 4.1.
+- **Tab-bar persistente** (debajo de `PageHeader`, componente `Tabs` — sección 3 del
+  `design-system.md`) — para un módulo que es una familia de vistas del mismo dato:
+  **Reportes, Simulaciones, Consentimiento** (Compartir Datos). Estos tres ya resolvían bien su
+  navegación antes del refactor y quedan **a propósito sin submenú** — son la referencia canónica
+  del patrón, no se migran. También aplica a fichas de un solo recurso: Ficha de Tenant (`/admin` y
+  `/portal`), Ficha de Proveedor.
+- **Breadcrumb** — siempre que la pantalla esté a ≥1 nivel de profundidad de un listado. Nunca
+  reemplaza al submenú/tab-bar — es wayfinding de "dónde estoy", no un menú de hermanos.
+- **Prohibido como único mecanismo:** un link de texto suelto ("Ver pasivos") o un botón aislado
+  entre 2 secciones hermanas de igual jerarquía — el mecanismo ad-hoc original de UI-002. Los ~9
+  consumidores viejos que todavía usan este mecanismo (Ventas/Producción/Patrimonio/Gastos/Mi
+  negocio: ver UI-002/003/005) siguen sin migrar — **migrarlos es trabajo de Fase C**, la Fase A
+  solo construyó el submenú real al que deben migrar.
 
-### 4.3 Comportamiento del sidebar
+### 4.3 Comportamiento del sidebar — implementado
 
-- **Colapsado + hover-preview** en desktop (ya implementado y funciona bien en `app-shell.tsx`) se
-  mantiene tal cual.
-- **Drawer en mobile**: el mecanismo de apertura/cierre en sí ya funciona (ver UI-001, cerrado); con
-  Escape/foco-atrapado/scroll-lock ya agregados, queda como base sólida para construir los submenús
-  de 4.1 sin trabajo de reparación previo.
-- Con submenús reales, el drawer mobile necesita un segundo nivel de expand/collapse por ítem
-  (acordeón) — hoy no existe ninguna variante de sidebar con 2 niveles, es trabajo nuevo real, no
-  solo reordenar lo existente.
+- **Colapsado + hover-preview** en desktop (ya implementado desde antes de esta fase) se mantiene
+  tal cual, sin cambios.
+- **Drawer en mobile**: Escape/foco-atrapado/scroll-lock (UI-001, cerrado) se mantienen intactos con
+  el segundo nivel — verificado en vivo que Escape sigue cerrando el drawer completo aunque haya un
+  submenú expandido, no solo el submenú.
+- **Segundo nivel de expand/collapse (acordeón)** — implementado: cada ítem con `subitems` tiene un
+  botón chevron independiente (`aria-expanded`/`aria-label`), se auto-expande cuando la ruta activa
+  cae dentro de ese grupo, y el resto de los grupos puede expandirse manualmente sin navegar. No es
+  un acordeón de selección única (más de un grupo puede estar expandido a la vez) — no se pidió esa
+  restricción y permite "espiar" un grupo sin perder el que ya está abierto por ruta activa.
+- **Hallazgo nuevo, pre-existente, fuera de alcance de esta fase** (ver UI-043): tocar el botón de
+  colapsar el sidebar (el logo) en un viewport <1024px oculta el texto de todos los ítems del nav,
+  porque `mostrarExpandido` no está condicionado al breakpoint CSS que sí limita el colapso de ancho
+  a escritorio — este bug ya existía antes de la Fase A, no lo introdujo el trabajo de submenús.
 
 ---
 
@@ -367,8 +361,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo real:** S — cambio acotado a los dos archivos de shell, sin tocar CSS ni estructura.
 - **Depende de:** ninguno.
 
-### [UI-002] No existe un componente de pestañas — 7 mecanismos ad-hoc distintos resuelven la misma necesidad
-- **Severidad:** Crítica
+### [UI-002] No existe un componente de pestañas — 7 mecanismos ad-hoc distintos resuelven la misma necesidad — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Crítica → **Estado: mecanismos construidos, migración de consumidores viejos es Fase C**
 - **Categoría:** Navegación
 - **Alcance:** Ventas (POS), Mi negocio (4 pantallas), Producción, Patrimonio, Gastos, Consentimiento
   (4 pantallas), Simulaciones (4 pantallas), Reportes (4 pantallas), Proveedores (tabs de Ficha),
@@ -413,6 +407,13 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   reinventar un patrón de tabs para eso.
 - **Esfuerzo:** M (el componente) + L (migrar los ~10 consumidores).
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** ambos mecanismos ya existen — `src/components/ui/tabs.tsx` (activo
+  derivado de `usePathname()`, migrado en Ficha de Proveedor) para el caso "vistas del mismo
+  recurso", y el submenú real de sidebar (`app-shell.tsx`, sección 4.1/4.4) para el caso
+  "sub-navegación de módulo". Los ~9 consumidores viejos que todavía usan alguno de los 7 mecanismos
+  ad-hoc (Mi negocio ×5, Ventas, Producción, Patrimonio, Gastos, Ficha de Tenant `/admin`/`/portal`,
+  Instituciones) **no se tocaron** — mecánica de migración masiva, explícitamente Fase C.
+  `pnpm typecheck`/`lint`/`test` (177/177) pasan.
 
 ### [UI-003] Rutas huérfanas: no hay camino de navegación hacia/desde secciones enteras de un módulo
 - **Severidad:** Crítica
@@ -437,9 +438,13 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo:** S (una vez que exista el submenú de sidebar).
 - **Depende de:** el submenú de sidebar (4.1), o al menos un breadcrumb/link mínimo como parche
   previo.
+- **Actualización Fase A:** el submenú de sidebar del que dependía ya existe (Proveedores→Compras y
+  Producción→Insumos son ambos alcanzables desde el sidebar hoy) — la ruta huérfana en sí queda
+  cerrada. No se tocó nada dentro de `directorio-cliente.tsx`/`ficha-proveedor-cliente.tsx` (el
+  huérfano de un solo sentido hacia Compras sigue ahí como redundancia menor, no como bloqueo).
 
-### [UI-004] Reportes es un módulo completo de 14 pantallas sin ítem propio en el sidebar
-- **Severidad:** Alta
+### [UI-004] Reportes es un módulo completo de 14 pantallas sin ítem propio en el sidebar — **RESUELTO en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: cerrado**
 - **Categoría:** Navegación
 - **Alcance:** `/app/reportes` y sus 3 sub-rutas.
 - **Evidencia:** confirmado en vivo y en código — el array `items` de `app-shell.tsx:102-115` no
@@ -453,10 +458,13 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Propuesta:** agregar "Reportes" como ítem de nivel superior del sidebar (ver 4.1) — es la
   correción de mayor impacto por esfuerzo de toda esta auditoría.
 - **Esfuerzo:** S.
-- **Depende de:** ninguno. **Decisión abierta** — ver sección 7.
+- **Depende de:** ninguno. **Decisión tomada** — ver sección 7, pregunta 1: sí, se agrega.
+- **Resuelto:** "Reportes" es ahora un ítem plano de nivel superior en `app-shell.tsx` (icono
+  `BarChart3`, href `/app/reportes`), abre su tab-bar interno intacto — verificado en vivo en
+  1440/768/375px.
 
-### [UI-005] El sub-nav de "Mi negocio" está duplicado 6 veces y ya divergió (falta un ítem en una copia)
-- **Severidad:** Alta
+### [UI-005] El sub-nav de "Mi negocio" está duplicado 6 veces y ya divergió (falta un ítem en una copia) — **RESUELTO en su causa raíz en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: causa raíz cerrada, limpieza mecánica pendiente**
 - **Categoría:** Navegación
 - **Alcance:** `/app/mi-negocio/colaboradores`, `/roles`, `/capacidades`, `/plan`, y
   `/app/onboarding` (que reusa la sección "Negocio" del mismo sub-nav).
@@ -474,6 +482,14 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   submenú de sidebar de 4.1) con `activo` derivado de `usePathname()`, nunca pasado a mano.
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
+- **Resuelto (causa raíz):** se tomó la segunda opción de la propuesta — "Mi negocio" es ahora un
+  grupo real del submenú de sidebar (`grupoBase: "/app/mi-negocio"`, activo derivado de
+  `usePathname()` de forma centralizada, sin ningún estado hardcodeado por archivo). **Pendiente
+  (deuda mecánica, Fase C):** las 5 funciones `SubnavMiNegocio()` locales
+  (`colaboradores-cliente.tsx`, `roles-cliente.tsx`, `capacidades-cliente.tsx`, `plan/page.tsx`,
+  `onboarding/page.tsx`) no se eliminaron — siguen renderizando debajo del `PageHeader` de cada
+  pantalla, ahora como navegación **redundante** con el submenú de sidebar (mismo destino, dos
+  veces). Quitarlas es trabajo puramente mecánico de Fase C, no bloquea nada.
 
 ### [UI-006] Breadcrumb con adopción inconsistente — presente en unas fichas, ausente en sus pares del mismo nivel
 - **Severidad:** Media
@@ -530,8 +546,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 
 ### Layout
 
-### [UI-009] El ancho máximo del contenedor (`max-w-*`) no sigue ninguna regla — 3 a 6 valores por módulo
-- **Severidad:** Alta
+### [UI-009] El ancho máximo del contenedor (`max-w-*`) no sigue ninguna regla — 3 a 6 valores por módulo — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: regla definida y documentada, migración masiva es Fase C**
 - **Categoría:** Layout
 - **Alcance:** transversal — confirmado en los 12 clústeres de módulo con al menos 3 valores
   distintos cada uno. Ejemplos literales:
@@ -556,6 +572,10 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   Fase A del backlog.
 - **Esfuerzo:** M (es mecánico pero toca ~50 archivos).
 - **Depende de:** ninguno — es fundación pura, debería ir antes que cualquier otro trabajo visual.
+- **Resuelto (parcial):** tabla de `max-w` por tipo de pantalla definida y documentada en
+  `docs/design-system.md` sección 7, con 1 pantalla de referencia aplicada por tipo (ver tabla). Los
+  ~49 archivos restantes con valores inconsistentes **no se tocaron** — migración masiva
+  explícitamente diferida a Fase C, tal como preveía el criterio de "hecho" original de esta fase.
 
 ### [UI-010] Tamaño del H1 de página inconsistente cuando no se usa `PageHeader`
 - **Severidad:** Media
@@ -597,8 +617,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
 
-### [UI-012] Bug confirmado: Dialog de "Nuevo Plan" en `/admin/planes` se ve "mobile" en desktop
-- **Severidad:** Alta
+### [UI-012] Bug confirmado: Dialog de "Nuevo Plan" en `/admin/planes` se ve "mobile" en desktop — **RESUELTO en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: cerrado**
 - **Categoría:** Layout / Componentes
 - **Alcance:** `/admin/planes` (confirmado); latente en los otros 4 diálogos de `/admin`
   (`CambiarPlanDialog`, `CambiarEstadoSuscripcionDialog`, `InstitucionFormDialog`,
@@ -620,6 +640,12 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   para diálogos de 1-3 campos).
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
+- **Resuelto:** se tomó el camino de UI-018 en vez de un fix puntual — `DialogContent` ahora acepta
+  `size?: "sm" | "md" | "lg"` con **default `md` (576px)**, en vez de heredar siempre `sm` (384px).
+  Como `planes-cliente.tsx` nunca pasaba `size`, el cambio de default corrige el bug de raíz **sin
+  tocar ese archivo**. Verificado en vivo con `getBoundingClientRect()` a 1440px. Ver también los dos
+  hallazgos nuevos UI-041/UI-042 (interacción del ancho del diálogo con overflow horizontal
+  preexistente de página, encontrada al verificar este cambio).
 
 ### [UI-013] `Stepper` existe pero casi no se usa — 2 "wizards" lo simulan a mano sin serlo
 - **Severidad:** Media
@@ -639,13 +665,17 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   ver sección 7.
 - **Esfuerzo:** S (quitar la falsa promesa visual) / M (convertir a wizard real).
 - **Depende de:** decisión de producto (sección 7).
+- **Decisión tomada** (sección 7, pregunta 4): quitarles el indicador de pasos y dejarlas como
+  formularios largos de una sola pantalla — no convertirlas en `Stepper` real. **Ejecución diferida
+  a Fase C** — la Fase A solo registra la decisión, no tocó `nueva-produccion-cliente.tsx` ni
+  `importar-cliente.tsx`.
 
 ---
 
 ### Componentes
 
-### [UI-014] No existe `ToggleGroup`/selector de tarjetas compartido — reimplementado de forma independiente en 10+ lugares
-- **Severidad:** Alta
+### [UI-014] No existe `ToggleGroup`/selector de tarjetas compartido — reimplementado de forma independiente en 10+ lugares — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: componentes construidos, migración de consumidores viejos es Fase C**
 - **Categoría:** Componentes
 - **Alcance:** Gasto (tipo de gasto, `gasto-form.tsx:82-100`), Pasivo (activo relacionado,
   `pasivo-form.tsx:112-154`, con iconos + badge "Seleccionado" que Gasto no tiene), Ventas (pills de
@@ -668,6 +698,12 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   la mayoría de estos casos.
 - **Esfuerzo:** M (componentes) + L (migrar ~10 consumidores).
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** `src/components/ui/toggle-group.tsx` y `src/components/ui/option-card.tsx`
+  construidos, con `orientation: "horizontal" | "vertical"` y `showSelectedBadge` en `OptionCard`
+  para no perder el matiz visual que ya tenían Gasto (horizontal) y Pasivo (vertical + badge). 2
+  consumidores migrados como prueba de concepto: `gasto-form.tsx` (tipo de gasto → `OptionCard`),
+  `historial-cliente.tsx` (pills de estado → `ToggleGroup`). Los ~8 consumidores restantes **no se
+  tocaron** — migración masiva es Fase C.
 
 ### [UI-015] react-hook-form+zod convive con `useState` manual sin ningún criterio, incluso dentro del mismo archivo
 - **Severidad:** Alta
@@ -724,8 +760,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo:** M.
 - **Depende de:** ninguno.
 
-### [UI-017] `formatMoneda`/`formatFecha` y otras utilidades duplicadas letra por letra en 6-10+ archivos
-- **Severidad:** Media
+### [UI-017] `formatMoneda`/`formatFecha` y otras utilidades duplicadas letra por letra en 6-10+ archivos — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Media → **Estado: helper construido, migración de consumidores viejos es Fase C**
 - **Categoría:** Componentes
 - **Alcance:** al menos `activos-cliente.tsx`, `ficha-activo-cliente.tsx`, `pasivos-cliente.tsx`,
   `ficha-pasivo-cliente.tsx` (Patrimonio); `ficha-proveedor-cliente.tsx`, `compras-cliente.tsx`
@@ -744,9 +780,16 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Propuesta:** extraer a `src/lib/format.ts` (junto a `cn()` que ya vive en `lib/utils.ts`).
 - **Esfuerzo:** M.
 - **Depende de:** ninguno — es la base técnica que hace viable arreglar UI-030/031 de una sola vez.
+- **Resuelto (parcial):** `src/lib/format.ts` construido con `formatMoneda(valor, moneda = "BOB")` y
+  `formatFecha(fecha, opciones?)`, cada uno con docstring explicando la decisión frente a las
+  divergencias que tenían las copias viejas (agrupación de miles sí, `timeZone: "UTC"` por defecto
+  sí, moneda explícita — nunca hardcodeada). 10 tests unitarios en `format.test.ts` (cero, negativo,
+  monto grande, moneda no-BOB, string numérico, ancla UTC). 1 consumidor real migrado:
+  `/app/mi-negocio/plan/page.tsx`. Los ~9 archivos restantes con copias duplicadas **no se
+  tocaron** — migración masiva es Fase C, junto con UI-030/031/032.
 
-### [UI-018] `Dialog` no tiene prop de tamaño — todo diálogo hereda 384px salvo override manual
-- **Severidad:** Media
+### [UI-018] `Dialog` no tiene prop de tamaño — todo diálogo hereda 384px salvo override manual — **RESUELTO en Fase A (2026-07-20)**
+- **Severidad:** Media → **Estado: cerrado**
 - **Categoría:** Componentes
 - **Alcance:** los ~30 diálogos de la aplicación; manifestado visiblemente solo en el de Plan
   (UI-012), pero latente en cualquier diálogo con más de 3-4 campos.
@@ -757,6 +800,10 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   sensatos (`sm` = actual 384px, `md` ≈ 512px, `lg` ≈ 640px).
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
+- **Resuelto:** `size?: "sm" | "md" | "lg"` agregado a `DialogContent` (`sm` = 384px, **`md` = 576px,
+  default**, `lg` = 768px) — ver UI-012 para la verificación del bug que este cambio corrigió de
+  paso, y UI-041/UI-042 para dos hallazgos nuevos encontrados al verificarlo en páginas con overflow
+  preexistente.
 
 ### [UI-019] Bug de interacción: botón anidado dentro de botón en el checklist de módulos veedor de Planes
 - **Severidad:** Alta
@@ -808,8 +855,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
 
-### [UI-022] Ningún botón de la aplicación tiene estado de carga visual — feedback limitado a texto + disabled
-- **Severidad:** Media
+### [UI-022] Ningún botón de la aplicación tiene estado de carga visual — feedback limitado a texto + disabled — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Media → **Estado: prop construida, migración de consumidores viejos es Fase C**
 - **Categoría:** Componentes / Estados
 - **Alcance:** transversal — confirmado por grep: cero usos de `animate-spin` en todo el repositorio.
 - **Evidencia:** el único feedback de "está procesando" en cualquier submit de la aplicación es el
@@ -825,9 +872,14 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   de forma pareja a los botones de confirmación destructiva que hoy no cambian de texto.
 - **Esfuerzo:** M.
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** `Button` acepta `loading?: boolean` — agrega un spinner (`Loader2`) y fuerza
+  `disabled` sin que el consumidor combine manualmente ambos. 1 consumidor migrado: el botón "Sí,
+  eliminar" en `clientes-cliente.tsx` (uno de los que el hallazgo señalaba explícitamente por no
+  cambiar de texto durante el borrado). El resto de los botones de confirmación destructiva **no se
+  tocaron** — migración masiva es Fase C.
 
-### [UI-023] `PageHeader.title` es `string`, no `ReactNode` — obliga a reimplementar el header a mano en toda ficha con badge de estado
-- **Severidad:** Media
+### [UI-023] `PageHeader.title` es `string`, no `ReactNode` — obliga a reimplementar el header a mano en toda ficha con badge de estado — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Media → **Estado: componente extendido, migración de headers viejos es Fase C**
 - **Categoría:** Componentes
 - **Alcance:** consecuencia directa: Ficha de Gasto, Ficha de Insumo, Ficha de Tenant (`/admin` y
   `/portal`), Directorio/Ficha de Proveedor — todas reimplementan el `<h1>` a mano en vez de usar
@@ -840,6 +892,12 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Propuesta:** ver 3.3 — `title: ReactNode`.
 - **Esfuerzo:** S (el cambio del componente) — el trabajo real está en UI-010.
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** `PageHeader.title` acepta `ReactNode`. De paso se agregó `flex-wrap` al
+  wrapper (antes solo `flex items-center justify-between gap-4`), corrigiendo un overflow real
+  encontrado en Colaboradores a 375px con ≥2 botones de acción — bonus fuera del pedido original pero
+  dentro del mismo archivo que ya se estaba tocando. 1 consumidor migrado: Ficha de Gasto (badge
+  Manual/Automático junto al título). UI-010 (migrar el resto de los ~10 headers ad-hoc) sigue
+  pendiente — Fase C.
 
 ---
 
@@ -905,8 +963,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 - **Esfuerzo:** M.
 - **Depende de:** ninguno.
 
-### [UI-027] `role="alert"` en mensajes de error aplicado por sorteo
-- **Severidad:** Baja
+### [UI-027] `role="alert"` en mensajes de error aplicado por sorteo — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Baja → **Estado: componente construido, migración de consumidores viejos es Fase C**
 - **Categoría:** Estados / Accesibilidad
 - **Alcance:** presente en Login, Onboarding, `insumo-form.tsx`, `gasto-form.tsx` (solo en el modo
   editar); ausente en la enorme mayoría de los `<p className="text-xs text-error-text">` del resto
@@ -920,6 +978,10 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   `<p className="text-xs text-error-text">{error}</p>` repetida en decenas de archivos).
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** `src/components/ui/form-error.tsx` — `<FormError>{mensaje}</FormError>`,
+  no renderiza nada si `children` es falsy, `role="alert"` siempre presente. 1 consumidor migrado:
+  Ficha de Proveedor. Las decenas de `<p className="text-xs text-error-text">` restantes **no se
+  tocaron** — migración masiva es Fase C.
 
 ### [UI-028] Semántica de color no refleja la severidad real del dato — margen fuertemente negativo mostrado en verde
 - **Severidad:** Alta
@@ -958,8 +1020,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 
 ### Datos
 
-### [UI-030] Ningún monto de la aplicación muestra el símbolo o código de moneda
-- **Severidad:** Alta
+### [UI-030] Ningún monto de la aplicación muestra el símbolo o código de moneda — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Alta → **Estado: helper construido y con moneda del tenant, migración de consumidores viejos es Fase C**
 - **Categoría:** Datos
 - **Alcance:** transversal — confirmado en vivo (Dashboard, Reportes) y en código en Patrimonio,
   Proveedores, Productos, Producción, Ventas, Gastos, Simulaciones, Portal, y la Ficha de Tenant de
@@ -981,9 +1043,16 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   consumidores.
 - **Esfuerzo:** M (una vez existe el helper compartido, es mecánico).
 - **Depende de:** UI-017 (helper compartido) y una decisión de formato (sección 7).
+- **Decisión tomada** (sección 7, pregunta 2): la moneda siempre se muestra, usando la moneda real
+  del tenant — nunca "Bs" hardcodeado.
+- **Resuelto (parcial):** `formatMoneda(valor, moneda = "BOB")` usa `Intl.NumberFormat("es-BO",
+  {style: "currency", currency: moneda})`, recibe la moneda como parámetro explícito en vez de
+  asumirla — probado contra `USD` además de `BOB` en los tests. 1 consumidor real migrado
+  (`/app/mi-negocio/plan/page.tsx`, que además ya tenía la moneda del plan a mano). Los ~8 archivos
+  restantes con montos sin moneda **no se tocaron** — migración masiva es Fase C.
 
-### [UI-031] Precisión decimal del mismo dato distinta entre pantallas
-- **Severidad:** Media
+### [UI-031] Precisión decimal del mismo dato distinta entre pantallas — **RESUELTO parcialmente en Fase A (2026-07-20), solo para moneda**
+- **Severidad:** Media → **Estado: precisión de moneda fijada; costo unitario de insumo/producción sigue sin decidirse**
 - **Categoría:** Datos
 - **Alcance:** `costoUnitarioVigente` de Insumo (2 decimales en el listado
   `insumos-cliente.tsx:64`, 4 decimales en la Ficha `ficha-insumo-cliente.tsx:611`); "% de comisión"
@@ -999,9 +1068,14 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   más precisión que la moneda, y aplicarla en todos lados por igual).
 - **Esfuerzo:** S.
 - **Depende de:** UI-017.
+- **Resuelto (parcial):** `formatMoneda` fija 2 decimales siempre (`minimumFractionDigits:
+  maximumFractionDigits: 2`) — cubre la mitad "moneda" del hallazgo. La otra mitad (costo unitario de
+  insumo con 2 vs. 4 decimales, % de comisión con 1 vs. 2 decimales) **no se decidió ni se tocó** —
+  necesita una decisión de producto propia (¿el costo unitario de insumo necesita más precisión que
+  la moneda?), no solo el helper — queda para Fase C.
 
-### [UI-032] Formato de fecha inconsistente — con y sin opciones explícitas de `Intl` en el mismo módulo
-- **Severidad:** Media
+### [UI-032] Formato de fecha inconsistente — con y sin opciones explícitas de `Intl` en el mismo módulo — **RESUELTO parcialmente en Fase A (2026-07-20)**
+- **Severidad:** Media → **Estado: helper construido con default seguro, migración de consumidores viejos es Fase C**
 - **Categoría:** Datos
 - **Alcance:** Ventas (Historial/Ficha de venta usan `.toLocaleDateString("es-BO")` sin opciones →
   formato corto tipo "20/7/2026"; Eventos usa opciones explícitas + `timeZone:"UTC"` → "20 jul
@@ -1018,6 +1092,12 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   cuando la fecha de origen no tiene componente horario).
 - **Esfuerzo:** S (una vez existe el helper).
 - **Depende de:** UI-017.
+- **Resuelto (parcial):** `formatFecha(fecha, opciones?)` con default
+  `{day:"2-digit", month:"short", year:"numeric", timeZone:"UTC"}` — `timeZone:"UTC"` **siempre**
+  activo salvo que el consumidor pase sus propias `opciones` explícitas (ej. Logs de `/admin`, que sí
+  necesita hora). Cubre el bug real ya conocido de fecha-de-solo-día corriendo un día hacia atrás en
+  husos detrás de UTC. 1 consumidor migrado (`/app/mi-negocio/plan/page.tsx`). El resto de los
+  archivos con `.toLocaleDateString()` sin opciones **no se tocaron** — migración masiva es Fase C.
 
 ### [UI-033] Tablas de negocio y administrativas sin paginación real — todo el dataset se trae y se corta en cliente (o ni eso)
 - **Severidad:** Media
@@ -1167,65 +1247,186 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 
 ---
 
+### Hallazgos nuevos, encontrados durante la Fase A (2026-07-20)
+
+> Por regla de trabajo de esta fase: si se encontraba algo peor de lo que documentaba la auditoría
+> original mientras se construía A.1-A.4, se anotaba como hallazgo nuevo y se seguía — no se
+> corregía fuera del alcance ya definido. Estos tres son ese caso.
+
+### [UI-041] Bug confirmado: `/app/proveedores` (maestro-detalle) desborda horizontalmente en móvil
+- **Severidad:** Alta
+- **Categoría:** Layout
+- **Alcance:** `/app/proveedores` (Directorio, vista maestro-detalle) a 375px.
+- **Evidencia:** encontrado incidentalmente al verificar A.2a (migración de `Tabs` en Ficha de
+  Proveedor) — confirmado no relacionado con esa migración. Un `<aside>` de ancho fijo `w-72` dentro
+  de una fila `flex` sin `flex-wrap` ni alternativa responsive fuerza el desborde de página completa
+  a 375px — mismo patrón de causa raíz que UI-011 (fila flex sin manejo de ancho angosto), pero en un
+  archivo distinto.
+- **Impacto en el usuario:** en un teléfono, la pantalla completa de Directorio de Proveedores se
+  corre lateralmente.
+- **Propuesta:** mismo patrón que la propuesta de UI-011 — o bien `overflow-x-auto` como parche
+  mínimo, o colapsar el maestro-detalle a una sola columna con navegación por selección en mobile
+  (patrón más correcto a mediano plazo, pero de mayor esfuerzo).
+- **Esfuerzo:** S (parche) / M (rediseño responsive real).
+- **Depende de:** ninguno.
+
+### [UI-042] Diálogos en páginas con overflow horizontal preexistente se renderizan más anchos de lo esperado en mobile
+- **Severidad:** Media
+- **Categoría:** Layout / Componentes
+- **Alcance:** cualquier `Dialog` abierto sobre una página que ya tenga overflow horizontal (ej.
+  UI-011, UI-041) a 375px.
+- **Evidencia:** encontrado al verificar A.2f (default `size="md"` de `Dialog`) — confirmado con
+  prueba A/B (página limpia vs. página con overflow preexistente) que la causa es el overflow
+  preexistente de la página, no el nuevo default de `Dialog`: un `position: fixed` con ancho en
+  porcentaje/`calc` interactúa con el viewport-de-layout agrandado por el overflow del contenido de
+  fondo, en vez de con el viewport visual real de 375px.
+- **Impacto en el usuario:** un diálogo abierto sobre Compras o Directorio de Proveedores en mobile
+  se ve más ancho de lo que debería, además del overflow de fondo ya reportado en UI-011/UI-041.
+- **Propuesta:** no requiere un fix propio — se resuelve como consecuencia directa de arreglar
+  UI-011/UI-041 (el overflow de fondo). No aplicar ningún workaround en `Dialog` mismo, sería tratar
+  el síntoma.
+- **Esfuerzo:** ninguno adicional — depende enteramente de UI-011/UI-041.
+- **Depende de:** UI-011, UI-041.
+
+### [UI-043] Colapsar el sidebar (logo) en un viewport <1024px oculta el texto de todos los ítems del nav
+- **Severidad:** Media
+- **Categoría:** Layout / Accesibilidad
+- **Alcance:** `/app` (`app-shell.tsx`) en cualquier viewport por debajo del breakpoint `lg` (1024px)
+  — confirmado en vivo a 768px y 375px.
+- **Evidencia:** encontrado al verificar A.4 en vivo. `.app-sidebar--colapsado` (que angosta el
+  sidebar a `4.75rem`) está envuelto en `@media (min-width: 1024px)` en `globals.css:161-177` — por
+  debajo de ese breakpoint no tiene ningún efecto visual. Pero el booleano de React
+  `mostrarExpandido` (`!colapsado || hovering`) que controla si el **texto** de cada ítem se muestra
+  (`max-w-[160px] opacity-100` vs. `max-w-0 opacity-0`) no está condicionado a ese mismo breakpoint —
+  es el mismo botón (el logo/ícono de marca, arriba del sidebar) el que alterna `colapsado` en
+  cualquier tamaño de pantalla. El botón no está oculto en mobile/tablet por ninguna clase
+  `app-mobile-*`. Resultado: un usuario que lo toque en 768px o 375px pierde todas las etiquetas de
+  texto del nav (queda solo iconos) sin que el ancho del sidebar cambie para compensarlo — ni
+  siquiera hay una previsualización por hover que lo revierta, porque `hovering` tampoco aplica a
+  touch.
+- **Impacto en el usuario:** en tablet/mobile, un toque accidental en el logo dejaría el sidebar en
+  un estado "solo íconos, ancho completo" sin salida visual obvia — hay que volver a tocar el mismo
+  botón para revertirlo, y nada en el diseño actual comunica que ese botón hace algo en esos anchos.
+- **Propuesta:** condicionar `mostrarExpandido` (o el propio `onClick` del botón) a que el viewport
+  esté en el rango donde `colapsado` tiene efecto real (`≥1024px`) — ej. con un media-query hook o
+  ignorando el toggle por debajo de `lg`.
+- **Esfuerzo:** S.
+- **Depende de:** ninguno. Preexistente a la Fase A — no lo introdujo el trabajo de submenús de A.4,
+  solo se hizo visible al volver a probar el sidebar completo en los tres anchos.
+
+### [UI-044] Seguridad: la ruta `/app/mi-negocio/plan` no tiene chequeo `esOwner` server-side — cualquier colaborador autenticado puede leer los datos de facturación del tenant
+- **Severidad:** Alta
+- **Categoría:** Datos / Seguridad
+- **Alcance:** `src/app/app/(shell)/mi-negocio/plan/page.tsx:58-60` y
+  `src/app/app/(shell)/mi-negocio/actions.ts` (`obtenerMiPlanAction`).
+- **Evidencia:** encontrado por un workflow de revisión adversarial sobre el diff de A.4 (2 agentes
+  independientes, ambos confirmaron trazando el código completo). `plan/page.tsx` solo verifica
+  `if (!usuario) redirect("/login")` — a diferencia de sus 3 hermanos directos en el mismo submenú
+  (`colaboradores/page.tsx:9`, `roles/page.tsx:9`, `capacidades/page.tsx:9`), que todos agregan
+  `if (!usuario.esOwner) redirect("/app")` justo después del mismo chequeo de autenticación.
+  `obtenerMiPlanAction` tampoco valida el rol — solo llama `obtenerTenantPorId(usuario,
+  usuario.tenantId)`, cuyo único gate es "mismo tenant" (`identidad/actions.ts:115-127`), no "es
+  Owner". Ningún layout superior (`app/layout.tsx`, `app/(shell)/layout.tsx`) compensa esto; no hay
+  `middleware.ts` en el repo. Confirmado con `git log --follow` que la brecha es preexistente
+  (introducida en `09395ff`, "Mi Plan en /app/mi-negocio") — **no la introdujo ni la empeoró el
+  diff de A.4**, que solo agrega el link "Mi Plan" al submenú de sidebar detrás del mismo gate
+  `esOwner` que ya ocultaba el enlace suelto anterior (oculta el link, no la ruta).
+- **Impacto en el usuario:** cualquier Colaborador autenticado del tenant que navegue directamente a
+  `/app/mi-negocio/plan`, o invoque `obtenerMiPlanAction()` (ej. desde devtools), recibe el plan
+  completo, precio, estado de suscripción y fecha de próximo pago del tenant — datos que el sidebar
+  oculta visualmente pero que el servidor nunca protegió.
+- **Propuesta:** agregar `if (!usuario.esOwner) redirect("/app")` a `plan/page.tsx`, igual que sus 3
+  hermanos, y el mismo chequeo dentro de `obtenerMiPlanAction`.
+- **Esfuerzo:** S.
+- **Depende de:** ninguno. **No corregido en esta sesión** — preexistente y no relacionado con el
+  alcance de A.4 (regla de trabajo de esta fase: documentar, no arreglar fuera de lo indicado). Dada
+  la severidad, se recomienda priorizarlo antes que el resto del backlog de Fase C.
+
+---
+
 ## 6. Backlog priorizado en fases
 
-### Fase A — Fundaciones (tokens, layout base, navegación)
+### Fase A — Fundaciones (tokens, layout base, navegación) — **CERRADA el 2026-07-20**
 **Objetivo:** que toda pantalla nueva a partir de acá nazca sobre una base consistente, sin tener
 que re-tocar cada pantalla existente todavía.
 
 | ID | Descripción |
 |---|---|
 | ~~UI-001~~ | ~~Reparar el drawer móvil~~ — cerrado 2026-07-20, era falso positivo; Escape/foco/scroll-lock ya agregados |
-| UI-009 | Definir y documentar la tabla de `max-w` por tipo de pantalla |
-| UI-004 | Agregar "Reportes" al sidebar |
-| UI-002 | Construir `components/ui/tabs.tsx` |
-| UI-014 | Construir `ToggleGroup`/`OptionCard` |
-| UI-017 | Extraer `lib/format.ts` (`formatMoneda`, `formatFecha`) |
-| UI-018 | `Dialog` con prop `size` |
-| UI-023 | `PageHeader.title: ReactNode` |
+| ~~UI-009~~ | ~~Definir y documentar la tabla de `max-w` por tipo de pantalla~~ — hecho, 1 referencia por tipo aplicada |
+| ~~UI-004~~ | ~~Agregar "Reportes" al sidebar~~ — hecho |
+| ~~UI-002~~ | ~~Construir `components/ui/tabs.tsx`~~ — hecho, 1 consumidor (Ficha de Proveedor) |
+| ~~UI-014~~ | ~~Construir `ToggleGroup`/`OptionCard`~~ — hecho, 2 consumidores (Gasto, Historial de Ventas) |
+| ~~UI-017~~ | ~~Extraer `lib/format.ts` (`formatMoneda`, `formatFecha`)~~ — hecho, con tests, 1 consumidor |
+| ~~UI-018~~ | ~~`Dialog` con prop `size`~~ — hecho, default `md` corrige UI-012 de paso |
+| ~~UI-023~~ | ~~`PageHeader.title: ReactNode`~~ — hecho, 1 consumidor (Ficha de Gasto) |
+| ~~A.4~~ | ~~Submenú real de sidebar (Ventas/Producción/Patrimonio/Proveedores/Gastos/Mi Negocio) + acordeón móvil~~ — hecho, decisión 6 |
+| ~~UI-021~~ | ~~`<Avatar>`~~ — adelantado de Fase B, hecho, 1 consumidor (Colaboradores) |
+| ~~UI-022~~ | ~~Estado `loading` visual en `Button`~~ — adelantado de Fase B, hecho, 1 consumidor |
+| ~~UI-027~~ | ~~`<FormError>` centralizado con `role="alert"`~~ — adelantado de Fase B, hecho, 1 consumidor |
+| ~~—~~ | ~~`SearchInput`~~ — no estaba en el backlog original (ver UI-014, "clúster admin"), construido junto al resto de A.2 por ser la misma clase de duplicación; 1 consumidor (Tenants) |
 
 **Criterio de "hecho":** existe una regla escrita de `max-w` por tipo de pantalla; `Tabs`/
 `ToggleGroup` existen y tienen al menos 1 consumidor real cada uno; `lib/format.ts` existe y
 `Dialog`/`PageHeader` aceptan `size`/`ReactNode` respectivamente (sin necesidad todavía de haber
 migrado todos los consumidores viejos — eso es Fase C). El drawer móvil (UI-001) ya quedó resuelto
-fuera de esta fase, como hotfix aislado.
+fuera de esta fase, como hotfix aislado. **Cumplido en su totalidad** — además se adelantaron 3 ítems
+de Fase B (`Avatar`, `Button.loading`, `FormError`) porque encajaban en el mismo tipo de trabajo
+(primitivas nuevas de `components/ui/`) y no ampliaban el alcance de forma sustancial. `pnpm
+typecheck`/`lint`/`test` (177/177) y `pnpm build` pasan limpios al cierre de la fase.
 
 ### Fase B — Componentes compartidos
 **Objetivo:** cerrar los huecos de la capa de primitivas que hoy fuerzan la reimplementación ad-hoc.
 
 | ID | Descripción |
 |---|---|
-| UI-021 | `<Avatar>` |
-| UI-022 | Estado `loading` visual en `Button` |
+| ~~UI-021~~ | ~~`<Avatar>`~~ — adelantado y cerrado en Fase A, ver arriba |
+| ~~UI-022~~ | ~~Estado `loading` visual en `Button`~~ — adelantado y cerrado en Fase A, ver arriba |
+| ~~UI-027~~ | ~~`<FormError>` centralizado con `role="alert"`~~ — adelantado y cerrado en Fase A, ver arriba |
 | UI-024 | Introducir `<Skeleton>` con boundaries de Suspense en fichas/listados pesados |
 | UI-019 / UI-035 | Fix del botón anidado en Planes (mecánico, pero valida el patrón antes de generalizar) |
 | UI-020 | Unificar checkbox/switch para "elegir módulos veedor" |
-| UI-027 | `<FormError>` centralizado con `role="alert"` |
 
 **Criterio de "hecho":** cada componente nuevo tiene al menos 2 consumidores migrados como prueba de
-concepto; el bug de Planes está corregido.
+concepto; el bug de Planes está corregido. **Reducida** — 3 de los 6 ítems originales ya se
+resolvieron en Fase A; quedan `Skeleton`, el fix de Planes (UI-019/035) y el widget único de módulos
+veedor (UI-020).
 
 ### Fase C — Pantalla por pantalla
 **Objetivo:** aplicar las fundaciones y componentes de A/B a las 117 pantallas existentes, módulo por
 módulo (mismo orden en que se construyeron originalmente es razonable, para no perder contexto).
 
+> **UI-044 (seguridad, Alta) no es parte de este orden — priorizarlo antes que cualquier otro ítem
+> de esta tabla.** Es una brecha de autorización real (falta `esOwner` server-side en `/app/mi-negocio/plan`),
+> no una inconsistencia de UI — encontrada por revisión adversarial durante A.4, preexistente y sin
+> relación con el submenú de sidebar.
+
 | ID | Descripción |
 |---|---|
-| UI-003 / UI-005 / UI-006 / UI-007 / UI-008 | Migrar navegación de cada módulo al submenú de sidebar / breadcrumb consistente |
-| UI-010 | Migrar headers ad-hoc a `PageHeader` |
-| UI-011 | Fix de overflow mobile en Compras |
-| UI-012 | Fix de ancho del Dialog de Plan |
-| UI-013 | Decidir y ajustar los 2 falsos wizards |
+| UI-002 / UI-003 / UI-005 / UI-006 / UI-007 / UI-008 | Migrar los ~9 consumidores ad-hoc viejos al submenú de sidebar (A.4) / `Tabs` (A.2a) / breadcrumb consistente; borrar las 5 copias de `SubnavMiNegocio` ahora redundantes (UI-005) |
+| UI-009 | Migrar los ~49 archivos restantes a la tabla de `max-w` ya definida |
+| UI-010 | Migrar headers ad-hoc a `PageHeader` (componente ya listo desde Fase A) |
+| UI-011 / UI-041 | Fix de overflow mobile en Compras y en Directorio de Proveedores (maestro-detalle) — UI-042 se resuelve solo, como consecuencia |
+| ~~UI-012~~ | ~~Fix de ancho del Dialog de Plan~~ — resuelto en Fase A vía UI-018 |
+| UI-013 | Ajustar los 2 falsos wizards (decisión ya tomada en Fase A: quitar el indicador de pasos, sin convertirlos en `Stepper`) |
+| UI-014 | Migrar los ~8 consumidores restantes a `ToggleGroup`/`OptionCard` (componentes ya listos desde Fase A) |
 | UI-015 | Migrar formularios `useState` manual a RHF+zod (empezando por POS y Compras, los de mayor uso) |
 | UI-016 | Aplicar `EmptyState` también a "vacío por filtro" |
+| UI-022 | Migrar el resto de los botones de confirmación destructiva a `loading` (prop ya lista desde Fase A) |
 | UI-025 | Mostrar errores reales de sesión/servidor en vez de "sin datos" |
 | UI-026 | Unificar patrón de confirmación destructiva |
+| UI-027 | Migrar las decenas de `<p>` de error restantes a `<FormError>` (componente ya listo desde Fase A) |
 | UI-028 | Corregir semántica de color de margen negativo |
-| UI-030 / UI-031 / UI-032 | Aplicar moneda/decimales/fechas unificados desde `lib/format.ts` |
+| UI-030 / UI-031 / UI-032 | Migrar los ~8-9 consumidores restantes a `formatMoneda`/`formatFecha` (helper ya listo desde Fase A); decidir la precisión de costo unitario de insumo/producción (UI-031, sin resolver) |
+| UI-043 | Ignorar el toggle de colapso del sidebar por debajo de 1024px, o condicionar `mostrarExpandido` al breakpoint |
 
 **Criterio de "hecho":** cada módulo, al cerrarse, pasa el mismo checklist con el que se auditó acá
 (layout, navegación, componentes, estados, datos) sin hallazgos nuevos de las categorías ya
-resueltas en A/B.
+resueltas en A/B. **Nota (2026-07-20):** todos los ítems de esta tabla que dependían de un
+componente/helper nuevo (`Tabs`, `ToggleGroup`/`OptionCard`, `lib/format.ts`, `PageHeader`,
+`Button.loading`, `FormError`) ya tienen ese componente construido y probado desde el cierre de Fase
+A — lo que resta acá es exclusivamente migración mecánica de consumidores, no diseño ni construcción
+de primitivas nuevas.
 
 ### Fase D — Pulido y accesibilidad
 **Objetivo:** cerrar los hallazgos de menor severidad y los de accesibilidad que no bloquean uso
@@ -1244,40 +1445,42 @@ aplicado.
 
 ---
 
-## 7. Decisiones que necesito tomar
+## 7. Decisiones que necesito tomar — **todas decididas el 2026-07-20, previas al inicio de Fase A**
 
-Estas son las preguntas donde hay más de un camino razonable y la decisión es del equipo de
-producto, no técnica:
+Estas eran las preguntas donde había más de un camino razonable y la decisión era del equipo de
+producto, no técnica. Las 6 se resolvieron antes de arrancar la implementación de Fase A y se
+aplicaron tal cual — quedan documentadas acá con su respuesta final, no reabiertas.
 
-1. **¿"Reportes" merece su propio ítem de sidebar (UI-004), o se prefiere mantenerlo accesible solo
-   desde el Dashboard a propósito** (para no competir visualmente con los módulos "operativos") **y
-   en cambio reforzar el botón de entrada?** Mi lectura del uso real (14 pantallas, con datos que un
-   Owner probablemente quiere consultar sin pasar por Inicio) inclina a agregarlo, pero es una
-   decisión de cuántos ítems tolera el sidebar antes de sentirse sobrecargado.
+1. **¿"Reportes" merece su propio ítem de sidebar (UI-004)?** — **Decidido: sí.** Se agregó como
+   ítem plano de nivel superior (ver 4.1), sin submenú (ver decisión 6). Implementado y verificado.
 
-2. **¿Vale la pena mostrar el símbolo/código de moneda (UI-030) ahora, dado que hoy la enorme
-   mayoría de tenants de prueba usan `BOB` y el impacto visible es bajo, o se prioriza porque ya
-   existen (o existirán) tenants en `USD`?** Afecta directamente cuánto esfuerzo dedicarle en la
-   Fase C.
+2. **¿Vale la pena mostrar el símbolo/código de moneda (UI-030) ahora?** — **Decidido: sí, siempre,
+   usando la moneda real del tenant** (nunca "Bs" hardcodeado). Implementado en `formatMoneda`
+   (`lib/format.ts`) vía `Intl.NumberFormat` con `currency` como parámetro explícito. Migración
+   masiva de los ~8 consumidores restantes queda en Fase C.
 
-3. **¿El link "Negocio" del sub-nav de Mi Negocio debería seguir reabriendo el wizard completo de
-   onboarding (con Stepper de 2 pasos), o merece una pantalla de edición dedicada y más liviana** —
-   dado que hoy un Owner que solo quiere corregir la ciudad del negocio pasa por la misma experiencia
-   que un tenant que recién se está dando de alta? Es una decisión de producto, no solo de UI (el
-   componente `PasoNegocio` ya existe y podría desacoplarse del wizard).
+3. **¿El link "Negocio" del sub-nav de Mi Negocio debería tener una pantalla de edición dedicada en
+   vez de reabrir el wizard completo?** — **Decidido: sí, merece pantalla dedicada** — pero **en
+   Fase A solo se desacopla el componente** `PasoNegocio` para que sea usable fuera del wizard; la
+   pantalla de edición dedicada en sí (que lo consuma) es **Fase C**. En Fase A, "Negocio" en el
+   submenú de sidebar sigue apuntando a `/app/onboarding` (el wizard), sin cambios — el
+   desacoplamiento del componente no tenía todavía un consumidor nuevo que lo necesitara.
 
-4. **¿Los dos "falsos wizards" (Nueva Producción, Importar Ventas Históricas — UI-013) deberían
-   convertirse en flujos reales de pasos con `Stepper`, o se prefiere quitarles el indicador visual
-   de pasos y dejarlos como formularios largos de una sola pantalla** (que es, en la práctica, lo
-   que ya son)? Cambia el esfuerzo de S a M según la respuesta.
+4. **¿Los dos "falsos wizards" (UI-013) deberían convertirse en `Stepper` real o perder el indicador
+   de pasos?** — **Decidido: perder el indicador, quedar como formularios largos de una sola
+   pantalla** — no convertirlos en `Stepper`. **Ejecución diferida a Fase C** — la decisión se
+   registró pero `nueva-produccion-cliente.tsx`/`importar-cliente.tsx` no se tocaron en esta fase.
 
-5. **¿Se estandariza "Switch" o "checkbox cuadrado" (UI-020) como el único widget para "elegir
-   módulos veedor" en toda la aplicación** (hoy Planes usa uno e Instituciones el otro para la misma
-   fuente de datos)?
+5. **¿Se estandariza "Switch" o "checkbox cuadrado" (UI-020) para "elegir módulos veedor"?** —
+   **Decidido: `Switch` en todos lados**, no checkbox. **Ejecución diferida a Fase B/C** — no se
+   tocaron `Planes` ni `Instituciones` en Fase A; queda como trabajo mecánico de UI-020.
 
-6. **¿La sub-navegación de Consentimiento/Simulaciones/Reportes (tab-bar persistente, hoy el patrón
-   mejor resuelto) se migra también al submenú de sidebar propuesto en la sección 4, quedando el
-   tab-bar reservado solo para "vistas del mismo recurso" (ficha de tenant, ficha de proveedor), o
-   se mantiene como está porque ya funciona razonablemente bien y no amerita el costo de migración?**
-   Es la decisión de mayor impacto en el esfuerzo total de la Fase C — determina si el trabajo de
-   navegación es "unificar 7 patrones en 2" o "unificar 7 patrones en 1".
+6. **¿La sub-navegación de Consentimiento/Simulaciones/Reportes se migra también al submenú de
+   sidebar, o se mantiene como tab-bar?** — **Decidido: se mantiene el tab-bar, no se migran.** Se
+   formalizó la regla de los tres mecanismos (ver 4.2): **submenú de sidebar** para Ventas/
+   Producción/Patrimonio/Proveedores/Gastos/Mi Negocio (uso diario, secciones heterogéneas);
+   **tab-bar persistente** para Reportes/Simulaciones/Consentimiento (familia de vistas del mismo
+   dato — quedan como referencia canónica del patrón, sin tocar) y para fichas de un solo recurso
+   (Ficha de Tenant, Ficha de Proveedor); **breadcrumb** siempre a ≥1 nivel de un listado, nunca como
+   sustituto de un menú de hermanos. Implementado en A.4 y documentado también en
+   `docs/design-system.md` sección 9.

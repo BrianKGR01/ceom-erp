@@ -213,7 +213,105 @@ mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es e
 - Ahora acepta cualquier `ReactNode` como título, no solo `string` — permite poner un `<Badge>` de
   estado junto al nombre (Ficha de Gasto, Ficha de Producto, Ficha de Tenant) sin reimplementar el
   header a mano.
+- De paso se agregó `flex-wrap` al wrapper del header (antes solo `flex items-center
+  justify-between gap-4`) — corrige un overflow horizontal real encontrado en Colaboradores a 375px
+  cuando el header tiene ≥2 botones de acción.
+
+### 8.4 `ToggleGroup` (`src/components/ui/toggle-group.tsx`)
+Extraído de las pills de filtro reimplementadas a mano en Historial de Ventas, Compras, Catálogo de
+Productos, criterio de Ranking, etc. — ver UI-014.
+
+- **Cuándo usar:** un solo valor seleccionado entre N opciones cortas sin icono/descripción (filtros,
+  criterios de orden).
+- **Cuándo NO usar:** si la opción necesita icono o descripción — usar `OptionCard` en su lugar.
+- **API:**
+  ```tsx
+  <ToggleGroup
+    value={estado}
+    onValueChange={setEstado}
+    options={[
+      { value: "todos", label: "Todos" },
+      { value: "pagado", label: "Pagado" },
+    ]}
+  />
+  ```
+  Genérico en `T extends string` — `value`/`onValueChange` tipan contra los `value` de `options`.
+
+### 8.5 `OptionCard` (`src/components/ui/option-card.tsx`)
+Extraído de los selectores tipo "radio visual" reimplementados a mano en `GastoForm` (tipo de gasto,
+horizontal) y `PasivoForm` (activo relacionado, vertical con ícono) — ver UI-014. Es la tarjeta
+individual; el consumidor arma su propio grid (`grid-cols-N`) alrededor, porque la cantidad de
+columnas varía según cuántas opciones haya.
+
+- **Cuándo usar:** elegir una entidad/opción relacionada donde vale la pena mostrar ícono y/o
+  descripción corta debajo del label.
+- **API:**
+  ```tsx
+  <OptionCard
+    selected={tipo === "fijo"}
+    onSelect={() => setTipo("fijo")}
+    label="Fijo"
+    description="Se repite todos los meses"
+    icon={Repeat}
+    orientation="horizontal" // o "vertical" — layout existente en PasivoForm
+    showSelectedBadge // opcional: pill "Seleccionado" en la esquina, patrón de PasivoForm
+  />
+  ```
+
+### 8.6 `Avatar` (`src/components/ui/avatar.tsx`)
+Extraído del círculo con inicial reimplementado con 3 tamaños distintos en Colaboradores
+(`size-11`), Capacidades Especiales (`size-10`) y el diálogo de invitar (`size-8`) — ver UI-021. Los
+3 tamaños ya existían en la práctica; se preservan como variantes en vez de forzar un único valor.
+
+- **API:** `<Avatar nombre={persona.nombreCompleto} size="sm" | "md" (default) | "lg" />` — muestra
+  la primera letra del nombre en mayúscula sobre fondo `pastel-blue-bg`.
+
+### 8.7 `SearchInput` (`src/components/ui/search-input.tsx`)
+Extraído del bloque ícono+`Input` reimplementado con valores ligeramente distintos en Tenants
+(`/admin`, `pl-8`/`left-2.5`) e Instituciones (`/admin`, `pl-9`/`left-3`, sin
+`pointer-events-none`) — ver UI-014.
+
+- **API:** `<SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar..." className="sm:w-64" />`
+  — el ancho queda a criterio del consumidor vía `className`, igual que antes.
+
+### 8.8 `FormError` (`src/components/ui/form-error.tsx`)
+- **API:** `<FormError>{mensaje}</FormError>` — no renderiza nada si `children` es falsy. Agrega
+  `role="alert"` (ausente en todas las copias manuales anteriores: `<p className="text-xs
+  text-error-text">{error}</p>`), para que un lector de pantalla anuncie el error sin que el usuario
+  tenga que encontrarlo visualmente.
+
+### 8.9 `Button` — prop `loading`
+- `<Button loading={guardando}>Guardar</Button>` agrega un spinner (`Loader2` girando) antes del
+  contenido y fuerza `disabled` mientras `loading` es `true`, sin que el consumidor tenga que
+  combinar manualmente texto-en-gerundio + `disabled` (antes el único feedback de "esto está
+  corriendo" en toda la app era ese combo, ni siquiera parejo entre botones) — ver UI-022.
 
 ---
 
-*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7 y 8 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`) y se siguen completando a medida que avanza el refactor — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
+## 9. Arquitectura de navegación — regla de los tres mecanismos (decisión 6)
+
+> Origen: `docs/ui/AUDITORIA-UI-UX.md` UI-002, decisión 6 de la sección 7. Antes de esta regla
+> existían 7 mecanismos ad-hoc distintos para navegar entre las secciones de un mismo módulo. De
+> ahora en adelante hay exactamente tres, cada uno con un criterio de cuándo usarlo — nunca a
+> criterio libre de quien construye la pantalla.
+
+**Submenú de sidebar** — para módulos cuyas secciones son de uso diario y heterogéneas entre sí:
+Ventas, Producción, Patrimonio, Proveedores, Gastos, Mi Negocio. Implementado en
+`src/components/shared/app-shell.tsx` (ver también hallazgo UI-002 resuelto).
+
+**Tab-bar persistente** — para un módulo que es una familia de vistas del mismo dato: Reportes,
+Simulaciones, Consentimiento (Compartir Datos). Estos tres módulos ya resolvían bien su navegación
+antes del refactor y quedan **a propósito sin submenú** — no se migran, son la referencia canónica
+del patrón. También aplica a fichas de un solo recurso: Ficha de Tenant (`/admin` y `/portal`),
+Ficha de Proveedor. Componente: `Tabs` (sección 8.1).
+
+**Breadcrumb** — siempre que la pantalla esté ≥1 nivel debajo de un listado (ej. `Ficha → Editar`).
+Nunca como sustituto de un menú de hermanos: si dos pantallas son hermanas de igual jerarquía dentro
+de un módulo, van en el submenú o el tab-bar, no en un breadcrumb.
+
+**Prohibido como único mecanismo:** un link de texto suelto ("Ver pasivos") o un botón aislado entre
+dos secciones hermanas de igual jerarquía — el mecanismo ad-hoc original que documentaba UI-002.
+
+---
+
+*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7, 8 y 9 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`) y quedan completas al cierre de esa fase — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
