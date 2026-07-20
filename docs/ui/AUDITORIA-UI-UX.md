@@ -42,11 +42,14 @@ Ocho problemas transversales explican la gran mayoría de las inconsistencias en
    más repetido de los 14 análisis de código: prácticamente todos los módulos usan entre 3 y 6
    valores de `max-w` distintos (`2xl` a `6xl`) entre pantallas del mismo tipo (listado vs. listado,
    formulario vs. formulario), sin relación visible con la densidad real de contenido.
-3. **La navegación móvil está rota en producción.** Verificado en vivo con click nativo (no solo el
-   tool de automatización): tocar el botón de hamburguesa en `/app` a 375px actualiza el estado de
-   React correctamente (se agrega la clase `app-sidebar--abierto`) pero el sidebar nunca se anima a
-   la vista — el usuario solo ve oscurecerse el fondo. En un teléfono, hoy no hay forma de navegar a
-   otro módulo salvo conocer la URL.
+3. ~~La navegación móvil está rota en producción~~ — **actualización 2026-07-20: era un falso
+   positivo del entorno de pruebas, ya cerrado.** El hotfix de UI-001 encontró que el CSS/React del
+   drawer siempre funcionó correctamente; lo que parecía "el sidebar nunca se anima a la vista" era
+   que la pestaña de navegador usada para verificar corría con `document.timeline` congelado
+   (`visibilityState: "hidden"`), lo que congela cualquier transición CSS en su fotograma inicial —
+   confirmado deshabilitando transiciones, el valor final se aplicaba de inmediato. De paso se
+   corrigió un gap real que sí existía: el drawer no cerraba con Escape, no atrapaba el foco de
+   teclado ni bloqueaba el scroll de fondo — ver UI-001 para el detalle y la verificación.
 4. **Dos librerías de formularios conviven sin criterio: react-hook-form+zod y `useState` manual.**
    Dentro del mismo módulo, a veces del mismo archivo, la mitad de los formularios valida con
    schema + mensajes por campo y la otra mitad valida con un `if` suelto y un único string de error
@@ -305,8 +308,9 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 
 - **Colapsado + hover-preview** en desktop (ya implementado y funciona bien en `app-shell.tsx`) se
   mantiene tal cual.
-- **Drawer en mobile**: mecanismo a reparar primero (UI-001) antes de agregar submenús — un submenú
-  dentro de un drawer que no abre es doblemente inútil.
+- **Drawer en mobile**: el mecanismo de apertura/cierre en sí ya funciona (ver UI-001, cerrado); con
+  Escape/foco-atrapado/scroll-lock ya agregados, queda como base sólida para construir los submenús
+  de 4.1 sin trabajo de reparación previo.
 - Con submenús reales, el drawer mobile necesita un segundo nivel de expand/collapse por ítem
   (acordeón) — hoy no existe ninguna variante de sidebar con 2 niveles, es trabajo nuevo real, no
   solo reordenar lo existente.
@@ -317,45 +321,51 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
 
 ### Navegación
 
-### [UI-001] El drawer del sidebar no se abre visualmente en móvil
-- **Severidad:** Crítica
+### [UI-001] El drawer del sidebar no se abre visualmente en móvil — ~~RESUELTO~~ (falso positivo de metodología; se agregó accesibilidad real que sí faltaba)
+- **Severidad original:** Crítica → **Estado: cerrado el 2026-07-20**, con un hallazgo secundario
+  real (accesibilidad de teclado) corregido de paso.
 - **Categoría:** Navegación
-- **Alcance:** Todo `/app` en viewport < 1024px (probado en 375px). Muy probablemente también
-  `/admin` (`AdminShell` comparte literalmente las mismas clases CSS `.app-sidebar`/
-  `.app-sidebar--abierto` de `globals.css`), no confirmado en vivo por un problema de sesión al
-  alternar cuentas en la misma pestaña del navegador — no reportado como confirmado para `/admin`.
-- **Evidencia:** Verificado dos veces con metodología distinta (click del tool de automatización y
-  `.click()` nativo vía JavaScript, para descartar que fuera un artefacto de automatización) tras
-  una navegación fresca a 375px (para descartar que fuera un artefacto de resize del entorno de
-  pruebas — se confirmó por separado que SÍ existe ese artefacto y se excluyó de este hallazgo).
-  Resultado ambas veces: al tocar "Abrir menú" (`src/components/shared/app-shell.tsx:133-140`), la
-  clase `app-sidebar--abierto` se agrega correctamente al `<aside>` (confirmado leyendo
-  `element.className` después del click), pero `getComputedStyle(aside).transform` permanece en
-  `matrix(1,0,0,1,-256,0)` (fuera de pantalla) — nunca se anima a `translateX(0)`. Lo único que sí
-  cambia visualmente es que aparece el overlay oscuro de fondo (`app-shell.tsx:143-151`,
-  `bg-black/40`), dando la sensación de un menú "a medio abrir" sin mostrar ningún link. El CSS
-  responsable (`src/app/globals.css:140-150`) define un selector compuesto
-  `.app-sidebar.app-sidebar--abierto { transform: translateX(0); }` que, leído en el archivo, debería
-  ganar por especificidad sobre `.app-sidebar { transform: translateX(-100%); }` sin importar el
-  orden — el comentario del propio archivo (`globals.css:127-133`) documenta que este mismo
-  mecanismo de sidebar YA tuvo un bug de CSS específico de build (Turbopack generando variantes
-  responsive duplicadas) que obligó a abandonar las utilidades `lg:`/`max-lg:` de Tailwind en este
-  árbol — es plausible que el mecanismo tenga un segundo problema de build/producción distinto al ya
-  documentado, o un problema de especificidad con las capas (`@layer`) de Tailwind v4 no evidente
-  con solo leer el archivo fuente.
-- **Impacto en el usuario:** en un teléfono, un usuario que aterrice en cualquier pantalla de `/app`
-  que no sea Inicio no tiene ninguna forma de navegar a otro módulo salvo conocer la URL exacta o
-  usar "atrás" del navegador. Es el bug de mayor severidad de toda la auditoría porque bloquea
-  completamente el uso mobile de la navegación primaria.
-- **Propuesta:** reproducir el bug directamente contra el deploy de Vercel con las DevTools del
-  navegador real (no el entorno de automatización) para confirmar si es el mismo problema de
-  Turbopack/capas ya documentado en el comentario o uno nuevo; considerar una prueba con
-  `transform: translate3d(-100%, 0, 0)` (fuerza aceleración por GPU y a veces evita bugs de
-  cascada con `transform` compuesto) o mover el toggle a un atributo `data-*` + `[data-open="true"]`
-  en vez de una segunda clase, para eliminar cualquier ambigüedad de especificidad.
-- **Esfuerzo:** S (una vez identificada la causa raíz real).
-- **Depende de:** ninguno — es el primer ítem a resolver antes de construir cualquier submenú nuevo
-  (4.3).
+- **Causa raíz real, contraria a lo reportado originalmente:** el CSS y la lógica de React del
+  drawer **estaban y están correctos**. Lo que se documentó como "el transform nunca cambia" era un
+  artefacto del entorno de pruebas automatizado: la pestaña del navegador usada para verificar (tanto
+  en la auditoría original contra Vercel como en la re-verificación local) se ejecuta con
+  `document.visibilityState === "hidden"` y `document.timeline.currentTime` congelado en `0`. Una
+  transición CSS en curso tiene la prioridad más alta de toda la cascada (por encima incluso de
+  `!important` inline) mientras esté "corriendo" — y con el timeline del documento congelado en el
+  instante 0, la transición de 200ms nunca avanza ni un milisegundo, quedando visualmente pegada en
+  su valor de partida (`translateX(-100%)`) para siempre. Confirmado de forma concluyente:
+  inyectando `* { transition: none !important; }` para sacar la transición de la ecuación, el
+  `transform` calculado pasa inmediatamente al valor correcto (`translateX(0)`) — es decir, la regla
+  `.app-sidebar.app-sidebar--abierto` (`src/app/globals.css:148-150`) sí gana la cascada como
+  corresponde por especificidad, tal como predecía una lectura correcta del CSS. No hubo problema de
+  especificidad, ni de orden/capas de Tailwind, ni de que la clase se aplicara a un nodo distinto del
+  que tiene el `transform` — las tres sospechas a descartar quedaron descartadas; la causa fue una
+  cuarta, no anticipada, específica de cómo esta herramienta de navegador automatizado renderiza la
+  pestaña. Un usuario real en un teléfono, con la pestaña visible/enfocada, tiene
+  `document.timeline` corriendo con normalidad y la animación completa sin problemas en 200ms.
+- **Lo que sí era un gap real** (parte de "reparar el drawer" en el sentido que pedía la tarea, aunque
+  independiente del bug de transform): el drawer no tenía manejo de tecla Escape, no atrapaba el foco
+  de teclado dentro de sí mismo mientras estaba abierto, no bloqueaba el scroll del `body`, y no
+  devolvía el foco al botón que lo abrió al cerrarse — el único cierre disponible antes de este fix
+  era con mouse/touch (clic en la "X" o en el overlay). Corregido en
+  `src/components/shared/app-shell.tsx` y, por compartir el mismo mecanismo, también en
+  `src/components/shared/admin-shell.tsx` (`AdminShell`). `PortalTopbar` (`/portal`) no tiene drawer
+  ni menú mobile de ningún tipo — confirmado en código y en vivo (`document.querySelector('aside')`
+  y `.app-mobile-bar` no existen en esa superficie), así que no había nada que corregir ahí.
+- **Verificación real realizada** (servidor de desarrollo local, navegación fresca a 375px, tras el
+  fix): abrir el drawer agrega la clase y bloquea `document.body.style.overflow` a `"hidden"`; el
+  foco se mueve automáticamente al primer elemento enfocable del `<aside>` al abrir; `Tab` en el
+  último elemento enfocable envuelve al primero y `Shift+Tab` en el primero envuelve al último
+  (atrapado de foco confirmado en ambas direcciones, en `/app` con 14 elementos enfocables y en
+  `/admin` con 6); `Escape` cierra el drawer, restaura el `overflow` original del `body` y devuelve
+  el foco al botón "Abrir menú"; el clic en el overlay de fondo (comportamiento preexistente) se
+  siguió verificando funcional tras el cambio. `pnpm typecheck`, `pnpm lint` y `pnpm test` (167/167)
+  pasan limpios.
+- **Impacto en el usuario:** ninguno del bug original (nunca existió para un usuario real). El gap de
+  accesibilidad sí era real: un usuario de teclado no podía cerrar el drawer sin mouse/touch, y el
+  scroll de fondo permanecía activo mientras el menú estaba abierto.
+- **Esfuerzo real:** S — cambio acotado a los dos archivos de shell, sin tocar CSS ni estructura.
+- **Depende de:** ninguno.
 
 ### [UI-002] No existe un componente de pestañas — 7 mecanismos ad-hoc distintos resuelven la misma necesidad
 - **Severidad:** Crítica
@@ -579,9 +589,8 @@ lugares donde el proyecto acertó (Consentimiento y Simulaciones, ambos con tab-
   responsive alternativo. Contraste positivo confirmado en la misma sesión: `/admin/tenants` (tabla
   real) resuelve el mismo problema de "contenido denso en viewport angosto" correctamente, con un
   wrapper `overflow-x-auto` que contiene el scroll dentro de la tabla en vez de desbordar la página.
-- **Impacto en el usuario:** en un teléfono, la página entera de Compras se corre lateralmente —
-  además de verse rota, empeora un problema que ya es crítico por el bug de navegación (UI-001): si
-  un usuario mobile llegara a esta pantalla, la encontraría rota.
+- **Impacto en el usuario:** en un teléfono, la página entera de Compras se corre lateralmente — un
+  usuario mobile que llegue a esta pantalla la encontraría rota.
 - **Propuesta:** aplicar el mismo patrón que ya funciona en `/admin/tenants` (`overflow-x-auto` en
   el contenedor de la lista) como parche mínimo, o rediseñar la fila para que colapse a 2 líneas en
   mobile (nombre+fecha arriba, monto+badges+acción abajo).
@@ -1166,7 +1175,7 @@ que re-tocar cada pantalla existente todavía.
 
 | ID | Descripción |
 |---|---|
-| UI-001 | Reparar el drawer móvil (bloqueante para cualquier trabajo de navegación mobile) |
+| ~~UI-001~~ | ~~Reparar el drawer móvil~~ — cerrado 2026-07-20, era falso positivo; Escape/foco/scroll-lock ya agregados |
 | UI-009 | Definir y documentar la tabla de `max-w` por tipo de pantalla |
 | UI-004 | Agregar "Reportes" al sidebar |
 | UI-002 | Construir `components/ui/tabs.tsx` |
@@ -1175,10 +1184,11 @@ que re-tocar cada pantalla existente todavía.
 | UI-018 | `Dialog` con prop `size` |
 | UI-023 | `PageHeader.title: ReactNode` |
 
-**Criterio de "hecho":** existe una regla escrita de `max-w` por tipo de pantalla; el drawer móvil
-abre visualmente; `Tabs`/`ToggleGroup` existen y tienen al menos 1 consumidor real cada uno;
-`lib/format.ts` existe y `Dialog`/`PageHeader` aceptan `size`/`ReactNode` respectivamente (sin
-necesidad todavía de haber migrado todos los consumidores viejos — eso es Fase C).
+**Criterio de "hecho":** existe una regla escrita de `max-w` por tipo de pantalla; `Tabs`/
+`ToggleGroup` existen y tienen al menos 1 consumidor real cada uno; `lib/format.ts` existe y
+`Dialog`/`PageHeader` aceptan `size`/`ReactNode` respectivamente (sin necesidad todavía de haber
+migrado todos los consumidores viejos — eso es Fase C). El drawer móvil (UI-001) ya quedó resuelto
+fuera de esta fase, como hotfix aislado.
 
 ### Fase B — Componentes compartidos
 **Objetivo:** cerrar los huecos de la capa de primitivas que hoy fuerzan la reimplementación ad-hoc.
