@@ -203,6 +203,22 @@
       Como el email de prueba es ficticio (sin bandeja real), el click del
       link **queda pendiente de validación manual**, mismo criterio que el
       magic link de Instituciones.
+- [x] **UI construida (2026-07-20): Banner de estado del tenant** — cierra el
+      último ítem de UI de este módulo. Banner ámbar/rojo en `AppShell`
+      (`src/components/shared/app-shell.tsx`), visible en todas las pantallas
+      de `/app` cuando `estadoAcceso !== "activo"`. **Es señal visual
+      únicamente** — `tienePermiso()` ya bloqueaba crear/editar en
+      `solo_lectura`/`bloqueado` desde antes de esta tanda (líneas 95-97 de
+      este archivo), sin cambios. Verificado explícitamente: con el tenant
+      en `vencida` (etapa de gracia), un intento real de `crearProducto`
+      fue rechazado server-side con el mismo mensaje de siempre. Se calcula
+      con `calcularEstadoAcceso(tenant)` directo sobre el `tenant` que
+      `src/app/app/(shell)/layout.tsx` ya fetchea (no se llama a
+      `obtenerEstadoAccesoTenant()` por separado — mismo resultado, pero esa
+      función no devuelve `fechaProximoPago`, necesario para el texto del
+      banner ámbar, así que hacía falta el tenant completo de todas formas).
+      Con esto, roadmap ítem #1 de Identidad queda 100% cerrado — cero UI
+      pendiente en todo el módulo.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -482,4 +498,4 @@
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
 
-## Última actualización: 2026-07-18 — "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Roadmap: queda solo 1 pantalla chica (Nicho 4). Actualización previa el mismo día: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+## Última actualización: 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)

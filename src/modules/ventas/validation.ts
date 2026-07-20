@@ -20,6 +20,7 @@ export const registrarVentaSchema = z.object({
     })
     .optional(),
   canalVentaId: z.string().min(1, "Elegí un canal de venta."),
+  eventoId: z.string().optional(),
   lineas: z.array(lineaVentaSchema).min(1, "Agregá al menos un producto al carrito."),
   pagoInicial: z
     .object({

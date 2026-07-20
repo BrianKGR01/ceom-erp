@@ -2,6 +2,10 @@
 
 import { obtenerUsuarioActual, tienePermiso } from "@/modules/identidad/actions";
 import {
+  desvincularProductoDeReceta,
+  vincularProductoAReceta,
+} from "@/modules/operativo/nichos/nicho-1/actions";
+import {
   actualizarCategoria,
   actualizarProducto,
   crearCategoria,
@@ -211,6 +215,28 @@ export async function eliminarCategoriaAction(
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
   const resultado = await eliminarCategoria(usuario, categoriaId);
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: undefined };
+}
+
+export async function vincularProductoARecetaAction(input: {
+  productoId: string;
+  recetaId: string;
+  cantidadBaseConsumidaPorUnidad: number;
+}): Promise<ResultadoAccion<{ vinculacionId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  return vincularProductoAReceta(usuario, usuario.tenantId, input);
+}
+
+export async function desvincularProductoDeRecetaAction(
+  productoId: string
+): Promise<ResultadoAccion<undefined>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const resultado = await desvincularProductoDeReceta(usuario, productoId);
   if (!resultado.ok) return resultado;
   return { ok: true, data: undefined };
 }

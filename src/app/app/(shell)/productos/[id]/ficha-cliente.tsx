@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   ArrowRight,
   ArrowUpRight,
+  ChefHat,
   Minus,
   Package,
   Pencil,
@@ -41,9 +42,11 @@ import { cn } from "@/lib/utils";
 import { signoMovimiento } from "@/modules/productos/signo-movimiento";
 import {
   ajustarStockAction,
+  desvincularProductoDeRecetaAction,
   eliminarProductoAction,
   listarMovimientosStockAction,
   transferirStockAction,
+  vincularProductoARecetaAction,
 } from "../actions";
 
 interface StockFila {
@@ -102,6 +105,17 @@ const ORIGEN_COSTO_LABEL: Record<string, string> = {
   proveedor_reventa: "Precio de tu proveedor",
 };
 
+interface RecetaOpcion {
+  id: string;
+  nombre: string;
+}
+
+interface RecetaVinculada {
+  recetaId: string;
+  recetaNombre: string;
+  cantidadBaseConsumidaPorUnidad: string;
+}
+
 export function FichaCliente({
   productoId,
   imagenUrl,
@@ -115,6 +129,8 @@ export function FichaCliente({
   costoBloqueado,
   stockPorSucursal,
   sucursales,
+  recetas,
+  recetaVinculada,
   historialPrecios,
 }: {
   productoId: string;
@@ -129,6 +145,8 @@ export function FichaCliente({
   costoBloqueado: boolean;
   stockPorSucursal: StockFila[];
   sucursales: { id: string; nombre: string }[];
+  recetas: RecetaOpcion[];
+  recetaVinculada: RecetaVinculada | null;
   historialPrecios: PrecioDeCompra[];
 }) {
   const router = useRouter();
@@ -281,6 +299,64 @@ export function FichaCliente({
     router.push("/app/productos");
   }
 
+  // --- Vincular a proceso operativo ---
+  const [vinculoAbierto, setVinculoAbierto] = useState(false);
+  const [vinculo, setVinculo] = useState(recetaVinculada);
+  const [vinculoRecetaId, setVinculoRecetaId] = useState(recetas[0]?.id ?? "");
+  const [vinculoCantidad, setVinculoCantidad] = useState("");
+  const [vinculoError, setVinculoError] = useState<string | null>(null);
+  const [vinculando, setVinculando] = useState(false);
+  const [desvinculando, setDesvinculando] = useState(false);
+
+  function abrirVinculo() {
+    setVinculoError(null);
+    setVinculoRecetaId(vinculo?.recetaId ?? recetas[0]?.id ?? "");
+    setVinculoCantidad("");
+    setVinculoAbierto(true);
+  }
+
+  async function confirmarVinculo() {
+    if (!vinculoRecetaId) {
+      setVinculoError("Elegí una receta.");
+      return;
+    }
+    if (!vinculoCantidad || Number(vinculoCantidad) <= 0) {
+      setVinculoError("Ingresá cuánto de esta receta consume cada unidad vendida.");
+      return;
+    }
+    setVinculando(true);
+    setVinculoError(null);
+    const resultado = await vincularProductoARecetaAction({
+      productoId,
+      recetaId: vinculoRecetaId,
+      cantidadBaseConsumidaPorUnidad: Number(vinculoCantidad),
+    });
+    setVinculando(false);
+    if (!resultado.ok) {
+      setVinculoError(resultado.error);
+      return;
+    }
+    setVinculo({
+      recetaId: vinculoRecetaId,
+      recetaNombre: recetas.find((r) => r.id === vinculoRecetaId)?.nombre ?? "",
+      cantidadBaseConsumidaPorUnidad: String(vinculoCantidad),
+    });
+    setVinculoAbierto(false);
+  }
+
+  async function confirmarDesvinculo() {
+    setDesvinculando(true);
+    setVinculoError(null);
+    const resultado = await desvincularProductoDeRecetaAction(productoId);
+    setDesvinculando(false);
+    if (!resultado.ok) {
+      setVinculoError(resultado.error);
+      return;
+    }
+    setVinculo(null);
+    setVinculoAbierto(false);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -306,6 +382,10 @@ export function FichaCliente({
         )}
         <Button variant="outline" onClick={() => abrirAjuste()}>
           Ajustar stock
+        </Button>
+        <Button variant="outline" onClick={abrirVinculo}>
+          <ChefHat className="size-4" />
+          {vinculo ? `Receta: ${vinculo.recetaNombre}` : "Vincular a proceso operativo"}
         </Button>
         <Button variant="destructive" onClick={() => setEliminarAbierto(true)}>
           <Trash2 className="size-4" />
@@ -708,6 +788,87 @@ export function FichaCliente({
             <Button variant="destructive" onClick={confirmarEliminar} disabled={eliminando}>
               {eliminando ? "Eliminando..." : "Sí, eliminar"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vincular a proceso operativo */}
+      <Dialog open={vinculoAbierto} onOpenChange={setVinculoAbierto}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular a proceso operativo</DialogTitle>
+            <DialogDescription>
+              Conectá este producto con una Receta de Producción — el costo operativo y el stock
+              van a actualizarse automáticamente con cada lote producido.
+            </DialogDescription>
+          </DialogHeader>
+
+          {recetas.length === 0 ? (
+            <p className="text-sm text-text-muted">
+              Todavía no creaste ninguna Receta. Cargá una primero desde Producción.
+            </p>
+          ) : vinculo ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-gray-border p-3 text-sm">
+                <p className="text-xs text-text-muted uppercase">Receta vinculada</p>
+                <p className="mt-0.5 font-medium text-navy">{vinculo.recetaNombre}</p>
+                <p className="text-xs text-text-muted">
+                  Consume {vinculo.cantidadBaseConsumidaPorUnidad} por unidad vendida.
+                </p>
+              </div>
+              {vinculoError && <p className="text-xs text-error-text">{vinculoError}</p>}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Receta</Label>
+                <Select
+                  items={Object.fromEntries(recetas.map((r) => [r.id, r.nombre]))}
+                  value={vinculoRecetaId}
+                  onValueChange={(v) => v && setVinculoRecetaId(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recetas.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cantidad de receta consumida por unidad vendida</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ej. 1"
+                  value={vinculoCantidad}
+                  onChange={(e) => setVinculoCantidad(e.target.value)}
+                />
+              </div>
+              {vinculoError && <p className="text-xs text-error-text">{vinculoError}</p>}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVinculoAbierto(false)}>
+              Cerrar
+            </Button>
+            {vinculo ? (
+              <Button variant="destructive" onClick={confirmarDesvinculo} disabled={desvinculando}>
+                {desvinculando ? "Desvinculando..." : "Desvincular"}
+              </Button>
+            ) : (
+              recetas.length > 0 && (
+                <Button onClick={confirmarVinculo} disabled={vinculando}>
+                  {vinculando ? "Vinculando..." : "Vincular"}
+                </Button>
+              )
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

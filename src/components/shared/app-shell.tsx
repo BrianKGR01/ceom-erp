@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  AlertTriangle,
   Building2,
   Calculator,
   ChefHat,
@@ -14,6 +15,7 @@ import {
   Package,
   Receipt,
   Settings,
+  ShieldAlert,
   ShoppingCart,
   Truck,
   X,
@@ -29,6 +31,44 @@ interface ItemNav {
   icono: typeof LayoutGrid;
 }
 
+function formatoFecha(fecha: string): string {
+  return new Date(fecha).toLocaleDateString("es-BO", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Señal visual únicamente — el bloqueo real de crear/editar ya lo hace
+// tienePermiso() del lado del servidor (identidad/actions.ts): bloqueado
+// deniega incluso "ver", solo_lectura deniega todo salvo "ver". Este banner
+// no controla nada, solo informa lo que el servidor ya está aplicando.
+function BannerEstadoTenant({
+  estadoAcceso,
+  fechaProximoPago,
+}: {
+  estadoAcceso: "activo" | "solo_lectura" | "bloqueado";
+  fechaProximoPago: string | null;
+}) {
+  if (estadoAcceso === "activo") return null;
+
+  if (estadoAcceso === "bloqueado") {
+    return (
+      <div className="flex items-center gap-2 bg-error-bg px-4 py-2.5 text-sm text-error-text">
+        <ShieldAlert className="size-4 shrink-0" />
+        <p>Acceso bloqueado — contactá a soporte para regularizar tu suscripción.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 bg-warning-bg px-4 py-2.5 text-sm text-warning-text">
+      <AlertTriangle className="size-4 shrink-0" />
+      <p>
+        Tu suscripción está vencida — podés ver tus datos pero no crear ni editar hasta
+        regularizar el pago
+        {fechaProximoPago && `, fecha de próximo pago: ${formatoFecha(fechaProximoPago)}`}.
+      </p>
+    </div>
+  );
+}
+
 // Sidebar navy con degradado (design-system.md seccion 5.1), colapsable en
 // desktop (clic en el logo fija el estado; hover sobre el sidebar
 // colapsado lo previsualiza expandido sin mover el contenido, como un
@@ -39,12 +79,16 @@ export function AppShell({
   rolNombre,
   tenantNombre,
   esOwner,
+  estadoAcceso,
+  fechaProximoPago,
   children,
 }: {
   nombreCompleto: string;
   rolNombre: string;
   tenantNombre: string;
   esOwner: boolean;
+  estadoAcceso: "activo" | "solo_lectura" | "bloqueado";
+  fechaProximoPago: string | null;
   children: React.ReactNode;
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -215,6 +259,7 @@ export function AppShell({
           colapsado && "app-shell-main--colapsado"
         )}
       >
+        <BannerEstadoTenant estadoAcceso={estadoAcceso} fechaProximoPago={fechaProximoPago} />
         {children}
       </main>
     </>

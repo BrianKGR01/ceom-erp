@@ -24,32 +24,28 @@
 
 ## Progreso (actualizado 2026-07-20)
 
-**115 construidas · 0 parciales · 2 pendientes**, de 117 pantallas/modales trackeados a este nivel
-de detalle (el conteo original de "~85" era más grueso — agrupaba varios modales bajo una sola
-pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total con
-"Transferir Owner", que no estaba en el inventario original).
+**117 construidas · 0 parciales · 0 pendientes, de 117 pantallas/modales trackeados — inventario
+100% completo.** (El conteo original de "~85" era más grueso — agrupaba varios modales bajo una
+sola pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total
+con "Transferir Owner", que no estaba en el inventario original.)
 
-**Los 2 pendientes que quedan (detalle en sus secciones) — ninguno bloquea el camino dorado:**
-1. **Banner de estado del tenant** (`/app`, Identidad, sección 1) — visible cuando
-   `estadoAcceso !== "activo"`. `obtenerEstadoAccesoTenant()` ya existe y ya está expuesta sin gate,
-   nunca se construyó el banner que lo consume.
-2. **Vincular a proceso operativo** (modal en Ficha de Producto, sección 5) — vincula un Producto a
-   una Receta de Nicho 1 (`vincularProductoAReceta`/`desvincularProductoDeReceta`, ya existen y
-   probadas). Sin este modal, vincular un producto a una receta solo se puede hacer a mano contra la
-   base — Registrar Producción ya muestra el estado vacío que señala este gap explícitamente.
-
-Además, un caveat chico dentro de una pantalla ya `[x]`: **`eventoId` no tiene control de UI en el
-formulario de Registrar Venta** (`pos-cliente.tsx`) — Gestión de Eventos (CRUD completo) sí está
-construida, pero no hay forma de atribuir una venta a un evento desde el carrito todavía. Campo real
-del contrato de `registrarVenta`, sin backend gap — solo falta el selector.
+**Cierre final 2026-07-20** — los últimos 2 pendientes reales y 1 caveat se cerraron en la misma
+tanda, sin mockup, todos verificados end-to-end en navegador:
+1. **Banner de estado del tenant** (`/app`, en `AppShell`) — ámbar/rojo según `estadoAcceso`. Señal
+   visual únicamente; confirmado explícitamente que `tienePermiso()` ya bloqueaba crear/editar del
+   lado del servidor desde antes (probado: intento de creación rechazado en `solo_lectura`).
+2. **Vincular a proceso operativo** (modal en Ficha de Producto) — vincula/desvincula un Producto a
+   una Receta de Nicho 1, sin gap de backend.
+3. **Selector de Evento en Registrar Venta** — campo opcional en el carrito, filtrado a eventos
+   abiertos; cerró además un gap chico de validación (`eventoId` faltaba en `registrarVentaSchema`).
 
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
-| 1. Identidad | 19 | 0 | 1 | 20 |
+| 1. Identidad | 20 | 0 | 0 | 20 |
 | 2. Suscripción | 5 | 0 | 0 | 5 |
 | **3. Patrimonio** | **12** | 0 | 0 | 12 |
 | **4. Proveedores/Compras** | **9** | 0 | 0 | 9 |
-| **5. Productos e Inventario** | **7** | 0 | 1 | 8 |
+| **5. Productos e Inventario** | **8** | 0 | 0 | 8 |
 | **6. Nicho 1 (Insumos/Recetas/Producción)** | **10** | 0 | 0 | 10 |
 | **7. Ventas + Clientes** | **10** | **0** | 0 | 10 |
 | **8. Egresos y Gastos** | **6** | 0 | 0 | 6 |
@@ -227,10 +223,10 @@ usados por el shell de `/app` y por `crearTenant`). Detalle completo en la secci
 (`consultarCapacidadAlmacenamientoUsada` ya existía y ya estaba probada). Embebido en el Dashboard,
 sin nav propia. Detalle completo en la sección 12 más abajo.
 
-**Con esto se cierran las 3 tandas chicas que quedaban pendientes** (Gestión de Tenants, Mi Plan,
-Nicho 4) — **pero el inventario NO queda 100% en `[x]`: quedan 2 pantallas chicas reales sin
-construir** (Banner de estado del tenant, Vincular a proceso operativo), ninguna bloquea el camino
-dorado. Ver el detalle de las dos en "Progreso" más arriba y "Conteo total" más abajo.
+**Banner de estado del tenant, Vincular a proceso operativo y Selector de Evento cerrados
+2026-07-20** — los 2 últimos pendientes reales del inventario más 1 caveat chico. **Con esto el
+inventario completo de `docs/ui/pantallas.md` queda en `[x]` — 117/117, sin ningún ítem pendiente.**
+Ver el detalle en "Progreso" más arriba y "Conteo total" más abajo.
 
 ---
 
@@ -436,9 +432,24 @@ mockup — mismo patrón Dialog ya usado en Planes/Aprobaciones), sin tocar los 
 - Rol: `ceom_admin`. Acción: `consultarTenantDetalle`/`obtenerTenantPorId(solicitante, tenantId)`.
 
 ### `/app` — Estado propio (cualquier usuario del tenant)
-**Banner de estado del tenant** `[ ]` — visible cuando `estadoAcceso !== "activo"` (un tenant `bloqueado` deniega incluso `ver`, salvo esta pantalla).
-- Campos: `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`).
-- Rol: cualquier usuario autenticado del tenant. Acción: `obtenerEstadoAccesoTenant(tenantId)` (sin gate, a propósito).
+**Banner de estado del tenant** `[x]` (2026-07-20) — banner ámbar/rojo en `AppShell`
+(`src/components/shared/app-shell.tsx`), arriba de todo el contenido, en todas las pantallas de
+`/app` por igual. Ámbar (`solo_lectura`): "Tu suscripción está vencida — podés ver tus datos pero
+no crear ni editar hasta regularizar el pago, fecha de próximo pago: [fecha]". Rojo (`bloqueado`):
+"Acceso bloqueado — contactá a soporte para regularizar tu suscripción". Invisible si `activo`.
+- Campos: `estadoAcceso` (`activo`/`solo_lectura`/`bloqueado`), `fechaProximoPago`.
+- **Diferencia respecto al pedido original:** en vez de llamar a `obtenerEstadoAccesoTenant()`
+  desde el shell, se calcula `calcularEstadoAcceso(tenant)` directo sobre el `tenant` que
+  `src/app/app/(shell)/layout.tsx` **ya fetchea** (misma función pura por dentro) — evita un
+  round-trip redundante y, sobre todo, `obtenerEstadoAccesoTenant()` no devuelve
+  `fechaProximoPago` (necesario para el texto del banner ámbar), así que hacía falta el tenant
+  completo de todas formas.
+- **Es señal visual únicamente — el bloqueo real ya lo hacía `tienePermiso()` de antes, sin cambios
+  acá.** Verificado explícitamente en navegador: con el tenant en `vencida` (etapa de gracia,
+  `solo_lectura`), un intento de "Crear producto" fue rechazado server-side con "No tenés permiso
+  para crear productos en este tenant." — el banner solo informa lo que el servidor ya aplicaba.
+- Rol: cualquier usuario autenticado del tenant. No usa una Server Action nueva — el `tenant` ya
+  resuelto en el layout es suficiente.
 
 ---
 
@@ -637,9 +648,22 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 - Acción: `listarProductos(solicitante, tenantId)`.
 
 **Ficha de Producto** `[x]` — detalle + stock por sucursal, breadcrumb, layout 2 columnas.
-- Subpantallas construidas: Ajuste manual de stock, Transferencia de stock, Eliminar (con confirmación si stock > 0). **No construida:** Vincular/Desvincular a receta (depende de Nicho 1).
+- Subpantallas construidas: Ajuste manual de stock, Transferencia de stock, Eliminar (con confirmación si stock > 0), **Vincular/Desvincular a receta** (`[x]`, 2026-07-20 — modal, sin mockup).
 - Campos: todos los de `productos` + `stockPorSucursal[]` (`sucursalId`, `cantidadActual`, `stockMinimo`, `actualizadoEn`).
 - Acción: `fichaProducto(solicitante, productoId)`.
+
+**Vincular a proceso operativo** `[x]` (2026-07-20, modal desde Ficha de Producto). Selector de
+Receta (`listarRecetas`, Nicho 1) + `cantidadBaseConsumidaPorUnidad`, botón "Vincular". Si el
+producto ya está vinculado, muestra la receta actual (nombre + consumo por unidad) con opción
+"Desvincular", en vez del selector. Cierra el gap que ya señalaba explícitamente el estado vacío de
+"Registrar Producción" ("hace falta vincular uno primero desde Productos").
+- No hace falta gatear por `tipoOrigenProducto` — `vincularProductoAReceta()` ya lo setea a
+  `produccion_nicho` automáticamente vía `enviarProductoAOperaciones()` (ya existía, sin cambios).
+- Campos: `recetaId`, `cantidadBaseConsumidaPorUnidad`. Acciones (todas ya existían y ya estaban
+  probadas, sin gap de backend): `vincularProductoAReceta`, `desvincularProductoDeReceta`,
+  `obtenerRecetaDeProducto` (Nicho 1).
+- **Verificado end-to-end en navegador:** estado vacío sin Recetas cargadas, vinculación real
+  (persiste tras reload), desvinculación real (persiste tras reload).
 
 **Alta / Edición de Producto.** `[x]` Formulario en 2 columnas.
 - Campos: `categoriaId`, `nombre`, `imagenUrl` (dropzone, preview local sin persistir), `unidadVenta` (`unidad`/`kg`/`g`/`l`/`ml`/`docena`), `precioVenta`, `costoOperativoVigente`, `origenCosto` (`manual`/`nicho_sugerido`/`proveedor_reventa`, solo lectura), `tipoOrigenProducto` (solo `reventa_simple`/`manual` desde acá — `produccion_nicho` solo vía "Vincular a receta"), `fechaVencimientoReferencia`, `vidaUtilDias`, `activo`.
@@ -659,10 +683,10 @@ obligatorio. Verificado end-to-end (incluida `anulacion_total` para revertir com
 **Historial de movimientos de stock de un producto.** `[x]` — panel dentro de la Ficha de Producto, con ícono de dirección por movimiento.
 - Wrapper público `listarMovimientosStock` ya expuesto en `actions.ts` (gap de backend original ya cerrado).
 
-**Vincular a proceso operativo** `[ ]` (modal, desde Ficha de Producto — solo si hay Nicho 1 activo).
-- Campos: selector de Receta + `cantidadBaseConsumidaPorUnidad`.
+**Vincular a proceso operativo** `[x]` (2026-07-20, modal desde Ficha de Producto — no gateado por
+nicho, disponible para cualquier tenant que tenga al menos una Receta cargada). Detalle completo de
+campos/acciones/verificación más arriba en esta misma sección ("Ficha de Producto").
 - Nota técnica: el botón dispara `vincularProductoAReceta()` de **Módulo 6** (Nicho 1), que internamente llama a `enviarProductoAOperaciones()` de este módulo.
-- Acción: `vincularProductoAReceta` / `desvincularProductoDeReceta` (Nicho 1).
 
 ---
 
@@ -721,7 +745,8 @@ Esas 3 fórmulas puras (`calcularRendimientoTeorico`, `calcularMerma`,
 importar de `nicho-1/actions.ts` porque ese archivo no es `"use server"` e importa `db` (rompería
 el bundle de cliente). Solo lista productos ya vinculados a una receta (`tipoOrigenProducto =
 produccion_nicho`); si no hay ninguno, muestra un estado vacío explicando que hace falta vincular
-uno primero desde Productos (pantalla `[ ]`, fuera de esta tanda). Verificado end-to-end de punta a
+uno primero desde Productos (pantalla `[x]` desde 2026-07-20, ver sección 5 "Vincular a proceso
+operativo"). Verificado end-to-end de punta a
 punta: descuento real de insumo, cálculo de merma/costo, y acreditación real de stock en Productos
 e Inventario.
 - Campos de entrada: `productoId`, `sucursalId`, `activoId` (equipo de Patrimonio), `fechaProduccion`, `cantidadLotesProducidos`, `cantidadRealObtenida`, `fechaVencimientoLote?`.
@@ -758,7 +783,13 @@ documentado en Patrimonio, no se resuelve acá). Verificado end-to-end.
 
 ### `/app` — Punto de Venta (Owner + permiso `"ventas"`)
 **Registrar Venta** `[x]` (carrito) — buscador + pills de categoría, canal y método de pago como cards/pills reales del tenant.
-- Campos de entrada: `sucursalId`, `clienteId` **o** `clienteNuevo` (`nombre`, `telefono?`, `email?`), `fechaVenta?`, `canalVentaId`, `eventoId?`, `lineas[]` (`productoId`, `cantidad`), `pagoInicial?` (`metodoPagoId`, `monto`), `origenRegistro?` (`en_vivo`/`offline_sincronizado`). `eventoId` no expuesto todavía en la UI (Gestión de Eventos sigue `[ ]`).
+- Campos de entrada: `sucursalId`, `clienteId` **o** `clienteNuevo` (`nombre`, `telefono?`, `email?`), `fechaVenta?`, `canalVentaId`, `eventoId?`, `lineas[]` (`productoId`, `cantidad`), `pagoInicial?` (`metodoPagoId`, `monto`), `origenRegistro?` (`en_vivo`/`offline_sincronizado`).
+- **Selector de Evento** `[x]` (2026-07-20) — campo opcional en el carrito, filtrado a eventos
+  `estado === "abierto"` (`listarEventos` de Ventas, ya existía). Sin eventos abiertos, el selector
+  no se muestra (mismo criterio que "Transferir stock" cuando hay 1 sola sucursal — no clutter).
+  `eventoId` no estaba en `registrarVentaSchema` (gap chico de validación, cerrado en el mismo
+  cambio). **Verificado end-to-end:** venta confirmada con evento elegido, `eventoId` persistido
+  correcto en la fila de `ventas` (confirmado contra la base, no solo por ausencia de error).
 - Antes de confirmar: precio vigente y total en vivo por línea (carrito). Stock disponible por línea no se muestra todavía (ver nota de "Poco stock" más abajo en Catálogo — mismo criterio, evita N+1 queries).
 - Salida manejada: `ventaId`, `totalVenta` — `descuentosStock[]`/avisos de stock insuficiente se calculan pero no se muestran explícitamente en la UI todavía.
 - Acción: `registrarVenta`.
@@ -1117,29 +1148,36 @@ Con estas 5, un tenant nuevo puede loguearse, elegir su rubro, cargar un product
 
 ### Lo que puede esperar
 - Patrimonio, Proveedores, Gastos, Nicho 1 (Insumos/Recetas/Producción), Simulaciones — funcionalidad real e importante, pero no bloquean el camino dorado de arriba.
-- Gestión de Tenants (`/admin`), "Mi Plan" (`/app`) y el widget de Nicho 4 — las 3 tandas chicas que
-  quedaban pendientes, cerradas 2026-07-18/2026-07-20. `/admin` completo: Tenants, Planes,
-  Instituciones, Logs.
+- Gestión de Tenants (`/admin`), "Mi Plan" (`/app`), el widget de Nicho 4, el Banner de estado del
+  tenant, Vincular a proceso operativo y el Selector de Evento — las últimas tandas chicas
+  pendientes, cerradas 2026-07-18/2026-07-20. `/admin` completo: Tenants, Planes, Instituciones,
+  Logs.
 - Exportación PDF/Excel de Reportes — explícitamente fuera de alcance, ya documentado en el propio módulo.
-- **Únicos 2 ítems chicos que quedan realmente sin construir en todo el inventario** (ninguno
-  bloquea el camino dorado): Banner de estado del tenant (`/app`, Identidad) y Vincular a proceso
-  operativo (modal en Ficha de Producto, Nicho 1) — ver "Progreso" al inicio del documento.
+
+**No queda ningún ítem pendiente en el inventario — 117/117 `[x]`.**
 
 ### Gaps de backend encontrados durante este análisis (consolidado)
 Ninguno de estos bloquea la Fase 1 (que sigue cerrada 14/14) — son necesarios recién cuando se implemente la pantalla correspondiente. **Los 3 marcados `resuelto` ya se cerraron durante la construcción de UI de esta sesión** — se dejan en la tabla para no perder el historial de qué gap habilitó qué pantalla:
 
+**Nota (2026-07-20):** varias filas marcadas `pendiente` en tandas anteriores quedaron
+desactualizadas — la pantalla que dependía de ellas ya se construyó en una tanda posterior y el gap
+se cerró junto con esa UI, sin que esta tabla se actualizara en su momento. Verificado contra el
+código real (no contra el historial) antes de corregir las marcas de abajo: `listarUsuarios`/
+`listarRoles` (Identidad), `listarActivos`/`listarPasivos` (Patrimonio) y `listarCompras`
+(Proveedores, wrapper de `listarComprasPorTenant`) **ya están expuestas** en sus `actions.ts`.
+
 | Módulo | Gap | Bloquea | Estado |
 |---|---|---|---|
-| Identidad | Falta `listarUsuarios(tenantId)`, `listarRolesPorTenant(tenantId)` | Listado de colaboradores, listado de roles | pendiente |
+| Identidad | Falta `listarUsuarios(tenantId)`, `listarRolesPorTenant(tenantId)` | Listado de colaboradores, listado de roles | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
 | Identidad | Falta `actualizarTenant()`, y una acción para fijar `nichoId` (ej. `asignarNicho`) | Onboarding del Owner | **resuelto** |
 | Identidad | Sin tracking persistido de progreso de onboarding | Checklist de bienvenida | **resuelto** (`onboarding_completado_en`) |
-| Patrimonio | `listarActivos`/`listarPasivos`/`obtenerActivoPorId`/`obtenerPasivoPorId` existen en `repository.ts` pero no están expuestas en `actions.ts` | Listado y ficha de Activos/Pasivos | pendiente |
-| Patrimonio | Sin función que exponga el historial completo de pagos de un Pasivo | Ficha de Pasivo (cronograma) | pendiente |
-| Proveedores | Falta `listarComprasPorTenant` con filtro por estado/estadoPago | Listado general de Compras | pendiente |
+| Patrimonio | `listarActivos`/`listarPasivos`/`obtenerActivoPorId`/`obtenerPasivoPorId` existen en `repository.ts` pero no están expuestas en `actions.ts` | Listado y ficha de Activos/Pasivos | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
+| Patrimonio | Sin función que exponga el historial completo de pagos de un Pasivo | Ficha de Pasivo (cronograma) | **resuelto** (Ficha de Pasivo con Registrar pago está `[x]` desde la tanda de Patrimonio) |
+| Proveedores | Falta `listarComprasPorTenant` con filtro por estado/estadoPago | Listado general de Compras | **resuelto** (corregido 2026-07-20 — estaba desactualizado, ver nota arriba) |
 | Productos | `listarMovimientosStock` existe en `repository.ts` pero no en `actions.ts` | Historial de movimientos de stock | **resuelto** |
-| Nicho 1 | No existe `fichaInsumo()` combinada, y **`listarMovimientosInsumo` no existe ni en el repository** (a diferencia de Productos) | Ficha de Insumo con historial — requiere trabajo de backend nuevo, no solo un wrapper | pendiente |
-| Ventas | `listarVentas`/`listarGastos` sin filtros de servidor; listado de Ventas sin monto total ni nombres (solo IDs) | Listado de Ventas/Gastos con volumen — aceptable para MVP, revisar si crece | **resuelto** para Ventas (`listarVentasConTotal`); Gastos sigue pendiente |
-| Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | pendiente |
+| Nicho 1 | No existe `fichaInsumo()` combinada, y **`listarMovimientosInsumo` no existe ni en el repository** (a diferencia de Productos) | Ficha de Insumo con historial — requiere trabajo de backend nuevo, no solo un wrapper | **resuelto** (Ficha de Insumo con historial está `[x]` desde la tanda de Nicho 1) |
+| Ventas | `listarVentas`/`listarGastos` sin filtros de servidor; listado de Ventas sin monto total ni nombres (solo IDs) | Listado de Ventas/Gastos con volumen — aceptable para MVP, revisar si crece | **resuelto** para Ventas (`listarVentasConTotal`); Gastos tiene su Listado `[x]` pero sin filtros server-side propios — nicety de escalabilidad, no bloquea la pantalla, no revisado en esta tanda |
+| Ventas | Sin acción de "cierre agregado" de Evento (cargar el total vendido de una vez) | Gestión de Eventos, flujo de cierre rápido | Gestión de Eventos está `[x]` (con "Cerrar" simple); el cierre agregado con total vendido sigue sin construir — mejora de UX futura, no bloquea la pantalla existente |
 | Ventas | `registrarPagoVentaSchema` (ruta) no reenviaba `fechaPago` — el módulo ya lo aceptaba | Registrar Pago de Venta con fecha explícita | **resuelto** |
 | Consentimiento | `instituciones` no tiene campo `email` | Portal de Entidades Veedoras — magic link (decisión de esta sesión) | **resuelto** (2026-07-18, migración `0027`, verificado con un click real de email) |
 | Consentimiento | `listarInstituciones` sin gate de rol visible en el código | Revisar en la auditoría de seguridad de Fase 3 | **resuelto** (cerrado el 2026-07-17, antes de construir CRUD de Instituciones) |

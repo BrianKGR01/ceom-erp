@@ -99,6 +99,17 @@
       no tiene mecanismo de sincronización propio — el enum acepta el valor
       y `registrarVenta` lo admite como parámetro opcional, pero no hay app
       offline todavía que lo dispare solo.
+- [x] **UI de "Selector de Evento" construida (2026-07-20)** en Registrar
+      Venta (`pos-cliente.tsx`) — campo opcional en el carrito, filtrado a
+      eventos `estado === "abierto"` (`listarEventos`, ya existía). Antes
+      `eventoId` era un campo real del contrato de `registrarVenta` sin
+      ningún control de UI que lo seteara — solo se podía adjuntar una venta
+      a un evento a mano contra la base. **Gap chico de validación cerrado
+      en el mismo cambio:** `registrarVentaSchema` (`validation.ts`) no
+      tenía `eventoId` — se agregó como `z.string().optional()`.
+      **Verificado end-to-end contra la base** (no solo por ausencia de
+      error): venta confirmada con un evento elegido, `eventoId` persistido
+      correcto en la fila de `ventas`.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/ventas/schema.ts`
@@ -274,5 +285,7 @@ Las 5 pantallas que quedaban pendientes del módulo Ventas + Clientes quedan `[x
 Patrimonio (Activos/Pasivos) — requiere cerrar primero un gap chico de backend
 (`listarActivos`/`listarPasivos`/fichas completas sin wrapper público en `actions.ts`), ver
 `docs/ui/pantallas.md` sección "Próxima tanda sugerida".
+
+## Última actualización: 2026-07-20 — Selector de Evento construido en Registrar Venta (`pos-cliente.tsx`), campo opcional filtrado a eventos abiertos. Cerró de paso un gap chico de validación: `eventoId` faltaba en `registrarVentaSchema`. Verificado contra la base (no solo por ausencia de error) que `eventoId` se persiste correcto en la Venta.
 
 ## Última actualización: 2026-07-18 — Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), la verificación previa de `gestionar_eventos` (con override explícito) sigue siendo válida. `importarVentaHistorica` conserva un `!solicitante.esOwner &&` ahora redundante (no bloqueante).
