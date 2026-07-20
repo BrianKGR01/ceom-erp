@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, History, Pencil, Tag, Trash2, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs } from "@/components/ui/tabs";
 import {
   ProveedorFormDialog,
   type ProveedorEditable,
@@ -155,69 +156,57 @@ export function FichaProveedorCliente({
         )}
       </div>
 
-      <div className="rounded-2xl bg-card shadow-card">
-        <div className="flex items-center gap-1 border-b border-gray-border p-2">
-          <button
-            type="button"
-            onClick={() => setTab("compras")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === "compras" ? "bg-pastel-blue-bg text-primary" : "text-text-muted hover:bg-gray-bg"
-            }`}
-          >
-            <History className="size-4" />
-            Historial de Compras
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("precios")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === "precios" ? "bg-pastel-blue-bg text-primary" : "text-text-muted hover:bg-gray-bg"
-            }`}
-          >
-            <Tag className="size-4" />
-            Historial de Precios
-          </button>
-        </div>
+      <div className="space-y-3">
+        <Tabs
+          items={[
+            { key: "compras", label: "Historial de Compras", icon: History },
+            { key: "precios", label: "Historial de Precios", icon: Tag },
+          ]}
+          value={tab}
+          onValueChange={(key) => setTab(key as "compras" | "precios")}
+        />
 
-        {tab === "compras" ? (
-          compras.length === 0 ? (
+        <div className="rounded-2xl bg-card shadow-card">
+          {tab === "compras" ? (
+            compras.length === 0 ? (
+              <p className="p-6 text-center text-sm text-text-muted">Todavía no hay compras registradas.</p>
+            ) : (
+              <div className="divide-y divide-gray-border">
+                {compras.map((compra) => (
+                  <div key={compra.id} className="flex items-center gap-3 p-4 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-text-body">{compra.itemNombre}</p>
+                      <p className="text-xs text-text-muted">
+                        {formatFecha(compra.fechaCompra)} · {compra.cantidad} × {formatMoneda(compra.costoUnitario)}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-navy">{formatMoneda(compra.montoTotal)}</span>
+                    <Badge variant={BADGE_ESTADO[compra.estado].variant}>{BADGE_ESTADO[compra.estado].label}</Badge>
+                    <Badge variant={BADGE_PAGO[compra.estadoPago].variant}>{BADGE_PAGO[compra.estadoPago].label}</Badge>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : precioPorItem.length === 0 ? (
             <p className="p-6 text-center text-sm text-text-muted">Todavía no hay compras registradas.</p>
           ) : (
             <div className="divide-y divide-gray-border">
-              {compras.map((compra) => (
-                <div key={compra.id} className="flex items-center gap-3 p-4 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-text-body">{compra.itemNombre}</p>
-                    <p className="text-xs text-text-muted">
-                      {formatFecha(compra.fechaCompra)} · {compra.cantidad} × {formatMoneda(compra.costoUnitario)}
-                    </p>
+              {precioPorItem.map(({ itemNombre, filas }) => (
+                <div key={itemNombre} className="p-4">
+                  <p className="mb-2 text-sm font-medium text-navy">{itemNombre}</p>
+                  <div className="space-y-1.5">
+                    {filas.map((fila) => (
+                      <div key={fila.id} className="flex items-center justify-between text-xs">
+                        <span className="text-text-muted">{formatFecha(fila.fechaCompra)}</span>
+                        <span className="text-text-body">{formatMoneda(fila.costoUnitario)} / unidad</span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="font-semibold text-navy">{formatMoneda(compra.montoTotal)}</span>
-                  <Badge variant={BADGE_ESTADO[compra.estado].variant}>{BADGE_ESTADO[compra.estado].label}</Badge>
-                  <Badge variant={BADGE_PAGO[compra.estadoPago].variant}>{BADGE_PAGO[compra.estadoPago].label}</Badge>
                 </div>
               ))}
             </div>
-          )
-        ) : precioPorItem.length === 0 ? (
-          <p className="p-6 text-center text-sm text-text-muted">Todavía no hay compras registradas.</p>
-        ) : (
-          <div className="divide-y divide-gray-border">
-            {precioPorItem.map(({ itemNombre, filas }) => (
-              <div key={itemNombre} className="p-4">
-                <p className="mb-2 text-sm font-medium text-navy">{itemNombre}</p>
-                <div className="space-y-1.5">
-                  {filas.map((fila) => (
-                    <div key={fila.id} className="flex items-center justify-between text-xs">
-                      <span className="text-text-muted">{formatFecha(fila.fechaCompra)}</span>
-                      <span className="text-text-body">{formatMoneda(fila.costoUnitario)} / unidad</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <ProveedorFormDialog
