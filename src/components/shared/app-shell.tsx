@@ -118,8 +118,23 @@ export function AppShell({
   const abrirBtnRef = useRef<HTMLButtonElement>(null);
   const asideRef = useRef<HTMLElement>(null);
 
-  // Expandido "de verdad" (colapsado=false) o en preview por hover.
+  // Expandido "de verdad" (colapsado=false) o en preview por hover/foco.
   const mostrarExpandido = !colapsado || hovering;
+
+  // La expansion manual es para "espiar" un grupo sin navegar — no debe
+  // sobrevivir a una navegacion real. Sin este reset, un grupo expandido a
+  // mano mientras estaba inactivo podia quedar marcado como expandido para
+  // siempre (incluso mucho despues de dejar de ser el grupo activo), porque
+  // expandidosManual nunca se limpiaba solo. Encontrado por revision
+  // adversarial del diff de A.4, no en la verificacion manual original.
+  // Ajustado durante el render (patron oficial de React para "resetear
+  // estado cuando cambia una prop/valor"), no con useEffect + setState —
+  // eso dispara un render en cascada que el propio linter marca como error.
+  const [pathnamePrevio, setPathnamePrevio] = useState(pathname);
+  if (pathname !== pathnamePrevio) {
+    setPathnamePrevio(pathname);
+    if (expandidosManual.size > 0) setExpandidosManual(new Set());
+  }
 
   // Drawer mobile: Escape cierra, foco atrapado dentro mientras está
   // abierto, scroll del body bloqueado, y el foco vuelve al botón que lo
@@ -305,6 +320,17 @@ export function AppShell({
         ref={asideRef}
         onMouseEnter={() => colapsado && setHovering(true)}
         onMouseLeave={() => setHovering(false)}
+        onFocus={() => colapsado && setHovering(true)}
+        onBlur={(e) => {
+          // Sin este guard, tabular ENTRE dos elementos del propio sidebar
+          // dispara onBlur/onFocus intercalados y hace parpadear
+          // mostrarExpandido — solo apagamos el preview cuando el foco sale
+          // del aside por completo. Sin este onFocus/onBlur, un usuario de
+          // teclado con el sidebar colapsado no tenia forma de revelar los
+          // submenus (solo el mouse disparaba el preview) — encontrado por
+          // revision adversarial del diff de A.4.
+          if (!e.currentTarget.contains(e.relatedTarget)) setHovering(false);
+        }}
         className={cn(
           "app-sidebar flex shrink-0 flex-col bg-gradient-to-b from-sidebar-from to-sidebar-to transition-[transform,width] duration-200",
           abierto && "app-sidebar--abierto",
@@ -347,6 +373,7 @@ export function AppShell({
             const activo = grupoActivo(item);
             const tieneSubitems = !!item.subitems && item.subitems.length > 0;
             const expandido = tieneSubitems && mostrarExpandido && estaExpandido(item);
+            const idSubmenu = `submenu-${item.href.replace(/^\//, "").replace(/\//g, "-")}`;
             return (
               <div key={item.href}>
                 <div className="flex items-center gap-1">
@@ -370,11 +397,18 @@ export function AppShell({
                       {item.label}
                     </span>
                   </Link>
-                  {tieneSubitems && mostrarExpandido && (
+                  {/* El grupo activo no muestra chevron: ya esta forzado a
+                      expandido (estaExpandido) y no se puede colapsar
+                      mientras se este parado ahi, asi que un boton que
+                      pareciera "Contraer" pero no hiciera nada seria
+                      enganoso — encontrado por revision adversarial del
+                      diff de A.4. */}
+                  {tieneSubitems && mostrarExpandido && !activo && (
                     <button
                       type="button"
                       onClick={() => toggleExpandido(item.href)}
                       aria-expanded={expandido}
+                      aria-controls={idSubmenu}
                       aria-label={expandido ? `Contraer ${item.label}` : `Expandir ${item.label}`}
                       className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-sidebar-accent hover:text-white"
                     >
@@ -386,7 +420,7 @@ export function AppShell({
                 </div>
 
                 {expandido && (
-                  <div className="mt-1 ml-4 space-y-0.5 border-l border-white/10 pl-3">
+                  <div id={idSubmenu} className="mt-1 ml-4 space-y-0.5 border-l border-white/10 pl-3">
                     {item.subitems!.map((sub) => (
                       <Link
                         key={sub.href}
