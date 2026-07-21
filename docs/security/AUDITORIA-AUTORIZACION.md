@@ -315,7 +315,7 @@ regla incondicional. Validada con una prueba negativa: reintroducir `usuario: Us
 parámetro en una función `"use server"` de prueba → falla citando el archivo y la función exactos;
 borrarla → vuelve a pasar.
 
-### 8.4 Arreglar el bypass de RLS (recomendación estratégica)
+### 8.4 Arreglar el bypass de RLS (recomendación estratégica — diagnóstico completo en 8.4.1)
 La defensa real de fondo es que la base **también** rechace el acceso cross-tenant. Hoy Drizzle corre
 como `postgres` (RLS off). Migrar a una conexión por-request con `SET ROLE authenticated` +
 `set_config('request.jwt.claims', …)` haría que las `crudPolicy()` ya declaradas actúen como
@@ -323,6 +323,33 @@ backstop: aunque una action se olvide el chequeo, la policy RLS filtra por `tena
 de infraestructura (conexión por-request, `SET LOCAL` transaccional, compatibilidad con el pooler en
 modo transaction) — no se hizo en esta sesión por riesgo, pero es **la** corrección que convierte
 esta clase de bug de "explotable" en "defensa en profundidad". Prioridad alta post-Fase A.
+
+#### 8.4.1 Fase 0 — diagnóstico empírico y plan (2026-07-21)
+Diagnóstico de solo lectura hecho vía el conector de Supabase + lectura de `src/db/`,
+`drizzle/migrations/` y los 10 `schema.ts` de módulos. Resultado completo, diseño propuesto (4 casos:
+tenant propio, `ceom_admin`, portal por consentimiento, sistema), plan de migración por etapas,
+plan de tests cross-tenant y riesgos/decisiones pendientes: **`docs/security/PLAN-RLS-BACKSTOP.md`**.
+
+Hallazgos que corrigen/precisan lo escrito arriba:
+- Las 49 tablas de `public` **ya tienen RLS habilitada** y las policies `crudPolicy()` (con
+  `current_tenant_id()`, una función `SECURITY DEFINER` que ya existe desde
+  `drizzle/migrations/0003...sql`) **ya están correctamente declaradas** en las 44 tablas de
+  negocio — no hay que escribirlas de cero, el mecanismo de fondo ya existe y ya se ejerció en
+  producción una vez (para Storage). Ninguna tiene `FORCE ROW LEVEL SECURITY`, que es por qué el
+  rol `postgres` (dueño de las 49 tablas, `rolbypassrls = true`) las ignora por completo hoy.
+  Confirma la premisa de esta sección, con la precisión de que "arreglarlo" es mayormente activar
+  un mecanismo dormido, no diseñar uno nuevo.
+- La app **sí usa Supabase Auth (GoTrue)** para autenticación (`obtenerUsuarioActual()` llama
+  `supabase.auth.getUser()`) — corrige una premisa incorrecta que se había asumido al plantear esta
+  tarea. Lo relevante es que el JWT solo trae identidad, nunca autorización.
+- `ceom_admin` no tiene `tenant_id` null — pertenece a un tenant real de sistema ("CEOM Ops"). Esto
+  significa que activar `authenticated` sin agregar antes una policy de bypass específica para
+  `ceom_admin` rompería `/admin` por completo. Ninguna policy de bypass para `ceom_admin` ni para
+  el Gateway de Consentimiento (`/portal`) existe todavía — es el trabajo real pendiente.
+- Módulo recomendado como conejillo de indias de la primera etapa: **Patrimonio** (más aislado, sin
+  contacto con `ceom_admin` ni portal, migración sin ninguna migración SQL nueva).
+
+Estado: **plan presentado, pendiente de aprobación** — ningún cambio de código ni de base aplicado.
 
 ---
 
