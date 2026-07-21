@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { db as dbInterno } from "./client";
 
 // Backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md, Etapa 0). Este es el
@@ -28,8 +27,56 @@ export type Tx = Parameters<Parameters<typeof dbInterno.transaction>[0]>[0];
  * qué usuario quedó de contexto). */
 export type Ejecutor = typeof dbInterno | Tx;
 
-function claimsJwt(authUserId: string): string {
-  return JSON.stringify({ sub: authUserId, role: "authenticated" });
+// UUID canónico (8-4-4-4-12, hex) — el único formato en que Postgres
+// devuelve una columna `uuid` como texto. Restringir a este charset (solo
+// dígitos hex y guiones) hace que interpolar el valor validado en SQL crudo
+// sea seguro por construcción, no por "escapado": no hay comilla, backslash
+// ni punto y coma que ese charset pueda contener.
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function exigirUuid(valor: string, nombreParaError: string): string {
+  if (!UUID_REGEX.test(valor)) {
+    throw new Error(
+      `${nombreParaError} no tiene forma de UUID — se rechaza antes de interpolarlo en SQL crudo, ` +
+        `nunca se intenta "escapar" un valor no confiable.`
+    );
+  }
+  return valor;
+}
+
+/**
+ * Cliente crudo de postgres-js reservado para esta transacción — el mismo
+ * objeto que `PostgresJsSession` usa internamente para `tx.select()`/
+ * `tx.insert()` (confirmado leyendo drizzle-orm/postgres-js/session.cjs:
+ * `PostgresJsTransaction.session.client`). Se usa para mandar las 3
+ * sentencias de fijar contexto como UNA sola consulta "simple" (sin
+ * parámetros bindeados, multi-sentencia) en vez de 3 round-trips — bajó el
+ * costo medido de fijar contexto de ~345ms (pipelineado con Promise.all) a
+ * ~125ms, prácticamente el RTT de red puro (ver docs/security/
+ * PLAN-RLS-BACKSTOP.md §8). No se puede lograr esto con el `sql` tag de
+ * drizzle: Postgres rechaza "multiple commands" en un mismo mensaje Parse
+ * en cuanto hay un parámetro bindeado (protocolo extendido) — verificado,
+ * no es una limitación de postgres-js. Con params=[] (sin bind), postgres-js
+ * cambia solo a protocolo simple, que sí acepta múltiples sentencias.
+ *
+ * Riesgo aceptado y documentado: esto usa un campo interno de drizzle-orm,
+ * no su tipado público — podría romper en una actualización de versión. Si
+ * eso pasa, tira un error explícito acá abajo en vez de fallar en silencio,
+ * y además cualquier test que dependa de comoUsuario()/comoInstitucion()
+ * (contexto.test.ts, patrimonio.test.ts, tenant-aislamiento.test.ts) fallaría
+ * de inmediato con un mensaje claro — no de forma silenciosa en producción.
+ */
+function clienteCrudoDeLaTransaccion(tx: Tx): { unsafe(query: string): Promise<unknown[][]> } {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawClient = (tx as any)?.session?.client;
+  if (typeof rawClient?.unsafe !== "function") {
+    throw new Error(
+      "No se pudo acceder a session.client en el objeto de transacción de drizzle-orm — probablemente " +
+        "cambió un detalle interno en una actualización de drizzle-orm/postgres-js. Revisar " +
+        "src/db/contexto.ts (clienteCrudoDeLaTransaccion) y ajustar el acceso interno."
+    );
+  }
+  return rawClient;
 }
 
 /**
@@ -39,25 +86,15 @@ function claimsJwt(authUserId: string): string {
  * cero es indistinguible de uno legítimamente vacío. Un usuario eliminado
  * (soft delete — current_tenant_id() filtra `eliminado_en is null`) o un id
  * que no existe deben romper acá, no devolver cero filas mas abajo.
- *
- * Las 3 sentencias van con Promise.all (no awaits secuenciales): postgres-js
- * pipelinea las queries que se disparan sobre la misma conexión sin esperar
- * la respuesta de la anterior, así que esto paga la latencia de red UNA vez
- * en vez de tres — medido empíricamente contra la base de desarrollo: baja
- * el costo de fijar contexto de ~750ms a ~345ms (pooler transaccion,
- * sa-east-1, ver docs/security/PLAN-RLS-BACKSTOP.md §8). No se puede
- * colapsar a una sola sentencia de texto porque Postgres rechaza "multiple
- * commands" dentro de un mismo mensaje Parse cuando hay un parámetro
- * bindeado (protocolo extendido) — verificado, no es una limitación de
- * postgres-js.
  */
 async function fijarContextoYExigirTenant(tx: Tx, authUserId: string): Promise<string> {
-  const [, , filas] = await Promise.all([
-    tx.execute(sql`set local role authenticated`),
-    tx.execute(sql`select set_config('request.jwt.claims', ${claimsJwt(authUserId)}, true)`),
-    tx.execute(sql`select public.current_tenant_id() as tenant_id`),
-  ]);
-  const tenantId = (filas[0] as { tenant_id: string | null } | undefined)?.tenant_id;
+  const id = exigirUuid(authUserId, "authUserId");
+  const resultado = await clienteCrudoDeLaTransaccion(tx).unsafe(`
+    set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${id}","role":"authenticated"}', true);
+    select public.current_tenant_id() as tenant_id;
+  `);
+  const tenantId = (resultado[2]?.[0] as { tenant_id: string | null } | undefined)?.tenant_id;
   if (!tenantId) {
     throw new Error(
       "current_tenant_id() no resolvió ningún tenant tras fijar el contexto de RLS. El usuario no " +
@@ -70,12 +107,13 @@ async function fijarContextoYExigirTenant(tx: Tx, authUserId: string): Promise<s
 /** Misma técnica que fijarContextoYExigirTenant, para instituciones (no son
  * un tenant, no hay current_tenant_id() que resolver para ellas). */
 async function fijarContextoYExigirAuthUid(tx: Tx, authUserId: string): Promise<string> {
-  const [, , filas] = await Promise.all([
-    tx.execute(sql`set local role authenticated`),
-    tx.execute(sql`select set_config('request.jwt.claims', ${claimsJwt(authUserId)}, true)`),
-    tx.execute(sql`select auth.uid() as uid`),
-  ]);
-  const uid = (filas[0] as { uid: string | null } | undefined)?.uid;
+  const id = exigirUuid(authUserId, "authUserId");
+  const resultado = await clienteCrudoDeLaTransaccion(tx).unsafe(`
+    set local role authenticated;
+    select set_config('request.jwt.claims', '{"sub":"${id}","role":"authenticated"}', true);
+    select auth.uid() as uid;
+  `);
+  const uid = (resultado[2]?.[0] as { uid: string | null } | undefined)?.uid;
   if (!uid) {
     throw new Error("auth.uid() no resolvió tras fijar el contexto de RLS — no se continúa.");
   }
