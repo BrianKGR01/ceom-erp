@@ -1,4 +1,5 @@
 import {
+  listarSucursalesPorTenant,
   recursoPerteneceAlTenant,
   tieneCapacidadEspecial,
   tienePermiso,
@@ -426,6 +427,16 @@ export async function registrarVenta(
   }
   if (input.lineas.length === 0) {
     return { ok: false, error: "La venta necesita al menos una línea de producto." };
+  }
+
+  // input.sucursalId no se revalidaba contra el tenant (auditoría de
+  // autorización, docs/security/AUDITORIA-AUTORIZACION.md §8.3) — sin esto,
+  // una Venta podía quedar registrada en el tenant propio pero apuntando a
+  // una sucursal de OTRO tenant (contaminación de FK, mismo patrón ya
+  // corregido en Patrimonio/Proveedores).
+  const sucursalesRes = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!sucursalesRes.ok || !sucursalesRes.data.some((s) => s.id === input.sucursalId)) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
   }
 
   // Regla 4: alta implicita de cliente.
