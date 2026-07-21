@@ -140,13 +140,16 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
     const baja = await darDeBajaActivo(owner!, activo.data.activoId, "Vendido a terceros");
     expect(baja.ok).toBe(true);
 
-    const activoActualizado = await repo.obtenerActivoPorId(activo.data.activoId);
+    const activoActualizado = await repo.obtenerActivoPorId(db, activo.data.activoId);
     expect(activoActualizado?.estado).toBe("dado_de_baja");
 
     // El pasivo sigue activo pese a que el activo se dio de baja (regla 3).
-    const pasivoActualizado = await repo.obtenerPasivoPorId(pasivo.data.pasivoId);
+    const pasivoActualizado = await repo.obtenerPasivoPorId(db, pasivo.data.pasivoId);
     expect(pasivoActualizado?.estado).toBe("activo");
-  });
+  }, 20000); // Timeout mas alto que el default: 6 round-trips secuenciales contra
+  // Supabase Cloud real, 4 de ellos ahora via comoUsuario() (SET ROLE + verificacion
+  // de current_tenant_id() por llamada) — mismo criterio que el test de fichaPasivo
+  // mas abajo.
 
   it("registrarPagoPasivo: transiciona a 'pagado' cuando el saldo llega a 0", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
@@ -170,7 +173,7 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
       expect(pago.data.estadoPasivo).toBe("pagado");
     }
 
-    const pasivoFinal = await repo.obtenerPasivoPorId(pasivo.data.pasivoId);
+    const pasivoFinal = await repo.obtenerPasivoPorId(db, pasivo.data.pasivoId);
     expect(pasivoFinal?.estado).toBe("pagado");
   });
 
@@ -197,10 +200,10 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
     if (!refinanciado.ok) return;
     expect(refinanciado.data.pasivoId).not.toBe(original.data.pasivoId);
 
-    const anteriorFinal = await repo.obtenerPasivoPorId(original.data.pasivoId);
+    const anteriorFinal = await repo.obtenerPasivoPorId(db, original.data.pasivoId);
     expect(anteriorFinal?.estado).toBe("refinanciado");
 
-    const nuevo = await repo.obtenerPasivoPorId(refinanciado.data.pasivoId);
+    const nuevo = await repo.obtenerPasivoPorId(db, refinanciado.data.pasivoId);
     expect(nuevo?.refinanciadoDesdeId).toBe(original.data.pasivoId);
   });
 
@@ -218,7 +221,7 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
     const resultado = await transferirActivo(owner!, activo.data.activoId, sucursalDosId);
     expect(resultado.ok).toBe(true);
 
-    const activoActualizado = await repo.obtenerActivoPorId(activo.data.activoId);
+    const activoActualizado = await repo.obtenerActivoPorId(db, activo.data.activoId);
     expect(activoActualizado?.sucursalId).toBe(sucursalDosId);
     expect(activoActualizado?.modificadoPor).toBe(ownerId);
     expect(activoActualizado?.modificadoEn).not.toBeNull();
