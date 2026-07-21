@@ -166,6 +166,21 @@ export const roles = pgTable(
       .where(sql`${table.tenantId} is null and ${table.eliminadoEn} is null`),
     // Los roles de sistema (tenant_id null: Owner, CEOM Admin) son datos de
     // referencia compartidos — visibles para cualquier tenant autenticado.
+    //
+    // REGLA DURA — nunca agregar "OR es_ceom_admin()" a esta policy (ni a la
+    // de usuarios/permisos/permisos_especiales_por_rol/
+    // permisos_especiales_por_usuario, mismo motivo): es_ceom_admin() es
+    // SECURITY DEFINER y lee justamente usuarios+roles para resolverse. Hoy
+    // no recursiona porque estas tablas no tienen FORCE ROW LEVEL SECURITY
+    // (el dueño de la tabla, postgres, bypassea RLS al ejecutar la función
+    // "como dueño" — confirmado en vivo, ver docs/security/
+    // PLAN-RLS-BACKSTOP.md §10.3). El día que esta tabla reciba FORCE
+    // (parte natural de cerrar el plan, Etapa de Identidad), agregarle este
+    // OR crea recursión real: evaluar la policy llamaría a es_ceom_admin(),
+    // que vuelve a leer esta misma tabla, que vuelve a evaluar la policy.
+    // Si ceom_admin necesita cruzar identidad de otro tenant, resolverlo
+    // distinto (función separada sin esta dependencia circular), no
+    // extendiendo este patrón sin pensarlo.
     ...crudPolicy(
       "roles",
       sql`${table.tenantId} = (select current_tenant_id()) or ${table.tenantId} is null`
@@ -203,6 +218,9 @@ export const usuarios = pgTable(
     uniqueIndex("usuarios_tenant_email_unique")
       .on(table.tenantId, table.email)
       .where(sql`${table.eliminadoEn} is null`),
+    // REGLA DURA — nunca "OR es_ceom_admin()" acá, mismo motivo que en la
+    // policy de "roles" arriba (riesgo de recursión real una vez que esta
+    // tabla tenga FORCE ROW LEVEL SECURITY — hoy no la tiene).
     ...crudPolicy(
       "usuarios",
       sql`${table.tenantId} = (select current_tenant_id())`
@@ -227,6 +245,7 @@ export const permisos = pgTable(
       table.modulo,
       table.accion
     ),
+    // REGLA DURA — nunca "OR es_ceom_admin()" acá, mismo motivo que "roles".
     ...crudPolicy(
       "permisos",
       sql`${table.rolId} in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)`
@@ -249,6 +268,7 @@ export const permisosEspecialesPorRol = pgTable(
       table.rolId,
       table.capacidad
     ),
+    // REGLA DURA — nunca "OR es_ceom_admin()" acá, mismo motivo que "roles".
     ...crudPolicy(
       "permisos_especiales_por_rol",
       sql`${table.rolId} in (select id from roles where tenant_id = (select current_tenant_id()) or tenant_id is null)`
@@ -273,6 +293,7 @@ export const permisosEspecialesPorUsuario = pgTable(
     uniqueIndex("permisos_especiales_usuario_capacidad_unique")
       .on(table.usuarioId, table.capacidad)
       .where(sql`${table.eliminadoEn} is null`),
+    // REGLA DURA — nunca "OR es_ceom_admin()" acá, mismo motivo que "roles".
     ...crudPolicy(
       "permisos_especiales_por_usuario",
       sql`${table.usuarioId} in (select id from usuarios where tenant_id = (select current_tenant_id()))`
