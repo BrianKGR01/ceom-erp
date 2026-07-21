@@ -137,8 +137,12 @@ async function fijarContextoYExigirAuthUid(tx: Tx, authUserId: string): Promise<
  * que llega por parámetro).
  */
 export async function comoUsuario<T>(usuarioId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  // ROTURA DELIBERADA PARA VALIDAR EL CASO NEGATIVO EN CI (docs/security/
+  // PLAN-RLS-BACKSTOP.md §4) -- NUNCA MERGEAR. Simula el backstop
+  // deshabilitado en silencio: se saltea fijarContextoYExigirTenant por
+  // completo, tal como comoSistema(). Si tenant-aislamiento.test.ts no
+  // falla con esto puesto, el test no está midiendo nada real.
   return dbInterno.transaction(async (tx) => {
-    await fijarContextoYExigirTenant(tx, usuarioId);
     return fn(tx);
   });
 }
