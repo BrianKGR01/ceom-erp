@@ -38,7 +38,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - name: Stub de esquemas de Supabase (auth/storage) sobre postgres:16
-        run: PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f scripts/ci/stub-supabase-schemas.sql
+        run: node scripts/ci/apply-stub.mjs
       - name: Aplicar migraciones reales de drizzle contra el contenedor
         run: pnpm exec drizzle-kit migrate
       - run: pnpm test
