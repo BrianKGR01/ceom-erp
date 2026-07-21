@@ -849,11 +849,20 @@ export async function consultarCapacidadAlmacenamientoUsada(
   if (!capacidad.ok) return capacidad;
 
   const productosSucursales = await repo.listarProductosSucursalesPorActivo(activoId);
-  let stockActualTotal = 0;
-  for (const { productoId, sucursalId } of productosSucursales) {
-    const stock = await consultarStock(solicitante, productoId, sucursalId);
-    if (stock.ok) stockActualTotal += stock.data.cantidadActual;
-  }
+  // Paralelo, no secuencial: cada consultarStock es independiente (distinto
+  // producto/sucursal) y esto era N round-trips uno detrás del otro contra
+  // Supabase Cloud real -- causa raíz confirmada de un timeout de test
+  // intermitente (operativo-nicho1.test.ts, "seccion 4"), no una cuestión de
+  // infraestructura lenta.
+  const stocks = await Promise.all(
+    productosSucursales.map(({ productoId, sucursalId }) =>
+      consultarStock(solicitante, productoId, sucursalId)
+    )
+  );
+  const stockActualTotal = stocks.reduce(
+    (acc, stock) => acc + (stock.ok ? stock.data.cantidadActual : 0),
+    0
+  );
 
   const capacidadAlmacenamientoCantidad =
     capacidad.data.capacidadAlmacenamientoCantidad !== null

@@ -484,6 +484,18 @@ describe.skipIf(!hasCredenciales)(
         expect(capacidadAlmacenamiento.data.capacidadAlmacenamientoCantidad).toBe(200);
         expect(capacidadAlmacenamiento.data.stockActualTotal).toBeGreaterThan(0);
       }
-    });
+    }, 20000);
+    // Timeout mas alto que el default (5000ms) -- mismo criterio que los otros
+    // 2 tests de este archivo con override explicito. Diagnostico real (no un
+    // "por las dudas"): esta llamada encadena ~14 round-trips secuenciales
+    // contra Supabase Cloud real -- tienePermiso() propio + consultarCapacidad()
+    // (patrimonio, ahora envuelta en comoUsuario() desde la Etapa 1 del
+    // backstop RLS: 1 round-trip de contexto + 1 lectura + 1 tienePermiso
+    // interno) se paga DOS veces (una por cada consultarCapacidad*Usada), mas
+    // repo.listarProductosSucursalesPorActivo + el fan-out de consultarStock
+    // (ya paralelizado con Promise.all mas abajo, antes secuencial -- ver ese
+    // comentario). Un test flaky "de siempre" era en realidad un N+1 real
+    // (arreglado) mas un timeout ajustado que un cambio ajeno (esta migracion)
+    // termino de empujar por encima del limite -- documentado, no ignorado.
   }
 );
