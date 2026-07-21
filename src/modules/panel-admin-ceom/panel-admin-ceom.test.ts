@@ -26,7 +26,7 @@ const periodo = { desde: "2020-01-01", hasta: "2030-01-01" };
 describe.skipIf(!hasCredenciales)(
   "Roadmap #11 - Panel Admin CEOM (integracion)",
   () => {
-    const admin = crearClienteAdmin();
+    let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
@@ -35,6 +35,7 @@ describe.skipIf(!hasCredenciales)(
     let ceomAdmin: identidadRepo.UsuarioConRol;
 
     beforeAll(async () => {
+      admin = crearClienteAdmin();
       // registrarAccesoAdminCeom() inserta una fila real con FK a
       // usuarios.id — a diferencia del fixture en memoria de
       // identidad.test.ts (que solo ejercita un path de lectura que falla

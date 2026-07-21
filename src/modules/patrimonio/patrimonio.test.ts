@@ -31,13 +31,14 @@ const hasCredenciales = Boolean(
 );
 
 describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
-  const admin = crearClienteAdmin();
+  let admin: ReturnType<typeof crearClienteAdmin>;
   const sufijo = Date.now();
   let tenantId: string;
   let ownerId: string;
   let sucursalDosId: string;
 
   beforeAll(async () => {
+    admin = crearClienteAdmin();
     const { data, error } = await admin.auth.admin.createUser({
       email: `patrimonio-owner-${sufijo}@ceom-erp.test`,
       email_confirm: true,

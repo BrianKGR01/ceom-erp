@@ -34,7 +34,7 @@ const hasCredenciales = Boolean(
 describe.skipIf(!hasCredenciales)(
   "Modulo 2 - Productos e Inventario (integracion, modo punto de venta puro sin Nicho)",
   () => {
-    const admin = crearClienteAdmin();
+    let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
@@ -43,6 +43,7 @@ describe.skipIf(!hasCredenciales)(
     let sucursalDestinoId: string;
 
     beforeAll(async () => {
+      admin = crearClienteAdmin();
       const { data, error } = await admin.auth.admin.createUser({
         email: `productos-owner-${sufijo}@ceom-erp.test`,
         email_confirm: true,

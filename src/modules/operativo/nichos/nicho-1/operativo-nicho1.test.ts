@@ -50,7 +50,7 @@ const hasCredenciales = Boolean(
 describe.skipIf(!hasCredenciales)(
   "Modulo 6 - Modulo Operativo Nicho 1 (integracion, SanttiCampo)",
   () => {
-    const admin = crearClienteAdmin();
+    let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
@@ -61,6 +61,7 @@ describe.skipIf(!hasCredenciales)(
     let recetaId: string;
 
     beforeAll(async () => {
+      admin = crearClienteAdmin();
       const { data, error } = await admin.auth.admin.createUser({
         email: `operativo-owner-${sufijo}@ceom-erp.test`,
         email_confirm: true,

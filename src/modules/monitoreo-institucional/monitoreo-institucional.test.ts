@@ -39,7 +39,7 @@ const periodo = { desde: "2020-01-01", hasta: "2030-01-01" };
 describe.skipIf(!hasCredenciales)(
   "Roadmap #11 - Monitoreo Institucional (integracion)",
   () => {
-    const admin = crearClienteAdmin();
+    let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
@@ -47,6 +47,7 @@ describe.skipIf(!hasCredenciales)(
     let institucionId: string;
 
     beforeAll(async () => {
+      admin = crearClienteAdmin();
       const { data, error } = await admin.auth.admin.createUser({
         email: `monitoreo-owner-${sufijo}@ceom-erp.test`,
         email_confirm: true,

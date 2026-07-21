@@ -20,7 +20,7 @@ vi.setConfig({ testTimeout: 20000 });
 describe.skipIf(!hasCredenciales)(
   "Roadmap #12 - Modulo Operativo Nicho 4 (integracion)",
   () => {
-    const admin = crearClienteAdmin();
+    let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
     let ownerId: string;
@@ -28,6 +28,7 @@ describe.skipIf(!hasCredenciales)(
     let productoId: string;
 
     beforeAll(async () => {
+      admin = crearClienteAdmin();
       const { data, error } = await admin.auth.admin.createUser({
         email: `nicho4-owner-${sufijo}@ceom-erp.test`,
         email_confirm: true,

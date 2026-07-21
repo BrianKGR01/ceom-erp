@@ -47,7 +47,7 @@ const hasCredenciales = Boolean(
 );
 
 describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
-  const admin = crearClienteAdmin();
+  let admin: ReturnType<typeof crearClienteAdmin>;
   const sufijo = Date.now();
   const authIdsCreados: string[] = [];
   let tenantId: string;
@@ -67,6 +67,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
   }
 
   beforeAll(async () => {
+    admin = crearClienteAdmin();
     ownerId = await crearAuthUserDePrueba(`owner-${sufijo}@ceom-erp.test`);
     colaboradorId = await crearAuthUserDePrueba(`colab-${sufijo}@ceom-erp.test`);
 
