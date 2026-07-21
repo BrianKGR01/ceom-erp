@@ -1,8 +1,9 @@
 # Plan RLS Backstop — Fase 0: diagnóstico y diseño
 
-**Estado: propuesta, sin aplicar.** Este documento es 100% de solo lectura — ningún archivo de
-código ni objeto de la base fue modificado para producirlo. Ver §8.4 de
-`docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que originó este trabajo.
+**Estado: aprobado — Etapas 0 y 1 implementadas y verificadas (2026-07-21, ver §8).** El
+diagnóstico original (§1-§7) sigue siendo de solo lectura tal cual se escribió; §8 documenta lo
+que se implementó después, sobre la misma base de desarrollo, con las decisiones de §7 ya tomadas.
+Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que originó este trabajo.
 
 Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
 `riertvgnjaujstwyqoom`, región `sa-east-1`, Postgres 17.6.1.141) más lectura directa de
@@ -464,5 +465,182 @@ agrega infraestructura nueva más allá de 4.2.
 
 ---
 
-Quedo a la espera de tu aprobación (y de las decisiones de §7) antes de tocar cualquier archivo de
-código o cualquier objeto de la base.
+---
+
+## 8. Etapas 0 y 1 — implementado y verificado (2026-07-21)
+
+Con las 7 decisiones de §7 ya tomadas por el usuario. Todo lo de abajo se hizo contra el mismo
+proyecto de desarrollo del diagnóstico (`riertvgnjaujstwyqoom`, confirmado como el único proyecto
+Supabase existente — no hay "produccion" separada todavía, ver `docs/production/produccion.md`).
+
+### 8.1 Decisión 1 — `SET ROLE` verificado empíricamente, funciona
+
+Contra la base real, dentro de una transacción con `rollback` al final (cero efectos):
+
+```sql
+begin;
+set local role authenticated;                                    -- rol_efectivo = "authenticated"
+select set_config('request.jwt.claims', '{"sub":"...","role":"authenticated"}', true);
+select auth.uid();                                                -- resuelve al "sub" seteado
+select public.current_tenant_id();                                -- resuelve al tenant real del usuario
+rollback;                                                          -- rol_tras_rollback = "postgres", claims = null
+```
+
+Verificado además sobre datos reales de Patrimonio (no solo la función): un usuario del tenant
+`365ff798...` (3 activos reales) ve exactamente 3 filas de `activos` bajo este contexto; un usuario
+de otro tenant ve 0. `SET LOCAL ROLE`/`set_config(..., true)` revierten solos al terminar la
+transacción (confirmado con `rollback`) — seguro bajo el pooler de transacción.
+
+### 8.2 `src/db/contexto.ts` — implementado
+
+`comoUsuario` / `comoCeomAdmin` (función propia, no alias — así el test de allowlist distingue
+call-sites) / `comoInstitucion` / `comoSistema`, según §2.2, con dos agregados pedidos:
+
+- **Falla ruidosa**: tras fijar el contexto, se exige que `current_tenant_id()` (o `auth.uid()`
+  para `comoInstitucion`) resuelva — si no, tira una excepción en vez de dejar que la query de
+  negocio devuelva cero filas silenciosamente.
+- **`comoCeomAdmin` es una función propia**, no `= comoUsuario`, exactamente por lo pedido: el test
+  de allowlist de `contexto.test.ts` distingue call-sites por el nombre importado, y deja lugar
+  para que la Etapa 3 le agregue una verificación adicional sin tocar `comoUsuario`.
+
+**Transacciones anidadas — verificado, no solo razonado.** Un `tx.transaction()` (savepoint) dentro
+del `fn` de `comoUsuario` preserva `auth.uid()`/rol incluso si ese savepoint hace rollback parcial
+(confirmado con un script real: `ANTES` / `DENTRO del savepoint` / `DESPUÉS del rollback parcial`
+devuelven el mismo `auth.uid()` los tres). Es la semántica esperada de Postgres (`SET LOCAL` fijado
+*antes* de un savepoint sobrevive a su rollback), pero se verificó igual en vez de asumirla. Esto
+importa para las Etapas 2+: varios repositories ya migrados (`refinanciarPasivoTx`,
+`registrarPagoPasivoTx`) abrían su propia `db.transaction()` interna — en Patrimonio se sacó esa
+transacción anidada porque ya no hace falta (la atomicidad la da la transacción externa de
+`comoUsuario`), pero si algún módulo futuro prefiere conservar su propio `tx.transaction()` interno,
+queda confirmado que es seguro hacerlo.
+
+**Blindaje "imposible de olvidar" — 3 tests en `src/db/contexto.test.ts`, cada uno con negativo
+deliberado antes de darlo por bueno** (mismo criterio que `access-manifest.test.ts` de la auditoría
+de autorización):
+1. Ningún archivo de un módulo en `MODULOS_MIGRADOS_A_CONTEXTO` importa `db`/`client` crudo.
+2. Solo el allowlist explícito importa las *funciones* de contexto (no sus *tipos* — `Ejecutor`/`Tx`
+   son tipos puros que cualquier repository migrado necesita para tipar su parámetro, y no pasan
+   por este allowlist).
+3. `comoSistema()` solo se llama desde `scripts/`.
+
+Cada regla se negativo-testeó con un archivo de prueba real (creado, confirmado que rompía el test
+con el mensaje esperado, borrado) antes de confiar en ella.
+
+### 8.3 Etapa 1 — Patrimonio migrado
+
+`patrimonio/repository.ts`: las 15 funciones exportadas reciben `tx: Ejecutor` como primer
+parámetro en vez de importar `db`. `patrimonio/actions.ts`: cada función exportada abre un solo
+`comoUsuario(solicitante.id, async (tx) => {...})` envolviendo todo su cuerpo (una sola fijación de
+contexto por invocación de Server Action, no una por cada llamada a `repo.*`); donde el `tenantId`
+ya es un parámetro directo (no hace falta leer una fila primero para saberlo), el chequeo
+`tienePermiso()` se hace *antes* de abrir el contexto, para no pagar el round-trip en el camino
+rechazado.
+
+**Verificación en vivo (Paso 3):**
+- Los 7 tests existentes de `patrimonio.test.ts` (activos, pasivos, refinanciación, transferencia,
+  fichaPasivo, valor patrimonial) pasan contra la base real de desarrollo, como owner, sin cambiar
+  ninguna aserción de negocio — solo se le subió el timeout a un test con 6 round-trips secuenciales
+  (mismo criterio ya usado en el propio archivo para el test de `fichaPasivo`).
+- Caso negativo cross-tenant, nuevo: `tenant-aislamiento.test.ts` (§8.4) confirma que un usuario de
+  otro tenant no ve ni puede escribir el activo ajeno vía `comoUsuario()`, y que el mismo dato SÍ es
+  visible vía `comoSistema()` (bypass total) — prueba que el aislamiento lo da RLS, no una
+  coincidencia del guard de aplicación.
+- Efecto colateral real y positivo: RLS ahora bloquea un cross-tenant lookup con "Activo no
+  encontrado" en vez de con "No tenés permiso" (antes, sin RLS, `repo.obtenerActivoPorId` no
+  filtraba por tenant y `tienePermiso()` era quien decía "no tenés permiso" después de haber
+  confirmado que la fila existía) — deja de revelar que un id de otro tenant existe, mismo criterio
+  ya aplicado en `recursoPerteneceAlTenant()` (auditoría de autorización, fase anterior).
+
+**Medición de latencia (pedida explícitamente) — el hallazgo más importante de esta etapa:**
+
+| | avg | p50 | p95 |
+|---|---|---|---|
+| Sin contexto (`db` crudo, rol `postgres`) | 244ms | 242ms | 248ms |
+| Con contexto, primera versión (3 round-trips secuenciales para fijar contexto) | 986ms | 985ms | 1000ms |
+| Con contexto, versión final (3 statements pipelineados con `Promise.all`) | 837ms | 834ms | 851ms |
+
+**+593ms promedio, +243%, sobre `listarActivosPorTenant` (3 filas reales), pooler transacción,
+`sa-east-1`.** Es un impacto serio y hay que ser honesto sobre dos cosas a la vez:
+
+1. **La optimización de pipelinear con `Promise.all` en vez de 3 `await` secuenciales es real y se
+   aplicó** (`fijarContextoYExigirTenant`/`fijarContextoYExigirAuthUid` en `contexto.ts`): postgres-js
+   encola las queries sobre la misma conexión sin esperar la respuesta de la anterior antes de
+   enviar la siguiente, así que las 3 sentencias de fijar contexto (`SET LOCAL ROLE`,
+   `set_config(...)`, `select current_tenant_id()`) pagan la latencia de red una vez, no tres — bajó
+   el overhead de fijar contexto de ~750ms a ~345ms en aislamiento. Intenté ir más lejos (combinar
+   las 3 sentencias en un solo mensaje de texto) pero Postgres lo rechaza ("cannot insert multiple
+   commands into a prepared statement") en cuanto hay un parámetro bindeado — es una restricción de
+   Postgres sobre el protocolo extendido, no de postgres-js, y evitarla exigiría interpolar el valor
+   a mano en el SQL (validando que sea un UUID) en vez de parametrizarlo — no lo hice: el riesgo de
+   construir SQL a mano no vale la ganancia marginal restante.
+2. **El número absoluto (~600-1000ms) está inflado por la distancia de red entre esta máquina y
+   `sa-east-1`** — el baseline de una sola query simple ya cuesta ~244ms, que es alto para una
+   query trivial. El *múltiplo* de round-trips (BEGIN + contexto pipelineado + query + COMMIT, ~4
+   viajes en vez de 1) es el hallazgo portable; el costo *absoluto* en producción (Vercel en
+   `sa-east-1`, o el VPS self-hosteado eventual en la misma región) va a ser muchísimo menor en
+   milisegundos absolutos, pero el *mismo múltiplo relativo* — no lo medí en un entorno de esa
+   latencia porque no existe todavía.
+
+**No decidí por mi cuenta que esto está bien** — lo dejo explícito para que el usuario decida antes
+de replicarlo en los 13 módulos restantes: si el múltiplo de ~4x te preocupa incluso después del
+ajuste de región, una optimización futura real (no aplicada esta sesión, por riesgo/alcance) es que
+`comoUsuario()` abra la transacción con `BEGIN` pipelineado junto con las 3 sentencias de contexto
+en vez de dejar que `db.transaction()` lo haga por separado — exigiría manejar `BEGIN`/`COMMIT`/
+`ROLLBACK` a mano en vez de con el wrapper de Drizzle, más riesgo de bugs de limpieza, evaluado y
+descartado para esta sesión por alcance ("Etapa 0 y 1 solamente").
+
+### 8.4 Infra de tests cross-tenant (Paso 4)
+
+`.github/workflows/ci.yml`: servicio `postgres:16` + `scripts/ci/stub-supabase-schemas.sql` (roles
+`anon`/`authenticated`/`service_role`, `auth.users`/`auth.uid()`, `storage.objects`/
+`storage.foldername()` — lo mínimo que las migraciones reales dan por hecho) + `drizzle-kit migrate`
+antes de `pnpm test`. `DATABASE_URL` apunta al contenedor pero `SUPABASE_SECRET_KEY` NO se define en
+CI — a propósito: el resto de los tests de integración (gastos, ventas, identidad, etc., que sí
+llaman `crearClienteAdmin().auth.admin.createUser()`, un servicio de Auth real que el contenedor no
+tiene) siguen salteándose exactamente igual que hoy. Esto **no** cierra el gap más amplio de "no hay
+DB en CI" para esa suite completa — sería una tarea aparte (stack completo de `supabase start` con
+GoTrue, o refactorizar esos tests para no depender de un signup real). Solo habilita el nuevo test
+de aislamiento, que se gatea únicamente en `DATABASE_URL` y no necesita Auth real: crea sus propias
+filas sintéticas de `auth.users`/`usuarios`/`tenants` por SQL directo, sin pasar por GoTrue.
+
+**Advertencia honesta: no pude validar este pipeline de punta a punta con Docker en esta máquina**
+(Docker Desktop está instalado pero el servicio no está corriendo, y arrancarlo no me pareció una
+acción que debía tomar por mi cuenta). El SQL del stub está cruzado con hechos ya verificados contra
+la base real (nombres de rol exactos vía `pg_roles`, la expresión exacta de `auth.uid()` vía el
+helper `authUid` que exporta `drizzle-orm/supabase/rls`), pero **la primera corrida real de CI es la
+verificación pendiente**, no algo que ya esté confirmado.
+
+`src/modules/patrimonio/tenant-aislamiento.test.ts`: 4 tests — B no lee el activo de A, A sí lee el
+suyo, B no puede escribirlo (UPDATE) aunque lo intente, y `comoSistema()` (bypass) sí lo ve para
+confirmar que las 3 anteriores miden RLS y no el guard de aplicación. Pasan contra la base de
+desarrollo real (que ya tiene todo lo que el stub imita, de fábrica).
+
+### 8.5 Decisión 7 — hallazgos aparte
+
+- **Revocado `EXECUTE` de `current_tenant_id()` para `anon`/`public`** vía migración versionada
+  (`drizzle/migrations/0028_revoke_current_tenant_id_execute_anon.sql`, aplicada con
+  `drizzle-kit migrate` — nada a mano desde el conector). Verificado antes/después con
+  `get_advisors`: el hallazgo `anon_security_definer_function_executable` desapareció;
+  `authenticated_security_definer_function_executable` sigue (esperado, es necesario para que
+  `crudPolicy()` funcione).
+- **Protección de contraseñas filtradas (HaveIBeenPwned): NO pude habilitarla.** Es una
+  configuración de Supabase Auth (Dashboard → Authentication → Providers → Email, o la Management
+  API), no un objeto de base de datos ni algo expuesto por el conector de Supabase que tengo
+  disponible. Queda pendiente de que lo actives vos manualmente — no es parte de este mecanismo de
+  RLS, salió del mismo diagnóstico de advisors.
+
+### 8.6 Verificación final
+
+`pnpm typecheck` / `pnpm lint` (0 errores) / `pnpm test` limpios, salvo un test de
+`operativo-nicho1.test.ts` (`consultarCapacidadProduccionUsada/Almacenamiento...`) que falla por
+timeout de 5000ms — **confirmado pre-existente y no relacionado**: ese módulo no fue tocado en esta
+sesión (`git status` sobre `src/modules/operativo/` está limpio), reproduce igual corriendo el
+archivo solo, y tiene la misma forma exacta (timeout en el límite default de 5000ms, sin override)
+que el problema real que sí corregí en `patrimonio.test.ts` — evidencia de que es la base de
+desarrollo bajo carga hoy, no un bug de lógica.
+
+---
+
+Etapas 0 y 1 cerradas (§8). Antes de tocar el módulo 2 de la Etapa 2 (Proveedores, según el ranking
+de §3.1): decisión pendiente sobre el múltiplo de latencia de §8.3 — replicarlo tal cual, o invertir
+en la optimización de `BEGIN` pipelineado antes de seguir escalando a los 13 módulos restantes.
