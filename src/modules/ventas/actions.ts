@@ -1,4 +1,8 @@
-import { tieneCapacidadEspecial, tienePermiso } from "@/modules/identidad/actions";
+import {
+  recursoPerteneceAlTenant,
+  tieneCapacidadEspecial,
+  tienePermiso,
+} from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import {
   consultarCostoOperativo,
@@ -275,6 +279,12 @@ export async function abrirEvento(
 ): Promise<Resultado<{ eventoId: string }>> {
   const bloqueo = await requiereGestionarEventos(solicitante);
   if (bloqueo) return bloqueo;
+  // requiereGestionarEventos solo chequea la capacidad (tenant-ciega) — hay
+  // que atar el tenantId elegido al del solicitante para que un Owner no cree
+  // eventos en otro tenant (auditoría de autorización).
+  if (!recursoPerteneceAlTenant(solicitante, tenantId)) {
+    return { ok: false, error: "No tenés permiso para gestionar eventos en este tenant." };
+  }
 
   // Se precarga con el default del canal si no se especifica (seccion 1.6).
   let porcentajeComision = input.porcentajeComision;
@@ -307,7 +317,12 @@ export async function actualizarComisionEvento(
   if (bloqueo) return bloqueo;
 
   const evento = await repo.obtenerEventoPorId(eventoId);
-  if (!evento) return { ok: false, error: "Evento no encontrado." };
+  // El evento debe ser del tenant del solicitante — sin esto, cualquier Owner
+  // (que pasa la capacidad gestionar_eventos) podía cerrar/reabrir/re-comisionar
+  // eventos de otro tenant pasando un eventoId ajeno (auditoría de autorización).
+  if (!evento || !recursoPerteneceAlTenant(solicitante, evento.tenantId)) {
+    return { ok: false, error: "Evento no encontrado." };
+  }
 
   await repo.actualizarEvento(eventoId, { porcentajeComision: String(nuevoPorcentaje) });
   return { ok: true, data: true };
@@ -321,7 +336,12 @@ export async function cerrarEvento(
   if (bloqueo) return bloqueo;
 
   const evento = await repo.obtenerEventoPorId(eventoId);
-  if (!evento) return { ok: false, error: "Evento no encontrado." };
+  // El evento debe ser del tenant del solicitante — sin esto, cualquier Owner
+  // (que pasa la capacidad gestionar_eventos) podía cerrar/reabrir/re-comisionar
+  // eventos de otro tenant pasando un eventoId ajeno (auditoría de autorización).
+  if (!evento || !recursoPerteneceAlTenant(solicitante, evento.tenantId)) {
+    return { ok: false, error: "Evento no encontrado." };
+  }
 
   await repo.actualizarEvento(eventoId, {
     estado: "cerrado",
@@ -342,7 +362,12 @@ export async function reabrirEvento(
   if (bloqueo) return bloqueo;
 
   const evento = await repo.obtenerEventoPorId(eventoId);
-  if (!evento) return { ok: false, error: "Evento no encontrado." };
+  // El evento debe ser del tenant del solicitante — sin esto, cualquier Owner
+  // (que pasa la capacidad gestionar_eventos) podía cerrar/reabrir/re-comisionar
+  // eventos de otro tenant pasando un eventoId ajeno (auditoría de autorización).
+  if (!evento || !recursoPerteneceAlTenant(solicitante, evento.tenantId)) {
+    return { ok: false, error: "Evento no encontrado." };
+  }
 
   await repo.actualizarEvento(eventoId, { estado: "abierto" });
   return { ok: true, data: true };
