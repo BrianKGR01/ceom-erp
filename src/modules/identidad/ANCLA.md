@@ -335,13 +335,29 @@
   `solicitante` a la segunda "por consistencia" — perdería su único
   propósito.
 
-- **`solicitanteGateway()` es un objeto SINTÉTICO, no una fila de usuario
-  real** — no crear un usuario de sistema real en la base para "arreglar"
-  esto. Reutiliza el mismo bypass cross-tenant que `tienePermiso()` ya le
-  da a `ceom_admin` (líneas 83-88, no valida `tenantId` ni la existencia
-  real de la fila de usuario en esa rama) — por eso alcanza con un objeto
-  en memoria con `rolId=ROL_CEOM_ADMIN_ID` y el `rol` real (traído de
-  `repo.obtenerRolPorId`). **Uso exclusivo**: solo lo invoca
+- **Principio (2026-07-18, sigue vigente, no se revierte): el Gateway es un
+  lector acotado y revocable, nunca un admin** — nunca debe tener un bypass
+  equivalente al de `ceom_admin`, solo la capacidad de leer, exactamente en
+  los caminos que ya usa, después de que `tieneConsentimiento()` ya
+  autorizó. **El mecanismo original que implementaba este principio (un
+  objeto 100% en memoria, `id` sintético sin fila real) quedó obsoleto el
+  2026-07-21**, no el principio: la premisa bajo la que se eligió ("esto
+  nunca va a depender de que RLS real resuelva `current_tenant_id()`/
+  `auth.uid()`") dejó de ser cierta en cuanto Proveedores migró a
+  `comoUsuario()` — un objeto sin fila real no puede resolver eso de forma
+  consistente (diagnóstico completo: docs/security/PLAN-RLS-BACKSTOP.md
+  §9.6, §10.4, §13). La Etapa 4.a de ese plan reemplaza el objeto sintético
+  por una fila real sembrada, pero con un bypass de RLS **propio y de solo
+  lectura** (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`,
+  §13.2/§13.6 de ese plan) — distinto del de `ceom_admin`, nunca heredado
+  de él — más una rama dedicada en `tienePermiso()` que solo permite
+  `"ver"` para ese id puntual (antes era una convención en comentario;
+  ahora es una regla que el código hace cumplir, con test negativo
+  dedicado). La opción alternativa que se evaluó y se descartó — reusar
+  el bypass de `ceom_admin` tal cual, sin rol ni policy propios — sí
+  hubiera traicionado este principio (el Gateway heredaría automáticamente
+  cualquier bypass presente o futuro de `ceom_admin`, incluida escritura);
+  por eso se descartó. **Uso exclusivo**: solo lo invoca
   `monitoreo-institucional/actions.ts`, y solo para lecturas, solo después
   de que `tieneConsentimiento()` ya devolvió `true`. Nunca usar para
   escrituras (los campos de auditoría `creadoPor`/`modificadoPor` quedarían

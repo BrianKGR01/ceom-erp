@@ -91,11 +91,22 @@
 - Sin migración — este módulo no agrega tablas.
 
 ## Decisiones tomadas que un agente no debe revertir
-- **`solicitanteGateway()` es un objeto sintético, no una fila de usuario
-  real** — no intentar "arreglar" esto creando un usuario de sistema real
-  en la base de datos; es intencional, documentado, y acotado a lecturas
-  mediadas por `tieneConsentimiento()`. Ver el comentario en
-  `identidad/actions.ts` junto a la función.
+- **Principio (2026-07-18, sigue vigente): el Gateway es un lector acotado
+  y revocable, no un admin** — `solicitanteGateway()` nunca debe tener más
+  alcance que "leer, en los 4 caminos que ya usa, después de que
+  `tieneConsentimiento()` ya autorizó". Esto no se revierte. **El mecanismo
+  que lo implementaba (objeto 100% sintético en memoria) sí cambió el
+  2026-07-21**: dejó de alcanzar en cuanto un módulo que el Gateway alcanza
+  (Proveedores, vía Financiero) migró a `comoUsuario()` — un objeto sin
+  fila real no resuelve RLS de forma consistente ahí (diagnóstico completo:
+  docs/security/PLAN-RLS-BACKSTOP.md §9.6, §10.4, §13). La Etapa 4.a de ese
+  plan sembró una fila real, pero con un bypass de RLS propio y de solo
+  lectura (`es_gateway_sistema()`, no `es_ceom_admin()`) — precisamente
+  para no traicionar este principio; reusar el bypass de `ceom_admin` tal
+  cual sí lo hubiera hecho (heredaría escritura y cualquier bypass futuro
+  de `ceom_admin`, sin relación con lo que el Gateway realmente necesita).
+  Ver el comentario en `identidad/actions.ts` junto a la función y
+  `identidad/ANCLA.md` para el detalle completo.
 - **`estadoTenant`/`listarCartera` no pasan por `tieneConsentimiento()`** —
   a propósito: estar en la Cartera Institucional es una relación que la
   propia Institución ya conoce (fue CEOM Admin quien la dio de alta, o
