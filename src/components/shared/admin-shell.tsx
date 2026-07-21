@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2, CreditCard, Landmark, ListChecks, LogOut, Menu, X } from "lucide-react";
@@ -26,6 +26,8 @@ export function AdminShell({
 }) {
   const [abierto, setAbierto] = useState(false);
   const pathname = usePathname();
+  const abrirBtnRef = useRef<HTMLButtonElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
 
   const items: ItemNav[] = [
     { href: "/admin/tenants", label: "Tenants", icono: Building2 },
@@ -38,11 +40,59 @@ export function AdminShell({
     return pathname.startsWith(href);
   }
 
+  // Drawer mobile: Escape cierra, foco atrapado dentro mientras está
+  // abierto, scroll del body bloqueado, y el foco vuelve al botón que lo
+  // abrió al cerrarse — mismo contrato que cualquier panel modal (ver
+  // app-shell.tsx, mismo mecanismo).
+  useEffect(() => {
+    if (!abierto) return;
+
+    const overflowPrevio = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const FOCUSABLES = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const primerFocusable = asideRef.current?.querySelector<HTMLElement>(FOCUSABLES);
+    primerFocusable?.focus();
+
+    function alTecla(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setAbierto(false);
+        return;
+      }
+      if (e.key !== "Tab" || !asideRef.current) return;
+      const focusables = asideRef.current.querySelectorAll<HTMLElement>(FOCUSABLES);
+      if (focusables.length === 0) return;
+      const primero = focusables[0];
+      const ultimo = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === primero) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault();
+        primero.focus();
+      }
+    }
+
+    document.addEventListener("keydown", alTecla);
+    const botonQueAbrio = abrirBtnRef.current;
+    return () => {
+      document.removeEventListener("keydown", alTecla);
+      document.body.style.overflow = overflowPrevio;
+      botonQueAbrio?.focus();
+    };
+  }, [abierto]);
+
   return (
     <>
       <div className="app-mobile-bar items-center justify-between bg-navy px-4 py-3">
         <Icono className="h-7 w-auto" />
-        <button type="button" onClick={() => setAbierto(true)} aria-label="Abrir menú" className="text-white">
+        <button
+          ref={abrirBtnRef}
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-label="Abrir menú"
+          className="text-white"
+        >
           <Menu className="size-6" />
         </button>
       </div>
@@ -58,6 +108,7 @@ export function AdminShell({
       )}
 
       <aside
+        ref={asideRef}
         className={cn(
           "app-sidebar flex shrink-0 flex-col bg-gradient-to-b from-sidebar-from to-sidebar-to transition-transform duration-200",
           abierto && "app-sidebar--abierto"

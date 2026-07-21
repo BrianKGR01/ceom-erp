@@ -132,4 +132,186 @@ Jerarquía sugerida:
 
 ---
 
-*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. No quedan pendientes abiertos de diseño en este momento.*
+## 7. Layout de página estándar (Fase A del refactor de UI/UX, 2026-07-20)
+
+> Origen: `docs/ui/AUDITORIA-UI-UX.md`, hallazgo UI-009 — el ancho máximo del contenedor no seguía
+> ninguna regla (3 a 6 valores de `max-w` por módulo). Esta sección fija la regla, derivada de qué
+> valor ya usaba la mayoría de las pantallas que se ven bien — no se inventó ningún valor nuevo.
+
+### 7.1 Wrapper estándar
+
+Toda pantalla de `/app` y `/admin` (excepto `/login` y `/portal`, que tienen su propio layout de
+pantalla completa) usa exactamente:
+
+```tsx
+<div className="min-h-screen bg-gray-bg p-6">
+  <div className="mx-auto max-w-{TOKEN} space-y-4 py-6">
+    {/* contenido de la pantalla */}
+  </div>
+</div>
+```
+
+`space-y-4` es el valor por defecto; el Dashboard/Inicio y el Catálogo de Productos usan `space-y-6`
+porque agrupan secciones más grandes (varias cards por bloque) — mantenido tal cual, no es una
+inconsistencia a corregir.
+
+### 7.2 Tabla de `max-w` por tipo de pantalla
+
+| Tipo de pantalla | `max-w` | Por qué este valor | Pantalla de referencia (ya aplicada) |
+|---|---|---|---|
+| Dashboard / resumen ejecutivo | `max-w-5xl` | Ya era el valor mayoritario para pantallas con varias cards de KPI en grid | `/app` (Inicio) — ya cumplía, queda como referencia |
+| POS / flujo operativo de una sola pantalla | `max-w-5xl` | Necesita espacio para catálogo + panel de carrito lado a lado | `/app/ventas` (Vender) — ya cumplía, queda como referencia |
+| Listado denso (filas/tabla) | `max-w-4xl` | Valor mayoritario entre Historial de Ventas, Clientes, Pasivos, Logs de `/admin`, Ranking de Productos | `/app/ventas/eventos` — corregido de `5xl` a `4xl` |
+| Listado de cards / catálogo (grid) | `max-w-6xl` | Mismo ancho que Catálogo de Productos y Catálogo de Insumos, que ya necesitan 3-4 columnas | `/app/patrimonio` (Activos) — corregido de `5xl` a `6xl` |
+| Ficha de detalle (1 panel) | `max-w-4xl` | Valor mayoritario entre Ficha de Venta, Ficha de Gasto, Ficha de Producto, Ficha de Insumo | `/app/patrimonio/[id]` — corregido de `5xl` a `4xl` |
+| Maestro-detalle (2 paneles) | `max-w-6xl` | Necesita espacio para panel lateral + panel de detalle (Directorio de Proveedores, Gestión de Recetas ya lo usan) | sin cambios en esta fase — ya cumplía |
+| Formulario de 1 columna | `max-w-2xl` | Los 5 formularios compartidos (`ActivoForm`, `GastoForm`, `InsumoForm`, `PasivoForm`) ya se auto-limitan a `max-w-2xl` en su propio `<form>` — el wrapper de página en `4xl`/`5xl` no hacía nada, era ancho muerto. Bajar el wrapper de página a `2xl` elimina el doble contenedor sin cambiar ni un píxel de lo que el usuario ya ve. | `/app/patrimonio/nuevo` y `/app/patrimonio/[id]/editar` — corregidos de `4xl` a `2xl` |
+| Formulario multi-columna / con panel lateral | `max-w-4xl` a `max-w-6xl` según cantidad de columnas | Excepción documentada: `ProductForm` (grid de 2 columnas, sin auto-límite propio) necesita `max-w-4xl` de la página; "Registrar Producción" (formulario + panel de resumen) necesita `max-w-6xl`. No se tocan en esta fase — ya usaban estos valores. | `/app/productos/nuevo`, `/app/produccion/nuevo` — sin cambios, quedan como referencia de la excepción |
+
+**Regla para pantallas nuevas:** identificar el tipo de la tabla de arriba y usar ese `max-w`
+directamente. Si una pantalla nueva no encaja claramente en ningún tipo, es señal de que puede
+necesitar descomponerse (¿es en realidad un formulario multi-columna disfrazado de ficha?) antes de
+inventar un noveno valor de ancho.
+
+## 8. Componentes compartidos (Fase A en adelante)
+
+> Cada primitiva nueva se documenta acá con su API real y cuándo usarla, a medida que se construye.
+> Ver `src/components/ui/*.tsx` para la implementación.
+
+### 8.1 `Tabs` (`src/components/ui/tabs.tsx`)
+Extraído del patrón de tab-bar persistente que ya usaban Consentimiento y Simulaciones (el mecanismo
+mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es el mismo con estado
+`activo` derivado de `usePathname()` en vez de pasado a mano por archivo.
+
+- **Cuándo usar:** vistas múltiples de un mismo recurso/contexto de datos ya elegido (Ficha de
+  Tenant en `/admin` y `/portal`, Ficha de Proveedor) — regla de navegación completa en
+  `docs/ui/AUDITORIA-UI-UX.md` sección 4.2/4.4.
+- **Cuándo NO usar:** para moverse entre las secciones de un módulo (Ventas → Historial/Clientes/
+  etc.) — eso es el submenú de sidebar (sección 4 de la auditoría), no `Tabs`.
+- **API:**
+  ```tsx
+  <Tabs
+    items={[
+      { href: "/app/consentimiento", label: "Generar Código", icon: KeyRound },
+      { href: "/app/consentimiento/codigos", label: "Códigos Generados", icon: ListChecks },
+    ]}
+  />
+  ```
+  `href` se resuelve contra `usePathname()` automáticamente (coincidencia exacta para el ítem que no
+  tiene sub-rutas propias) — no recibe una prop `activo`, para que sea imposible que quede
+  desincronizado como pasaba con `NavReportes`/`NavSimulaciones` copiados a mano.
+
+### 8.2 `Dialog` — prop `size`
+- Escala corta de 3 valores, **default `md`** (antes todo diálogo heredaba `sm:max-w-sm`, 384px,
+  sin poder optar por otro ancho — causa raíz de UI-012/UI-018): `sm` (384px) para diálogos de 1-3
+  campos simples (confirmar borrado, un solo input); `md` (576px, **default**) para la mayoría de
+  los formularios de 4-9 campos — este cambio de default corrige de paso el Dialog de "Nuevo Plan"
+  en `/admin/planes` sin tocar ese archivo; `lg` (768px) para diálogos con tabla o contenido ancho.
+- Ver detalle completo de props en el propio archivo.
+
+### 8.3 `PageHeader` — `title: ReactNode`
+- Ahora acepta cualquier `ReactNode` como título, no solo `string` — permite poner un `<Badge>` de
+  estado junto al nombre (Ficha de Gasto, Ficha de Producto, Ficha de Tenant) sin reimplementar el
+  header a mano.
+- De paso se agregó `flex-wrap` al wrapper del header (antes solo `flex items-center
+  justify-between gap-4`) — corrige un overflow horizontal real encontrado en Colaboradores a 375px
+  cuando el header tiene ≥2 botones de acción.
+
+### 8.4 `ToggleGroup` (`src/components/ui/toggle-group.tsx`)
+Extraído de las pills de filtro reimplementadas a mano en Historial de Ventas, Compras, Catálogo de
+Productos, criterio de Ranking, etc. — ver UI-014.
+
+- **Cuándo usar:** un solo valor seleccionado entre N opciones cortas sin icono/descripción (filtros,
+  criterios de orden).
+- **Cuándo NO usar:** si la opción necesita icono o descripción — usar `OptionCard` en su lugar.
+- **API:**
+  ```tsx
+  <ToggleGroup
+    value={estado}
+    onValueChange={setEstado}
+    options={[
+      { value: "todos", label: "Todos" },
+      { value: "pagado", label: "Pagado" },
+    ]}
+  />
+  ```
+  Genérico en `T extends string` — `value`/`onValueChange` tipan contra los `value` de `options`.
+
+### 8.5 `OptionCard` (`src/components/ui/option-card.tsx`)
+Extraído de los selectores tipo "radio visual" reimplementados a mano en `GastoForm` (tipo de gasto,
+horizontal) y `PasivoForm` (activo relacionado, vertical con ícono) — ver UI-014. Es la tarjeta
+individual; el consumidor arma su propio grid (`grid-cols-N`) alrededor, porque la cantidad de
+columnas varía según cuántas opciones haya.
+
+- **Cuándo usar:** elegir una entidad/opción relacionada donde vale la pena mostrar ícono y/o
+  descripción corta debajo del label.
+- **API:**
+  ```tsx
+  <OptionCard
+    selected={tipo === "fijo"}
+    onSelect={() => setTipo("fijo")}
+    label="Fijo"
+    description="Se repite todos los meses"
+    icon={Repeat}
+    orientation="horizontal" // o "vertical" — layout existente en PasivoForm
+    showSelectedBadge // opcional: pill "Seleccionado" en la esquina, patrón de PasivoForm
+  />
+  ```
+
+### 8.6 `Avatar` (`src/components/ui/avatar.tsx`)
+Extraído del círculo con inicial reimplementado con 3 tamaños distintos en Colaboradores
+(`size-11`), Capacidades Especiales (`size-10`) y el diálogo de invitar (`size-8`) — ver UI-021. Los
+3 tamaños ya existían en la práctica; se preservan como variantes en vez de forzar un único valor.
+
+- **API:** `<Avatar nombre={persona.nombreCompleto} size="sm" | "md" (default) | "lg" />` — muestra
+  la primera letra del nombre en mayúscula sobre fondo `pastel-blue-bg`.
+
+### 8.7 `SearchInput` (`src/components/ui/search-input.tsx`)
+Extraído del bloque ícono+`Input` reimplementado con valores ligeramente distintos en Tenants
+(`/admin`, `pl-8`/`left-2.5`) e Instituciones (`/admin`, `pl-9`/`left-3`, sin
+`pointer-events-none`) — ver UI-014.
+
+- **API:** `<SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar..." className="sm:w-64" />`
+  — el ancho queda a criterio del consumidor vía `className`, igual que antes.
+
+### 8.8 `FormError` (`src/components/ui/form-error.tsx`)
+- **API:** `<FormError>{mensaje}</FormError>` — no renderiza nada si `children` es falsy. Agrega
+  `role="alert"` (ausente en todas las copias manuales anteriores: `<p className="text-xs
+  text-error-text">{error}</p>`), para que un lector de pantalla anuncie el error sin que el usuario
+  tenga que encontrarlo visualmente.
+
+### 8.9 `Button` — prop `loading`
+- `<Button loading={guardando}>Guardar</Button>` agrega un spinner (`Loader2` girando) antes del
+  contenido y fuerza `disabled` mientras `loading` es `true`, sin que el consumidor tenga que
+  combinar manualmente texto-en-gerundio + `disabled` (antes el único feedback de "esto está
+  corriendo" en toda la app era ese combo, ni siquiera parejo entre botones) — ver UI-022.
+
+---
+
+## 9. Arquitectura de navegación — regla de los tres mecanismos (decisión 6)
+
+> Origen: `docs/ui/AUDITORIA-UI-UX.md` UI-002, decisión 6 de la sección 7. Antes de esta regla
+> existían 7 mecanismos ad-hoc distintos para navegar entre las secciones de un mismo módulo. De
+> ahora en adelante hay exactamente tres, cada uno con un criterio de cuándo usarlo — nunca a
+> criterio libre de quien construye la pantalla.
+
+**Submenú de sidebar** — para módulos cuyas secciones son de uso diario y heterogéneas entre sí:
+Ventas, Producción, Patrimonio, Proveedores, Gastos, Mi Negocio. Implementado en
+`src/components/shared/app-shell.tsx` (ver también hallazgo UI-002 resuelto).
+
+**Tab-bar persistente** — para un módulo que es una familia de vistas del mismo dato: Reportes,
+Simulaciones, Consentimiento (Compartir Datos). Estos tres módulos ya resolvían bien su navegación
+antes del refactor y quedan **a propósito sin submenú** — no se migran, son la referencia canónica
+del patrón. También aplica a fichas de un solo recurso: Ficha de Tenant (`/admin` y `/portal`),
+Ficha de Proveedor. Componente: `Tabs` (sección 8.1).
+
+**Breadcrumb** — siempre que la pantalla esté ≥1 nivel debajo de un listado (ej. `Ficha → Editar`).
+Nunca como sustituto de un menú de hermanos: si dos pantallas son hermanas de igual jerarquía dentro
+de un módulo, van en el submenú o el tab-bar, no en un breadcrumb.
+
+**Prohibido como único mecanismo:** un link de texto suelto ("Ver pasivos") o un botón aislado entre
+dos secciones hermanas de igual jerarquía — el mecanismo ad-hoc original que documentaba UI-002.
+
+---
+
+*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7, 8 y 9 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`) y quedan completas al cierre de esa fase — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*

@@ -28,7 +28,8 @@ export default async function PatrimonioPage() {
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-5xl space-y-4 py-6">
+      {/* max-w-6xl: listado de cards, ver docs/design-system.md §7.2 */}
+      <div className="mx-auto max-w-6xl space-y-4 py-6">
         <PageHeader
           title="Activos"
           description="Gestión del patrimonio físico del negocio."

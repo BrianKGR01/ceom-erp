@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { ToggleGroup } from "@/components/ui/toggle-group";
 
 type EstadoPago = "pendiente" | "parcial" | "pagado";
 
@@ -70,33 +70,17 @@ export function HistorialCliente({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => actualizarFiltro(setEstado, "todas")}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-              estado === "todas"
-                ? "bg-primary text-white"
-                : "bg-pastel-blue-bg text-text-body hover:bg-pastel-blue-bg/70"
-            )}
-          >
-            Todas
-          </button>
-          {(Object.keys(LABEL_ESTADO) as EstadoPago[]).map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => actualizarFiltro(setEstado, e)}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-                estado === e
-                  ? "bg-primary text-white"
-                  : "bg-pastel-blue-bg text-text-body hover:bg-pastel-blue-bg/70"
-              )}
-            >
-              {LABEL_ESTADO[e]}
-            </button>
-          ))}
+          <ToggleGroup
+            value={estado}
+            onValueChange={(v) => actualizarFiltro(setEstado, v)}
+            options={[
+              { value: "todas", label: "Todas" },
+              ...((Object.keys(LABEL_ESTADO) as EstadoPago[]).map((e) => ({
+                value: e,
+                label: LABEL_ESTADO[e],
+              }))),
+            ]}
+          />
           {canales.length > 0 && (
             <Select
               items={{

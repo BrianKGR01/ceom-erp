@@ -30,7 +30,9 @@ export default async function EditarActivoPage({
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-4xl space-y-4 py-6">
+      {/* max-w-2xl: formulario de 1 columna — ActivoForm ya se auto-limita a max-w-2xl,
+          este wrapper solo evita el doble contenedor. Ver docs/design-system.md §7.2 */}
+      <div className="mx-auto max-w-2xl space-y-4 py-6">
         <Breadcrumb
           items={[
             { label: "Patrimonio", href: "/app/patrimonio" },

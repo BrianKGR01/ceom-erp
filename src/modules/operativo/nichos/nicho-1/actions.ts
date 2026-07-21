@@ -233,7 +233,12 @@ export async function registrarEntradaCompraInsumo(
   }
 
   const insumo = await repo.obtenerInsumoPorId(input.insumoId);
-  if (!insumo) return { ok: false, error: "Insumo no encontrado." };
+  // Ata el insumoId del cliente al tenant ya autorizado — sin esto, una
+  // escritura al ledger/costo del insumo caia sobre un insumo ajeno
+  // (auditoría de autorización; RLS bypasseada, es la única defensa).
+  if (!insumo || insumo.tenantId !== tenantId) {
+    return { ok: false, error: "Insumo no encontrado." };
+  }
 
   const fechaVencimiento =
     input.fechaVencimiento ??
@@ -277,7 +282,12 @@ export async function registrarAjusteManualInsumo(
   }
 
   const insumo = await repo.obtenerInsumoPorId(input.insumoId);
-  if (!insumo) return { ok: false, error: "Insumo no encontrado." };
+  // Ata el insumoId del cliente al tenant ya autorizado — sin esto, una
+  // escritura al ledger/costo del insumo caia sobre un insumo ajeno
+  // (auditoría de autorización; RLS bypasseada, es la única defensa).
+  if (!insumo || insumo.tenantId !== tenantId) {
+    return { ok: false, error: "Insumo no encontrado." };
+  }
 
   const { movimiento, cantidadActual } = await repo.crearMovimientoInsumoTx({
     insumoId: input.insumoId,
@@ -306,7 +316,12 @@ export async function registrarMermaAlmacenamiento(
   }
 
   const insumo = await repo.obtenerInsumoPorId(input.insumoId);
-  if (!insumo) return { ok: false, error: "Insumo no encontrado." };
+  // Ata el insumoId del cliente al tenant ya autorizado — sin esto, una
+  // escritura al ledger/costo del insumo caia sobre un insumo ajeno
+  // (auditoría de autorización; RLS bypasseada, es la única defensa).
+  if (!insumo || insumo.tenantId !== tenantId) {
+    return { ok: false, error: "Insumo no encontrado." };
+  }
 
   const { movimiento, cantidadActual } = await repo.crearMovimientoInsumoTx({
     insumoId: input.insumoId,
@@ -429,6 +444,16 @@ export async function actualizarComposicionReceta(
     return { ok: false, error: "No tenés permiso para editar esta receta." };
   }
 
+  // Cada insumoId de la composición debe ser del mismo tenant que la receta —
+  // sin esto se podía inyectar un insumo ajeno en la composición y filtrar su
+  // costo vía el costo calculado de la receta (auditoría de autorización).
+  for (const l of lineas) {
+    const insumo = await repo.obtenerInsumoPorId(l.insumoId);
+    if (!insumo || insumo.tenantId !== receta.tenantId) {
+      return { ok: false, error: "Uno de los insumos indicados no existe en este negocio." };
+    }
+  }
+
   await repo.reemplazarComposicionReceta(
     recetaId,
     lineas.map((l) => ({ insumoId: l.insumoId, cantidadPorLote: String(l.cantidadPorLote) }))
@@ -454,6 +479,14 @@ export async function vincularProductoAReceta(
 
   const ficha = await fichaProducto(solicitante, input.productoId);
   if (!ficha.ok) return ficha;
+
+  // La receta a vincular debe ser del mismo tenant — sin esto se vinculaba un
+  // producto propio a una receta ajena, exponiendo su composición/costos al
+  // producir (auditoría de autorización).
+  const receta = await repo.obtenerRecetaPorId(input.recetaId);
+  if (!receta || receta.tenantId !== tenantId) {
+    return { ok: false, error: "Receta no encontrada." };
+  }
 
   const vinculo = await enviarProductoAOperaciones(solicitante, input.productoId);
   if (!vinculo.ok) return vinculo;
@@ -560,8 +593,17 @@ export async function registrarProduccion(
     };
   }
 
+  // La receta (y por ende producto/insumos) debe ser del tenant — sin esto se
+  // leía la composición/costos de un producto ajeno y se descontaba stock de
+  // insumos de otro tenant (auditoría de autorización). Se valida vía la receta
+  // (no vía fichaProducto) para no exigir el permiso productos:ver a un rol que
+  // solo tiene operativo: la vinculación siempre ata producto y receta al mismo
+  // tenant (vincularProductoAReceta lo garantiza), así que un productoId ajeno
+  // resuelve a una receta ajena y se rechaza acá.
   const receta = await repo.obtenerRecetaPorId(vinculacion.recetaId);
-  if (!receta) return { ok: false, error: "Receta no encontrada." };
+  if (!receta || receta.tenantId !== tenantId) {
+    return { ok: false, error: "Receta no encontrada." };
+  }
 
   const composicion = await repo.obtenerComposicionReceta(vinculacion.recetaId);
   const cantidadLotesProducidos = Number(input.cantidadLotesProducidos);

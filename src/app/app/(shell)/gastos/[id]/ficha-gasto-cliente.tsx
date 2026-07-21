@@ -7,6 +7,7 @@ import { CheckCircle2, Info, Pencil, Receipt, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import {
   Dialog,
   DialogContent,
@@ -201,36 +202,43 @@ export function FichaGastoCliente({
     <div className="space-y-4">
       <Breadcrumb items={[{ label: "Gastos", href: "/app/gastos" }, { label: codigo }]} />
 
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-heading text-xl font-semibold text-navy">Detalle de Gasto {codigo}</h1>
-        {esManual && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              render={<Link href={`/app/gastos/${gasto.id}/editar`} />}
-              nativeButton={false}
-            >
-              <Pencil className="size-4" />
-              Editar
-            </Button>
-            {confirmandoBaja ? (
-              <div className="flex items-center gap-1.5">
-                <Button variant="destructive" size="sm" onClick={confirmarEliminar} disabled={eliminando}>
-                  Sí, eliminar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setConfirmandoBaja(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            ) : (
-              <Button variant="destructive" onClick={() => setConfirmandoBaja(true)}>
-                <Trash2 className="size-4" />
-                Eliminar
+      <PageHeader
+        title={
+          <>
+            Detalle de Gasto {codigo}
+            <Badge variant={esManual ? "outline" : "info"}>{esManual ? "Manual" : "Automático"}</Badge>
+          </>
+        }
+        action={
+          esManual && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                render={<Link href={`/app/gastos/${gasto.id}/editar`} />}
+                nativeButton={false}
+              >
+                <Pencil className="size-4" />
+                Editar
               </Button>
-            )}
-          </div>
-        )}
-      </div>
+              {confirmandoBaja ? (
+                <div className="flex items-center gap-1.5">
+                  <Button variant="destructive" size="sm" onClick={confirmarEliminar} disabled={eliminando}>
+                    Sí, eliminar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setConfirmandoBaja(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="destructive" onClick={() => setConfirmandoBaja(true)}>
+                  <Trash2 className="size-4" />
+                  Eliminar
+                </Button>
+              )}
+            </div>
+          )
+        }
+      />
 
       {error && <p className="text-xs text-error-text">{error}</p>}
 

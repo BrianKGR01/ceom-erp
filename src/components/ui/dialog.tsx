@@ -39,13 +39,26 @@ function DialogOverlay({
   )
 }
 
+// Escala corta de ancho — ver docs/design-system.md §8.2. Antes todo Dialog
+// heredaba sm:max-w-sm (384px) sin poder optar por otro ancho (UI-012/UI-018:
+// el de "Nuevo Plan" en /admin se veia "mobile" en desktop por esto). El
+// default pasa a "md", mas comodo para la mayoria de los formularios de 4-6
+// campos; "sm" queda disponible para dialogos de 1-3 campos simples.
+const dialogSizeClasses = {
+  sm: "sm:max-w-sm",
+  md: "sm:max-w-xl",
+  lg: "sm:max-w-3xl",
+} as const
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = "md",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  size?: keyof typeof dialogSizeClasses
 }) {
   return (
     <DialogPortal>
@@ -55,7 +68,8 @@ function DialogContent({
         className={cn(
           // Radio y sombra "casi imperceptible" del design-system — mismo
           // tratamiento que Card, sin ring/borde marcado.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-4 text-sm text-popover-foreground shadow-card duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-4 text-sm text-popover-foreground shadow-card duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          dialogSizeClasses[size],
           className
         )}
         {...props}

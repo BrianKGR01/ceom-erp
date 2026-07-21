@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Crown, Pencil, Plus, PowerOff, Search, UserPlus } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -441,9 +442,7 @@ export function ColaboradoresCliente({
           {filtrados.map((c) => (
             <div key={c.id} className="rounded-2xl bg-card p-5 shadow-card">
               <div className="flex items-start justify-between">
-                <span className="flex size-11 items-center justify-center rounded-full bg-pastel-blue-bg text-sm font-semibold text-primary">
-                  {c.nombreCompleto.charAt(0).toUpperCase()}
-                </span>
+                <Avatar nombre={c.nombreCompleto} size="lg" />
                 <div className="flex flex-col items-end gap-1">
                   {c.esOwner && <Badge variant="warning">Owner</Badge>}
                   <Badge variant={c.activo ? "success" : "error"}>{c.activo ? "Activo" : "Suspendido"}</Badge>

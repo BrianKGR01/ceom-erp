@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -44,14 +45,29 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    // Unico feedback visual de "esto esta corriendo" en toda la app antes
+    // era el texto cambiando a gerundio ("Guardando...") + disabled, ni
+    // siquiera parejo en todos los botones — ver
+    // docs/ui/AUDITORIA-UI-UX.md UI-022. `loading` agrega un spinner y
+    // fuerza `disabled` sin que el consumidor tenga que combinar los dos.
+    loading?: boolean
+  }) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      disabled={disabled || loading}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      {loading && <Loader2 className="size-4 animate-spin" />}
+      {children}
+    </ButtonPrimitive>
   )
 }
 
