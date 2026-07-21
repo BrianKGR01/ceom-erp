@@ -218,6 +218,18 @@ export async function registrarCompra(
     return { ok: false, error: "Una compra de reventa requiere productoId (y no insumoId)." };
   }
 
+  // Si se indica proveedor, debe ser del tenant — sin esto la compra
+  // referenciaba un proveedor ajeno (auditoría de autorización). proveedorId
+  // es opcional (compra sin proveedor registrado). El insumoId/productoId se
+  // valida en la entrada de stock (registrarEntradaCompraInsumo/Reventa, ya
+  // atadas a su tenant), que se dispara al recibir la compra.
+  if (input.proveedorId) {
+    const proveedor = await repo.obtenerProveedorPorId(input.proveedorId);
+    if (!proveedor || proveedor.tenantId !== tenantId) {
+      return { ok: false, error: "Proveedor no encontrado." };
+    }
+  }
+
   const costoUnitario = calcularCostoUnitario(
     input.montoTotal,
     input.cantidad,
