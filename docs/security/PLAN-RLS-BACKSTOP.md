@@ -1,9 +1,13 @@
 # Plan RLS Backstop — Fase 0: diagnóstico y diseño
 
-**Estado: aprobado — Etapas 0 y 1 implementadas y verificadas (2026-07-21, ver §8).** El
+**Estado: aprobado — Etapas 0, 1 y 2 implementadas y verificadas (2026-07-21, ver §8 y §9).** El
 diagnóstico original (§1-§7) sigue siendo de solo lectura tal cual se escribió; §8 documenta lo
-que se implementó después, sobre la misma base de desarrollo, con las decisiones de §7 ya tomadas.
-Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que originó este trabajo.
+que se implementó después (Etapas 0-1), y §9 la Etapa 2 (barrido de N+1 + Proveedores) — sobre la
+misma base de desarrollo, con las decisiones de §7 ya tomadas. **§9.6 encontró y corrigió una
+regresión real** que cambia una premisa del plan (el camino Gateway/Panel Admin CEOM no es
+independiente de las Etapas 3/4 como se asumía) — leer antes de migrar Ventas, Gastos u
+Operativo/Nicho-1. Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
+originó este trabajo.
 
 Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
 `riertvgnjaujstwyqoom`, región `sa-east-1`, Postgres 17.6.1.141) más lectura directa de
@@ -789,9 +793,95 @@ exactamente el mismo código de `contexto.ts`, así que no hay una razón estruc
 que el orden de magnitud del overhead (unos cientos de ms, 1.5x-2.5x) se mantiene estable entre el
 primer y el segundo módulo migrado, no que uno sea "más rápido" que el otro.
 
+### 9.6 Regresión real encontrada y corregida: el camino Gateway/Panel Admin CEOM no es independiente de las Etapas 3/4
+
+**Esto cambia una premisa del plan, no es una nota al pie.** El diseño original (§3, tabla de la
+sección 3) asumía que el caso "tenant propio" (Etapas 1-2) era ortogonal a `ceom_admin` (Etapa 3) y al
+portal (Etapa 4) — que se podía migrar módulo por módulo sin arrastrar ese riesgo hasta llegar
+explícitamente a esas etapas. **Proveedores demostró que eso es falso en la práctica:** es el primer
+módulo migrado que además es alcanzado por el camino Monitoreo Institucional/Panel Admin CEOM (vía
+`financiero.flujoCaja()` → `consultarPagosCompraEnPeriodo()`), y migrarlo rompió ese camino de dos
+formas distintas al correr la suite completa (`pnpm test`, no solo los tests del propio módulo):
+
+1. **Monitoreo Institucional, crash real** — llama con `solicitanteGateway()`
+   (`identidad/actions.ts:264`), un `UsuarioConRol` **sintético**: `id = "00000000-0000-0000-0000-000000000000"`,
+   sin fila real en `usuarios` ni en `auth.users`. `comoUsuario()` exige que `current_tenant_id()`
+   resuelva (falla ruidosa, §2.2) y esa exigencia no tiene forma de cumplirse — no es un bug de dato
+   faltante, es un id que **no puede existir** porque nunca pasó por un login real. 2 tests en rojo
+   (`monitoreo-institucional.test.ts`, caso 2 y caso borde 1).
+2. **Panel Admin CEOM, corrupción de dato silenciosa (más grave que el crash)** — llama con un
+   `ceom_admin` real (sí existe en `usuarios`), así que `current_tenant_id()` resuelve — pero al tenant
+   propio del admin ("CEOM Ops"), no al `tenantId` que se quiere inspeccionar. Sin `es_ceom_admin()` +
+   policy de bypass (Etapa 3, no implementada), RLS filtra todo a 0 filas — y **ningún test lo
+   detectaba**: `panel-admin-ceom.test.ts` solo afirmaba `typeof financiero.data.flujoCaja === "number"`,
+   que sigue siendo cierto para `0`. Un cero incorrecto (RLS filtrando) es indistinguible de un cero
+   correcto (tenant sin movimientos) con ese assert — exactamente la clase de falla silenciosa que
+   `comoUsuario()` intenta evitar en la capa de contexto (§2.2), colándose por una capa arriba, en el
+   test que debía probarla.
+
+**Corrección aplicada, acotada a lo mínimo (no se adelantó nada de la Etapa 3):**
+`consultarPagosCompraEnPeriodo()` es ahora la única función de Proveedores que **no** abre
+`comoUsuario()` — sigue leyendo por `tenantId` explícito + `tienePermiso()`, igual que todo el módulo
+antes de esta migración. La excepción es explícita en el código (comentario largo justo en la función)
+y en un allowlist dedicado y nuevo de `contexto.test.ts` (`ALLOWLIST_IMPORTA_DB_CRUDO`) que exige que
+cualquier excepción futura se agregue ahí a propósito, con motivo escrito — no que se cuele. Las otras
+17 funciones de Proveedores siguen migradas sin cambios. Además, se corrigió el assert débil de
+`panel-admin-ceom.test.ts` ("caso 3"): ahora siembra una Compra + Pago de Compra reales
+(`registrarCompra`/`registrarPagoCompra` como Owner) y afirma el valor exacto de `flujoCaja` (`-100`,
+no solo su tipo) — ese assert nuevo es el que habría atrapado la corrupción silenciosa si hubiera
+existido antes.
+
+**Otro assert del mismo patrón débil, encontrado pero NO corregido esta sesión** (pedido explícito:
+listarlo alcanza, no hace falta arreglarlo ahora): `monitoreo-institucional.test.ts:156`,
+`expect(typeof financiero.data.detalle.flujoCaja).toBe("number")` dentro de "caso 2". Mismo riesgo en
+potencia — hoy no oculta nada porque ese test tampoco siembra Compras/Ventas/Gastos reales para el
+tenant (haría falta el mismo trabajo de seeding que se hizo en panel-admin-ceom.test.ts para que el
+assert tenga algo real que verificar), pero es el mismo hueco.
+
+**Qué módulos de los que faltan migrar son alcanzables desde Gateway/Panel Admin CEOM** (auditado
+contra `financiero/actions.ts` y las llamadas directas de ambos módulos — no se rastreó más profundo
+que un nivel de indirección):
+
+| Módulo | Alcanzado por | Cómo |
+|---|---|---|
+| **Ventas** | Monitoreo Institucional (`tendenciaVentas`), ambos (vía `financiero.flujoCaja`/`estadoResultados`) | `consultarPagosVentaEnPeriodo`, `consultarIngresosPeriodo`, `consultarAjustesVentaEnPeriodo` |
+| **Gastos** | ambos (vía `financiero.flujoCaja`/`estadoResultados`/`costoFijoTotal`) | `consultarTotalCostosFijos`, `consultarPagosGastoEnPeriodo`, `consultarTotalGastosEnPeriodo` |
+| **Operativo/Nicho-1** | ambos, directo (sin pasar por Financiero) | `listarProducciones`, `consultarMermaPeriodo`, `listarInsumos` |
+| Identidad, Suscripción, Consentimiento | Panel Admin CEOM toca partes de Identidad/Suscripción, pero hoy vía funciones que ya tienen su propio bypass de `ceom_admin` **dentro de `tienePermiso()`/`repository.ts`** (no vía RLS) — no se rastreó a fondo si eso sigue siendo cierto una vez que Identidad migre (es la Etapa final, §3.1, por su acoplamiento — este hallazgo es una razón más para tratarla con cuidado ahí, no antes) | No auditado en profundidad esta sesión |
+
+**Conclusión práctica: cada uno de Ventas, Gastos y Operativo/Nicho-1 va a necesitar el mismo tipo de
+excepción puntual (o la Etapa 3 real) en su propia migración**, no solo Proveedores — no es un caso
+aislado. Vale decidir, antes de migrar el próximo de estos tres, si conviene adelantar la Etapa 3
+(`es_ceom_admin()` + `comoCeomAdmin` real) en vez de acumular excepciones módulo por módulo — la
+decisión queda para el usuario, no tomada acá.
+
+**El solicitante sintético de `solicitanteGateway()` necesita un rediseño en la Etapa 4, no solo una
+policy nueva.** Toda policy de RLS depende de `auth.uid()` resolviendo a algo — `es_ceom_admin()` (la
+función propuesta en §2.3 para la Etapa 3) hace `where u.id = auth.uid()`, y ese `auth.uid()` sigue
+siendo el UUID de ceros sintético, que nunca va a tener una fila en `usuarios`. Ninguna policy, por bien
+escrita que esté, puede autorizar un `auth.uid()` que no existe — el problema no es "falta la policy
+correcta", es que el mecanismo entero de "un usuario real autenticado vía Supabase Auth" no aplica a
+este solicitante por diseño. La Etapa 4 (portal) va a necesitar decidir esto de raíz: o
+`solicitanteGateway()` deja de ser un objeto 100% en memoria y pasa a ser un usuario real sembrado
+(con su propio `auth.users`/`usuarios`, tenant "CEOM Ops", igual que un `ceom_admin` humano), o las
+funciones que Monitoreo Institucional consume siguen sin poder pasar por `comoUsuario()`/`comoCeomAdmin()`
+nunca, y necesitan su propio mecanismo (quizás `comoInstitucion()` extendido, ya que conceptualmente
+"el Gateway ya autorizó esto" es más parecido al caso 3 que al caso 2). No decidido acá — es
+exactamente el tipo de decisión de alto impacto que el usuario pidió reservarse para cuando se llegue
+a esa etapa.
+
 ### 9.5 Estado y próximos pasos
 
-Etapa 2 cerrada — Proveedores es el segundo módulo migrado. Sigue pendiente, en el orden de §3.1: Etapa 2 continúa con Consentimiento/Suscripción/Simulaciones/Gastos, luego Productos/Ventas/Identidad, y recién
-después las Etapas 3 (`ceom_admin`) y 4 (portal) — **no tocadas esta sesión**, tal como se pidió.
-Antes de migrar Productos o Nicho-1 en concreto, revisar §9.3: esa migración es la primera oportunidad
-real de cerrar la ventana de atomicidad cruzada documentada ahí, en vez de solo heredarla de nuevo.
+Etapa 2 cerrada — Proveedores es el segundo módulo migrado, con la suite completa (`pnpm test`, 201
+tests, 31 archivos) en verde, no solo los tests del propio módulo. Sigue pendiente, en el orden de
+§3.1: Etapa 2 continúa con Consentimiento/Suscripción/Simulaciones/Gastos, luego Productos/Ventas/
+Identidad, y recién después las Etapas 3 (`ceom_admin`) y 4 (portal) — **no tocadas esta sesión**, tal
+como se pidió. Dos condicionantes nuevos para ese orden, ambos de §9.3/§9.6:
+
+- Antes de migrar Productos o Nicho-1 en concreto, revisar §9.3: esa migración es la primera
+  oportunidad real de cerrar la ventana de atomicidad cruzada documentada ahí, en vez de solo
+  heredarla de nuevo.
+- Antes de migrar Ventas, Gastos u Operativo/Nicho-1 (los tres confirmados alcanzables desde Gateway/
+  Panel Admin CEOM en §9.6), correr la suite completa —no solo la del módulo— y decidir si conviene
+  adelantar la Etapa 3 en vez de acumular una excepción puntual por módulo, como se hizo acá para
+  Proveedores.
