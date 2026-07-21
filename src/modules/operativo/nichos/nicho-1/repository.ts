@@ -424,6 +424,15 @@ export async function crearProduccionTx(data: {
   consumos: Array<{ insumoId: string; sucursalId: string; cantidad: string; costoUnitarioEnMovimiento: string }>;
 }) {
   return db.transaction(async (tx) => {
+    // Secuencial a proposito: recalcularCantidadActualInsumoTx hace un
+    // select-existente-then-insert/update sobre stock_insumo (clave
+    // insumo+sucursal). Si la misma receta repite un insumo en mas de una
+    // linea, dos recalculos concurrentes para la misma clave podrian
+    // pisarse o chocar contra el unique index (ninguno ve el upsert del
+    // otro todavia) — no hay garantia de eso hoy en el schema de
+    // receta_insumos, asi que no se puede asumir que las claves son
+    // siempre distintas. La coleccion es chica (items de una receta), el
+    // costo de ir secuencial acá es despreciable.
     for (const consumo of data.consumos) {
       await tx.insert(movimientosInsumo).values({
         insumoId: consumo.insumoId,
