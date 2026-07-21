@@ -104,6 +104,28 @@ export async function tienePermiso(
 }
 
 /**
+ * Guard de aislamiento de tenant para operaciones por-id (auditoría de
+ * autorización 2026-07-21, ver docs/security/AUDITORIA-AUTORIZACION.md).
+ *
+ * RLS está bypasseada — Drizzle corre con el rol `postgres` dueño de las
+ * tablas (ver src/db/rls.ts), así que este chequeo app-level es la ÚNICA
+ * defensa contra fugas/escrituras cross-tenant. Toda función que recibe un
+ * id de recurso desde el cliente debe cargar el recurso y verificar su
+ * pertenencia con esta función ANTES de leerlo o mutarlo — no alcanza con
+ * gatear el `tenantId` que el propio caller elige, hay que atar el id del
+ * recurso a ese tenant. ceom_admin pasa siempre (bypass cross-tenant, mismo
+ * criterio que tienePermiso()); un recurso de sistema (tenantId=null) nunca
+ * pertenece a un tenant concreto y se rechaza.
+ */
+export function recursoPerteneceAlTenant(
+  solicitante: UsuarioConRol,
+  recursoTenantId: string | null | undefined
+): boolean {
+  if (solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID) return true;
+  return !!recursoTenantId && recursoTenantId === solicitante.tenantId;
+}
+
+/**
  * Lectura basica de un Tenant (plan_id, nicho_id, estado_suscripcion, etc).
  * El repository ya tenia esta consulta (la usa tienePermiso() internamente);
  * faltaba exponerla como parte del contrato publico. Mismo criterio de
@@ -601,6 +623,14 @@ export async function cambiarRolUsuario(
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
 
+  // El usuario objetivo debe ser del mismo tenant (auditoría de autorización):
+  // antes se validaba el rol nuevo pero NUNCA el tenant del usuario a cambiar,
+  // así un Owner podía reasignar el rol de un colaborador de otro tenant.
+  const objetivo = await repo.obtenerUsuarioConRolPorId(usuarioId);
+  if (!objetivo || !recursoPerteneceAlTenant(solicitante, objetivo.tenantId)) {
+    return { ok: false, error: "Usuario no encontrado." };
+  }
+
   // Mismo criterio que invitarUsuario(): nunca asignar un rol de sistema por
   // este camino (Owner se otorga solo via transferirOwner(), CEOM Admin
   // nunca a un colaborador de tenant).
@@ -624,7 +654,9 @@ export async function suspenderUsuario(
   if (!escritura.ok) return escritura;
 
   const objetivo = await repo.obtenerUsuarioConRolPorId(usuarioId);
-  if (!objetivo) return { ok: false, error: "Usuario no encontrado." };
+  if (!objetivo || !recursoPerteneceAlTenant(solicitante, objetivo.tenantId)) {
+    return { ok: false, error: "Usuario no encontrado." };
+  }
 
   // Caso borde 9.1: nunca dejar al tenant sin ningun Owner activo.
   if (objetivo.esOwner) {
@@ -650,6 +682,13 @@ export async function reactivarUsuario(
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
+
+  // Antes escribía directo sobre usuarioId sin cargar ni verificar tenant —
+  // un Owner podía reactivar un usuario de otro tenant (auditoría de autz).
+  const objetivo = await repo.obtenerUsuarioConRolPorId(usuarioId);
+  if (!objetivo || !recursoPerteneceAlTenant(solicitante, objetivo.tenantId)) {
+    return { ok: false, error: "Usuario no encontrado." };
+  }
 
   await repo.actualizarActivoUsuario(usuarioId, true, solicitante.id);
   return { ok: true, data: true };
@@ -772,7 +811,7 @@ export async function actualizarPermisosRol(
   if (!escritura.ok) return escritura;
 
   const rol = await repo.obtenerRolPorId(rolId);
-  if (!rol || rol.esRolSistema) {
+  if (!rol || rol.esRolSistema || !recursoPerteneceAlTenant(solicitante, rol.tenantId)) {
     return { ok: false, error: "Rol no encontrado o no editable." };
   }
 
@@ -791,7 +830,7 @@ export async function eliminarRol(
   if (!escritura.ok) return escritura;
 
   const rol = await repo.obtenerRolPorId(rolId);
-  if (!rol || rol.esRolSistema) {
+  if (!rol || rol.esRolSistema || !recursoPerteneceAlTenant(solicitante, rol.tenantId)) {
     return { ok: false, error: "Rol no encontrado o no eliminable." };
   }
 
@@ -876,7 +915,7 @@ export async function otorgarCapacidadEspecialPorRol(
   if (!escritura.ok) return escritura;
 
   const rol = await repo.obtenerRolPorId(rolId);
-  if (!rol || rol.esRolSistema) {
+  if (!rol || rol.esRolSistema || !recursoPerteneceAlTenant(solicitante, rol.tenantId)) {
     return { ok: false, error: "Rol no encontrado o no editable." };
   }
 
@@ -906,7 +945,9 @@ export async function otorgarCapacidadEspecialPorUsuario(
   if (!escritura.ok) return escritura;
 
   const usuario = await repo.obtenerUsuarioConRolPorId(usuarioId);
-  if (!usuario) return { ok: false, error: "Usuario no encontrado." };
+  if (!usuario || !recursoPerteneceAlTenant(solicitante, usuario.tenantId)) {
+    return { ok: false, error: "Usuario no encontrado." };
+  }
 
   await repo.upsertCapacidadEspecialUsuario(
     usuarioId,
