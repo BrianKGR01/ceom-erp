@@ -22,6 +22,14 @@ const IGNORAR_DIRS = new Set(["node_modules", ".next", "dist", "e2e"]);
 interface FuncionExportada {
   nombre: string;
   texto: string;
+  /** Texto crudo de la lista de parámetros (nombre + tipo de cada uno,
+   * separados por coma) — usado para detectar parámetros de tipo identidad/
+   * sesión/permisos (ver test "ningún endpoint recibe..."). */
+  parametrosTexto: string;
+}
+
+function textoDeParametros(params: ts.NodeArray<ts.ParameterDeclaration>, sourceFile: ts.SourceFile): string {
+  return params.map((p) => p.getText(sourceFile)).join(", ");
 }
 
 interface ImportInfo {
@@ -98,7 +106,11 @@ function parsearArchivo(absPath: string): ArchivoParseado | null {
   for (const stmt of sourceFile.statements) {
     if (ts.isFunctionDeclaration(stmt) && stmt.name) {
       const nombre = stmt.name.text;
-      funciones.set(nombre, { nombre, texto: stmt.getText(sourceFile) });
+      funciones.set(nombre, {
+        nombre,
+        texto: stmt.getText(sourceFile),
+        parametrosTexto: textoDeParametros(stmt.parameters, sourceFile),
+      });
       if (esExport(stmt)) exportadas.add(nombre);
       continue;
     }
@@ -112,7 +124,11 @@ function parsearArchivo(absPath: string): ArchivoParseado | null {
           (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))
         ) {
           const nombre = decl.name.text;
-          funciones.set(nombre, { nombre, texto: stmt.getText(sourceFile) });
+          funciones.set(nombre, {
+            nombre,
+            texto: stmt.getText(sourceFile),
+            parametrosTexto: textoDeParametros(decl.initializer.parameters, sourceFile),
+          });
           if (esExportada) exportadas.add(nombre);
         }
       }
@@ -247,6 +263,19 @@ const KEYWORDS_POR_NIVEL: Partial<Record<NivelAcceso, RegExp>> = {
   autenticado: /\b(obtenerUsuarioActual|obtenerInstitucionActual)\b/,
 };
 
+/**
+ * Tipos que llevan identidad/permisos/tenant YA resueltos (docs/security/
+ * AUDITORIA-AUTORIZACION.md §8.3, hallazgo de construirDashboard/
+ * obtenerCapacidadAlmacenamientoWidget — confirmado explotable: TODA función
+ * exportada de un archivo "use server" recibe un action ID real de Next.js
+ * sin importar si algún Client Component la importa, así que recibir uno de
+ * estos tipos como parámetro es un bypass de autorización invocable por POST
+ * directo con un objeto forjado, no una optimización inofensiva). Ningún
+ * endpoint debe recibirlos por parámetro — debe resolverlos internamente vía
+ * obtenerUsuarioActual()/obtenerInstitucionActual().
+ */
+const TIPOS_IDENTIDAD_PROHIBIDOS = /\b(UsuarioConRol|SolicitanteCeomAdmin|Institucion)\b/;
+
 // --- Descubrimiento ---------------------------------------------------------
 
 const archivosFuente = listarArchivosFuente(SRC_ROOT);
@@ -282,6 +311,29 @@ describe("access-manifest — cobertura", () => {
       throw new Error(
         `Entrada(s) de access-manifest.ts que ya no corresponden a ninguna función "use server" real ` +
           `(renombrada, eliminada, o typo en la clave):\n  - ${obsoletas.join("\n  - ")}`
+      );
+    }
+  });
+
+  it("ningún endpoint \"use server\" recibe identidad/permisos/tenant ya resueltos por parámetro", () => {
+    const violaciones: string[] = [];
+    for (const [clave, archivo] of funcionesReales) {
+      const [, nombreFuncion] = clave.split("::");
+      const fn = archivo.funciones.get(nombreFuncion);
+      if (!fn) continue;
+      if (TIPOS_IDENTIDAD_PROHIBIDOS.test(fn.parametrosTexto)) {
+        violaciones.push(`${clave} — parámetros: (${fn.parametrosTexto})`);
+      }
+    }
+    if (violaciones.length > 0) {
+      throw new Error(
+        `Endpoint(s) "use server" que reciben un objeto de identidad/permisos/tenant YA RESUELTO ` +
+          `como parámetro — Next.js asigna un action ID real a TODA función exportada de un archivo ` +
+          `"use server" sin importar si algún Client Component la usa (confirmado en .next/server/**/` +
+          `server-reference-manifest.json), así que esto es invocable por POST directo con un objeto ` +
+          `forjado (ej. { esOwner: true, tenantId: "<otro-tenant>" }), evadiendo toda la capa de ` +
+          `autorización de una sola vez. Resolvé el usuario/institución internamente con ` +
+          `obtenerUsuarioActual()/obtenerInstitucionActual() en vez de recibirlo por parámetro:\n  - ${violaciones.join("\n  - ")}`
       );
     }
   });

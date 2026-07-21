@@ -131,9 +131,9 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // --- app/app/(shell)/ventas/actions.ts -----------------------------------
   "app/app/(shell)/ventas/actions.ts::registrarVentaAction": {
-    nivel: "autenticado",
+    nivel: "por-recurso",
     verificacion: "estatica",
-    nota: "tienePermiso sobre el tenant propio. input.sucursalId no se revalida contra el tenant al crear la Venta (mismo patrón Medio que patrimonio activoId/sucursalId) — no confirmado por el barrido original, candidato a hallazgo nuevo, no corregido acá.",
+    nota: "input.sucursalId — fix 2026-07-21: registrarVenta valida ahora que la sucursal pertenece al tenant (listarSucursalesPorTenant + chequeo de membresía) antes de crear la Venta. Antes no se revalidaba (mismo patrón Medio ya documentado para Patrimonio).",
   },
   "app/app/(shell)/ventas/actions.ts::crearCanalVentaAction": { nivel: "autenticado", verificacion: "estatica" },
   "app/app/(shell)/ventas/actions.ts::actualizarCanalVentaAction": { nivel: "por-recurso", verificacion: "estatica" },
@@ -248,8 +248,8 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "app/app/(shell)/consentimiento/actions.ts::obtenerInstitucionPorIdAction": {
     nivel: "autenticado",
-    verificacion: "manual",
-    nota: "HALLAZGO nuevo (no corregido en este alcance): esta thin action NO llama a obtenerUsuarioActual() — a diferencia de sus 9 hermanas, es invocable sin sesión. El módulo (obtenerInstitucionPorId) documenta la intención como \"abierto a cualquier authenticated\", pero el thin actual no aplica ese gate. Expone solo metadato de bajo riesgo (nombre/tipo/contacto de una Institución del catálogo), no datos de negocio de un tenant. Ver docs/security/AUDITORIA-AUTORIZACION.md.",
+    verificacion: "estatica",
+    nota: "Fix 2026-07-21: le faltaba el chequeo obtenerUsuarioActual() presente en sus 9 hermanas — era invocable sin sesión. Corregido.",
   },
   "app/app/(shell)/consentimiento/actions.ts::rechazarSolicitudAction": {
     nivel: "por-recurso",
@@ -331,17 +331,17 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
   "app/app/(shell)/inicio-actions.ts::obtenerDashboardAction": {
     nivel: "autenticado",
     verificacion: "estatica",
-    nota: "Resuelve usuario internamente antes de llamar construirDashboard — el patrón correcto.",
+    nota: "Passthrough puro de construirDashboard (que resuelve y valida su propia sesión desde el fix del 2026-07-21).",
   },
   "app/app/(shell)/inicio-actions.ts::construirDashboard": {
     nivel: "autenticado",
-    verificacion: "manual",
-    nota: "HALLAZGO nuevo (no corregido en este alcance): recibe `usuario: UsuarioConRol` como PARÁMETRO en vez de resolverlo internamente vía obtenerUsuarioActual() — único caso entre las 152 funciones del manifiesto (grep confirmado). Hoy no es explotable: los únicos callers son page.tsx (Server Component, que resuelve `usuario` real antes de llamarla) y obtenerDashboardAction (misma archivo, que también lo resuelve primero) — Next.js solo expone un action-id invocable por el cliente para funciones alcanzadas desde un módulo \"use client\", y ninguno importa construirDashboard directamente. Es frágil por construcción, no por uso actual: si algún día un Client Component la importa directo, un cliente podría enviar un `usuario` forjado (esOwner:true, tenantId arbitrario) sin sesión real, y tienePermiso() confía en solicitante.tenantId/esOwner tal como llegan. Fix recomendado (no aplicado): mover construirDashboard a un módulo sin \"use server\" (ej. inicio-shared.ts), igual que el resto de los módulos de negocio, o hacer que resuelva su propio usuario como obtenerDashboardAction.",
+    verificacion: "estatica",
+    nota: "Fix CRÍTICO 2026-07-21 (ver docs/security/AUDITORIA-AUTORIZACION.md §8.3): recibía `usuario: UsuarioConRol` como parámetro. Se verificó empíricamente en .next/server/app/app/(shell)/page/server-reference-manifest.json que Next.js le asignaba un action ID real (idéntico al de obtenerDashboardAction/cerrarSesion en el mismo manifiesto) — invocable por POST directo con un `usuario` forjado (esOwner:true, tenantId de otro tenant), evadiendo tienePermiso() por completo. La suposición original de que 'solo la llama un Server Component' no aplicaba: Next.js asigna el action ID a toda función exportada de un archivo \"use server\", sin importar el caller. Corregido resolviendo `usuario` internamente vía obtenerUsuarioActual().",
   },
   "app/app/(shell)/inicio-actions.ts::obtenerCapacidadAlmacenamientoWidget": {
     nivel: "autenticado",
-    verificacion: "manual",
-    nota: "HALLAZGO nuevo, mismo patrón y misma reserva que construirDashboard (ver esa entrada) — recibe `usuario` como parámetro, único otro caso. activoId/sucursalId internos salen de listarActivos/listarSucursalesPorTenant ya acotados al tenant, no son 'por-recurso' en sí mismos; el punto abierto es la procedencia de `usuario`. No corregido en este alcance.",
+    verificacion: "estatica",
+    nota: "Fix CRÍTICO 2026-07-21, mismo hallazgo y misma verificación empírica que construirDashboard (ver esa entrada) — corregido resolviendo `usuario` internamente.",
   },
 
   // --- app/app/(shell)/produccion/actions.ts (Operativo Nicho-1) -----------
