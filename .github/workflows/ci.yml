@@ -6,11 +6,30 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Contenedor Postgres para el test de aislamiento cross-tenant de RLS
+    # (docs/security/PLAN-RLS-BACKSTOP.md §4.2) — src/modules/patrimonio/
+    # tenant-aislamiento.test.ts se gatea solo en DATABASE_URL (nunca en
+    # SUPABASE_SECRET_KEY), asi que el resto de los tests de integracion
+    # (que si dependen de un Supabase Auth real, ausente aca) siguen
+    # salteandose exactamente igual que antes.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+      - uses: pnpm/action-setup@v4 # version se lee de "packageManager" en package.json, no hardcodeada aca (evita el conflicto "multiple versions of pnpm specified")
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -18,4 +37,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: Stub de esquemas de Supabase (auth/storage) sobre postgres:16
+        run: node scripts/ci/apply-stub.mjs
+      - name: Aplicar migraciones reales de drizzle contra el contenedor
+        run: pnpm exec drizzle-kit migrate
       - run: pnpm test

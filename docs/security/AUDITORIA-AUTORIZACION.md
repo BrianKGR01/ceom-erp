@@ -23,6 +23,16 @@ permisos.
 Todas fueron corregidas en esta sesión (§6). Los hallazgos Medios/Bajos quedan documentados (§7),
 sin corregir, según lo pedido.
 
+**Actualización 2026-07-21 (segunda pasada):** poblar el manifiesto de acceso (§8.3) destapó 2
+funciones más con la misma clase de bug, en una variante distinta y más grave: `construirDashboard`/
+`obtenerCapacidadAlmacenamientoWidget` recibían un `usuario` **ya resuelto** por parámetro en vez de
+uno derivado internamente. Se documentaron primero como "bajo riesgo, no explotable" por razonar
+sobre los callers del código — verificación empírica contra el `server-reference-manifest.json` real
+de `pnpm build` mostró que esa suposición era falsa: Next.js les asigna un action ID igual que a
+cualquier endpoint legítimo, así que eran invocables por POST directo con un `usuario` forjado,
+evadiendo `tienePermiso()` por completo. Reclasificadas a **Crítico** y corregidas (§8.3.1). El total
+de Críticos corregidos en esta auditoría es **26 funciones + UI-044**, no 24.
+
 ---
 
 ## 2. Hallazgo sistémico raíz — por qué esto es explotable, no defense-in-depth
@@ -221,14 +231,91 @@ rompe la lógica del guard. **Extensión recomendada** (requiere DB de test): un
 arma 2 tenants y afirma que el tenant A no puede mutar el recurso de B — hoy los `*.test.ts` de cada
 módulo usan un solo tenant, no cubren el caso cross-tenant.
 
-### 8.3 Manifiesto + test de cobertura (propuesta, no implementado)
-Un test que enumere por AST todas las funciones exportadas de los archivos `"use server"` y falle si
-alguna no está declarada en un manifiesto `access-manifest.ts` con su nivel de acceso esperado
-(`{ endpoint → "publico" | "autenticado" | "owner" | "ceom_admin" | "por-recurso" }`). Así, agregar
-un endpoint nuevo sin clasificarlo **rompe el build**. Es la red que ataja el olvido de origen, no
-solo la regresión de una función ya conocida.
+### 8.3 Manifiesto + test de cobertura (implementado — 2026-07-21)
+`src/lib/security/access-manifest.ts` declara el nivel de acceso esperado de **cada una de las 152
+funciones** exportadas de los 19 archivos `"use server"` reales del proyecto (`publico`,
+`autenticado`, `owner`, `ceom_admin`, `por-recurso`). `access-manifest.test.ts` enumera esas
+funciones por AST (usando el compilador de TypeScript, sin dependencias nuevas) y:
 
-### 8.4 Arreglar el bypass de RLS (recomendación estratégica)
+1. **Falla si una función exportada de un archivo `"use server"` no tiene entrada en el manifiesto**
+   — agregar un endpoint nuevo sin clasificarlo rompe la suite. Validado con una prueba negativa
+   deliberada (crear un archivo `"use server"` con una función sin clasificar → falla; borrarlo →
+   pasa).
+2. **Falla si el manifiesto tiene una entrada obsoleta** (función renombrada/eliminada, o typo en la
+   clave) — mantiene el manifiesto honesto, no solo creciente.
+3. **Para las entradas `verificacion: "estatica"`, confirma por texto que el guard esperado del nivel
+   declarado existe** en la función o en la función de módulo a la que delega (hasta 2 saltos de
+   resolución de imports/helpers locales del mismo archivo). Validado con una segunda prueba
+   negativa: cambiar a mano el nivel de una función ya corregida → el test la marca sin evidencia;
+   revertir → vuelve a pasar. Esta prueba negativa además destapó un bug real en la propia
+   herramienta (los guards canónicos como `tienePermiso()` contienen internamente `esOwner`,
+   `ROL_CEOM_ADMIN_ID` y `tenantId !==` los tres a la vez, así que inlinear su implementación
+   aprobaba cualquier nivel sin importar cuál fuera el real) — corregido excluyendo los guards
+   canónicos de la expansión recursiva (su sola presencia como llamada ya alcanza como evidencia).
+4. Las entradas donde el análisis estático no alcanza, o donde el nivel declarado documenta un hueco
+   ya conocido y no corregido, se marcan `verificacion: "manual"` con una `nota` obligatoria — el
+   test exige que toda entrada `"manual"` tenga nota no vacía.
+5. **Falla si un endpoint recibe un objeto de identidad/permisos/tenant ya resuelto por parámetro**
+   (`UsuarioConRol`, `SolicitanteCeomAdmin`, `Institucion`) — ver §8.3.1, es la regla que cierra la
+   clase de bug de `construirDashboard`. Validado con la misma técnica de prueba negativa.
+
+Cómo agregar una entrada nueva: `src/lib/security/README.md`.
+
+#### 8.3.1 Los 3 hallazgos que destapó poblar el manifiesto — los 3 corregidos
+
+**`construirDashboard` / `obtenerCapacidadAlmacenamientoWidget` — reclasificado de "no explotable" a
+CRÍTICO tras verificación empírica, y corregido.**
+
+Al poblar el manifiesto el 2026-07-21 se documentó esto como un hallazgo de bajo riesgo, razonando
+sobre los *callers* del código ("solo lo llama un Server Component, Next.js no debería exponer un
+action-id"). Esa suposición **nunca se verificó contra el build real** — y era incorrecta. Evidencia
+concreta, extraída de `.next/server/app/app/(shell)/page/server-reference-manifest.json` después de
+`pnpm build`:
+
+```json
+"70d02b0d0b823008d6a118475b11877e770f5fd340": {
+  "workers": { "app/app/(shell)/page": { "exportedName": "construirDashboard", ... } },
+  "exportedName": "construirDashboard",
+  "filename": "src/app/app/(shell)/inicio-actions.ts"
+},
+"40df26756844e3fe225461d04d6d46be04310f34ce": {
+  "workers": { "app/app/(shell)/page": { "exportedName": "obtenerCapacidadAlmacenamientoWidget", ... } },
+  ...
+}
+```
+
+Ambas funciones tienen un **action ID real**, en el mismo manifiesto y con la misma forma que
+`obtenerDashboardAction`/`cerrarSesion` (los endpoints legítimos de esa misma ruta). Next.js asigna
+un action ID a **toda** función exportada de un archivo `"use server"`, sin importar si algún Client
+Component la importa — el caller del código nunca determina quién puede invocarla desde afuera. Con
+el action ID en mano, un atacante podía enviar un POST directo con `Next-Action: <hash>` y un
+`usuario` forjado (`{ esOwner: true, tenantId: "<otro-tenant>" }`) como primer argumento, y
+`tienePermiso()` habría confiado en esos campos tal como llegaron: bypass completo de autorización
+en una sola llamada, no solo de este dashboard sino de facto de todo `tienePermiso`. **Crítico.**
+
+Corregido: ambas funciones resuelven `usuario` internamente vía `obtenerUsuarioActual()` en vez de
+recibirlo por parámetro, como las otras 150 funciones del manifiesto. `construirDashboard` ahora
+devuelve `ResultadoAccion<DatosDashboard>` (antes devolvía `DatosDashboard` sin envolver);
+`obtenerDashboardAction` pasó a ser un passthrough puro; `page.tsx` desenvuelve el resultado y
+redirige a `/login` en el caso `!ok` (solo alcanzable por una sesión revocada entre el chequeo inicial
+de la página y esta llamada, milisegundos después). Verificado: `pnpm typecheck`/`lint`/`test`/`build`
+limpios.
+
+**`obtenerInstitucionPorIdAction` — corregido.** No llamaba a `obtenerUsuarioActual()`, a diferencia
+de sus 9 hermanas del mismo archivo — invocable sin sesión. Se agregó el mismo chequeo que el resto.
+
+**`registrarVentaAction` — corregido.** `input.sucursalId` no se revalidaba contra el tenant al
+registrar la Venta. Se agregó `listarSucursalesPorTenant(solicitante, tenantId)` + chequeo de
+membresía antes de continuar, mismo patrón ya usado para FKs anidados en otros módulos.
+
+**Mecanismo agregado para que la clase `construirDashboard` no vuelva a pasar** (regla 5 arriba):
+`access-manifest.test.ts` ahora falla si cualquiera de las 152 funciones recibe `UsuarioConRol`,
+`SolicitanteCeomAdmin` o `Institucion` como tipo de parámetro — sin excepción de manifiesto, es una
+regla incondicional. Validada con una prueba negativa: reintroducir `usuario: UsuarioConRol` como
+parámetro en una función `"use server"` de prueba → falla citando el archivo y la función exactos;
+borrarla → vuelve a pasar.
+
+### 8.4 Arreglar el bypass de RLS (recomendación estratégica — diagnóstico completo en 8.4.1)
 La defensa real de fondo es que la base **también** rechace el acceso cross-tenant. Hoy Drizzle corre
 como `postgres` (RLS off). Migrar a una conexión por-request con `SET ROLE authenticated` +
 `set_config('request.jwt.claims', …)` haría que las `crudPolicy()` ya declaradas actúen como
@@ -237,15 +324,48 @@ de infraestructura (conexión por-request, `SET LOCAL` transaccional, compatibil
 modo transaction) — no se hizo en esta sesión por riesgo, pero es **la** corrección que convierte
 esta clase de bug de "explotable" en "defensa en profundidad". Prioridad alta post-Fase A.
 
+#### 8.4.1 Fase 0 — diagnóstico empírico y plan (2026-07-21)
+Diagnóstico de solo lectura hecho vía el conector de Supabase + lectura de `src/db/`,
+`drizzle/migrations/` y los 10 `schema.ts` de módulos. Resultado completo, diseño propuesto (4 casos:
+tenant propio, `ceom_admin`, portal por consentimiento, sistema), plan de migración por etapas,
+plan de tests cross-tenant y riesgos/decisiones pendientes: **`docs/security/PLAN-RLS-BACKSTOP.md`**.
+
+Hallazgos que corrigen/precisan lo escrito arriba:
+- Las 49 tablas de `public` **ya tienen RLS habilitada** y las policies `crudPolicy()` (con
+  `current_tenant_id()`, una función `SECURITY DEFINER` que ya existe desde
+  `drizzle/migrations/0003...sql`) **ya están correctamente declaradas** en las 44 tablas de
+  negocio — no hay que escribirlas de cero, el mecanismo de fondo ya existe y ya se ejerció en
+  producción una vez (para Storage). Ninguna tiene `FORCE ROW LEVEL SECURITY`, que es por qué el
+  rol `postgres` (dueño de las 49 tablas, `rolbypassrls = true`) las ignora por completo hoy.
+  Confirma la premisa de esta sección, con la precisión de que "arreglarlo" es mayormente activar
+  un mecanismo dormido, no diseñar uno nuevo.
+- La app **sí usa Supabase Auth (GoTrue)** para autenticación (`obtenerUsuarioActual()` llama
+  `supabase.auth.getUser()`) — corrige una premisa incorrecta que se había asumido al plantear esta
+  tarea. Lo relevante es que el JWT solo trae identidad, nunca autorización.
+- `ceom_admin` no tiene `tenant_id` null — pertenece a un tenant real de sistema ("CEOM Ops"). Esto
+  significa que activar `authenticated` sin agregar antes una policy de bypass específica para
+  `ceom_admin` rompería `/admin` por completo. Ninguna policy de bypass para `ceom_admin` ni para
+  el Gateway de Consentimiento (`/portal`) existe todavía — es el trabajo real pendiente.
+- Módulo recomendado como conejillo de indias de la primera etapa: **Patrimonio** (más aislado, sin
+  contacto con `ceom_admin` ni portal, migración sin ninguna migración SQL nueva).
+
+Estado: **plan presentado, pendiente de aprobación** — ningún cambio de código ni de base aplicado.
+
 ---
 
 ## 9. Estado
 
-- **Críticos:** 24 funciones + UI-044 → **corregidos** (commits `46e62cf`, `4430b61`, `f03af71`,
-  `bb8ca95`, `a36dfa7`, `82eaf27`). `pnpm typecheck`/`lint` limpios.
-- **Medios/Bajos (M1–M6):** documentados arriba, sin corregir (según lo pedido).
-- **Mecanismo:** guard `recursoPerteneceAlTenant` + test de regresión implementados; manifiesto de
-  cobertura y backstop RLS propuestos.
+- **Críticos:** 24 funciones + UI-044 + `construirDashboard`/`obtenerCapacidadAlmacenamientoWidget`
+  (reclasificadas de Media a Crítica tras verificación empírica, §8.3.1) → **26 funciones + UI-044,
+  todas corregidas** (commits `46e62cf`, `4430b61`, `f03af71`, `bb8ca95`, `a36dfa7`, `82eaf27`,
+  `a0cb0a7`). `pnpm typecheck`/`lint`/`test`/`build` limpios.
+- **Medios/Bajos:** M1–M6 (§7) siguen documentados, sin corregir (según lo pedido). Los otros 2
+  hallazgos del manifiesto (`obtenerInstitucionPorIdAction`, `registrarVentaAction`) sí se
+  corrigieron (commits `a72a27e`, `881aa21`) por ser mecánicos y de bajo riesgo de regresión.
+- **Mecanismo:** guard `recursoPerteneceAlTenant` + test de regresión implementados (§8.1/8.2);
+  manifiesto de acceso + test de cobertura por AST sobre las 152 funciones `"use server"`
+  implementado (§8.3), incluida la regla que prohíbe recibir identidad/permisos/tenant por
+  parámetro (§8.3.1); backstop RLS sigue como recomendación estratégica pendiente (§8.4).
 - **Positivos que resisten:** Gastos, Simulaciones, Financiero, Reportes, Suscripción, el boundary de
   `/admin` (todas las admin actions exigen `ceom_admin` pese a que el layout no lo hace) y el boundary
   de `/portal` (el Gateway de Consentimiento exige `tieneConsentimiento`/`estaEnCartera` antes de

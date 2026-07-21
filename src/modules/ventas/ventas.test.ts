@@ -54,7 +54,7 @@ const hasCredenciales = Boolean(
 vi.setConfig({ testTimeout: 20000 });
 
 describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", () => {
-  const admin = crearClienteAdmin();
+  let admin: ReturnType<typeof crearClienteAdmin>;
   const sufijo = Date.now();
   let tenantId: string;
   let ownerId: string;
@@ -63,6 +63,7 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
   let metodoPagoId: string;
 
   beforeAll(async () => {
+    admin = crearClienteAdmin();
     const { data, error } = await admin.auth.admin.createUser({
       email: `ventas-owner-${sufijo}@ceom-erp.test`,
       email_confirm: true,

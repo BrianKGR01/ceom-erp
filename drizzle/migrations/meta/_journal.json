@@ -197,6 +197,13 @@
       "when": 1784331396164,
       "tag": "0027_nappy_squirrel_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784638458574,
+      "tag": "0028_revoke_current_tenant_id_execute_anon",
+      "breakpoints": true
     }
   ]
 }
