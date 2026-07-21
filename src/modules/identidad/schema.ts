@@ -59,6 +59,18 @@ export const moduloPermisoEnum = pgEnum("modulo_permiso", [
   // original de Modulo_01 seccion 1.5. Extension aditiva del enum, misma
   // logica que "patrimonio".
   "proveedores",
+  // Agregado en la Etapa 3 del backstop de RLS (docs/security/
+  // PLAN-RLS-BACKSTOP.md §10.5/§10.11 decision 6) — EXCLUSIVAMENTE para
+  // logs_acceso_admin_ceom.modulo_consultado (consentimiento/schema.ts, que
+  // reutiliza este enum completo a proposito). "identidad" sigue sin
+  // participar en la matriz de permisos real: ningun rol tiene una fila en
+  // "permisos" con modulo="identidad", y tienePermiso() nunca se llama con
+  // ese valor (identidad/ANCLA.md) — las escrituras de Identidad se gatean
+  // directo por rolId, no por tienePermiso(). Este valor solo existe para
+  // que consultarTenantDetalle/saludAgregadaPlataforma (Panel Admin CEOM)
+  // puedan auditar sus lecturas, que antes no tenian ninguna categoria de
+  // log posible.
+  "identidad",
 ]);
 
 export const accionPermisoEnum = pgEnum("accion_permiso", [

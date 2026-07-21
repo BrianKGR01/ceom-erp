@@ -153,11 +153,17 @@ describe.skipIf(!hasCredenciales)(
       await db.delete(planes).where(eq(planes.id, planId));
       await admin.auth.admin.deleteUser(ownerId);
 
+      // saludAgregadaPlataforma() (caso 1) audita bajo CEOM_OPS_TENANT_ID,
+      // no bajo el tenant efímero de este test (Etapa 3 del backstop de
+      // RLS, docs/security/PLAN-RLS-BACKSTOP.md §10.5) — sin este delete,
+      // el siguiente `db.delete(usuarios)` de abajo choca contra la FK de
+      // logs_acceso_admin_ceom.usuario_ceom_id.
+      await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.usuarioCeomId, ceomAdminId));
       await db.delete(usuarios).where(eq(usuarios.id, ceomAdminId));
       await admin.auth.admin.deleteUser(ceomAdminId);
     });
 
-    it("caso 1: saludAgregadaPlataforma con ceom_admin real cuenta el tenant de prueba", async () => {
+    it("caso 1: saludAgregadaPlataforma con ceom_admin real cuenta el tenant de prueba, y queda auditada", async () => {
       const salud = await saludAgregadaPlataforma(ceomAdmin);
       expect(salud.ok).toBe(true);
       if (!salud.ok) return;
@@ -165,6 +171,21 @@ describe.skipIf(!hasCredenciales)(
       expect(salud.data.porEstadoAcceso.activo).toBeGreaterThanOrEqual(1);
       const filaPlan = salud.data.porPlan.find((p) => p.planId === planId);
       expect(filaPlan?.cantidad).toBe(1);
+
+      // Gap de auditoría real cerrado en la Etapa 3 (docs/security/
+      // PLAN-RLS-BACKSTOP.md §10.5/§10.11 decision 6): antes esta lectura
+      // agregada no dejaba ningún rastro. Se atribuye a CEOM_OPS_TENANT_ID
+      // porque no es "sobre" un tenant de cliente puntual.
+      const logs = await listarLogsAcceso(
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+        { tenantId: CEOM_OPS_TENANT_ID }
+      );
+      expect(logs.ok).toBe(true);
+      if (!logs.ok) return;
+      const logIdentidad = logs.data.find(
+        (l) => l.moduloConsultado === "identidad" && l.usuarioCeomId === ceomAdmin.id
+      );
+      expect(logIdentidad).toBeDefined();
     });
 
     it("caso 2: saludAgregadaPlataforma con un usuario normal (Owner) rechaza sin exponer datos", async () => {
@@ -196,6 +217,14 @@ describe.skipIf(!hasCredenciales)(
       const logFinanciero = logs.data.find((l) => l.moduloConsultado === "financiero");
       expect(logFinanciero).toBeDefined();
       expect(logFinanciero?.usuarioCeomId).toBe(ceomAdmin.id);
+
+      // Gap de auditoría real cerrado en la Etapa 3 (docs/security/
+      // PLAN-RLS-BACKSTOP.md §10.5/§10.11 decision 6): antes
+      // consultarTenantDetalle no dejaba ningún rastro de que ceom_admin
+      // había visto la metadata básica de este tenant.
+      const logIdentidad = logs.data.find((l) => l.moduloConsultado === "identidad");
+      expect(logIdentidad).toBeDefined();
+      expect(logIdentidad?.usuarioCeomId).toBe(ceomAdmin.id);
     });
 
     it("caso 4: un usuario normal no puede leer un tenant ajeno, y no queda log", async () => {

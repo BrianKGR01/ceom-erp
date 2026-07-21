@@ -170,8 +170,12 @@
       gaps de backend confirmados y cerrados antes de tocar la UI de
       Gestión de Tenants en `/admin` (mismo criterio de siempre). Ambas
       gateadas a `solicitante.rolId === ROL_CEOM_ADMIN_ID` directo (mismo
-      criterio que `crearTenant`, no `tienePermiso()` — "identidad" no está
-      en `moduloPermisoEnum`). `cambiarPlanTenant` valida el plan destino
+      criterio que `crearTenant`, no `tienePermiso()` — "identidad" no
+      participa en la matriz real de permisos: ningún rol tiene una fila en
+      `permisos` con `modulo="identidad"`, aunque desde la Etapa 3 del
+      backstop de RLS ese valor sí exista en `moduloPermisoEnum`,
+      exclusivamente para `logs_acceso_admin_ceom.modulo_consultado` — ver
+      `docs/security/PLAN-RLS-BACKSTOP.md` §10.5). `cambiarPlanTenant` valida el plan destino
       contra `obtenerPlanPorId()` de Suscripción (existe + `activo=true`),
       igual que `crearTenant`. `cambiarEstadoSuscripcion` acepta
       `fechaProximoPago` opcional — relevante al pasar a `"vencida"`, que
