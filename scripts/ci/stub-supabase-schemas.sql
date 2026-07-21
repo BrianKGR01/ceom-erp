@@ -47,3 +47,24 @@ as $$ select string_to_array(name, '/') $$;
 
 grant usage on schema auth, storage to anon, authenticated, service_role;
 grant select on auth.users to anon, authenticated, service_role;
+
+-- Lo que Supabase Cloud otorga de fabrica y que este stub tiene que igualar:
+-- GRANT de tabla en "public" a authenticated/anon/service_role. Sin esto,
+-- cualquier query de authenticated falla con "permission denied for table"
+-- ANTES de que la policy de RLS llegue a evaluarse siquiera -- RLS filtra
+-- FILAS, no reemplaza el permiso de tabla que Postgres exige primero.
+-- Bug real encontrado y corregido: este script corre ANTES de
+-- `drizzle-kit migrate` (ver ci.yml), así que las tablas de las
+-- migraciones reales TODAVÍA NO EXISTEN acá — un `grant ... on all tables
+-- in schema public` en este punto no habría otorgado nada (0 tablas). Por
+-- eso `alter default privileges`: fija el permiso por adelantado para
+-- CUALQUIER tabla que el rol actual (postgres, el mismo que corre
+-- drizzle-kit migrate) cree de ahora en más, sin importar que todavía no
+-- exista ninguna.
+grant usage on schema public to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant usage, select on sequences to anon, authenticated, service_role;
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated, service_role;
