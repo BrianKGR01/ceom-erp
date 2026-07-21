@@ -221,12 +221,55 @@ rompe la lógica del guard. **Extensión recomendada** (requiere DB de test): un
 arma 2 tenants y afirma que el tenant A no puede mutar el recurso de B — hoy los `*.test.ts` de cada
 módulo usan un solo tenant, no cubren el caso cross-tenant.
 
-### 8.3 Manifiesto + test de cobertura (propuesta, no implementado)
-Un test que enumere por AST todas las funciones exportadas de los archivos `"use server"` y falle si
-alguna no está declarada en un manifiesto `access-manifest.ts` con su nivel de acceso esperado
-(`{ endpoint → "publico" | "autenticado" | "owner" | "ceom_admin" | "por-recurso" }`). Así, agregar
-un endpoint nuevo sin clasificarlo **rompe el build**. Es la red que ataja el olvido de origen, no
-solo la regresión de una función ya conocida.
+### 8.3 Manifiesto + test de cobertura (implementado — 2026-07-21)
+`src/lib/security/access-manifest.ts` declara el nivel de acceso esperado de **cada una de las 152
+funciones** exportadas de los 19 archivos `"use server"` reales del proyecto (`publico`,
+`autenticado`, `owner`, `ceom_admin`, `por-recurso`). `access-manifest.test.ts` enumera esas
+funciones por AST (usando el compilador de TypeScript, sin dependencias nuevas) y:
+
+1. **Falla si una función exportada de un archivo `"use server"` no tiene entrada en el manifiesto**
+   — agregar un endpoint nuevo sin clasificarlo rompe la suite. Validado con una prueba negativa
+   deliberada (crear un archivo `"use server"` con una función sin clasificar → falla; borrarlo →
+   pasa).
+2. **Falla si el manifiesto tiene una entrada obsoleta** (función renombrada/eliminada, o typo en la
+   clave) — mantiene el manifiesto honesto, no solo creciente.
+3. **Para las entradas `verificacion: "estatica"`, confirma por texto que el guard esperado del nivel
+   declarado existe** en la función o en la función de módulo a la que delega (hasta 2 saltos de
+   resolución de imports/helpers locales del mismo archivo). Validado con una segunda prueba
+   negativa: cambiar a mano el nivel de una función ya corregida → el test la marca sin evidencia;
+   revertir → vuelve a pasar. Esta prueba negativa además destapó un bug real en la propia
+   herramienta (los guards canónicos como `tienePermiso()` contienen internamente `esOwner`,
+   `ROL_CEOM_ADMIN_ID` y `tenantId !==` los tres a la vez, así que inlinear su implementación
+   aprobaba cualquier nivel sin importar cuál fuera el real) — corregido excluyendo los guards
+   canónicos de la expansión recursiva (su sola presencia como llamada ya alcanza como evidencia).
+4. Las entradas donde el análisis estático no alcanza, o donde el nivel declarado documenta un hueco
+   ya conocido y no corregido, se marcan `verificacion: "manual"` con una `nota` obligatoria — el
+   test exige que toda entrada `"manual"` tenga nota no vacía.
+
+Cómo agregar una entrada nueva: `src/lib/security/README.md`.
+
+**Hallazgos nuevos que destapó poblar el manifiesto** (no corregidos en este alcance, ver notas
+completas en `access-manifest.ts`):
+- `app/app/(shell)/inicio-actions.ts::construirDashboard` y
+  `::obtenerCapacidadAlmacenamientoWidget` reciben `usuario: UsuarioConRol` como **parámetro** en vez
+  de resolverlo internamente vía `obtenerUsuarioActual()` — único caso entre las 152 funciones
+  (grep confirmado). Hoy no es explotable: los únicos callers son `page.tsx` (Server Component) y
+  `obtenerDashboardAction` (misma archivo), ninguno de los cuales es un Client Component, así que
+  Next.js no genera un action-id invocable por el cliente para ellas. Es frágil por construcción, no
+  por uso actual — si algún día un Client Component las importa directo, un cliente podría enviar un
+  `usuario` forjado sin sesión real. Fix recomendado: moverlas a un módulo sin `"use server"` (mismo
+  patrón que el resto de los módulos de negocio) o hacer que resuelvan su propio usuario.
+- `app/app/(shell)/consentimiento/actions.ts::obtenerInstitucionPorIdAction` no llama a
+  `obtenerUsuarioActual()` — a diferencia de sus 9 hermanas del mismo archivo, es invocable sin
+  sesión. El módulo (`obtenerInstitucionPorId`) documenta la intención como "abierto a cualquier
+  authenticated", pero el thin actual no aplica ese gate. Expone solo metadato de bajo riesgo
+  (nombre/tipo/contacto de una Institución del catálogo), no datos de negocio de un tenant.
+- `app/app/(shell)/ventas/actions.ts::registrarVentaAction`: `input.sucursalId` no se revalida contra
+  el tenant al crear la Venta — mismo patrón Medio ya documentado para `activoId`/`sucursalId` en
+  Patrimonio (§7, M3/M4), no confirmado por el barrido original para Ventas.
+
+Ninguno de los tres es Crítico ni Alto (no hay fuga de datos ni escritura cross-tenant confirmada) —
+quedan documentados para Fase C, igual que los Medios/Bajos de §7.
 
 ### 8.4 Arreglar el bypass de RLS (recomendación estratégica)
 La defensa real de fondo es que la base **también** rechace el acceso cross-tenant. Hoy Drizzle corre
@@ -243,9 +286,11 @@ esta clase de bug de "explotable" en "defensa en profundidad". Prioridad alta po
 
 - **Críticos:** 24 funciones + UI-044 → **corregidos** (commits `46e62cf`, `4430b61`, `f03af71`,
   `bb8ca95`, `a36dfa7`, `82eaf27`). `pnpm typecheck`/`lint` limpios.
-- **Medios/Bajos (M1–M6):** documentados arriba, sin corregir (según lo pedido).
-- **Mecanismo:** guard `recursoPerteneceAlTenant` + test de regresión implementados; manifiesto de
-  cobertura y backstop RLS propuestos.
+- **Medios/Bajos (M1–M6, más los 3 hallazgos del manifiesto §8.3):** documentados, sin corregir
+  (según lo pedido).
+- **Mecanismo:** guard `recursoPerteneceAlTenant` + test de regresión implementados (§8.1/8.2);
+  manifiesto de acceso + test de cobertura por AST sobre las 152 funciones `"use server"`
+  implementado (§8.3); backstop RLS sigue como recomendación estratégica pendiente (§8.4).
 - **Positivos que resisten:** Gastos, Simulaciones, Financiero, Reportes, Suscripción, el boundary de
   `/admin` (todas las admin actions exigen `ceom_admin` pese a que el layout no lo hace) y el boundary
   de `/portal` (el Gateway de Consentimiento exige `tieneConsentimiento`/`estaEnCartera` antes de
