@@ -1,6 +1,6 @@
 "use server";
 
-import { listarSucursalesPorTenant, obtenerUsuarioActual, type UsuarioConRol } from "@/modules/identidad/actions";
+import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarProductos } from "@/modules/productos/actions";
 import { listarCategoriasGasto } from "@/modules/gastos/actions";
 import { consultarCapacidadAlmacenamientoUsada } from "@/modules/operativo/nichos/nicho-4/actions";
@@ -23,16 +23,49 @@ interface Periodo {
   hasta: string;
 }
 
-// Server Action delgada + funcion compartida server-side (mismo patron que
-// el resto de las rutas de /app) — page.tsx llama construirDashboard()
-// directo (ya corre en el servidor) para tener datos iniciales sin flash
-// de loading; el cliente llama obtenerDashboardAction() cuando cambia un
-// filtro.
+// Definido de forma independiente (no via ReturnType<typeof construirDashboard>)
+// a propósito: la función necesita una anotación de retorno explícita para que
+// TS infiera `ok` como literal true/false en vez de ensancharlo a boolean (sin
+// anotación, Extract<..., {ok:true}> colapsaba a `never`) — pero anotarla
+// *con* DatosDashboard derivado de su propio ReturnType crea una referencia
+// circular. Se arma cada campo desde el ReturnType de la función de origen
+// (todas en otros módulos), rompiendo el ciclo.
+export interface DatosDashboard {
+  resumen: Awaited<ReturnType<typeof resumenPeriodo>>;
+  resumenAnterior: Awaited<ReturnType<typeof resumenPeriodo>>;
+  flujo: Awaited<ReturnType<typeof flujoCaja>>;
+  rankingRotacion: Awaited<ReturnType<typeof rankingProductos>>;
+  rankingMargen: Awaited<ReturnType<typeof rankingProductos>>;
+  gastos: Awaited<ReturnType<typeof distribucionGastos>>;
+  merma: Awaited<ReturnType<typeof controlMerma>>;
+  productoPorId: Record<string, string>;
+  categoriaGastoPorId: Record<string, string>;
+}
+
+/**
+ * Server Action + funcion compartida server-side (mismo patron que el resto
+ * de las rutas de /app) — page.tsx llama construirDashboard() directo (ya
+ * corre en el servidor) para tener datos iniciales sin flash de loading; el
+ * cliente llama obtenerDashboardAction() cuando cambia un filtro.
+ *
+ * Resuelve `usuario` internamente en vez de recibirlo por parametro — hasta
+ * la sesion 2026-07-21 recibia un `UsuarioConRol` ya resuelto como argumento,
+ * confiando en que el unico caller era page.tsx (Server Component). Pero
+ * TODA funcion exportada de un archivo "use server" recibe un action ID real
+ * de Next.js (verificado en .next/server/app/app/(shell)/page/server-
+ * reference-manifest.json) sin importar si algun Client Component la
+ * importa — un atacante podia invocarla por POST directo con un `usuario`
+ * forjado (esOwner:true, tenantId de otro tenant) y evadir tienePermiso()
+ * por completo, porque este confia en los campos de `solicitante` tal como
+ * llegan. Ver docs/security/AUDITORIA-AUTORIZACION.md §8.3.
+ */
 export async function construirDashboard(
-  usuario: UsuarioConRol,
   periodo: Periodo,
   sucursalId?: string
-) {
+): Promise<ResultadoAccion<DatosDashboard>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
   const opts = sucursalId ? { sucursalId } : {};
   const periodoAnterior = calcularPeriodoAnterior(periodo);
 
@@ -66,29 +99,29 @@ export async function construirDashboard(
   );
 
   return {
-    resumen: resumenRes,
-    resumenAnterior: resumenAnteriorRes,
-    flujo: flujoRes,
-    rankingRotacion: rankingRotacionRes,
-    rankingMargen: rankingMargenRes,
-    gastos: gastosRes,
-    merma: mermaRes,
-    productoPorId: Object.fromEntries(productoPorId),
-    categoriaGastoPorId: Object.fromEntries(categoriaGastoPorId),
+    ok: true,
+    data: {
+      resumen: resumenRes,
+      resumenAnterior: resumenAnteriorRes,
+      flujo: flujoRes,
+      rankingRotacion: rankingRotacionRes,
+      rankingMargen: rankingMargenRes,
+      gastos: gastosRes,
+      merma: mermaRes,
+      productoPorId: Object.fromEntries(productoPorId),
+      categoriaGastoPorId: Object.fromEntries(categoriaGastoPorId),
+    },
   };
 }
 
-export type DatosDashboard = Awaited<ReturnType<typeof construirDashboard>>;
-
+/** Alias público invocado por el cliente cuando cambia un filtro —
+ * construirDashboard ya resuelve y valida su propia sesión, así que esto es
+ * un passthrough puro (antes duplicaba la resolución de `usuario`). */
 export async function obtenerDashboardAction(
   periodo: Periodo,
   sucursalId?: string
 ): Promise<ResultadoAccion<DatosDashboard>> {
-  const usuario = await obtenerUsuarioActual();
-  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-
-  const datos = await construirDashboard(usuario, periodo, sucursalId);
-  return { ok: true, data: datos };
+  return construirDashboard(periodo, sucursalId);
 }
 
 export interface CapacidadAlmacenamientoWidget {
@@ -111,9 +144,13 @@ export interface CapacidadAlmacenamientoWidget {
 // activos pero ninguno tiene el campo cargado. Si el tenant no tiene
 // ningún Activo, no hay nada que mostrar (`null`, igual que el
 // EmptyState de la Capacidad Operativa de Nicho 1).
-export async function obtenerCapacidadAlmacenamientoWidget(
-  usuario: UsuarioConRol
-): Promise<CapacidadAlmacenamientoWidget | null> {
+// Resuelve `usuario` internamente — mismo motivo y mismo fix que
+// construirDashboard (ver comentario ahí): recibía UsuarioConRol como
+// parámetro pese a tener un action ID real de Next.js.
+export async function obtenerCapacidadAlmacenamientoWidget(): Promise<CapacidadAlmacenamientoWidget | null> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return null;
+
   const [activosRes, sucursalesRes] = await Promise.all([
     listarActivos(usuario, usuario.tenantId, { excluirDadosDeBaja: true }),
     listarSucursalesPorTenant(usuario, usuario.tenantId),

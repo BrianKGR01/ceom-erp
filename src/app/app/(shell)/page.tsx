@@ -25,10 +25,15 @@ export default async function AppHomePage() {
   const nombreNegocio = tenantResultado.ok ? tenantResultado.data.nombreNegocio : usuario.nombreCompleto;
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
 
-  const [datosIniciales, capacidadAlmacenamiento] = await Promise.all([
-    construirDashboard(usuario, calcularRangoPreset("mes")),
-    obtenerCapacidadAlmacenamientoWidget(usuario),
+  const [datosInicialesRes, capacidadAlmacenamiento] = await Promise.all([
+    construirDashboard(calcularRangoPreset("mes")),
+    obtenerCapacidadAlmacenamientoWidget(),
   ]);
+  // usuario ya se validó arriba — este resultado solo puede fallar en la
+  // sesión (revocada entre esa validación y esta llamada, milisegundos
+  // después); ante esa carrera, mismo destino que el chequeo original.
+  if (!datosInicialesRes.ok) redirect("/login");
+  const datosIniciales = datosInicialesRes.data;
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
