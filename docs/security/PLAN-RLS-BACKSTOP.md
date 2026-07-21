@@ -1076,6 +1076,14 @@ hoistea `current_tenant_id()` es específico de su forma de uso: aparece como op
 comparación (`columna = current_tenant_id()`), no como predicado booleano suelto — esa es la
 diferencia real, no `SECURITY DEFINER`, ni la presencia de un `JOIN`, ni la complejidad del cuerpo.
 
+**Corrección posterior (§12, 2026-07-21): esta explicación de la causa era incompleta, no los datos.**
+Lo de arriba es cierto para `es_ceom_admin()` **a secas** (sin envolver) — pero nunca se probó la
+forma `(select es_ceom_admin())` (el patrón que Supabase recomienda para `auth.uid()`), que **sí**
+hoistea a un `InitPlan`, medido con `EXPLAIN ANALYZE` real. La causa real no es "operando de
+comparación vs. predicado suelto" — es si la expresión está envuelta en una subconsulta escalar
+sin correlación con la fila externa o no. Ver §12 para la medición completa (chica y a volumen
+sintético de 40k filas) y el cambio aplicado.
+
 **La consecuencia práctica es acotada, y también se verificó en vivo, no se asumió.** Postgres evalúa
 `OR` con cortocircuito por fila: si el primer término (`tenant_id = current_tenant_id()`) ya es
 verdadero para una fila, `es_ceom_admin()` ni se llama para esa fila. Con la policy real activa se
@@ -1093,16 +1101,22 @@ probaron dos escenarios:
    completa — para el tamaño real de este producto (unidades a decenas de filas por tenant por tabla,
    confirmado en las mediciones de la Etapa 2), es un costo despreciable.
 
-**Invariante de diseño que hay que preservar, no solo constatar una vez:** esto solo es cierto porque
-**cada función de Panel Admin CEOM ya pasa `tenantId` como filtro explícito de la query, no solo como
-argumento de la policy** (confirmado en la matriz de §10.1 — ninguna hace un `SELECT` sin acotar por
-tenant). Si en el futuro alguna función nueva bypaseada por `es_ceom_admin()` hiciera una consulta
-genuinamente sin filtro de tenant (un reporte "de toda la plataforma" sobre una tabla de negocio, no
-solo sobre `tenants` como hoy hace `saludAgregadaPlataforma`), el costo dejaría de estar acotado —
-evaluaría `es_ceom_admin()` una vez por cada fila de CUALQUIER tenant en esa tabla. Dejar esto como
-regla explícita para el checklist de futuras migraciones (§10.8, 3.e): toda query que dependa del
-bypass de `es_ceom_admin()` debe mantener un filtro de tenant explícito en la propia consulta, nunca
-confiar solo en la policy para acotar el resultado.
+**Invariante ELIMINADO (§12, 2026-07-21) — ya no aplica, dejado acá tachado en sentido para que quede
+trazable qué se creía antes y por qué se corrigió.** Esta sección decía que el costo bajo estaba
+condicionado a que cada función de Panel Admin CEOM trajera `tenantId` como filtro explícito de la
+query — y que si alguna función nueva bypaseada por `es_ceom_admin()` hiciera un agregado genuinamente
+sin filtro de tenant, el costo dejaría de estar acotado. **Eso era cierto para `es_ceom_admin()` a
+secas, la forma que estaba en producción hasta esta fecha.** §12 midió con `EXPLAIN ANALYZE` real
+(volumen sintético de 40k filas) que envolver la llamada en una subconsulta escalar —
+`using ((select es_ceom_admin()))`, ya aplicado en `ceomAdminBypassPolicy()` y en las 4 policies de
+Proveedores vía la migración `0033_ceom_admin_bypass_hoist_initplan.sql` — la hoistea a un `InitPlan`:
+se evalúa una sola vez por consulta, sin importar si la query trae o no un filtro de tenant. El costo
+ahora está acotado por diseño de la policy, no por una convención de la aplicación que una query futura
+podría romper sin darse cuenta. Sigue siendo buena práctica que cada query traiga su filtro de tenant
+explícito (por el resto de la query, no por este bypass en particular) — pero ya no es la única razón
+por la que `es_ceom_admin()` no sale caro. De paso, verificado en el código (§12.5): `saludAgregadaPlataforma`
+tampoco era el caso de riesgo que esta sección insinuaba — no pasa por RLS/`es_ceom_admin()` en
+absoluto, usa el cliente `db` crudo (rol `postgres`, dueño de la tabla). Detalle completo en §12.
 
 **Superficie — mismo criterio ya aplicado a `current_tenant_id()`.** Grants actuales de
 `current_tenant_id()`, confirmados en vivo: `EXECUTE` para `authenticated`, `postgres`, `service_role`
@@ -1468,6 +1482,13 @@ igual que las tablas de la Familia B ya diferidas. Una policy ahí hoy sería ta
    comparación primero, barata, y descarta la mayoría de las filas antes de llegar a
    `es_ceom_admin()`). §10.3 corregido con este hallazgo — la sección ya no dice "una vez por
    consulta", dice lo que se verificó de verdad.
+
+   **Corrección posterior (§12, 2026-07-21): esta conclusión resultó incompleta.** Las tres variantes
+   probadas acá (`= true` explícito, sin `JOIN`, `select true`) nunca incluyeron la forma
+   `(select es_ceom_admin())` — envolver la llamada en una subconsulta escalar sí la hoistea a un
+   `InitPlan`, medido con `EXPLAIN ANALYZE` real a volumen sintético de 40k filas (~68x más rápido en
+   el peor caso, "sin filtro"). Ya aplicado como el patrón por defecto de `ceomAdminBypassPolicy()`.
+   Ver §12 para la medición completa y qué cambió.
 7. **3.b — policy de bypass en las 4 tablas de Proveedores.** Nuevo helper reusable
    `ceomAdminBypassPolicy(tableName)` en `src/db/rls.ts` (junto a `crudPolicy()`), declarado en
    `schema.ts` (no SQL suelto) para que quede reconocido como estado esperado, no como drift, en el
@@ -1532,3 +1553,141 @@ pero no implementada, con su propio diagnóstico primero cuando corresponda). Pr
 a `comoUsuario()` según el orden de acoplamiento de §3.1: Consentimiento o Suscripción — cualquiera de
 los dos ya puede reusar el patrón completo de esta etapa (`ceomAdminBypassPolicy()`,
 `ContextoRlsNoResueltoError`, el checklist de §11.2) sin tener que redescubrir nada.
+
+## 12. Etapa 3.f — Hoisting de `es_ceom_admin()` a `InitPlan` (implementado y verificado, 2026-07-21)
+
+### 12.1 Motivo
+
+El invariante documentado en §10.3/§11.1 punto 6 era correcto en los datos que tenía, pero frágil por
+diseño: el costo de `es_ceom_admin()` quedaba acotado **solo** porque cada query de Panel Admin CEOM
+trae un filtro de `tenant_id` explícito, no porque la policy en sí misma lo garantizara. Eso depende
+de la forma de las queries de hoy, no de una propiedad estructural — cualquier query futura que
+dependiera del bypass sin ese filtro (un agregado real "de toda la plataforma" sobre una tabla de
+negocio) volvería a pagar el costo completo por fila. Se probó si envolver la llamada en una
+subconsulta escalar — `using ((select es_ceom_admin()))` en vez de `using (es_ceom_admin())`, el mismo
+patrón que Supabase recomienda para `auth.uid()` — la promueve a un `InitPlan` (evaluada una sola vez
+por consulta), eliminando la dependencia en vez de solo documentarla.
+
+### 12.2 Metodología
+
+Mismo criterio que §8.1/§10.3: todo dentro de una transacción con `rollback` al final (cero efectos
+persistentes), contra la base real de desarrollo (`riertvgnjaujstwyqoom`), nunca simulado. Confirmado
+antes de empezar, con una prueba explícita (tabla temporal creada en una llamada, consultada en la
+siguiente): **cada llamada del conector de este proyecto abre una sesión nueva** — un `begin` sin su
+`rollback` en la misma llamada no sobrevive a la llamada siguiente (la conexión se cierra y Postgres
+aborta la transacción sola). Por eso cada medición de esta sección — sembrado de volumen sintético,
+cambio de policy, `SET LOCAL ROLE`, `EXPLAIN ANALYZE` y `rollback` — va empaquetada en una única
+llamada, nunca repartida entre varias.
+
+Dos escalas:
+1. **Volumen real de dev** — las 3 filas que tiene hoy `proveedores`.
+2. **Volumen sintético** — 40.000 filas de `proveedores` insertadas bajo un tenant sintético
+   (`99999999-9999-9999-9999-999999999999`, también sintético, insertado en la misma transacción),
+   más las 3 reales. Sembrado, medido y revertido siempre dentro de la misma transacción — confirmado
+   después con una consulta nueva (`select count(*) from proveedores` sin transacción) que el conteo
+   real (3) y el tenant sintético (0 filas) quedaron exactamente como estaban antes de empezar.
+
+### 12.3 Resultado — sí hoistea; corrige la hipótesis de §10.3/§11.1 punto 6
+
+**Escala chica (3 filas reales, `ceom_admin` real, con el filtro de tenant que la app ya agrega):**
+
+```
+Filter: ((tenant_id = 'd672ef4b...'::uuid) AND
+         ((tenant_id = (InitPlan 1).col1) OR (tenant_id = (InitPlan 2).col1) OR (InitPlan 3).col1))
+```
+
+`(InitPlan 3).col1` es `(select es_ceom_admin())` — se hoistea exactamente igual que los otros dos
+`InitPlan` que ya aportaba `crudPolicy()` para `current_tenant_id()`. Con la policy vieja (`es_ceom_admin()`
+a secas), el mismo `Filter` muestra la llamada de función directa, sin `InitPlan` propio — la
+diferencia observable entre las dos variantes, ambas contra la policy REAL, no simulada.
+
+**Escala sintética, "sin filtro" (40.003 filas — el escenario de riesgo que preocupaba a §10.3:
+un agregado que evalúa el bypass para prácticamente toda la tabla):**
+
+| Variante | Execution Time | Buffers (shared hit) |
+|---|---|---|
+| `es_ceom_admin()` a secas (la de producción, antes de esta migración) | 847.65 ms | 80.770 |
+| `(select es_ceom_admin())` (hoisted) | 12.35 ms | 1.238 |
+
+**~68x más rápido, ~65x menos buffers**, para la misma consulta contra el mismo volumen — atribuible
+enteramente a que la función se evalúa 1 vez (`InitPlan`) en vez de ~40.000 veces (una por cada fila
+que no pertenece al tenant propio del `ceom_admin` de prueba).
+
+**Escala sintética, "con filtro" (el patrón real que usa hoy Panel Admin CEOM — tenant objetivo con
+solo 3 filas, enterrado entre 40.000 filas ajenas):**
+
+| Variante | Execution Time |
+|---|---|
+| `es_ceom_admin()` a secas | 4.88 ms |
+| `(select es_ceom_admin())` (hoisted) | 5.97 ms |
+
+Sin diferencia real (ambas dentro del margen de ruido de esta medición) — ambas muestran
+`Rows Removed by Filter: 40000` idéntico. Esto confirma que el mecanismo de cortocircuito de `AND`
+que ya describía §11.1 punto 6 se sostiene a volumen real: Postgres nunca llega a evaluar el término
+del `OR` que contiene el bypass para las filas que ya fallan el filtro de tenant explícito de la
+query, sin importar cuántas sean. Este caso no mejora con el hoisting porque ya estaba acotado por un
+mecanismo distinto (cortocircuito), no por el costo de la función en sí.
+
+**Sobre la causa, no solo el resultado:** §11.1 punto 6 atribuía la diferencia con `current_tenant_id()`
+a "aparecer como operando de una comparación" vs. "término suelto de un `OR`". Esa distinción no es la
+causa real — lo que importa es si la expresión está envuelta en una subconsulta escalar sin
+correlación con la fila externa (`SubLink` → `InitPlan`, un mecanismo del planner independiente de en
+qué posición booleana se use el resultado después) o si es una llamada de función directa (nunca se
+hoistea, sin importar la posición). Los tres experimentos de §11.1 (`= true` explícito, sin `JOIN`,
+`select true`) nunca probaron la forma `(select ...)` — la conclusión anterior era incompleta en la
+causa, no incorrecta en los datos que tenía.
+
+**Correctitud, no solo velocidad — verificado en el camino, mismo criterio que §11.1 punto 4.** Con la
+policy hoisted activa (misma transacción con rollback): un `ceom_admin` real cross-tenant sigue viendo
+las filas del tenant objetivo (`bypass_deberia_ser_true = true`, filas vistas > 0); un usuario regular
+(Owner de otro tenant, no `ceom_admin`) sigue viendo 0 filas del tenant objetivo
+(`bypass_deberia_ser_false = false`). El cambio es puramente de plan de ejecución — la semántica de
+`es_ceom_admin()` (quién es bypass y quién no) no se tocó.
+
+### 12.4 Aplicado
+
+- `ceomAdminBypassPolicy()` (`src/db/rls.ts`) reescrita: `using`/`withCheck` pasan de `es_ceom_admin()`
+  a `(select es_ceom_admin())`. Todo módulo futuro que use este helper nace con el patrón hoisted sin
+  tener que saberlo.
+- Migración versionada `drizzle/migrations/0033_ceom_admin_bypass_hoist_initplan.sql`, generada con
+  `drizzle-kit generate` (no escrita a mano) — `ALTER POLICY` sobre las 4 tablas que ya tenían el
+  bypass (`compras`, `compras_ajuste`, `pagos_compra`, `proveedores`). Aplicada con
+  `drizzle-kit migrate` y confirmada en vivo contra `riertvgnjaujstwyqoom`: `pg_policies.qual`/
+  `with_check` de las 4 policies ahora son `( SELECT es_ceom_admin() AS es_ceom_admin)`.
+- `pnpm typecheck` (0 errores), `pnpm lint` (0 errores, los mismos 13 warnings preexistentes de React
+  Compiler, no relacionados) y `pnpm test` (203/203, 31 archivos) verdes después del cambio.
+
+**Lo que NO cambia:** seguir trayendo el filtro de tenant explícito en cada query de Panel Admin CEOM
+sigue siendo la práctica correcta — por el rendimiento del resto de la query (el bypass es una policy
+más, no la única condición que Postgres tiene que evaluar) y porque es la forma en que la aplicación
+ya decide qué le muestra al usuario, no solo un artefacto de RLS. Lo que cambia es que ya no es la
+**única** razón por la que el bypass no sale caro.
+
+### 12.5 `saludAgregadaPlataforma` — el caso "reporte de toda la plataforma" que preocupaba a §10.3, verificado: no aplica
+
+§10.3 dejaba una advertencia abierta sobre "un reporte de toda la plataforma sobre una tabla de
+negocio, no solo sobre `tenants` como hoy hace `saludAgregadaPlataforma`" — con una redacción que daba
+a entender que ese caso ya pasaba por el bypass de `es_ceom_admin()`, acotado nada más porque `tenants`
+es una tabla chica.
+
+**Verificado en el código, no asumido: no es así, por una razón más simple, no por tamaño de tabla.**
+`saludAgregadaPlataforma` (`src/modules/panel-admin-ceom/actions.ts`) llama a `listarTenantsIdentidad`
+→ `identidad/actions.ts:listarTenants()` → `identidad/repository.ts:listarTenants()`, que hace
+`db.select().from(tenants).where(isNull(tenants.eliminadoEn))` con el cliente `db` **crudo** (rol
+`postgres`, dueño de la tabla) — **nunca abre `comoCeomAdmin()`, nunca pasa por RLS, nunca evalúa
+`es_ceom_admin()`.** (Tiene sentido además por qué: si este path abriera contexto vía `comoCeomAdmin()`,
+`current_tenant_id()` resolvería al tenant propio del `ceom_admin` — CEOM Ops — no "todos los
+tenants"; el propio diseño de `comoCeomAdmin()` no serviría para un agregado de plataforma sin pasar
+por el bypass explícitamente, que es justo lo que esta función no hace.)
+
+Se revisaron también, completas, las 4 funciones restantes de `panel-admin-ceom/actions.ts`
+(`consultarTenantDetalle`, `consultarFinancieroTenant`, `consultarOperativoTenant`,
+`consultarInventarioOperativoTenant`): las 4 reciben un `tenantId` puntual como parámetro y lo pasan
+explícito a cada función de módulo que invocan — ninguna es un agregado sin filtro de tenant.
+
+**Conclusión práctica:** hoy no existe ninguna consulta real de Panel Admin CEOM que dependa de
+`es_ceom_admin()` para un agregado sin filtro de tenant — el escenario de riesgo que motivó este
+diagnóstico sigue siendo hipotético, no real. Pero con el hoisting de §12.3/§12.4 ya aplicado, aunque
+apareciera mañana una función nueva con esa forma, ya no sería un problema de rendimiento: el costo de
+`es_ceom_admin()` queda acotado por diseño de la policy, no por la suerte de que ninguna query nueva
+lo haya roto todavía.
