@@ -1,14 +1,16 @@
 # Plan RLS Backstop — Fase 0: diagnóstico y diseño
 
-**Estado: aprobado — Etapas 0, 1 y 2 implementadas y verificadas (2026-07-21, ver §8 y §9). Etapa 3
-en fase de DIAGNÓSTICO (§10), sin código ni DDL aplicados todavía — pendiente decisión del usuario
-sobre §10.11 antes de implementar.** El diagnóstico original (§1-§7) sigue siendo de solo lectura tal
-cual se escribió; §8 documenta lo que se implementó después (Etapas 0-1), §9 la Etapa 2 (barrido de
-N+1 + Proveedores), y §10 el diagnóstico de la Etapa 3 (bypass de `ceom_admin`) — sobre la misma base
-de desarrollo, con las decisiones de §7 ya tomadas. **§9.6 encontró y corrigió una regresión real**
-que cambia una premisa del plan (el camino Gateway/Panel Admin CEOM no es independiente de las
-Etapas 3/4 como se asumía); **§10 confirma y profundiza ese hallazgo** — leer antes de migrar Ventas,
-Gastos, Operativo/Nicho-1, o de implementar la Etapa 3. Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
+**Estado: aprobado — Etapas 0, 1, 2 y 3 (alcance acordado) implementadas y verificadas (2026-07-21,
+ver §8, §9 y §11).** El diagnóstico original (§1-§7) sigue siendo de solo lectura tal cual se
+escribió; §8 documenta lo que se implementó después (Etapas 0-1), §9 la Etapa 2 (barrido de N+1 +
+Proveedores), §10 el diagnóstico de la Etapa 3 (bypass de `ceom_admin`, incluye una corrección real
+a la hipótesis de costo de `es_ceom_admin()` — ver §10.3), y §11 lo que se implementó de la Etapa 3
+sobre ese diagnóstico. **§9.6 encontró una regresión real** que cambia una premisa del plan (el
+camino Gateway/Panel Admin CEOM no es independiente de las Etapas 3/4 como se asumía) — **§10/§11 la
+resuelven para Proveedores y dejan el patrón (`ceomAdminBypassPolicy()`, `ContextoRlsNoResueltoError`)
+listo para reusar en cada módulo que migre después.** `logs_acceso_admin_ceom` (sub-etapa 3.d) y la
+Etapa 4 (portal, incluido el rediseño del solicitante sintético del Gateway) siguen pendientes,
+deliberadamente. Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
 originó este trabajo.
 
 Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
@@ -1406,7 +1408,127 @@ correcto es el inverso al de aplicación: 3.d → 3.c → 3.b → 3.a).
 
 ---
 
-**Fin del diagnóstico. Sin cambios de código ni de base en esta sesión — el conector de Supabase se
+**Fin del diagnóstico. Sin cambios de código ni de base en esa sesión — el conector de Supabase se
 usó exclusivamente para lecturas (`EXPLAIN ANALYZE`, catálogos `pg_class`/`pg_proc`/`information_schema`,
-`get_advisors`), ninguna sentencia DDL ni de escritura.** Quedan las decisiones de §10.11 para el
-usuario antes de empezar la implementación (3.a en adelante).
+`get_advisors`), ninguna sentencia DDL ni de escritura.**
+
+---
+
+## 11. Etapa 3 — implementado y verificado (2026-07-21)
+
+Con las 6 decisiones de §10.11 ya tomadas por el usuario, sobre la misma base de desarrollo. Alcance
+final acordado: **3.a, 3.b, 3.c, 3.e** (documentado) + el fix de auditoría de la decisión 6
+(desacoplado de 3.d) + la unificación de `requiereCeomAdmin()` (decisión 5, antes de todo lo demás).
+**3.d se difirió** — confirmado antes de empezar: `logs_acceso_admin_ceom` la escribe
+`registrarAccesoAdminCeom()` (`consentimiento/actions.ts`), y Consentimiento no está migrado a
+`comoUsuario()` — esa escritura corre como `db` crudo (rol `postgres`, bypass total) exactamente
+igual que las tablas de la Familia B ya diferidas. Una policy ahí hoy sería tan inerte como las que
+§10.11 decisión 2 ya excluía por la misma razón — mismo argumento, aplicado con consistencia.
+
+### 11.1 Orden real de ejecución (el pedido por el usuario, seguido tal cual)
+
+1. **Unificación de `requiereCeomAdmin()`** — los 4 locales de Suscripción/Consentimiento/Gastos/
+   Productos (chequeo único `rolId !== ROL_CEOM_ADMIN_ID`) pasaron al chequeo doble canónico
+   (`rol.esRolSistema && rolId === ROL_CEOM_ADMIN_ID`), igual que `tienePermiso()`/
+   `esCeomAdmin()`. De paso se encontró y corrigió un call-site real
+   (`src/app/admin/(shell)/planes/actions.ts`) que armaba un objeto `{ rolId }` a mano en vez de
+   pasar el `usuario` completo que ya devuelve `obtenerUsuarioActual()`. 79 tests en verde.
+2. **Fix de auditoría (decisión 6)** — `"identidad"` agregado a `moduloPermisoEnum` (migración
+   aislada, mismo patrón que `"proveedores"`), exclusivamente para
+   `logs_acceso_admin_ceom.modulo_consultado` — sigue sin participar en la matriz real de permisos.
+   `consultarTenantDetalle`/`saludAgregadaPlataforma` ahora auditan (la segunda, atribuida a
+   `CEOM_OPS_TENANT_ID` por ser agregada, no puntual). Encontrado en el camino: el `afterAll` de
+   `panel-admin-ceom.test.ts` necesitó un delete nuevo (el log atribuido a `CEOM_OPS_TENANT_ID`) o
+   el borrado del usuario de prueba chocaba con la FK — detalle que una migración real a producción
+   también va a necesitar tener en cuenta si algún día se purgan usuarios de `CEOM_OPS_TENANT_ID`.
+3. **Regla dura contra recursión (decisión 3)** — comentario explícito en `identidad/schema.ts`
+   (`roles`/`usuarios`/`permisos`/`permisos_especiales_por_rol`/`permisos_especiales_por_usuario`):
+   nunca `OR es_ceom_admin()` en la policy de esas tablas. Solo comentarios — confirmado con
+   `drizzle-kit generate` ("No schema changes, nothing to migrate") que no alteró ningún DDL.
+4. **Tests de §10.9 ANTES de la policy** — extendido `tenant-aislamiento.test.ts` de Proveedores con
+   dos usuarios reales (`ceom_admin` activo, `ceom_admin` desactivado). Corridos y confirmados
+   *antes* de 3.a/3.b: el primero daba 0 filas (RLS filtrando de verdad, sin bypass todavía — no una
+   tautología), el segundo también. Commit propio, con el resultado "antes" documentado en el mensaje
+   para que quede trazable.
+5. **3.a — `es_ceom_admin()`.** Igual al SQL propuesto en §10.3, con el filtro `eliminado_en`/
+   `activo` (decisión 1) ya incluido. Verificado en vivo (transacción con `rollback`): `true` para un
+   `ceom_admin` real, `false` para un usuario regular, `false` para un `sub` inexistente (el caso del
+   Gateway). Grants: `EXECUTE` solo para `authenticated`/`postgres`/`service_role`, igual que
+   `current_tenant_id()`.
+6. **Verificación del caso de dos policies reales (el paso que §10.3 había dejado pendiente) — y
+   corrigió la hipótesis original.** `CREATE POLICY` real dentro de una transacción con `rollback`,
+   sobre `usuarios` y `proveedores`: **`es_ceom_admin()` NO se hoistea a un `InitPlan`** como
+   `current_tenant_id()` — se probaron tres variantes (`= true` explícito, sin `JOIN`, una función
+   trivial `select true`) y ninguna cambió el resultado. La diferencia real: `current_tenant_id()` se
+   usa como operando de una comparación (`columna = current_tenant_id()`), `es_ceom_admin()` se usa
+   como término suelto de un `OR` — esa es la forma que Postgres sí/no hoistea, no la complejidad del
+   cuerpo de la función. **El costo práctico queda acotado igual, mediante un mecanismo distinto**:
+   cortocircuito de `OR` por fila + el filtro de `tenant_id` explícito que cada query de Panel Admin
+   CEOM ya trae (confirmado también en vivo: con `WHERE tenant_id = X`, Postgres evalúa esa
+   comparación primero, barata, y descarta la mayoría de las filas antes de llegar a
+   `es_ceom_admin()`). §10.3 corregido con este hallazgo — la sección ya no dice "una vez por
+   consulta", dice lo que se verificó de verdad.
+7. **3.b — policy de bypass en las 4 tablas de Proveedores.** Nuevo helper reusable
+   `ceomAdminBypassPolicy(tableName)` en `src/db/rls.ts` (junto a `crudPolicy()`), declarado en
+   `schema.ts` (no SQL suelto) para que quede reconocido como estado esperado, no como drift, en el
+   próximo `drizzle-kit generate`. El test del punto 4 que daba 0 filas ahora da 1 — bypass real
+   confirmado; el del `ceom_admin` desactivado se mantiene en 0.
+8. **3.c — angostar la excepción de `consultarPagosCompraEnPeriodo()`.** Nuevo
+   `ContextoRlsNoResueltoError` (clase propia en `contexto.ts`, no un `Error` genérico) para poder
+   distinguir "el contexto de RLS no resolvió" de cualquier otro fallo real. La función intenta
+   `comoUsuario()` primero (funciona ahora para tenant propio Y para `ceom_admin` real, gracias al
+   bypass de 3.b) y cae al camino de `db` crudo solo si ese error específico se dispara — hoy,
+   exclusivamente el solicitante sintético del Gateway. Riesgo aceptado documentado: un
+   `ContextoRlsNoResueltoError` de otro origen quedaría enmascarado por este fallback — ya existía
+   antes (la excepción original era más ancha), ahora la superficie es más chica.
+
+### 11.2 3.e — checklist para las próximas migraciones, con lo aprendido de verdad (no solo lo previsto en §10.8)
+
+El checklist original de §10.8 seguía siendo correcto en su forma — se agregan acá los puntos que
+solo se confirmaron al implementar, no al diagnosticar:
+
+1. Mapear qué tablas de este módulo toca Panel Admin CEOM/Monitoreo Institucional (§10.1 ya cubre
+   Ventas/Gastos/Operativo — falta confirmar Identidad/Consentimiento/Suscripción con el mismo nivel
+   de detalle antes de migrar cualquiera de esos tres).
+2. Clasificar cada tabla: Familia A (ya tiene `crudPolicy()`, el bypass se agrega con
+   `ceomAdminBypassPolicy(tableName)` — usar el helper de `src/db/rls.ts`, no reescribir el
+   `using`/`withCheck` a mano) vs. Familia B (catálogo o tabla sin policy de tenant propio de la que
+   partir — necesita diseño dedicado, no el helper genérico).
+3. La policy de bypass entra en el MISMO commit que el cambio a `comoUsuario()` — nunca después
+   (§9.6).
+4. **Nuevo, confirmado en la implementación:** si el módulo tiene algún `requiereCeomAdmin()`/gate
+   local propio (como tenían Suscripción/Consentimiento/Gastos/Productos antes de esta etapa),
+   confirmar que ya usa el chequeo doble canónico — si no, unificarlo ANTES de escribir la policy de
+   RLS, en su propio commit (mismo orden que se siguió acá).
+5. **Nuevo:** si alguna función de este módulo puede terminar corriendo con `es_ceom_admin()`
+   evaluándose por fila (cualquier bypass nuevo tiene esta forma, confirmado en el punto 6 de
+   §11.1) — confirmar que la query real de la aplicación sigue trayendo un filtro de `tenant_id`
+   explícito, no solo la policy. Es la única razón por la que el costo queda acotado; sacar ese
+   filtro "porque total la policy ya filtra" reintroduce el costo por fila completo de la tabla.
+6. **Nuevo:** si alguna función de este módulo puede recibir un solicitante que no tenga fila real en
+   `usuarios`/`auth.users` (hoy, solo `solicitanteGateway()`), va a necesitar el mismo patrón de 3.c
+   (`comoUsuario()` con fallback a `db` crudo capturando específicamente
+   `ContextoRlsNoResueltoError`, nunca `Error` genérico) — hasta que la Etapa 4 cierre el problema de
+   raíz.
+7. Correr la suite COMPLETA (no solo el módulo) antes de dar por cerrada la migración — la lección
+   de §9.6, repetida acá porque sigue siendo la más fácil de saltear.
+
+### 11.3 Verificación final
+
+`pnpm typecheck` (0 errores), `pnpm lint` (0 errores, mismos 13 warnings preexistentes de React
+Compiler sobre `form.watch()`, no relacionados), `pnpm test` (203/203, 31 archivos — suite completa,
+no solo Proveedores/Identidad/Consentimiento) y `pnpm build` (compila limpio, todas las rutas)
+verdes. `es_ceom_admin()` y las 4 policies de bypass confirmadas activas contra la base real de
+desarrollo (`riertvgnjaujstwyqoom`).
+
+### 11.4 Estado y qué sigue
+
+Etapa 3 cerrada en el alcance acordado (3.a-3.c, 3.e documentado, fix de auditoría, unificación de
+gates). **No cerrada del todo**: 3.d (`logs_acceso_admin_ceom`) queda pendiente para cuando
+Consentimiento migre a `comoUsuario()` — en ese momento la policy bespoke SÍ tiene efecto real. La
+Etapa 4 (portal) sigue sin tocar, tal como se pidió — con una decisión ya registrada para cuando
+llegue (§10.11 decisión 4: sembrar un usuario real de sistema para `solicitanteGateway()`, recomendada
+pero no implementada, con su propio diagnóstico primero cuando corresponda). Próximo módulo a migrar
+a `comoUsuario()` según el orden de acoplamiento de §3.1: Consentimiento o Suscripción — cualquiera de
+los dos ya puede reusar el patrón completo de esta etapa (`ceomAdminBypassPolicy()`,
+`ContextoRlsNoResueltoError`, el checklist de §11.2) sin tener que redescubrir nada.
