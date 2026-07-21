@@ -11,8 +11,14 @@ type ModuloVeedor = (typeof moduloVeedorEnum.enumValues)[number];
 // Solo se necesita el rol del solicitante para gatear estas acciones — se
 // evita importar el tipo UsuarioConRol de Identidad (no forma parte de su
 // contrato publico en actions.ts) para no acoplar mas de lo necesario.
+// `rol.esRolSistema` es obligatorio (no solo rolId): mismo chequeo doble que
+// tienePermiso()/requiereCeomAdmin() de identidad y panel-admin-ceom —
+// unificado en la Etapa 3 del backstop de RLS (docs/security/
+// PLAN-RLS-BACKSTOP.md §10.2/§10.11 decision 5) para que este gate de
+// aplicacion no diverja de la futura es_ceom_admin() de RLS.
 interface Solicitante {
   rolId: string;
+  rol: { esRolSistema: boolean };
 }
 
 export interface DatosPlan {
@@ -31,7 +37,7 @@ export interface DatosPlan {
 function requiereCeomAdmin(
   solicitante: Solicitante
 ): { ok: false; error: string } | null {
-  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+  if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
     return { ok: false, error: "Solo CEOM Admin puede gestionar el catálogo de planes." };
   }
   return null;

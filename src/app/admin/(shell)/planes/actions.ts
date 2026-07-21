@@ -24,26 +24,26 @@ export async function crearPlanAction(input: DatosPlan) {
   const usuario = await obtenerUsuarioActual();
   if (!usuario)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-  return crearPlan({ rolId: usuario.rolId }, input);
+  return crearPlan(usuario, input);
 }
 
 export async function actualizarPlanAction(planId: string, input: Partial<DatosPlan>) {
   const usuario = await obtenerUsuarioActual();
   if (!usuario)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-  return actualizarPlan({ rolId: usuario.rolId }, planId, input);
+  return actualizarPlan(usuario, planId, input);
 }
 
 export async function desactivarPlanAction(planId: string) {
   const usuario = await obtenerUsuarioActual();
   if (!usuario)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-  return desactivarPlan({ rolId: usuario.rolId }, planId);
+  return desactivarPlan(usuario, planId);
 }
 
 export async function reactivarPlanAction(planId: string) {
   const usuario = await obtenerUsuarioActual();
   if (!usuario)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-  return reactivarPlan({ rolId: usuario.rolId }, planId);
+  return reactivarPlan(usuario, planId);
 }

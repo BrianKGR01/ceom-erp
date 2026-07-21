@@ -18,8 +18,8 @@ import { planes } from "./schema";
 const hasCredenciales = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasCredenciales)("Modulo 11 - Suscripcion (integracion)", () => {
-  const ceomAdmin = { rolId: ROL_CEOM_ADMIN_ID };
-  const owner = { rolId: "00000000-0000-0000-0000-000000000000" };
+  const ceomAdmin = { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } };
+  const owner = { rolId: "00000000-0000-0000-0000-000000000000", rol: { esRolSistema: false } };
   const planesCreados: string[] = [];
 
   afterAll(async () => {

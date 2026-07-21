@@ -15,7 +15,7 @@ import {
   obtenerTenantPorId,
 } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
-import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
+import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
 import {
   costoFijoTotal,
   estadoResultados,
@@ -51,8 +51,11 @@ function requiereCeomAdmin(solicitante: UsuarioConRol): { ok: false; error: stri
  * estado_acceso, distribución por plan y por nicho. % onboarding
  * completado y % retención NO se implementan (no hay checklist de
  * onboarding ni definición de retención todavía) — ver pendientes abajo.
- * Cross-tenant, no es "acceso a un tenant puntual": no llama a
- * registrarAccesoAdminCeom().
+ * Cross-tenant, no es "acceso a un tenant puntual" — se audita igual (Etapa
+ * 3 del backstop de RLS, docs/security/PLAN-RLS-BACKSTOP.md §10.5/§10.11
+ * decision 6: antes esta lectura no dejaba ningún rastro), atribuido a
+ * CEOM_OPS_TENANT_ID porque logs_acceso_admin_ceom exige un tenant_id real
+ * y este acceso no es "sobre" ningún tenant de cliente en particular.
  */
 export async function saludAgregadaPlataforma(solicitante: UsuarioConRol): Promise<
   Resultado<{
@@ -68,6 +71,7 @@ export async function saludAgregadaPlataforma(solicitante: UsuarioConRol): Promi
   const tenantsRes = await listarTenantsIdentidad(solicitante);
   if (!tenantsRes.ok) return tenantsRes;
   const planes = await listarPlanes();
+  await loguearAcceso(solicitante, CEOM_OPS_TENANT_ID, "identidad");
 
   const porEstadoAcceso: Record<string, number> = {};
   const cantidadPorPlan = new Map<string, number>();
@@ -116,10 +120,7 @@ export async function consultarTenantDetalle(
 
   const res = await obtenerTenantPorId(solicitante, tenantId);
   if (!res.ok) return res;
-  // "identidad" no es un valor de moduloPermisoEnum (no es un modulo
-  // gestionable, ver identidad/ANCLA.md) — no hay categoria de log para
-  // metadata basica de tenant, se documenta como pendiente, no se inventa
-  // un valor de enum solo para esto.
+  await loguearAcceso(solicitante, tenantId, "identidad");
   return res;
 }
 

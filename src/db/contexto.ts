@@ -88,6 +88,26 @@ function clienteCrudoDeLaTransaccion(tx: Tx): { unsafe(query: string): Promise<u
 }
 
 /**
+ * Falla ruidosa específica de "el contexto de RLS no resolvió" — nunca un
+ * `Error` genérico, para que un caller que necesite distinguir esto de
+ * cualquier otro fallo (ej. un bug real dentro de la función envuelta) pueda
+ * hacer `instanceof` en vez de andar comparando el texto del mensaje.
+ *
+ * Único uso legítimo hoy (docs/security/PLAN-RLS-BACKSTOP.md §9.6/§10.4):
+ * `proveedores/actions.ts` → `consultarPagosCompraEnPeriodo()`, la función
+ * alcanzada por `solicitanteGateway()` (id sintético sin fila real en
+ * `usuarios`/`auth.users`, que por diseño nunca puede resolver contexto).
+ * No usar este tipo para "tragarse" errores en ningún otro call-site sin
+ * la misma revisión — sigue siendo una falla ruidosa por defecto.
+ */
+export class ContextoRlsNoResueltoError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ContextoRlsNoResueltoError";
+  }
+}
+
+/**
  * Fija el contexto de RLS (SET LOCAL ROLE + JWT claims) y, en el mismo
  * round-trip, exige que `current_tenant_id()` resuelva — falla ruidosa, no
  * silenciosa (pedido explícito): si no resuelve, un reporte financiero en
@@ -104,7 +124,7 @@ async function fijarContextoYExigirTenant(tx: Tx, authUserId: string): Promise<s
   `);
   const tenantId = (resultado[2]?.[0] as { tenant_id: string | null } | undefined)?.tenant_id;
   if (!tenantId) {
-    throw new Error(
+    throw new ContextoRlsNoResueltoError(
       "current_tenant_id() no resolvió ningún tenant tras fijar el contexto de RLS. El usuario no " +
         "existe, está eliminado, o el contexto no se aplicó — no se continúa con la operación."
     );
@@ -123,7 +143,7 @@ async function fijarContextoYExigirAuthUid(tx: Tx, authUserId: string): Promise<
   `);
   const uid = (resultado[2]?.[0] as { uid: string | null } | undefined)?.uid;
   if (!uid) {
-    throw new Error("auth.uid() no resolvió tras fijar el contexto de RLS — no se continúa.");
+    throw new ContextoRlsNoResueltoError("auth.uid() no resolvió tras fijar el contexto de RLS — no se continúa.");
   }
   return uid;
 }

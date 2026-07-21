@@ -1,0 +1,4 @@
+CREATE POLICY "compras_ceom_admin_bypass" ON "compras" AS PERMISSIVE FOR ALL TO "authenticated" USING (es_ceom_admin()) WITH CHECK (es_ceom_admin());--> statement-breakpoint
+CREATE POLICY "compras_ajuste_ceom_admin_bypass" ON "compras_ajuste" AS PERMISSIVE FOR ALL TO "authenticated" USING (es_ceom_admin()) WITH CHECK (es_ceom_admin());--> statement-breakpoint
+CREATE POLICY "pagos_compra_ceom_admin_bypass" ON "pagos_compra" AS PERMISSIVE FOR ALL TO "authenticated" USING (es_ceom_admin()) WITH CHECK (es_ceom_admin());--> statement-breakpoint
+CREATE POLICY "proveedores_ceom_admin_bypass" ON "proveedores" AS PERMISSIVE FOR ALL TO "authenticated" USING (es_ceom_admin()) WITH CHECK (es_ceom_admin());

@@ -46,16 +46,18 @@ const ALLOWLIST_COMO_SISTEMA_PREFIJOS = ["scripts/"];
  * justificarse sola, sin depender de leer el código para saber por qué
  * está permitida.
  *
- * - `src/modules/proveedores/actions.ts`: SOLO por
+ * - `src/modules/proveedores/actions.ts`: SOLO por el fallback de
  *   `consultarPagosCompraEnPeriodo()` — es la única función de Proveedores
- *   alcanzada por el camino Gateway/Panel Admin CEOM (vía
- *   financiero.flujoCaja()), cuyos solicitantes (el sintético de
- *   `solicitanteGateway()`, o un `ceom_admin` real sin policy de bypass
- *   todavía) no pueden resolver el tenant correcto vía
- *   `current_tenant_id()`. Se resuelve cuando la Etapa 3
- *   (`es_ceom_admin()` + `comoCeomAdmin` real) esté implementada y
- *   revisada — no expandir a otras funciones de este archivo sin la misma
- *   revisión.
+ *   alcanzada por el camino Gateway (vía financiero.flujoCaja() ←
+ *   Monitoreo Institucional → `solicitanteGateway()`, un solicitante
+ *   sintético sin fila real en `usuarios`/`auth.users`). Desde la Etapa 3
+ *   (`es_ceom_admin()` + policy de bypass, docs/security/
+ *   PLAN-RLS-BACKSTOP.md §10.3/§10.8) el camino `ceom_admin` real (Panel
+ *   Admin CEOM) ya pasa por `comoUsuario()` sin excepción — el `db` crudo
+ *   solo se usa como fallback cuando `comoUsuario()` lanza
+ *   `ContextoRlsNoResueltoError`. Se cierra del todo cuando la Etapa 4
+ *   rediseñe el solicitante sintético del Gateway (§10.4) — no expandir a
+ *   otras funciones de este archivo sin la misma revisión.
  */
 const ALLOWLIST_IMPORTA_DB_CRUDO: string[] = ["src/modules/proveedores/actions.ts"];
 

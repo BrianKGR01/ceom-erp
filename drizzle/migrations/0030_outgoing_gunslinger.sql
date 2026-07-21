@@ -1,0 +1,1 @@
+ALTER TYPE "public"."modulo_permiso" ADD VALUE 'identidad';

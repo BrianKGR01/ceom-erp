@@ -1,8 +1,10 @@
-import { comoUsuario } from "@/db/contexto";
-// Excepcion deliberada y acotada -- SOLO para consultarPagosCompraEnPeriodo,
-// ver el comentario junto a esa funcion y contexto.test.ts
-// (ALLOWLIST_IMPORTA_DB_CRUDO). Ningun otro uso de "db" es valido en este
-// archivo -- todo lo demas pasa por comoUsuario().
+import { comoUsuario, ContextoRlsNoResueltoError } from "@/db/contexto";
+// Excepcion deliberada y acotada -- SOLO para el fallback de
+// consultarPagosCompraEnPeriodo cuando comoUsuario() no puede resolver
+// contexto (hoy, el solicitante sintetico del Gateway), ver el comentario
+// junto a esa funcion y contexto.test.ts (ALLOWLIST_IMPORTA_DB_CRUDO).
+// Ningun otro uso de "db" es valido en este archivo -- todo lo demas pasa
+// por comoUsuario().
 import { db } from "@/db/client";
 import { registrarEntradaCompraInsumo } from "@/modules/operativo/nichos/nicho-1/actions";
 import { tienePermiso } from "@/modules/identidad/actions";
@@ -454,30 +456,32 @@ export async function registrarCompraDeAjuste(
 // --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
 
 /**
- * Excepción deliberada: NO abre comoUsuario() (a diferencia de cualquier
- * otra función de este módulo, ya migrado). Es la única función de
- * Proveedores alcanzada por el camino Gateway/Panel Admin CEOM, vía
- * financiero.flujoCaja() (docs/security/PLAN-RLS-BACKSTOP.md §9.6):
+ * Es la única función de Proveedores alcanzada por el camino Gateway/Panel
+ * Admin CEOM, vía financiero.flujoCaja() (docs/security/
+ * PLAN-RLS-BACKSTOP.md §9.6/§10.4/§10.7). Etapa 3 (`es_ceom_admin()` +
+ * policy de bypass en las 4 tablas de Proveedores) ya resolvió la MITAD del
+ * problema: un `ceom_admin` real (Panel Admin CEOM) ahora pasa por
+ * `comoUsuario()` como cualquier otra función del módulo — `RLS` lo deja
+ * ver el `tenantId` que quiere inspeccionar gracias al bypass, sin
+ * excepción de código.
  *
- * - Monitoreo Institucional llama con `solicitanteGateway()` — un
- *   `UsuarioConRol` sintético (id = UUID de ceros) que nunca existe como
- *   fila real en `usuarios`/`auth.users`. `comoUsuario()` exige que
- *   `current_tenant_id()` resuelva y revienta con ese id.
- * - Panel Admin CEOM llama con un `ceom_admin` real — ahí `comoUsuario()`
- *   SÍ resuelve, pero al tenant propio del admin ("CEOM Ops"), no al
- *   `tenantId` que se quiere inspeccionar — sin una policy de bypass para
- *   `ceom_admin` (Etapa 3, no implementada todavía), RLS filtra todo a 0
- *   filas en silencio.
- *
- * Ninguno de los dos casos tiene arreglo correcto sin la Etapa 3
- * (`es_ceom_admin()` + policy de bypass) — y el caso del Gateway
- * necesita además que se resuelva el diseño del solicitante sintético
- * (Etapa 4), porque ninguna policy de RLS puede autorizar un `auth.uid()`
- * que no existe. Hasta entonces, esta función sigue leyendo por `tenantId`
- * explícito + `tienePermiso()` (igual que todo el módulo antes de esta
- * migración) en vez de por contexto de RLS. Revisar cuando la Etapa 3
- * esté implementada y decidida — no expandir esta excepción a otras
- * funciones sin la misma revisión.
+ * La otra mitad sigue sin arreglo — Monitoreo Institucional llama con
+ * `solicitanteGateway()`, un `UsuarioConRol` sintético (id = UUID de ceros)
+ * que nunca existe como fila real en `usuarios`/`auth.users`. Ninguna
+ * policy de RLS puede autorizar un `auth.uid()` que no existe (§10.4) — es
+ * una decisión de la Etapa 4 (sembrar un usuario de sistema real para el
+ * Gateway, opción recomendada pero no implementada), no de esta. Mientras
+ * tanto, el fallback de abajo cubre específicamente ese caso: intenta
+ * `comoUsuario()` primero (camino real, funciona para cualquier solicitante
+ * con una fila real — tenant propio o ceom_admin), y solo si el contexto de
+ * RLS no pudo resolverse (`ContextoRlsNoResueltoError`, hoy exclusivamente
+ * el solicitante sintético del Gateway) cae al camino viejo. Un
+ * `ContextoRlsNoResueltoError` real para un caller que NO sea el Gateway
+ * significaría un bug genuino en otro lado (ej. un usuario borrado) que
+ * este fallback esconde en vez de propagar — riesgo aceptado y documentado,
+ * no nuevo: ya existía antes de la Etapa 3, ahora es más angosto (solo el
+ * Gateway lo dispara en la práctica, no cualquier ceom_admin). No expandir
+ * este patrón a otras funciones sin la misma revisión.
  */
 export async function consultarPagosCompraEnPeriodo(
   solicitante: UsuarioConRol,
@@ -488,12 +492,26 @@ export async function consultarPagosCompraEnPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
   }
-  const totalPagado = await repo.sumarPagosCompraPeriodo(
-    db,
-    tenantId,
-    periodo.desde,
-    periodo.hasta,
-    opts
-  );
-  return { ok: true, data: { totalPagado } };
+  try {
+    return await comoUsuario(solicitante.id, async (tx) => {
+      const totalPagado = await repo.sumarPagosCompraPeriodo(
+        tx,
+        tenantId,
+        periodo.desde,
+        periodo.hasta,
+        opts
+      );
+      return { ok: true, data: { totalPagado } };
+    });
+  } catch (error) {
+    if (!(error instanceof ContextoRlsNoResueltoError)) throw error;
+    const totalPagado = await repo.sumarPagosCompraPeriodo(
+      db,
+      tenantId,
+      periodo.desde,
+      periodo.hasta,
+      opts
+    );
+    return { ok: true, data: { totalPagado } };
+  }
 }
