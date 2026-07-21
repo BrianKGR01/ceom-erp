@@ -2228,3 +2228,58 @@ el diseño de §13.6, sin dejarlos como intención:**
 sin implementarse nada — código, migraciones y tests quedan para cuando se autorice explícitamente el
 inicio de la implementación por sub-etapas (regla de siempre: diagnóstico primero, ya cerrado; después,
 sub-etapas con commits atómicos, empezando por 4.a.1).
+
+## 14. Barrido: la clase de defecto `coalesce(...,0)` + assert débil (2026-07-21)
+
+**No es un incidente aislado — es la tercera aparición de la misma clase de defecto en este proyecto**
+(la primera: `flujoCaja` en `panel-admin-ceom.test.ts`, corregida en la Etapa 3; la segunda: los 4
+asserts de `monitoreo-institucional.test.ts`, corregidos en §13.11/este mismo cambio). El mecanismo es
+siempre el mismo: una agregación SQL con `coalesce(sum(...), 0)` (nunca `NULL`, por diseño — "sin
+movimientos" es `0` legítimo) combinada con un test que solo verifica `typeof === "number"` o un
+booleano de autorización, nunca el valor — así que "RLS filtró todo" y "el tenant no tuvo movimientos"
+quedan indistinguibles en el resultado Y en la cobertura de test. Este barrido mapea la clase completa,
+sin arreglarla toda — es para decidir, no para actuar automáticamente.
+
+### 14.1 Todas las agregaciones `coalesce(sum(...), 0)` del proyecto (repository.ts, grep exhaustivo)
+
+| Módulo | Función(es) — archivo:línea | ¿Migrado a `comoUsuario()`? | ¿Tiene `ceomAdminBypassPolicy()`? | Alcanzable por Gateway/Panel Admin CEOM |
+|---|---|---|---|---|
+| **Proveedores** | `sumarPagosCompraPeriodo` (`repository.ts:218`), + 2 más (`repository.ts:59,146,167`) | Sí (Etapa 2) | Sí (Etapa 3, `compras`/`pagos_compra`) | **Sí** — Financiero.`flujoCaja()` → `consultarPagosCompraEnPeriodo()`. Único caso real hoy (§13.11). |
+| **Ventas** | `sumarIngresosCostosPeriodo` (ingresos/costos, `repository.ts:332-333` y `:441-443,511-512`), `sumarPagosVentaEnPeriodo` (`:270,294,385`), `sumarMontoVentaPeriodo` (`:199,290,488`), `sumarUnidadesVendidasPeriodo` (`:362`), `sumarAjustesVentaEnPeriodo` (`:410`) | **No** | No (no aplica aún) | **Sí, latente** — Financiero.`estadoResultados()`/`flujoCaja()` llaman `consultarIngresosPeriodo`/`consultarPagosVentaEnPeriodo` (Ventas), alcanzable por Monitoreo Institucional (`tendenciaVentas`, `detalleFinanciero`) Y Panel Admin CEOM (`consultarFinancieroTenant`). Hoy sin riesgo real (Ventas no migrado, sin RLS en el camino) — el mismo riesgo de §13.11 se activa el día que Ventas migre a `comoUsuario()`, salvo que se aplique la misma disciplina (bypass atómico con la migración). |
+| **Gastos** | `sumarGastosPorTipoEnPeriodo` (`repository.ts:244,326`), `sumarPagosGastoEnPeriodo` (`:141,188,300`), `sumarGastosPorCategoriaEnPeriodo`-adyacente (`:266`) | **No** | No (no aplica aún) | **Sí, latente** — mismo mecanismo que Ventas: `costoFijoTotal()`/`estadoResultados()` alcanzables por Monitoreo Institucional Y Panel Admin CEOM. |
+| **Patrimonio** | `sumarPagosPasivoPeriodo` (`repository.ts:151,182`) | Sí (Etapa 1) | No (Etapa 1 fue previa a `es_ceom_admin()`, y Patrimonio no está expuesto a ningún módulo veedor — confirmado en `monitoreo-institucional/ANCLA.md`) | **No** — ni Gateway ni Panel Admin CEOM tocan Patrimonio hoy. |
+| **Productos** | Totales de stock/movimientos (`repository.ts:172,189,231`) | No | No | **No** — no hay veedor de "Productos" como tal; Nicho-1/Inventario Operativo es un módulo separado. |
+| **Operativo/Nicho-1** | `consultarMermaPeriodo` (`repository.ts:403` — `producciones.mermaCosto`), movimientos de insumo (`:131`) | **No** | No | **Sí, latente + gap de cobertura ya conocido (§10.6)** — ver 14.2. |
+
+### 14.2 Asserts débiles en tests (grep `typeof X).toBe("number")` y equivalentes, todo el proyecto)
+
+- **`patrimonio/patrimonio.test.ts:308`** — `expect(typeof resultado.data.valorPatrimonialTotal).toBe("number")`.
+  **Inofensivo**: Patrimonio no es alcanzable por Gateway ni Panel Admin CEOM (tabla 14.1) — no hay
+  camino cross-tenant que este assert débil pueda estar ocultando. Queda listado, no corregido ahora.
+- **Los 4 de `monitoreo-institucional.test.ts`** (§10.6) — **ya corregidos** en este mismo cambio (commit
+  de test reforzado, ver más abajo).
+- **`panel-admin-ceom.test.ts` caso 3** — `consultarFinancieroTenant` devuelve `{flujoCaja,
+  estadoResultados, costoFijoTotal}`; el test solo asserta `flujoCaja` (`-100`, exacto, ya corregido en
+  la Etapa 3) — **`estadoResultados` y `costoFijoTotal` no tienen NINGUNA aserción**, ni siquiera
+  `typeof`. Mismo hueco que tenía Monitoreo Institucional antes de §13.11, en el archivo hermano. **No
+  corregido en este barrido** (fuera del pedido puntual, que era `monitoreo-institucional.test.ts`) —
+  queda listado para una pasada futura con el mismo criterio.
+- **`consultarOperativoTenant`/`consultarInventarioOperativoTenant` (Panel Admin CEOM) — CERO tests,
+  no un assert débil sino ausencia total de cobertura.** Confirmado con grep: ninguna de las dos
+  aparece en `panel-admin-ceom.test.ts`. Ya documentado en §10.6 ("un `es_ceom_admin()` roto ahí pasaría
+  completamente desapercibido") — se repite acá porque es exactamente la misma familia de defecto
+  (agregación cross-tenant sin verificación de valor), solo que en su forma más severa: no hay ni
+  siquiera un `typeof` que falle.
+
+### 14.3 Clasificación para decidir, no para actuar
+
+| Riesgo | Casos | Acción sugerida |
+|---|---|---|
+| **Real hoy, ya cerrado** | Proveedores vía `consultarPagosCompraEnPeriodo` | Ya reforzado en `panel-admin-ceom.test.ts` (Etapa 3) y `monitoreo-institucional.test.ts` (§13.11) — 4.a.3 lo prueba en vivo. |
+| **Latente — se activa con la próxima migración** | Ventas, Gastos (vía Financiero, ambos caminos) | Agregar al checklist 3.e/§11.2 como ítem explícito: "¿esta función tiene un `coalesce(...,0)` que un test débil no detectaría si el bypass de la migración queda mal aplicado?" — verificar ANTES de dar por cerrada la migración de cada módulo, con el mismo patrón de prueba negativa usado en §13.11 (identidad real + sin policy, confirmar que el test reforzado falla). |
+| **Sin riesgo cross-tenant, mismo defecto de test** | Patrimonio (`valorPatrimonialTotal`) | Bajo, no urgente — corregible en cualquier momento sin relación con RLS. |
+| **Gap de cobertura, no de assert** | `consultarOperativoTenant`/`consultarInventarioOperativoTenant` (§10.6) | Ya documentado, sigue pendiente — no es parte del alcance de 4.a, pero es la instancia más severa de la clase. |
+| **Mismo hueco que Monitoreo Institucional, archivo hermano** | `panel-admin-ceom.test.ts` caso 3 (`estadoResultados`/`costoFijoTotal` sin assert) | Pendiente, mismo criterio que §13.11 — no corregido en este barrido por estar fuera del pedido puntual. |
+
+**No se corrigió nada de esta sección salvo lo ya cerrado en §13.11** — es un mapa para decidir dónde
+invertir el mismo esfuerzo después, no una lista de trabajo ya completado.
