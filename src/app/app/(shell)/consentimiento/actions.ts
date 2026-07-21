@@ -88,6 +88,13 @@ export async function aprobarSolicitudAction(
 }
 
 export async function obtenerInstitucionPorIdAction(institucionId: string) {
+  // A diferencia de sus 9 hermanas de este archivo, no tenía el chequeo de
+  // sesión — invocable sin autenticar (docs/security/AUDITORIA-AUTORIZACION.md
+  // §8.3). El módulo (obtenerInstitucionPorId) documenta la intención como
+  // "abierto a cualquier authenticated", no a cualquiera.
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   return obtenerInstitucionPorId(institucionId);
 }
 
