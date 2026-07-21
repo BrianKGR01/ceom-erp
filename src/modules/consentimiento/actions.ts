@@ -17,14 +17,18 @@ type ModuloConsultado = (typeof moduloPermisoEnum.enumValues)[number];
 // por modulo veedor, no por funcion individual).
 export type ModuloVeedor = "financiero" | "operativo" | "inventario_operativo";
 
+// `rol.esRolSistema` obligatorio (no solo rolId): chequeo doble unificado en
+// la Etapa 3 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+// §10.2/§10.11 decision 5), igual que identidad/tienePermiso().
 interface SolicitanteCeomAdmin {
   rolId: string;
+  rol: { esRolSistema: boolean };
 }
 
 function requiereCeomAdmin(
   solicitante: SolicitanteCeomAdmin
 ): { ok: false; error: string } | null {
-  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+  if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
     return { ok: false, error: "Solo CEOM Admin puede gestionar esto." };
   }
   return null;

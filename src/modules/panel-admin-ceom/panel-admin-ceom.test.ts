@@ -77,7 +77,7 @@ describe.skipIf(!hasCredenciales)(
       ownerId = data.user.id;
 
       const plan = await crearPlan(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         {
           nombre: `Plan Panel Admin Test ${sufijo}`,
           precioMensual: 0,
@@ -190,7 +190,7 @@ describe.skipIf(!hasCredenciales)(
       // exactamente el hallazgo real que este assert dejaba pasar en verde).
       expect(financiero.data.flujoCaja).toBe(-100);
 
-      const logs = await listarLogsAcceso({ rolId: ROL_CEOM_ADMIN_ID }, { tenantId });
+      const logs = await listarLogsAcceso({ rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } }, { tenantId });
       expect(logs.ok).toBe(true);
       if (!logs.ok) return;
       const logFinanciero = logs.data.find((l) => l.moduloConsultado === "financiero");
@@ -203,7 +203,7 @@ describe.skipIf(!hasCredenciales)(
 
       // otro tenant, ajeno a este owner
       const otroPlan = await crearPlan(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { nombre: `Plan Ajeno Test ${sufijo}`, precioMensual: 0, moneda: "BOB" }
       );
       if (!otroPlan.ok) throw new Error("setup fallo");
@@ -231,7 +231,7 @@ describe.skipIf(!hasCredenciales)(
       expect(detalle.ok).toBe(false);
 
       const logs = await listarLogsAcceso(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { tenantId: tenantAjeno.id }
       );
       expect(logs.ok).toBe(true);

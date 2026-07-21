@@ -56,7 +56,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     // Plan de prueba que solo permite compartir "financiero" — necesario
     // para probar el rechazo de generarCodigoAcceso (caso 4).
     const plan = await crearPlan(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       {
         nombre: `Plan Veedor Test ${sufijo}`,
         precioMensual: 0,
@@ -84,7 +84,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     tenantId = tenant.id;
 
     const institucion = await crearInstitucion(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       { nombre: `Incubadora Test ${sufijo}`, tipo: "incubadora" }
     );
     if (!institucion.ok) throw new Error("setup fallo: crearInstitucion");
@@ -128,7 +128,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
   it("seccion 3.1: aprobarSolicitud con un subconjunto de lo pedido — tieneConsentimiento refleja exactamente eso", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
     const solicitud = await crearSolicitudSeguimiento(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       { institucionId, tenantId, modulosSolicitados: ["financiero", "operativo"] }
     );
     expect(solicitud.ok).toBe(true);
@@ -144,10 +144,10 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
   });
 
   it("listarInstituciones exige ceom_admin (gate de rol cerrado)", async () => {
-    const rechazado = await listarInstituciones({ rolId: ROL_OWNER_ID });
+    const rechazado = await listarInstituciones({ rolId: ROL_OWNER_ID, rol: { esRolSistema: false } });
     expect(rechazado.ok).toBe(false);
 
-    const permitido = await listarInstituciones({ rolId: ROL_CEOM_ADMIN_ID });
+    const permitido = await listarInstituciones({ rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } });
     expect(permitido.ok).toBe(true);
     if (!permitido.ok) return;
     expect(permitido.data.some((i) => i.id === institucionId)).toBe(true);
@@ -158,7 +158,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     async () => {
       const email = `institucion-magic-${sufijo}@ceom-erp.test`;
       const institucionMagic = await crearInstitucion(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { nombre: `Institucion Magic Link ${sufijo}`, tipo: "organizacion", email }
       );
       if (!institucionMagic.ok) throw new Error("setup fallo: crearInstitucion con email");
@@ -222,7 +222,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
   it("caso borde 3: revocarConsentimiento deniega de inmediato la siguiente consulta", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
     const solicitud = await crearSolicitudSeguimiento(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       { institucionId, tenantId, modulosSolicitados: ["financiero"] }
     );
     if (!solicitud.ok) throw new Error("setup fallo");
@@ -242,7 +242,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
   it("caso borde 1: tenant bloqueado deniega tieneConsentimiento aunque haya aprobacion vigente", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
     const solicitud = await crearSolicitudSeguimiento(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       { institucionId, tenantId, modulosSolicitados: ["financiero"] }
     );
     if (!solicitud.ok) throw new Error("setup fallo");

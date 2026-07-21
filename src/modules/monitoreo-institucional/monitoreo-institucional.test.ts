@@ -58,7 +58,7 @@ describe.skipIf(!hasCredenciales)(
       ownerId = data.user.id;
 
       const plan = await crearPlan(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         {
           nombre: `Plan Monitoreo Test ${sufijo}`,
           precioMensual: 0,
@@ -86,14 +86,14 @@ describe.skipIf(!hasCredenciales)(
       tenantId = tenant.id;
 
       const institucion = await crearInstitucion(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { nombre: `Institucion Monitoreo Test ${sufijo}`, tipo: "incubadora" }
       );
       if (!institucion.ok) throw new Error("setup fallo: crearInstitucion");
       institucionId = institucion.data.institucionId;
 
       const cartera = await agregarTenantACartera(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { institucionId, tenantId, fechaInicio: new Date().toISOString().slice(0, 10) }
       );
       if (!cartera.ok) throw new Error("setup fallo: agregarTenantACartera");
@@ -139,7 +139,7 @@ describe.skipIf(!hasCredenciales)(
     it("caso 2: solo 'financiero' aprobado — detalleFinanciero y tendenciaVentas autorizados, el resto no", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const solicitud = await crearSolicitudSeguimiento(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { institucionId, tenantId, modulosSolicitados: ["financiero"] }
       );
       if (!solicitud.ok) throw new Error("setup fallo");
@@ -182,7 +182,7 @@ describe.skipIf(!hasCredenciales)(
     it("caso 3: solo 'operativo' + 'inventario_operativo' aprobados — inverso del caso 2", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const solicitud = await crearSolicitudSeguimiento(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         {
           institucionId,
           tenantId,
@@ -214,7 +214,7 @@ describe.skipIf(!hasCredenciales)(
     it("caso borde 1: tenant bloqueado deniega detalleFinanciero aunque haya aprobacion vigente", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const solicitud = await crearSolicitudSeguimiento(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { institucionId, tenantId, modulosSolicitados: ["financiero"] }
       );
       if (!solicitud.ok) throw new Error("setup fallo");
@@ -246,7 +246,7 @@ describe.skipIf(!hasCredenciales)(
 
     it("caso 6: institucion sin fila de cartera con el tenant — estadoTenant rechaza", async () => {
       const otraInstitucion = await crearInstitucion(
-        { rolId: ROL_CEOM_ADMIN_ID },
+        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
         { nombre: `Institucion Sin Cartera ${sufijo}`, tipo: "organizacion" }
       );
       if (!otraInstitucion.ok) throw new Error("setup fallo");

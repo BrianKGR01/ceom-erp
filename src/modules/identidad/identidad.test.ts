@@ -537,7 +537,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     expect(rechazoPlanInexistente.ok).toBe(false);
 
     const planNuevo = await crearPlan(
-      { rolId: ROL_CEOM_ADMIN_ID },
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
       { nombre: `Plan QA ${sufijo}`, precioMensual: 10, moneda: "BOB" }
     );
     expect(planNuevo.ok).toBe(true);
