@@ -19,7 +19,7 @@ const DIRS_A_ESCANEAR = ["src", "scripts"];
  * del plan (§3). Agregar un módulo acá es un paso deliberado: nunca migres
  * uno sin sumarlo, o este guard sigue validando el estado viejo sin avisar.
  */
-const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio"];
+const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio", "src/modules/proveedores"];
 
 /**
  * Quién puede importar `@/db/contexto` — quien ya resolvió `usuario`/
@@ -27,7 +27,10 @@ const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio"];
  * de llamar comoUsuario/comoInstitucion. Repository.ts NO debería estar
  * acá: recibe `Ejecutor` por parámetro, nunca abre su propio contexto.
  */
-const ALLOWLIST_IMPORTA_CONTEXTO: string[] = ["src/modules/patrimonio/actions.ts"];
+const ALLOWLIST_IMPORTA_CONTEXTO: string[] = [
+  "src/modules/patrimonio/actions.ts",
+  "src/modules/proveedores/actions.ts",
+];
 
 /** Prefijos de path (relativos a REPO_ROOT) desde donde `comoSistema()` puede
  * invocarse — el escape hatch de bypass total no debe poder llamarse desde

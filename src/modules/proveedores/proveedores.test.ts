@@ -131,7 +131,7 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     }
 
     if (resultado.ok) {
-      const compra = await repo.obtenerCompraPorId(resultado.data.compraId);
+      const compra = await repo.obtenerCompraPorId(db, resultado.data.compraId);
       expect(compra?.proveedorId).toBeNull();
       expect(compra?.estadoPago).toBe("pendiente");
     }
@@ -196,7 +196,7 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     expect(ajuste.ok).toBe(true);
 
     // La compra original queda intacta.
-    const compraOriginal = await repo.obtenerCompraPorId(compra.data.compraId);
+    const compraOriginal = await repo.obtenerCompraPorId(db, compra.data.compraId);
     expect(Number(compraOriginal?.montoTotal)).toBe(100);
   });
 
@@ -296,7 +296,7 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     if (!compra.ok) throw new Error("setup fallo");
     expect((compra.data as { entradaStock?: unknown }).entradaStock).toBeUndefined();
 
-    const compraPedido = await repo.obtenerCompraPorId(compra.data.compraId);
+    const compraPedido = await repo.obtenerCompraPorId(db, compra.data.compraId);
     expect(compraPedido?.estado).toBe("pedido");
 
     const duranteEspera = await consultarStockInsumo(owner!, insumoId, sucursalId);
@@ -307,7 +307,7 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     expect(recepcion.ok).toBe(true);
     if (recepcion.ok) expect(recepcion.data.entradaStock.ok).toBe(true);
 
-    const compraRecibida = await repo.obtenerCompraPorId(compra.data.compraId);
+    const compraRecibida = await repo.obtenerCompraPorId(db, compra.data.compraId);
     expect(compraRecibida?.estado).toBe("recibido");
     expect(compraRecibida?.fechaRecepcion).not.toBeNull();
 
