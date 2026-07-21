@@ -60,11 +60,19 @@ function exigirUuid(valor: string, nombreParaError: string): string {
  * cambia solo a protocolo simple, que sí acepta múltiples sentencias.
  *
  * Riesgo aceptado y documentado: esto usa un campo interno de drizzle-orm,
- * no su tipado público — podría romper en una actualización de versión. Si
- * eso pasa, tira un error explícito acá abajo en vez de fallar en silencio,
- * y además cualquier test que dependa de comoUsuario()/comoInstitucion()
- * (contexto.test.ts, patrimonio.test.ts, tenant-aislamiento.test.ts) fallaría
- * de inmediato con un mensaje claro — no de forma silenciosa en producción.
+ * no su tipado público — podría romper en una actualización de versión. El
+ * chequeo de abajo cubre el caso obvio (la forma desaparece: tira un error
+ * explícito, no falla en silencio). Pero hay un caso más peligroso que ESE
+ * chequeo no puede cubrir: que `session.client` siga existiendo con forma
+ * idéntica (`.unsafe` sigue siendo función) pero deje de ser, por dentro,
+ * la conexión reservada de la transacción — ahí el `SET LOCAL ROLE`/
+ * `set_config` dejarían de aplicar al contexto real de la query sin que
+ * nada tire error: las consultas correrían sin filtro de tenant, en
+ * silencio. Por eso `drizzle-orm` está fijado a versión exacta en
+ * package.json (sin `^`) — cualquier actualización, aunque sea de patch,
+ * tiene que ser deliberada y re-verificada acá, nunca automática. La otra
+ * mitigación es tenant-aislamiento.test.ts corriendo en CI: si este
+ * mecanismo alguna vez deja de filtrar de verdad, ese test lo detecta.
  */
 function clienteCrudoDeLaTransaccion(tx: Tx): { unsafe(query: string): Promise<unknown[][]> } {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
