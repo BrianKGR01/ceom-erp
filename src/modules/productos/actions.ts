@@ -428,6 +428,25 @@ export async function consultarCostoOperativo(
 // venta) quedan listas para cuando existan Modulo 6/Ventas — hoy nadie las
 // llama todavia, mismo criterio que compra_registrada en Proveedores.
 
+/**
+ * Ata el productoId controlado por el cliente al tenant ya autorizado por
+ * tienePermiso() — cierra la clase de escritura cross-tenant al ledger de
+ * stock y al costo_operativo_vigente de un producto ajeno (auditoría de
+ * autorización, docs/security/AUDITORIA-AUTORIZACION.md). RLS bypasseada
+ * (rol postgres, src/db/rls.ts) => este chequeo app-level es la única
+ * defensa. Devuelve el error listo o null.
+ */
+async function requireProductoDelTenant(
+  tenantId: string,
+  productoId: string
+): Promise<{ ok: false; error: string } | null> {
+  const producto = await repo.obtenerProductoPorId(productoId);
+  if (!producto || producto.tenantId !== tenantId) {
+    return { ok: false, error: "Producto no encontrado." };
+  }
+  return null;
+}
+
 export async function registrarEntradaProduccion(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -442,6 +461,8 @@ export async function registrarEntradaProduccion(
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
     return { ok: false, error: "No tenés permiso para registrar entradas de stock en este tenant." };
   }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
 
   const { movimiento, cantidadActual } = await repo.crearEntradaProduccionTx({
     productoId: input.productoId,
@@ -469,6 +490,8 @@ export async function registrarEntradaCompraReventa(
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
     return { ok: false, error: "No tenés permiso para registrar entradas de stock en este tenant." };
   }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
 
   const { movimiento, cantidadActual } = await repo.crearEntradaCompraReventaTx({
     productoId: input.productoId,
@@ -498,6 +521,8 @@ export async function registrarAjusteManualStock(
   ) {
     return { ok: false, error: "No tenés permiso para ajustar stock en este tenant." };
   }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
   if (!input.motivo.trim()) {
     return { ok: false, error: "El motivo del ajuste es obligatorio." };
   }
@@ -530,6 +555,8 @@ export async function descontarStockVenta(
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
     return { ok: false, error: "No tenés permiso para descontar stock en este tenant." };
   }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
 
   const cantidadPedida = Number(input.cantidad);
   const filaStock = await repo.obtenerStock(input.productoId, input.sucursalId);
@@ -581,6 +608,8 @@ export async function registrarTransferenciaStock(
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
     return { ok: false, error: "No tenés permiso para transferir stock en este tenant." };
   }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
 
   const cantidadPedida = Number(input.cantidad);
   const filaStock = await repo.obtenerStock(input.productoId, input.sucursalOrigenId);
