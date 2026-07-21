@@ -1,0 +1,4 @@
+ALTER POLICY "compras_ceom_admin_bypass" ON "compras" TO authenticated USING ((select es_ceom_admin())) WITH CHECK ((select es_ceom_admin()));--> statement-breakpoint
+ALTER POLICY "compras_ajuste_ceom_admin_bypass" ON "compras_ajuste" TO authenticated USING ((select es_ceom_admin())) WITH CHECK ((select es_ceom_admin()));--> statement-breakpoint
+ALTER POLICY "pagos_compra_ceom_admin_bypass" ON "pagos_compra" TO authenticated USING ((select es_ceom_admin())) WITH CHECK ((select es_ceom_admin()));--> statement-breakpoint
+ALTER POLICY "proveedores_ceom_admin_bypass" ON "proveedores" TO authenticated USING ((select es_ceom_admin())) WITH CHECK ((select es_ceom_admin()));

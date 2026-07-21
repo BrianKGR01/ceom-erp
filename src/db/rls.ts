@@ -31,22 +31,26 @@ export function crudPolicy(tableName: string, tenantScope: SQL) {
 
 /**
  * Bypass de ceom_admin (Etapa 3 del backstop de RLS, docs/security/
- * PLAN-RLS-BACKSTOP.md §10.3/§10.8) — policy permisiva adicional que se
+ * PLAN-RLS-BACKSTOP.md §10.3/§10.8/§12) — policy permisiva adicional que se
  * OR-ea sola con la de crudPolicy() (semántica nativa de Postgres para
  * múltiples policies permisivas del mismo comando). Reusar esta función,
  * no reescribir el `using`/`withCheck` a mano, para que toda tabla con
- * bypass use exactamente `es_ceom_admin()` — no una variante local.
+ * bypass use exactamente `(select es_ceom_admin())` — no una variante local.
  *
- * Invariante de diseño que hay que preservar en cada módulo que la use
- * (§10.3, "costo por fila"): `es_ceom_admin()` NO se hoistea a un InitPlan
- * como `current_tenant_id()` (verificado con EXPLAIN ANALYZE real, no
- * asumido) — se evalúa por fila candidata, con costo acotado SOLO porque
- * la query que la aplicación arma siempre trae además un filtro de
- * `tenant_id` explícito (evaluado primero, más barato, descarta la mayoría
- * de las filas antes de llegar al bypass). Nunca usar esta policy como
- * excusa para quitar el filtro de tenant explícito de una query — sin ese
- * filtro, el costo deja de estar acotado por tenant y pasa a ser por tabla
- * completa.
+ * `(select es_ceom_admin())`, no `es_ceom_admin()` a secas (§12, medido con
+ * EXPLAIN ANALYZE real, en transacción con rollback, a volumen sintético de
+ * 40k filas): envolver la llamada en una subconsulta escalar la hoistea a un
+ * `InitPlan` — se evalúa UNA sola vez por consulta, igual que
+ * `current_tenant_id()` (mismo patrón que recomienda Supabase para
+ * `auth.uid()`). Corrige la hipótesis anterior de §10.3/§11.1 punto 6
+ * ("una función booleana usada como término suelto de un OR nunca se
+ * hoistea"): esa conclusión era cierta para `es_ceom_admin()` a secas o
+ * `= true`, pero nunca se probó la forma `(select ...)` — que sí hoistea,
+ * sin relación con ser o no operando de una comparación. Con esto, el costo
+ * de este bypass YA NO depende de que la query de la aplicación traiga un
+ * filtro de `tenant_id` explícito (esa dependencia era el invariante frágil
+ * que §12 fue a eliminar) — queda acotado por diseño, evaluándose una vez
+ * por consulta sin importar cuántas filas tenga la tabla.
  *
  * NUNCA aplicar sobre `usuarios`/`roles`/`permisos`/
  * `permisos_especiales_por_*` (riesgo de recursión real si esas tablas
@@ -57,7 +61,7 @@ export function ceomAdminBypassPolicy(tableName: string) {
   return pgPolicy(`${tableName}_ceom_admin_bypass`, {
     for: "all",
     to: authenticatedRole,
-    using: sql`es_ceom_admin()`,
-    withCheck: sql`es_ceom_admin()`,
+    using: sql`(select es_ceom_admin())`,
+    withCheck: sql`(select es_ceom_admin())`,
   });
 }
