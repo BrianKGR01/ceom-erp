@@ -447,11 +447,17 @@ export async function actualizarComposicionReceta(
   // Cada insumoId de la composición debe ser del mismo tenant que la receta —
   // sin esto se podía inyectar un insumo ajeno en la composición y filtrar su
   // costo vía el costo calculado de la receta (auditoría de autorización).
-  for (const l of lineas) {
-    const insumo = await repo.obtenerInsumoPorId(l.insumoId);
-    if (!insumo || insumo.tenantId !== receta.tenantId) {
-      return { ok: false, error: "Uno de los insumos indicados no existe en este negocio." };
-    }
+  // Paralelo: cada lookup es independiente (insumoId distinto) y el error es
+  // el mismo generico sin importar cual linea fallo, asi que el orden no
+  // afecta el resultado observable.
+  const insumosDeLaComposicion = await Promise.all(
+    lineas.map((l) => repo.obtenerInsumoPorId(l.insumoId))
+  );
+  const hayInsumoInvalido = insumosDeLaComposicion.some(
+    (insumo) => !insumo || insumo.tenantId !== receta.tenantId
+  );
+  if (hayInsumoInvalido) {
+    return { ok: false, error: "Uno de los insumos indicados no existe en este negocio." };
   }
 
   await repo.reemplazarComposicionReceta(
@@ -615,6 +621,16 @@ export async function registrarProduccion(
     "producir_sin_stock_insumo"
   );
 
+  // Paralelo solo la lectura: cada obtenerStockInsumo es independiente (un
+  // insumo distinto de la composicion), esto era N round-trips secuenciales
+  // contra Supabase Cloud real por cada produccion registrada. La validacion
+  // de stock suficiente y el orden de "primer insumo insuficiente reportado"
+  // se preserva armando el resultado en el mismo orden de `composicion`
+  // despues de que todas las lecturas resolvieron.
+  const stocksPorLinea = await Promise.all(
+    composicion.map((linea) => repo.obtenerStockInsumo(linea.insumoId, input.sucursalId))
+  );
+
   let costoTotalInsumos = 0;
   const consumos: Array<{
     insumoId: string;
@@ -623,9 +639,10 @@ export async function registrarProduccion(
     costoUnitarioEnMovimiento: string;
   }> = [];
 
-  for (const linea of composicion) {
+  for (let i = 0; i < composicion.length; i++) {
+    const linea = composicion[i];
     const cantidadNecesaria = Number(linea.cantidadPorLote) * cantidadLotesProducidos;
-    const stockInsumo = await repo.obtenerStockInsumo(linea.insumoId, input.sucursalId);
+    const stockInsumo = stocksPorLinea[i];
     const disponible = stockInsumo ? Number(stockInsumo.cantidadActual) : 0;
 
     if (disponible < cantidadNecesaria && !puedeProducirSinStock) {

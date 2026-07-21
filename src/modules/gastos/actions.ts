@@ -77,12 +77,12 @@ export async function sembrarCategoriasGastoDefault(
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear categorías de gasto en este tenant." };
   }
-  const categoriaIds: string[] = [];
-  for (const nombre of CATEGORIAS_GASTO_DEFAULT) {
-    const categoria = await repo.crearCategoriaGasto({ tenantId, nombre });
-    categoriaIds.push(categoria.id);
-  }
-  return { ok: true, data: { categoriaIds } };
+  // Set fijo de 5 categorias (no crece con datos del tenant) — insercion en
+  // paralelo, cada una independiente y el orden no importa.
+  const categorias = await Promise.all(
+    CATEGORIAS_GASTO_DEFAULT.map((nombre) => repo.crearCategoriaGasto({ tenantId, nombre }))
+  );
+  return { ok: true, data: { categoriaIds: categorias.map((c) => c.id) } };
 }
 
 export async function actualizarCategoriaGasto(

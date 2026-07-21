@@ -1,9 +1,13 @@
 # Plan RLS Backstop — Fase 0: diagnóstico y diseño
 
-**Estado: aprobado — Etapas 0 y 1 implementadas y verificadas (2026-07-21, ver §8).** El
+**Estado: aprobado — Etapas 0, 1 y 2 implementadas y verificadas (2026-07-21, ver §8 y §9).** El
 diagnóstico original (§1-§7) sigue siendo de solo lectura tal cual se escribió; §8 documenta lo
-que se implementó después, sobre la misma base de desarrollo, con las decisiones de §7 ya tomadas.
-Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que originó este trabajo.
+que se implementó después (Etapas 0-1), y §9 la Etapa 2 (barrido de N+1 + Proveedores) — sobre la
+misma base de desarrollo, con las decisiones de §7 ya tomadas. **§9.6 encontró y corrigió una
+regresión real** que cambia una premisa del plan (el camino Gateway/Panel Admin CEOM no es
+independiente de las Etapas 3/4 como se asumía) — leer antes de migrar Ventas, Gastos u
+Operativo/Nicho-1. Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
+originó este trabajo.
 
 Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
 `riertvgnjaujstwyqoom`, región `sa-east-1`, Postgres 17.6.1.141) más lectura directa de
@@ -644,3 +648,240 @@ desarrollo bajo carga hoy, no un bug de lógica.
 Etapas 0 y 1 cerradas (§8). Antes de tocar el módulo 2 de la Etapa 2 (Proveedores, según el ranking
 de §3.1): decisión pendiente sobre el múltiplo de latencia de §8.3 — replicarlo tal cual, o invertir
 en la optimización de `BEGIN` pipelineado antes de seguir escalando a los 13 módulos restantes.
+
+---
+
+## 9. Etapa 2 — Barrido de N+1 y Proveedores (implementado y verificado, 2026-07-21)
+
+Se decidió replicar el mecanismo de latencia tal cual (§8.3) sin invertir en la optimización de
+`BEGIN` pipelineado — evaluar esa optimización con datos de más de un módulo migrado, no solo
+Patrimonio.
+
+### 9.1 Barrido de N+1 en los 13 módulos restantes (previo a migrar Proveedores)
+
+Motivación confirmada en el propio código: `git log` ya tiene un commit previo
+(`0dc2f71 fix(operativo): corrige N+1 secuencial y arregla el timeout flaky de sección 4`) para
+exactamente el síntoma descrito en la tarea — un `for...of` secuencial en `operativo-nicho1.test.ts`
+que quedó al borde del timeout de 5000ms de Vitest cuando la migración de Patrimonio sumó costo real.
+El barrido de esta ronda buscó el mismo patrón en los 13 módulos que todavía no pasaron por
+`comoUsuario()`, con 13 agentes en paralelo (uno por módulo), cada uno con acceso solo a
+`repository.ts`/`actions.ts` de su módulo.
+
+**Resultado: 10 módulos sin ningún patrón aplicable, 3 módulos con hallazgos reales, 0 tests en
+rojo.**
+
+| Módulo | Hallazgos | Decisión |
+|---|---|---|
+| consentimiento, financiero, identidad, monitoreo-institucional, panel-admin-ceom, productos, proveedores, reportes, simulaciones, suscripción | 0 | Ya usan `Promise.all` donde corresponde, o no tienen bucles con `await` — sin cambios. |
+| **gastos** | 1 | `sembrarCategoriasGastoDefault` (5 categorías fijas, inserciones independientes) → `Promise.all`. |
+| **operativo** (Nicho 1) | 3 | `registrarProduccion` (N lecturas de stock por línea de receta) → `Promise.all`. `actualizarComposicionReceta` (validación de tenant por insumo) → `Promise.all`. `crearProduccionTx` (upsert de `stock_insumo` por insumo+sucursal) → **se dejó secuencial**: si una receta repitiera el mismo insumo en dos líneas (nada en el schema lo impide), dos upserts concurrentes sobre la misma clave podrían pisarse o chocar contra el unique index. |
+| **ventas** | 2 | Snapshot de precio/costo por línea de `registrarVenta` (lecturas independientes por producto) → `Promise.all`, preservando "primer error en el orden original". Descuento de stock por línea (`descontarStockVenta`) → **se dejó secuencial**: es lee-disponible-luego-escribe-movimiento en dos pasos no atómicos; si dos líneas de la misma venta comparten producto+sucursal, paralelizarlo permitiría sobregiro de stock. |
+
+**Ningún hallazgo se marcó `creceSinLimite` (crecimiento sin tope).** Los 6 bucles encontrados están
+todos acotados por un tope de negocio chico (líneas de una venta, insumos de una receta, un set fijo
+de 5 categorías) — consistente con que esta es la primera pasada sobre módulos que en su mayoría
+todavía no migran a `comoUsuario()` (el costo extra de round-trips que hizo aflorar el bug original en
+Patrimonio/Nicho-1 todavía no se aplicó a estos otros módulos). Vale re-barrer con el mismo criterio
+cuando cada módulo migre, no asumir que quedó "cerrado para siempre".
+
+Los 2 casos dejados secuenciales comparten la misma forma: un **upsert derivado (lee-el-estado-actual,
+luego decide insert/update)** sobre una clave que dos iteraciones del mismo bucle podrían compartir.
+Es el mismo patrón de riesgo en ambos módulos distintos — vale tenerlo presente como heurística para
+las próximas etapas: cualquier bucle que recalcule un saldo/cantidad derivada por clave compuesta es
+sospechoso de N+1 real, no de "solo lento".
+
+Commits: `b3c1722` (gastos), `7a0e057` (operativo), `a646914` (ventas) — uno por módulo, tests de ese
+módulo en verde antes de cada commit.
+
+### 9.2 Proveedores migrado a `comoUsuario()`
+
+Mismo patrón exacto que Patrimonio (Etapa 1, §8.3), sin sorpresas de diseño:
+
+- `repository.ts`: las 17 funciones exportadas reciben `tx: Ejecutor` como primer parámetro.
+  `registrarPagoCompraTx` deja de abrir su propia `db.transaction()` anidada — la atomicidad ya la da
+  la transacción externa de `comoUsuario()`, mismo ajuste que `refinanciarPasivoTx` en Patrimonio.
+- `actions.ts`: cada función exportada envuelve su cuerpo en un solo
+  `comoUsuario(solicitante.id, ...)`; donde `tenantId` ya es un parámetro directo, `tienePermiso()` se
+  chequea antes de abrir el contexto (mismo criterio de no pagar el round-trip en el camino
+  rechazado).
+- `contexto.test.ts`: `src/modules/proveedores` sumado a `MODULOS_MIGRADOS_A_CONTEXTO`,
+  `proveedores/actions.ts` sumado al allowlist de import de `comoUsuario()`.
+- `tenant-aislamiento.test.ts` (nuevo, mismo patrón que Patrimonio): tenant B no lee ni puede
+  actualizar el `proveedor` de tenant A vía `comoUsuario()`; `comoSistema()` (bypass) confirma que la
+  fila real sigue existiendo — la prueba mide RLS, no el guard de aplicación.
+- Impacto de contrato revisado contra la matriz de dependencias (§7 de la arquitectura, sección 7):
+  nadie fuera del módulo importa `proveedores/repository.ts` directo (confirmado por grep) — Financiero
+  y las rutas de UI consumen exclusivamente `actions.ts`, cuyo contrato público (firmas de
+  `solicitante`/`tenantId`/`input`) no cambió. Cero impacto fuera del módulo.
+- `FORCE ROW LEVEL SECURITY` activado en las 4 tablas (`proveedores`, `compras`, `pagos_compra`,
+  `compras_ajuste`) al cierre de la etapa, vía migración versionada
+  (`0029_proveedores_force_rls.sql`, generada con `drizzle-kit generate --custom`, aplicada con
+  `drizzle-kit migrate`) — decisión §7.4, aplicada por-módulo en vez de esperar a la Etapa 5 original
+  del plan. Verificado post-aplicación contra `pg_class`: `relforcerowsecurity = true` en las 4.
+- 21/21 tests en verde (costo-unitario, proveedores.test.ts, tenant-aislamiento.test.ts,
+  contexto.test.ts) tanto antes como después de activar `FORCE`.
+
+Commits: `063515c` (migración a `comoUsuario()` + tests), `3cc7d53` (FORCE RLS).
+
+### 9.3 Frontera Proveedores → Productos/Nicho-1 (módulo no migrado) — verificado empíricamente, no solo razonado
+
+`registrarCompra`/`recibirCompra` disparan `dispararEntradaStock()`, que llama a
+`registrarEntradaCompraReventa()` (Productos, Módulo 2) o `registrarEntradaCompraInsumo()`
+(Operativo/Nicho-1) — ninguno de los dos módulos está migrado todavía, así que ambos siguen
+importando `db` crudo internamente (no reciben `tx`). Esta es la **primera vez** que una función ya
+migrada llama, en pleno vuelo de su propia transacción, a una función de un módulo que no lo está —
+la pregunta que definía el criterio para las 11 etapas restantes.
+
+**Verificación real** (no solo lectura de código): un script descartable
+(`comoUsuario(usuarioId, async (tx) => {...})` con una query de sondeo tanto por `tx` como por `db`
+crudo dentro del mismo callback, más un insert vía `tx` no comiteado todavía) confirmó:
+
+```json
+{
+  "dentroTx":              { "rol": "authenticated", "pid": 756507 },
+  "crudoDentro":            { "rol": "none",          "pid": 756508 },
+  "veloDesdeCrudoAntesDeCommit": 0,
+  "veloDesdeCrudoDespuesDeCommit": 1
+}
+```
+
+- **`pid` distinto** → la llamada al módulo no migrado toma una conexión física *distinta* del pool de
+  postgres-js, no la conexión reservada de la transacción de `comoUsuario()`.
+- **`rol` vuelve a `none`** (el rol de conexión por defecto, `postgres` — dueño de las tablas, bypassea
+  RLS por completo) — el `SET LOCAL ROLE authenticated` fijado dentro de `tx` no aplica a esa conexión
+  distinta.
+- **La fila insertada vía `tx` (todavía sin commit) es invisible** para la query cruda hasta que
+  `comoUsuario()` resuelve y comitea — aislamiento estándar de transacciones entre sesiones distintas
+  de Postgres, confirmado en la práctica, no asumido.
+
+**Conclusión — la respuesta para las 11 etapas restantes:** una llamada desde un módulo migrado hacia
+uno no migrado **no hereda nada** (ni rol, ni contexto de RLS, ni la transacción) — abre su propia
+unidad de trabajo con bypass total, exactamente como corría *antes* de migrar nada. Esto **no es una
+regresión de seguridad** (Productos/Nicho-1 nunca tuvieron RLS real en el camino de la app, siguen sin
+tenerlo hoy) pero sí introduce una ventana de **atomicidad cruzada nueva y más fina** que antes no
+existía: antes de esta migración, `crearCompra()` era un `INSERT` autocommiteado inmediato (sin
+transacción envolvente), así que para cuando `dispararEntradaStock()` corría, la Compra ya estaba
+comiteada de forma irreversible. Ahora `crearCompra()` vive dentro de la transacción todavía abierta de
+`comoUsuario()` — si algo *después* de `dispararEntradaStock()` lanzara una excepción (hoy no hay nada
+que lo haga: el código solo arma el objeto de retorno), la Compra se revertiría pero el movimiento de
+stock ya comiteado del otro lado quedaría huérfano, referenciando un `compra_id` que dejó de existir.
+El riesgo es despreciable hoy (no hay ningún `await` entre `dispararEntradaStock()` y el `return`), pero
+es la primera aparición real de esta clase de bug, y va a repetirse en cada módulo que dispare una
+llamada cruzada mientras el otro lado siga sin migrar.
+
+**Implicación para las etapas 3-13 (no resuelta esta sesión, queda como diseño pendiente):** el arreglo
+de fondo no es "migrar todo a la vez" (fuera de alcance, y el plan explícitamente escalona por
+acoplamiento) sino que, cuando el módulo *llamado* migre, su función pública podría aceptar un `tx`
+opcional para que un caller que ya está dentro de un `comoUsuario()` propio se lo pase en vez de forzar
+una conexión nueva — hoy ninguna de las dos partes de este par (Proveedores ✅ migrado, Productos/Nicho-1
+❌ no) lo soporta, así que no se implementó; queda anotado acá para cuando se migren esos dos módulos.
+
+### 9.4 Latencia de Proveedores — se parece a Patrimonio en forma, no en el número exacto
+
+| | avg | p50 | p95 |
+|---|---|---|---|
+| Sin contexto (`db` crudo) | 233ms | 232ms | 245ms |
+| Con contexto (`comoUsuario()`) | 583ms | 582ms | 599ms |
+
++350ms, +150% sobre `listarProveedoresPorTenant` (3 filas reales), mismo mecanismo compartido de
+`contexto.ts` que Patrimonio (ya con el pipelining de `Promise.all`/mensaje simple de §8.3 — no se
+tocó `contexto.ts` en esta etapa). La comparación honesta contra Patrimonio (§8.3: sin contexto 244ms,
+con contexto 837ms, +593ms/+243%) muestra un múltiplo *menor* acá, no mayor — probablemente varianza de
+red/hora del día contra el mismo proyecto de desarrollo en `sa-east-1` (ambos módulos comparten
+exactamente el mismo código de `contexto.ts`, así que no hay una razón estructural para que difieran).
+**No sacar conclusiones de la diferencia entre los dos números absolutos** — la señal que importa es
+que el orden de magnitud del overhead (unos cientos de ms, 1.5x-2.5x) se mantiene estable entre el
+primer y el segundo módulo migrado, no que uno sea "más rápido" que el otro.
+
+### 9.6 Regresión real encontrada y corregida: el camino Gateway/Panel Admin CEOM no es independiente de las Etapas 3/4
+
+**Esto cambia una premisa del plan, no es una nota al pie.** El diseño original (§3, tabla de la
+sección 3) asumía que el caso "tenant propio" (Etapas 1-2) era ortogonal a `ceom_admin` (Etapa 3) y al
+portal (Etapa 4) — que se podía migrar módulo por módulo sin arrastrar ese riesgo hasta llegar
+explícitamente a esas etapas. **Proveedores demostró que eso es falso en la práctica:** es el primer
+módulo migrado que además es alcanzado por el camino Monitoreo Institucional/Panel Admin CEOM (vía
+`financiero.flujoCaja()` → `consultarPagosCompraEnPeriodo()`), y migrarlo rompió ese camino de dos
+formas distintas al correr la suite completa (`pnpm test`, no solo los tests del propio módulo):
+
+1. **Monitoreo Institucional, crash real** — llama con `solicitanteGateway()`
+   (`identidad/actions.ts:264`), un `UsuarioConRol` **sintético**: `id = "00000000-0000-0000-0000-000000000000"`,
+   sin fila real en `usuarios` ni en `auth.users`. `comoUsuario()` exige que `current_tenant_id()`
+   resuelva (falla ruidosa, §2.2) y esa exigencia no tiene forma de cumplirse — no es un bug de dato
+   faltante, es un id que **no puede existir** porque nunca pasó por un login real. 2 tests en rojo
+   (`monitoreo-institucional.test.ts`, caso 2 y caso borde 1).
+2. **Panel Admin CEOM, corrupción de dato silenciosa (más grave que el crash)** — llama con un
+   `ceom_admin` real (sí existe en `usuarios`), así que `current_tenant_id()` resuelve — pero al tenant
+   propio del admin ("CEOM Ops"), no al `tenantId` que se quiere inspeccionar. Sin `es_ceom_admin()` +
+   policy de bypass (Etapa 3, no implementada), RLS filtra todo a 0 filas — y **ningún test lo
+   detectaba**: `panel-admin-ceom.test.ts` solo afirmaba `typeof financiero.data.flujoCaja === "number"`,
+   que sigue siendo cierto para `0`. Un cero incorrecto (RLS filtrando) es indistinguible de un cero
+   correcto (tenant sin movimientos) con ese assert — exactamente la clase de falla silenciosa que
+   `comoUsuario()` intenta evitar en la capa de contexto (§2.2), colándose por una capa arriba, en el
+   test que debía probarla.
+
+**Corrección aplicada, acotada a lo mínimo (no se adelantó nada de la Etapa 3):**
+`consultarPagosCompraEnPeriodo()` es ahora la única función de Proveedores que **no** abre
+`comoUsuario()` — sigue leyendo por `tenantId` explícito + `tienePermiso()`, igual que todo el módulo
+antes de esta migración. La excepción es explícita en el código (comentario largo justo en la función)
+y en un allowlist dedicado y nuevo de `contexto.test.ts` (`ALLOWLIST_IMPORTA_DB_CRUDO`) que exige que
+cualquier excepción futura se agregue ahí a propósito, con motivo escrito — no que se cuele. Las otras
+17 funciones de Proveedores siguen migradas sin cambios. Además, se corrigió el assert débil de
+`panel-admin-ceom.test.ts` ("caso 3"): ahora siembra una Compra + Pago de Compra reales
+(`registrarCompra`/`registrarPagoCompra` como Owner) y afirma el valor exacto de `flujoCaja` (`-100`,
+no solo su tipo) — ese assert nuevo es el que habría atrapado la corrupción silenciosa si hubiera
+existido antes.
+
+**Otro assert del mismo patrón débil, encontrado pero NO corregido esta sesión** (pedido explícito:
+listarlo alcanza, no hace falta arreglarlo ahora): `monitoreo-institucional.test.ts:156`,
+`expect(typeof financiero.data.detalle.flujoCaja).toBe("number")` dentro de "caso 2". Mismo riesgo en
+potencia — hoy no oculta nada porque ese test tampoco siembra Compras/Ventas/Gastos reales para el
+tenant (haría falta el mismo trabajo de seeding que se hizo en panel-admin-ceom.test.ts para que el
+assert tenga algo real que verificar), pero es el mismo hueco.
+
+**Qué módulos de los que faltan migrar son alcanzables desde Gateway/Panel Admin CEOM** (auditado
+contra `financiero/actions.ts` y las llamadas directas de ambos módulos — no se rastreó más profundo
+que un nivel de indirección):
+
+| Módulo | Alcanzado por | Cómo |
+|---|---|---|
+| **Ventas** | Monitoreo Institucional (`tendenciaVentas`), ambos (vía `financiero.flujoCaja`/`estadoResultados`) | `consultarPagosVentaEnPeriodo`, `consultarIngresosPeriodo`, `consultarAjustesVentaEnPeriodo` |
+| **Gastos** | ambos (vía `financiero.flujoCaja`/`estadoResultados`/`costoFijoTotal`) | `consultarTotalCostosFijos`, `consultarPagosGastoEnPeriodo`, `consultarTotalGastosEnPeriodo` |
+| **Operativo/Nicho-1** | ambos, directo (sin pasar por Financiero) | `listarProducciones`, `consultarMermaPeriodo`, `listarInsumos` |
+| Identidad, Suscripción, Consentimiento | Panel Admin CEOM toca partes de Identidad/Suscripción, pero hoy vía funciones que ya tienen su propio bypass de `ceom_admin` **dentro de `tienePermiso()`/`repository.ts`** (no vía RLS) — no se rastreó a fondo si eso sigue siendo cierto una vez que Identidad migre (es la Etapa final, §3.1, por su acoplamiento — este hallazgo es una razón más para tratarla con cuidado ahí, no antes) | No auditado en profundidad esta sesión |
+
+**Conclusión práctica: cada uno de Ventas, Gastos y Operativo/Nicho-1 va a necesitar el mismo tipo de
+excepción puntual (o la Etapa 3 real) en su propia migración**, no solo Proveedores — no es un caso
+aislado. Vale decidir, antes de migrar el próximo de estos tres, si conviene adelantar la Etapa 3
+(`es_ceom_admin()` + `comoCeomAdmin` real) en vez de acumular excepciones módulo por módulo — la
+decisión queda para el usuario, no tomada acá.
+
+**El solicitante sintético de `solicitanteGateway()` necesita un rediseño en la Etapa 4, no solo una
+policy nueva.** Toda policy de RLS depende de `auth.uid()` resolviendo a algo — `es_ceom_admin()` (la
+función propuesta en §2.3 para la Etapa 3) hace `where u.id = auth.uid()`, y ese `auth.uid()` sigue
+siendo el UUID de ceros sintético, que nunca va a tener una fila en `usuarios`. Ninguna policy, por bien
+escrita que esté, puede autorizar un `auth.uid()` que no existe — el problema no es "falta la policy
+correcta", es que el mecanismo entero de "un usuario real autenticado vía Supabase Auth" no aplica a
+este solicitante por diseño. La Etapa 4 (portal) va a necesitar decidir esto de raíz: o
+`solicitanteGateway()` deja de ser un objeto 100% en memoria y pasa a ser un usuario real sembrado
+(con su propio `auth.users`/`usuarios`, tenant "CEOM Ops", igual que un `ceom_admin` humano), o las
+funciones que Monitoreo Institucional consume siguen sin poder pasar por `comoUsuario()`/`comoCeomAdmin()`
+nunca, y necesitan su propio mecanismo (quizás `comoInstitucion()` extendido, ya que conceptualmente
+"el Gateway ya autorizó esto" es más parecido al caso 3 que al caso 2). No decidido acá — es
+exactamente el tipo de decisión de alto impacto que el usuario pidió reservarse para cuando se llegue
+a esa etapa.
+
+### 9.5 Estado y próximos pasos
+
+Etapa 2 cerrada — Proveedores es el segundo módulo migrado, con la suite completa (`pnpm test`, 201
+tests, 31 archivos) en verde, no solo los tests del propio módulo. Sigue pendiente, en el orden de
+§3.1: Etapa 2 continúa con Consentimiento/Suscripción/Simulaciones/Gastos, luego Productos/Ventas/
+Identidad, y recién después las Etapas 3 (`ceom_admin`) y 4 (portal) — **no tocadas esta sesión**, tal
+como se pidió. Dos condicionantes nuevos para ese orden, ambos de §9.3/§9.6:
+
+- Antes de migrar Productos o Nicho-1 en concreto, revisar §9.3: esa migración es la primera
+  oportunidad real de cerrar la ventana de atomicidad cruzada documentada ahí, en vez de solo
+  heredarla de nuevo.
+- Antes de migrar Ventas, Gastos u Operativo/Nicho-1 (los tres confirmados alcanzables desde Gateway/
+  Panel Admin CEOM en §9.6), correr la suite completa —no solo la del módulo— y decidir si conviene
+  adelantar la Etapa 3 en vez de acumular una excepción puntual por módulo, como se hizo acá para
+  Proveedores.

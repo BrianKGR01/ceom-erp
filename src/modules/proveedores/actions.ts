@@ -1,3 +1,9 @@
+import { comoUsuario } from "@/db/contexto";
+// Excepcion deliberada y acotada -- SOLO para consultarPagosCompraEnPeriodo,
+// ver el comentario junto a esa funcion y contexto.test.ts
+// (ALLOWLIST_IMPORTA_DB_CRUDO). Ningun otro uso de "db" es valido en este
+// archivo -- todo lo demas pasa por comoUsuario().
+import { db } from "@/db/client";
 import { registrarEntradaCompraInsumo } from "@/modules/operativo/nichos/nicho-1/actions";
 import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
@@ -50,15 +56,17 @@ export async function crearProveedor(
     return { ok: false, error: "No tenés permiso para crear proveedores en este tenant." };
   }
 
-  const proveedor = await repo.crearProveedor({
-    tenantId,
-    nombre: input.nombre,
-    contacto: input.contacto,
-    notas: input.notas,
-    creadoPor: solicitante.id,
-  });
+  return comoUsuario(solicitante.id, async (tx) => {
+    const proveedor = await repo.crearProveedor(tx, {
+      tenantId,
+      nombre: input.nombre,
+      contacto: input.contacto,
+      notas: input.notas,
+      creadoPor: solicitante.id,
+    });
 
-  return { ok: true, data: { proveedorId: proveedor.id } };
+    return { ok: true, data: { proveedorId: proveedor.id } };
+  });
 }
 
 export async function actualizarProveedor(
@@ -66,37 +74,41 @@ export async function actualizarProveedor(
   proveedorId: string,
   input: Partial<DatosProveedor>
 ): Promise<Resultado<true>> {
-  const proveedor = await repo.obtenerProveedorPorId(proveedorId);
-  if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-  if (
-    !(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "editar"))
-  ) {
-    return { ok: false, error: "No tenés permiso para editar este proveedor." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
+    if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
+    if (
+      !(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "editar"))
+    ) {
+      return { ok: false, error: "No tenés permiso para editar este proveedor." };
+    }
 
-  await repo.actualizarProveedor(proveedorId, input);
-  return { ok: true, data: true };
+    await repo.actualizarProveedor(tx, proveedorId, input);
+    return { ok: true, data: true };
+  });
 }
 
 export async function eliminarProveedor(
   solicitante: UsuarioConRol,
   proveedorId: string
 ): Promise<Resultado<true>> {
-  const proveedor = await repo.obtenerProveedorPorId(proveedorId);
-  if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-  if (
-    !(await tienePermiso(
-      solicitante,
-      proveedor.tenantId,
-      "proveedores",
-      "anular_ajustar"
-    ))
-  ) {
-    return { ok: false, error: "No tenés permiso para eliminar este proveedor." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
+    if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
+    if (
+      !(await tienePermiso(
+        solicitante,
+        proveedor.tenantId,
+        "proveedores",
+        "anular_ajustar"
+      ))
+    ) {
+      return { ok: false, error: "No tenés permiso para eliminar este proveedor." };
+    }
 
-  await repo.eliminarProveedorSoft(proveedorId);
-  return { ok: true, data: true };
+    await repo.eliminarProveedorSoft(tx, proveedorId);
+    return { ok: true, data: true };
+  });
 }
 
 export async function listarProveedores(
@@ -106,7 +118,10 @@ export async function listarProveedores(
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver proveedores en este tenant." };
   }
-  return { ok: true, data: await repo.listarProveedoresPorTenant(tenantId) };
+  return comoUsuario(solicitante.id, async (tx) => ({
+    ok: true,
+    data: await repo.listarProveedoresPorTenant(tx, tenantId),
+  }));
 }
 
 /** ficha_proveedor(proveedor_id) — resumen de compras a ese proveedor
@@ -120,26 +135,28 @@ export async function fichaProveedor(
   montoTotalComprado: number;
   compras: Awaited<ReturnType<typeof repo.listarComprasPorProveedor>>;
 }>> {
-  const proveedor = await repo.obtenerProveedorPorId(proveedorId);
-  if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-  if (!(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver este proveedor." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
+    if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
+    if (!(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "ver"))) {
+      return { ok: false, error: "No tenés permiso para ver este proveedor." };
+    }
 
-  const [resumen, comprasDelProveedor] = await Promise.all([
-    repo.resumenComprasPorProveedor(proveedorId),
-    repo.listarComprasPorProveedor(proveedorId),
-  ]);
+    const [resumen, comprasDelProveedor] = await Promise.all([
+      repo.resumenComprasPorProveedor(tx, proveedorId),
+      repo.listarComprasPorProveedor(tx, proveedorId),
+    ]);
 
-  return {
-    ok: true,
-    data: {
-      proveedor,
-      cantidadCompras: resumen.cantidadCompras,
-      montoTotalComprado: Number(resumen.montoTotalComprado),
-      compras: comprasDelProveedor,
-    },
-  };
+    return {
+      ok: true,
+      data: {
+        proveedor,
+        cantidadCompras: resumen.cantidadCompras,
+        montoTotalComprado: Number(resumen.montoTotalComprado),
+        compras: comprasDelProveedor,
+      },
+    };
+  });
 }
 
 // --- Compras ---------------------------------------------------------
@@ -169,11 +186,26 @@ export interface DatosEntradaStock {
   error?: string;
 }
 
-/** Dispara la entrada de stock real segun tipo — Modulo 2 (reventa) o
+/**
+ * Dispara la entrada de stock real segun tipo — Modulo 2 (reventa) o
  * Operativo Nicho 1 (insumo). Mismo criterio de "gap de atomicidad cruzada
  * aceptado a proposito" que Ventas/Producción (Módulos 3/6): si esta
  * llamada falla, la Compra ya quedó "recibido" igual — el caller detecta el
- * error en el resultado y reintenta a mano. */
+ * error en el resultado y reintenta a mano.
+ *
+ * Frontera con un módulo no migrado (docs/security/PLAN-RLS-BACKSTOP.md,
+ * Etapa 2): Productos/Nicho-1 todavía usan `db` crudo internamente (no
+ * reciben `tx`), así que esta llamada NO hereda el contexto de RLS ni la
+ * transacción abierta por `comoUsuario()` — abre su propia conexión con rol
+ * bypass (verificado empíricamente, no solo razonado, ver el plan). Esto no
+ * es una regresión de seguridad (esos módulos ya corrían así antes de esta
+ * migración), pero sí es la primera vez que una escritura de un módulo ya
+ * migrado puede committear del otro lado ANTES de que la transacción
+ * externa (`registrarCompra`/`recibirCompra`) haga su propio commit — hoy
+ * el riesgo es despreciable porque nada después de esta llamada puede
+ * fallar, pero el patrón para las once etapas restantes queda documentado
+ * en el plan, no resuelto acá.
+ */
 async function dispararEntradaStock(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -218,50 +250,52 @@ export async function registrarCompra(
     return { ok: false, error: "Una compra de reventa requiere productoId (y no insumoId)." };
   }
 
-  // Si se indica proveedor, debe ser del tenant — sin esto la compra
-  // referenciaba un proveedor ajeno (auditoría de autorización). proveedorId
-  // es opcional (compra sin proveedor registrado). El insumoId/productoId se
-  // valida en la entrada de stock (registrarEntradaCompraInsumo/Reventa, ya
-  // atadas a su tenant), que se dispara al recibir la compra.
-  if (input.proveedorId) {
-    const proveedor = await repo.obtenerProveedorPorId(input.proveedorId);
-    if (!proveedor || proveedor.tenantId !== tenantId) {
-      return { ok: false, error: "Proveedor no encontrado." };
+  return comoUsuario(solicitante.id, async (tx) => {
+    // Si se indica proveedor, debe ser del tenant — sin esto la compra
+    // referenciaba un proveedor ajeno (auditoría de autorización). proveedorId
+    // es opcional (compra sin proveedor registrado). El insumoId/productoId se
+    // valida en la entrada de stock (registrarEntradaCompraInsumo/Reventa, ya
+    // atadas a su tenant), que se dispara al recibir la compra.
+    if (input.proveedorId) {
+      const proveedor = await repo.obtenerProveedorPorId(tx, input.proveedorId);
+      if (!proveedor || proveedor.tenantId !== tenantId) {
+        return { ok: false, error: "Proveedor no encontrado." };
+      }
     }
-  }
 
-  const costoUnitario = calcularCostoUnitario(
-    input.montoTotal,
-    input.cantidad,
-    input.costoAdicionalTraslado ?? null
-  );
-  const estado = input.estado ?? "recibido";
+    const costoUnitario = calcularCostoUnitario(
+      input.montoTotal,
+      input.cantidad,
+      input.costoAdicionalTraslado ?? null
+    );
+    const estado = input.estado ?? "recibido";
 
-  const compra = await repo.crearCompra({
-    tenantId,
-    sucursalId: input.sucursalId,
-    proveedorId: input.proveedorId,
-    tipo: input.tipo,
-    insumoId: input.insumoId,
-    productoId: input.productoId,
-    cantidad: String(input.cantidad),
-    costoUnitario: String(costoUnitario),
-    montoTotal: String(input.montoTotal),
-    costoAdicionalTraslado:
-      input.costoAdicionalTraslado !== undefined ? String(input.costoAdicionalTraslado) : undefined,
-    fechaCompra: input.fechaCompra,
-    fechaVencimiento: input.fechaVencimiento,
-    estado,
-    fechaRecepcion: estado === "recibido" ? input.fechaCompra : undefined,
-    creadoPor: solicitante.id,
+    const compra = await repo.crearCompra(tx, {
+      tenantId,
+      sucursalId: input.sucursalId,
+      proveedorId: input.proveedorId,
+      tipo: input.tipo,
+      insumoId: input.insumoId,
+      productoId: input.productoId,
+      cantidad: String(input.cantidad),
+      costoUnitario: String(costoUnitario),
+      montoTotal: String(input.montoTotal),
+      costoAdicionalTraslado:
+        input.costoAdicionalTraslado !== undefined ? String(input.costoAdicionalTraslado) : undefined,
+      fechaCompra: input.fechaCompra,
+      fechaVencimiento: input.fechaVencimiento,
+      estado,
+      fechaRecepcion: estado === "recibido" ? input.fechaCompra : undefined,
+      creadoPor: solicitante.id,
+    });
+
+    if (estado !== "recibido") {
+      return { ok: true, data: { compraId: compra.id, costoUnitario } };
+    }
+
+    const entradaStock = await dispararEntradaStock(solicitante, tenantId, compra);
+    return { ok: true, data: { compraId: compra.id, costoUnitario, entradaStock } };
   });
-
-  if (estado !== "recibido") {
-    return { ok: true, data: { compraId: compra.id, costoUnitario } };
-  }
-
-  const entradaStock = await dispararEntradaStock(solicitante, tenantId, compra);
-  return { ok: true, data: { compraId: compra.id, costoUnitario, entradaStock } };
 }
 
 /** Transiciona una Compra "pedido" -> "recibido" y recien ahi dispara la
@@ -275,24 +309,26 @@ export async function recibirCompra(
   compraId: string,
   fechaRecepcion?: string
 ): Promise<Resultado<{ entradaStock: DatosEntradaStock }>> {
-  const compra = await repo.obtenerCompraPorId(compraId);
-  if (!compra) return { ok: false, error: "Compra no encontrada." };
-  if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
-    return { ok: false, error: "No tenés permiso para recibir compras en este tenant." };
-  }
-  if (compra.estado === "recibido") {
-    return { ok: false, error: "Esta compra ya está recibida." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const compra = await repo.obtenerCompraPorId(tx, compraId);
+    if (!compra) return { ok: false, error: "Compra no encontrada." };
+    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
+      return { ok: false, error: "No tenés permiso para recibir compras en este tenant." };
+    }
+    if (compra.estado === "recibido") {
+      return { ok: false, error: "Esta compra ya está recibida." };
+    }
 
-  const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
-  const compraRecibida = await repo.marcarCompraRecibida(compraId, fecha);
-  const entradaStock = await dispararEntradaStock(
-    solicitante,
-    compra.tenantId,
-    compraRecibida
-  );
+    const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
+    const compraRecibida = await repo.marcarCompraRecibida(tx, compraId, fecha);
+    const entradaStock = await dispararEntradaStock(
+      solicitante,
+      compra.tenantId,
+      compraRecibida
+    );
 
-  return { ok: true, data: { entradaStock } };
+    return { ok: true, data: { entradaStock } };
+  });
 }
 
 /** historial_precio(item) — Modulo_08 seccion 2. "item" es insumo o
@@ -305,7 +341,10 @@ export async function historialPrecio(
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver el historial de este tenant." };
   }
-  return { ok: true, data: await repo.listarComprasPorItem(tenantId, item) };
+  return comoUsuario(solicitante.id, async (tx) => ({
+    ok: true,
+    data: await repo.listarComprasPorItem(tx, tenantId, item),
+  }));
 }
 
 /** Listado general de Compras del tenant — antes solo existian listados
@@ -321,7 +360,10 @@ export async function listarCompras(
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
   }
-  return { ok: true, data: await repo.listarComprasPorTenant(tenantId, opts) };
+  return comoUsuario(solicitante.id, async (tx) => ({
+    ok: true,
+    data: await repo.listarComprasPorTenant(tx, tenantId, opts),
+  }));
 }
 
 // --- Pagos de Compra ---------------------------------------------------------
@@ -335,14 +377,16 @@ export async function consultarSaldoCompra(
   solicitante: UsuarioConRol,
   compraId: string
 ): Promise<Resultado<{ saldoPendiente: number }>> {
-  const compra = await repo.obtenerCompraPorId(compraId);
-  if (!compra) return { ok: false, error: "Compra no encontrada." };
-  if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver esta compra." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const compra = await repo.obtenerCompraPorId(tx, compraId);
+    if (!compra) return { ok: false, error: "Compra no encontrada." };
+    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "ver"))) {
+      return { ok: false, error: "No tenés permiso para ver esta compra." };
+    }
 
-  const totalPagado = await repo.obtenerTotalPagado(compraId);
-  return { ok: true, data: { saldoPendiente: Number(compra.montoTotal) - totalPagado } };
+    const totalPagado = await repo.obtenerTotalPagado(tx, compraId);
+    return { ok: true, data: { saldoPendiente: Number(compra.montoTotal) - totalPagado } };
+  });
 }
 
 export async function registrarPagoCompra(
@@ -350,20 +394,22 @@ export async function registrarPagoCompra(
   compraId: string,
   input: { monto: string | number; fechaPago: string }
 ): Promise<Resultado<{ estadoPago: EstadoPagoCompra; totalPagado: number }>> {
-  const compra = await repo.obtenerCompraPorId(compraId);
-  if (!compra) return { ok: false, error: "Compra no encontrada." };
-  if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar pagos en esta compra." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const compra = await repo.obtenerCompraPorId(tx, compraId);
+    if (!compra) return { ok: false, error: "Compra no encontrada." };
+    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
+      return { ok: false, error: "No tenés permiso para registrar pagos en esta compra." };
+    }
 
-  const { estadoPago, totalPagado } = await repo.registrarPagoCompraTx({
-    compraId,
-    monto: String(input.monto),
-    fechaPago: input.fechaPago,
-    creadoPor: solicitante.id,
+    const { estadoPago, totalPagado } = await repo.registrarPagoCompraTx(tx, {
+      compraId,
+      monto: String(input.monto),
+      fechaPago: input.fechaPago,
+      creadoPor: solicitante.id,
+    });
+
+    return { ok: true, data: { estadoPago, totalPagado } };
   });
-
-  return { ok: true, data: { estadoPago, totalPagado } };
 }
 
 // --- Compra de Ajuste ---------------------------------------------------------
@@ -381,30 +427,58 @@ export async function registrarCompraDeAjuste(
   compraId: string,
   input: DatosCompraAjuste
 ): Promise<Resultado<{ ajusteId: string }>> {
-  const compra = await repo.obtenerCompraPorId(compraId);
-  if (!compra) return { ok: false, error: "Compra no encontrada." };
-  if (
-    !(await tienePermiso(solicitante, compra.tenantId, "proveedores", "anular_ajustar"))
-  ) {
-    return { ok: false, error: "No tenés permiso para ajustar esta compra." };
-  }
-  if (!input.motivo.trim()) {
-    return { ok: false, error: "El motivo del ajuste es obligatorio." };
-  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const compra = await repo.obtenerCompraPorId(tx, compraId);
+    if (!compra) return { ok: false, error: "Compra no encontrada." };
+    if (
+      !(await tienePermiso(solicitante, compra.tenantId, "proveedores", "anular_ajustar"))
+    ) {
+      return { ok: false, error: "No tenés permiso para ajustar esta compra." };
+    }
+    if (!input.motivo.trim()) {
+      return { ok: false, error: "El motivo del ajuste es obligatorio." };
+    }
 
-  const ajuste = await repo.crearCompraAjuste({
-    compraId,
-    tipo: input.tipo,
-    montoAjuste: String(input.montoAjuste),
-    motivo: input.motivo,
-    creadoPor: solicitante.id,
+    const ajuste = await repo.crearCompraAjuste(tx, {
+      compraId,
+      tipo: input.tipo,
+      montoAjuste: String(input.montoAjuste),
+      motivo: input.motivo,
+      creadoPor: solicitante.id,
+    });
+
+    return { ok: true, data: { ajusteId: ajuste.id } };
   });
-
-  return { ok: true, data: { ajusteId: ajuste.id } };
 }
 
 // --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------
 
+/**
+ * Excepción deliberada: NO abre comoUsuario() (a diferencia de cualquier
+ * otra función de este módulo, ya migrado). Es la única función de
+ * Proveedores alcanzada por el camino Gateway/Panel Admin CEOM, vía
+ * financiero.flujoCaja() (docs/security/PLAN-RLS-BACKSTOP.md §9.6):
+ *
+ * - Monitoreo Institucional llama con `solicitanteGateway()` — un
+ *   `UsuarioConRol` sintético (id = UUID de ceros) que nunca existe como
+ *   fila real en `usuarios`/`auth.users`. `comoUsuario()` exige que
+ *   `current_tenant_id()` resuelva y revienta con ese id.
+ * - Panel Admin CEOM llama con un `ceom_admin` real — ahí `comoUsuario()`
+ *   SÍ resuelve, pero al tenant propio del admin ("CEOM Ops"), no al
+ *   `tenantId` que se quiere inspeccionar — sin una policy de bypass para
+ *   `ceom_admin` (Etapa 3, no implementada todavía), RLS filtra todo a 0
+ *   filas en silencio.
+ *
+ * Ninguno de los dos casos tiene arreglo correcto sin la Etapa 3
+ * (`es_ceom_admin()` + policy de bypass) — y el caso del Gateway
+ * necesita además que se resuelva el diseño del solicitante sintético
+ * (Etapa 4), porque ninguna policy de RLS puede autorizar un `auth.uid()`
+ * que no existe. Hasta entonces, esta función sigue leyendo por `tenantId`
+ * explícito + `tienePermiso()` (igual que todo el módulo antes de esta
+ * migración) en vez de por contexto de RLS. Revisar cuando la Etapa 3
+ * esté implementada y decidida — no expandir esta excepción a otras
+ * funciones sin la misma revisión.
+ */
 export async function consultarPagosCompraEnPeriodo(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -415,6 +489,7 @@ export async function consultarPagosCompraEnPeriodo(
     return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
   }
   const totalPagado = await repo.sumarPagosCompraPeriodo(
+    db,
     tenantId,
     periodo.desde,
     periodo.hasta,

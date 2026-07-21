@@ -7,6 +7,10 @@ import { logsAccesoAdminCeom } from "@/modules/consentimiento/schema";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import { crearProducto } from "@/modules/productos/actions";
+import { movimientosStock, productos, stock } from "@/modules/productos/schema";
+import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
+import { compras, pagosCompra } from "@/modules/proveedores/schema";
 import { crearPlan } from "@/modules/suscripcion/actions";
 import { planes } from "@/modules/suscripcion/schema";
 import {
@@ -29,6 +33,9 @@ describe.skipIf(!hasCredenciales)(
     let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
+    let sucursalId: string;
+    let productoId: string;
+    let compraId: string;
     let ownerId: string;
     let planId: string;
     let ceomAdminId: string;
@@ -80,7 +87,7 @@ describe.skipIf(!hasCredenciales)(
       if (!plan.ok) throw new Error("setup fallo: crearPlan");
       planId = plan.data.planId;
 
-      const { tenant } = await identidadRepo.crearTenantConOwner({
+      const { tenant, sucursal } = await identidadRepo.crearTenantConOwner({
         tenant: {
           nombreNegocio: `Panel Admin Test ${sufijo}`,
           monedaPrincipal: "BOB",
@@ -95,9 +102,49 @@ describe.skipIf(!hasCredenciales)(
         creadoPor: null,
       });
       tenantId = tenant.id;
+      sucursalId = sucursal.id;
+
+      // Compra + Pago de Compra reales para este tenant -- sin esto,
+      // "caso 3" no puede distinguir un flujoCaja correctamente en 0 (tenant
+      // vacío, sin movimientos) de un flujoCaja incorrectamente en 0 porque
+      // RLS filtró todo (docs/security/PLAN-RLS-BACKSTOP.md §9.6: hallazgo
+      // real encontrado con esta misma aserción, antes solo verificaba
+      // `typeof === "number"`).
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const producto = await crearProducto(owner!, tenantId, {
+        nombre: `Producto Panel Admin Test ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 20,
+      });
+      if (!producto.ok) throw new Error("setup fallo: crearProducto");
+      productoId = producto.data.productoId;
+      const compra = await registrarCompra(owner!, tenantId, {
+        sucursalId,
+        tipo: "reventa",
+        productoId,
+        cantidad: 10,
+        montoTotal: 100,
+        fechaCompra: "2025-06-01",
+      });
+      if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+      compraId = compra.data.compraId;
+      const pago = await registrarPagoCompra(owner!, compraId, {
+        monto: 100,
+        fechaPago: "2025-06-01",
+      });
+      if (!pago.ok) throw new Error("setup fallo: registrarPagoCompra");
     });
 
     afterAll(async () => {
+      // Orden por FK: movimientos_stock/stock -> productos (sin tenant_id
+      // propio, solo producto_id), pagos_compra -> compras, antes de poder
+      // borrar productos/compras/tenant (mismo criterio que el resto de los
+      // tests de integración de este repo).
+      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
+      await db.delete(stock).where(eq(stock.productoId, productoId));
+      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
+      await db.delete(compras).where(eq(compras.id, compraId));
+      await db.delete(productos).where(eq(productos.id, productoId));
       await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.tenantId, tenantId));
       await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
       await db.delete(roles).where(eq(roles.tenantId, tenantId));
@@ -135,7 +182,13 @@ describe.skipIf(!hasCredenciales)(
       const financiero = await consultarFinancieroTenant(ceomAdmin, tenantId, periodo);
       expect(financiero.ok).toBe(true);
       if (!financiero.ok) return;
-      expect(typeof financiero.data.flujoCaja).toBe("number");
+      // Valor real, no solo `typeof === "number"`: flujoCaja = pagosVenta -
+      // pagosCompra - pagosGasto. Sin ventas/gastos sembrados, el único
+      // movimiento es el Pago de Compra de 100 de este setup -> -100. Un
+      // `typeof` a secas no distinguía "0 porque el tenant está vacío" de "0
+      // porque RLS filtró todo" (docs/security/PLAN-RLS-BACKSTOP.md §9.6 —
+      // exactamente el hallazgo real que este assert dejaba pasar en verde).
+      expect(financiero.data.flujoCaja).toBe(-100);
 
       const logs = await listarLogsAcceso({ rolId: ROL_CEOM_ADMIN_ID }, { tenantId });
       expect(logs.ok).toBe(true);

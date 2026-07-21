@@ -19,7 +19,7 @@ const DIRS_A_ESCANEAR = ["src", "scripts"];
  * del plan (§3). Agregar un módulo acá es un paso deliberado: nunca migres
  * uno sin sumarlo, o este guard sigue validando el estado viejo sin avisar.
  */
-const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio"];
+const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio", "src/modules/proveedores"];
 
 /**
  * Quién puede importar `@/db/contexto` — quien ya resolvió `usuario`/
@@ -27,12 +27,37 @@ const MODULOS_MIGRADOS_A_CONTEXTO: string[] = ["src/modules/patrimonio"];
  * de llamar comoUsuario/comoInstitucion. Repository.ts NO debería estar
  * acá: recibe `Ejecutor` por parámetro, nunca abre su propio contexto.
  */
-const ALLOWLIST_IMPORTA_CONTEXTO: string[] = ["src/modules/patrimonio/actions.ts"];
+const ALLOWLIST_IMPORTA_CONTEXTO: string[] = [
+  "src/modules/patrimonio/actions.ts",
+  "src/modules/proveedores/actions.ts",
+];
 
 /** Prefijos de path (relativos a REPO_ROOT) desde donde `comoSistema()` puede
  * invocarse — el escape hatch de bypass total no debe poder llamarse desde
  * cualquier lado solo porque compila. */
 const ALLOWLIST_COMO_SISTEMA_PREFIJOS = ["scripts/"];
+
+/**
+ * Excepciones explícitas y acotadas al guard "ningún archivo de un módulo
+ * migrado importa db/client crudo" — cada entrada exige un motivo escrito
+ * acá, no solo en el archivo. Agregar una entrada nueva es un paso
+ * deliberado (docs/security/PLAN-RLS-BACKSTOP.md §9.6): el guard existe
+ * para prevenir justamente esto, así que cada excepción debe poder
+ * justificarse sola, sin depender de leer el código para saber por qué
+ * está permitida.
+ *
+ * - `src/modules/proveedores/actions.ts`: SOLO por
+ *   `consultarPagosCompraEnPeriodo()` — es la única función de Proveedores
+ *   alcanzada por el camino Gateway/Panel Admin CEOM (vía
+ *   financiero.flujoCaja()), cuyos solicitantes (el sintético de
+ *   `solicitanteGateway()`, o un `ceom_admin` real sin policy de bypass
+ *   todavía) no pueden resolver el tenant correcto vía
+ *   `current_tenant_id()`. Se resuelve cuando la Etapa 3
+ *   (`es_ceom_admin()` + `comoCeomAdmin` real) esté implementada y
+ *   revisada — no expandir a otras funciones de este archivo sin la misma
+ *   revisión.
+ */
+const ALLOWLIST_IMPORTA_DB_CRUDO: string[] = ["src/modules/proveedores/actions.ts"];
 
 /** Solo estos nombres abren un contexto de RLS en runtime — `Tx`/`Ejecutor`
  * son tipos puros (sin comportamiento, sin bypass) que cualquier
@@ -107,6 +132,7 @@ describe("db/contexto — blindaje de la Etapa 0", () => {
     for (const archivo of archivos) {
       const migrado = MODULOS_MIGRADOS_A_CONTEXTO.some((prefijo) => archivo.relPath.startsWith(prefijo));
       if (!migrado) continue;
+      if (ALLOWLIST_IMPORTA_DB_CRUDO.includes(archivo.relPath)) continue;
       const importaClienteCrudo = archivo.imports.some(
         (imp) => imp.especificador === "@/db/client" || imp.especificador === "./client"
       );

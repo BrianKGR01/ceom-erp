@@ -448,30 +448,45 @@ export async function registrarVenta(
 
   const fechaVenta = input.fechaVenta ? parsearFechaVentaSoloFecha(input.fechaVenta) : new Date();
 
-  // Snapshot doble (regla 1) — se congela ANTES de crear la Venta.
-  const lineas: Array<{
+  type LineaSnapshot = {
     productoId: string;
     cantidad: string;
     precioVentaSnapshot: string;
     costoUnitarioSnapshot: string;
     subtotal: string;
-  }> = [];
-  for (const linea of input.lineas) {
-    const precio = await consultarPrecioVenta(solicitante, linea.productoId);
-    if (!precio.ok) return precio;
-    const costo = await consultarCostoOperativo(solicitante, linea.productoId);
-    if (!costo.ok) return costo;
+  };
 
-    const cantidad = Number(linea.cantidad);
-    const subtotal = calcularSubtotal(cantidad, precio.data.precioVenta);
-    lineas.push({
-      productoId: linea.productoId,
-      cantidad: String(cantidad),
-      precioVentaSnapshot: String(precio.data.precioVenta),
-      costoUnitarioSnapshot: String(costo.data.costoOperativoVigente ?? 0),
-      subtotal: String(subtotal),
-    });
-  }
+  // Snapshot doble (regla 1) — se congela ANTES de crear la Venta. Cada
+  // línea consulta precio/costo de un producto propio, sin depender de las
+  // demás (tope chico: líneas de UNA venta) — se resuelven en paralelo.
+  const resultadosLineas = await Promise.all(
+    input.lineas.map(async (linea): Promise<Resultado<LineaSnapshot>> => {
+      const precio = await consultarPrecioVenta(solicitante, linea.productoId);
+      if (!precio.ok) return precio;
+      const costo = await consultarCostoOperativo(solicitante, linea.productoId);
+      if (!costo.ok) return costo;
+
+      const cantidad = Number(linea.cantidad);
+      const subtotal = calcularSubtotal(cantidad, precio.data.precioVenta);
+      return {
+        ok: true,
+        data: {
+          productoId: linea.productoId,
+          cantidad: String(cantidad),
+          precioVentaSnapshot: String(precio.data.precioVenta),
+          costoUnitarioSnapshot: String(costo.data.costoOperativoVigente ?? 0),
+          subtotal: String(subtotal),
+        },
+      };
+    })
+  );
+  // Preserva el comportamiento del for secuencial que reemplaza: el primer
+  // error en el orden original de las líneas es el que se devuelve.
+  const primerError = resultadosLineas.find((r) => !r.ok);
+  if (primerError) return primerError;
+  const lineas = resultadosLineas
+    .filter((r): r is { ok: true; data: LineaSnapshot } => r.ok)
+    .map((r) => r.data);
   const totalVenta = lineas.reduce((acc, l) => acc + Number(l.subtotal), 0);
 
   // Regla 5 / 4.3: comision por Evento si hay, si no por Canal.
@@ -506,6 +521,10 @@ export async function registrarVenta(
   });
 
   const descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>> = [];
+  // Secuencial a propósito: descontarStockVenta lee el stock disponible y
+  // recién después inserta el movimiento (no es atómico) — si dos líneas de
+  // esta misma venta comparten producto+sucursal, paralelizarlo dejaría que
+  // ambas lean el mismo disponible y sobregiren el stock.
   for (const linea of lineas) {
     const descuento = await descontarStockVenta(solicitante, tenantId, {
       productoId: linea.productoId,
