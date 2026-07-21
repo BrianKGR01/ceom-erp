@@ -644,3 +644,154 @@ desarrollo bajo carga hoy, no un bug de lógica.
 Etapas 0 y 1 cerradas (§8). Antes de tocar el módulo 2 de la Etapa 2 (Proveedores, según el ranking
 de §3.1): decisión pendiente sobre el múltiplo de latencia de §8.3 — replicarlo tal cual, o invertir
 en la optimización de `BEGIN` pipelineado antes de seguir escalando a los 13 módulos restantes.
+
+---
+
+## 9. Etapa 2 — Barrido de N+1 y Proveedores (implementado y verificado, 2026-07-21)
+
+Se decidió replicar el mecanismo de latencia tal cual (§8.3) sin invertir en la optimización de
+`BEGIN` pipelineado — evaluar esa optimización con datos de más de un módulo migrado, no solo
+Patrimonio.
+
+### 9.1 Barrido de N+1 en los 13 módulos restantes (previo a migrar Proveedores)
+
+Motivación confirmada en el propio código: `git log` ya tiene un commit previo
+(`0dc2f71 fix(operativo): corrige N+1 secuencial y arregla el timeout flaky de sección 4`) para
+exactamente el síntoma descrito en la tarea — un `for...of` secuencial en `operativo-nicho1.test.ts`
+que quedó al borde del timeout de 5000ms de Vitest cuando la migración de Patrimonio sumó costo real.
+El barrido de esta ronda buscó el mismo patrón en los 13 módulos que todavía no pasaron por
+`comoUsuario()`, con 13 agentes en paralelo (uno por módulo), cada uno con acceso solo a
+`repository.ts`/`actions.ts` de su módulo.
+
+**Resultado: 10 módulos sin ningún patrón aplicable, 3 módulos con hallazgos reales, 0 tests en
+rojo.**
+
+| Módulo | Hallazgos | Decisión |
+|---|---|---|
+| consentimiento, financiero, identidad, monitoreo-institucional, panel-admin-ceom, productos, proveedores, reportes, simulaciones, suscripción | 0 | Ya usan `Promise.all` donde corresponde, o no tienen bucles con `await` — sin cambios. |
+| **gastos** | 1 | `sembrarCategoriasGastoDefault` (5 categorías fijas, inserciones independientes) → `Promise.all`. |
+| **operativo** (Nicho 1) | 3 | `registrarProduccion` (N lecturas de stock por línea de receta) → `Promise.all`. `actualizarComposicionReceta` (validación de tenant por insumo) → `Promise.all`. `crearProduccionTx` (upsert de `stock_insumo` por insumo+sucursal) → **se dejó secuencial**: si una receta repitiera el mismo insumo en dos líneas (nada en el schema lo impide), dos upserts concurrentes sobre la misma clave podrían pisarse o chocar contra el unique index. |
+| **ventas** | 2 | Snapshot de precio/costo por línea de `registrarVenta` (lecturas independientes por producto) → `Promise.all`, preservando "primer error en el orden original". Descuento de stock por línea (`descontarStockVenta`) → **se dejó secuencial**: es lee-disponible-luego-escribe-movimiento en dos pasos no atómicos; si dos líneas de la misma venta comparten producto+sucursal, paralelizarlo permitiría sobregiro de stock. |
+
+**Ningún hallazgo se marcó `creceSinLimite` (crecimiento sin tope).** Los 6 bucles encontrados están
+todos acotados por un tope de negocio chico (líneas de una venta, insumos de una receta, un set fijo
+de 5 categorías) — consistente con que esta es la primera pasada sobre módulos que en su mayoría
+todavía no migran a `comoUsuario()` (el costo extra de round-trips que hizo aflorar el bug original en
+Patrimonio/Nicho-1 todavía no se aplicó a estos otros módulos). Vale re-barrer con el mismo criterio
+cuando cada módulo migre, no asumir que quedó "cerrado para siempre".
+
+Los 2 casos dejados secuenciales comparten la misma forma: un **upsert derivado (lee-el-estado-actual,
+luego decide insert/update)** sobre una clave que dos iteraciones del mismo bucle podrían compartir.
+Es el mismo patrón de riesgo en ambos módulos distintos — vale tenerlo presente como heurística para
+las próximas etapas: cualquier bucle que recalcule un saldo/cantidad derivada por clave compuesta es
+sospechoso de N+1 real, no de "solo lento".
+
+Commits: `b3c1722` (gastos), `7a0e057` (operativo), `a646914` (ventas) — uno por módulo, tests de ese
+módulo en verde antes de cada commit.
+
+### 9.2 Proveedores migrado a `comoUsuario()`
+
+Mismo patrón exacto que Patrimonio (Etapa 1, §8.3), sin sorpresas de diseño:
+
+- `repository.ts`: las 17 funciones exportadas reciben `tx: Ejecutor` como primer parámetro.
+  `registrarPagoCompraTx` deja de abrir su propia `db.transaction()` anidada — la atomicidad ya la da
+  la transacción externa de `comoUsuario()`, mismo ajuste que `refinanciarPasivoTx` en Patrimonio.
+- `actions.ts`: cada función exportada envuelve su cuerpo en un solo
+  `comoUsuario(solicitante.id, ...)`; donde `tenantId` ya es un parámetro directo, `tienePermiso()` se
+  chequea antes de abrir el contexto (mismo criterio de no pagar el round-trip en el camino
+  rechazado).
+- `contexto.test.ts`: `src/modules/proveedores` sumado a `MODULOS_MIGRADOS_A_CONTEXTO`,
+  `proveedores/actions.ts` sumado al allowlist de import de `comoUsuario()`.
+- `tenant-aislamiento.test.ts` (nuevo, mismo patrón que Patrimonio): tenant B no lee ni puede
+  actualizar el `proveedor` de tenant A vía `comoUsuario()`; `comoSistema()` (bypass) confirma que la
+  fila real sigue existiendo — la prueba mide RLS, no el guard de aplicación.
+- Impacto de contrato revisado contra la matriz de dependencias (§7 de la arquitectura, sección 7):
+  nadie fuera del módulo importa `proveedores/repository.ts` directo (confirmado por grep) — Financiero
+  y las rutas de UI consumen exclusivamente `actions.ts`, cuyo contrato público (firmas de
+  `solicitante`/`tenantId`/`input`) no cambió. Cero impacto fuera del módulo.
+- `FORCE ROW LEVEL SECURITY` activado en las 4 tablas (`proveedores`, `compras`, `pagos_compra`,
+  `compras_ajuste`) al cierre de la etapa, vía migración versionada
+  (`0029_proveedores_force_rls.sql`, generada con `drizzle-kit generate --custom`, aplicada con
+  `drizzle-kit migrate`) — decisión §7.4, aplicada por-módulo en vez de esperar a la Etapa 5 original
+  del plan. Verificado post-aplicación contra `pg_class`: `relforcerowsecurity = true` en las 4.
+- 21/21 tests en verde (costo-unitario, proveedores.test.ts, tenant-aislamiento.test.ts,
+  contexto.test.ts) tanto antes como después de activar `FORCE`.
+
+Commits: `063515c` (migración a `comoUsuario()` + tests), `3cc7d53` (FORCE RLS).
+
+### 9.3 Frontera Proveedores → Productos/Nicho-1 (módulo no migrado) — verificado empíricamente, no solo razonado
+
+`registrarCompra`/`recibirCompra` disparan `dispararEntradaStock()`, que llama a
+`registrarEntradaCompraReventa()` (Productos, Módulo 2) o `registrarEntradaCompraInsumo()`
+(Operativo/Nicho-1) — ninguno de los dos módulos está migrado todavía, así que ambos siguen
+importando `db` crudo internamente (no reciben `tx`). Esta es la **primera vez** que una función ya
+migrada llama, en pleno vuelo de su propia transacción, a una función de un módulo que no lo está —
+la pregunta que definía el criterio para las 11 etapas restantes.
+
+**Verificación real** (no solo lectura de código): un script descartable
+(`comoUsuario(usuarioId, async (tx) => {...})` con una query de sondeo tanto por `tx` como por `db`
+crudo dentro del mismo callback, más un insert vía `tx` no comiteado todavía) confirmó:
+
+```json
+{
+  "dentroTx":              { "rol": "authenticated", "pid": 756507 },
+  "crudoDentro":            { "rol": "none",          "pid": 756508 },
+  "veloDesdeCrudoAntesDeCommit": 0,
+  "veloDesdeCrudoDespuesDeCommit": 1
+}
+```
+
+- **`pid` distinto** → la llamada al módulo no migrado toma una conexión física *distinta* del pool de
+  postgres-js, no la conexión reservada de la transacción de `comoUsuario()`.
+- **`rol` vuelve a `none`** (el rol de conexión por defecto, `postgres` — dueño de las tablas, bypassea
+  RLS por completo) — el `SET LOCAL ROLE authenticated` fijado dentro de `tx` no aplica a esa conexión
+  distinta.
+- **La fila insertada vía `tx` (todavía sin commit) es invisible** para la query cruda hasta que
+  `comoUsuario()` resuelve y comitea — aislamiento estándar de transacciones entre sesiones distintas
+  de Postgres, confirmado en la práctica, no asumido.
+
+**Conclusión — la respuesta para las 11 etapas restantes:** una llamada desde un módulo migrado hacia
+uno no migrado **no hereda nada** (ni rol, ni contexto de RLS, ni la transacción) — abre su propia
+unidad de trabajo con bypass total, exactamente como corría *antes* de migrar nada. Esto **no es una
+regresión de seguridad** (Productos/Nicho-1 nunca tuvieron RLS real en el camino de la app, siguen sin
+tenerlo hoy) pero sí introduce una ventana de **atomicidad cruzada nueva y más fina** que antes no
+existía: antes de esta migración, `crearCompra()` era un `INSERT` autocommiteado inmediato (sin
+transacción envolvente), así que para cuando `dispararEntradaStock()` corría, la Compra ya estaba
+comiteada de forma irreversible. Ahora `crearCompra()` vive dentro de la transacción todavía abierta de
+`comoUsuario()` — si algo *después* de `dispararEntradaStock()` lanzara una excepción (hoy no hay nada
+que lo haga: el código solo arma el objeto de retorno), la Compra se revertiría pero el movimiento de
+stock ya comiteado del otro lado quedaría huérfano, referenciando un `compra_id` que dejó de existir.
+El riesgo es despreciable hoy (no hay ningún `await` entre `dispararEntradaStock()` y el `return`), pero
+es la primera aparición real de esta clase de bug, y va a repetirse en cada módulo que dispare una
+llamada cruzada mientras el otro lado siga sin migrar.
+
+**Implicación para las etapas 3-13 (no resuelta esta sesión, queda como diseño pendiente):** el arreglo
+de fondo no es "migrar todo a la vez" (fuera de alcance, y el plan explícitamente escalona por
+acoplamiento) sino que, cuando el módulo *llamado* migre, su función pública podría aceptar un `tx`
+opcional para que un caller que ya está dentro de un `comoUsuario()` propio se lo pase en vez de forzar
+una conexión nueva — hoy ninguna de las dos partes de este par (Proveedores ✅ migrado, Productos/Nicho-1
+❌ no) lo soporta, así que no se implementó; queda anotado acá para cuando se migren esos dos módulos.
+
+### 9.4 Latencia de Proveedores — se parece a Patrimonio en forma, no en el número exacto
+
+| | avg | p50 | p95 |
+|---|---|---|---|
+| Sin contexto (`db` crudo) | 233ms | 232ms | 245ms |
+| Con contexto (`comoUsuario()`) | 583ms | 582ms | 599ms |
+
++350ms, +150% sobre `listarProveedoresPorTenant` (3 filas reales), mismo mecanismo compartido de
+`contexto.ts` que Patrimonio (ya con el pipelining de `Promise.all`/mensaje simple de §8.3 — no se
+tocó `contexto.ts` en esta etapa). La comparación honesta contra Patrimonio (§8.3: sin contexto 244ms,
+con contexto 837ms, +593ms/+243%) muestra un múltiplo *menor* acá, no mayor — probablemente varianza de
+red/hora del día contra el mismo proyecto de desarrollo en `sa-east-1` (ambos módulos comparten
+exactamente el mismo código de `contexto.ts`, así que no hay una razón estructural para que difieran).
+**No sacar conclusiones de la diferencia entre los dos números absolutos** — la señal que importa es
+que el orden de magnitud del overhead (unos cientos de ms, 1.5x-2.5x) se mantiene estable entre el
+primer y el segundo módulo migrado, no que uno sea "más rápido" que el otro.
+
+### 9.5 Estado y próximos pasos
+
+Etapa 2 cerrada — Proveedores es el segundo módulo migrado. Sigue pendiente, en el orden de §3.1: Etapa 2 continúa con Consentimiento/Suscripción/Simulaciones/Gastos, luego Productos/Ventas/Identidad, y recién
+después las Etapas 3 (`ceom_admin`) y 4 (portal) — **no tocadas esta sesión**, tal como se pidió.
+Antes de migrar Productos o Nicho-1 en concreto, revisar §9.3: esa migración es la primera oportunidad
+real de cerrar la ventana de atomicidad cruzada documentada ahí, en vez de solo heredarla de nuevo.
