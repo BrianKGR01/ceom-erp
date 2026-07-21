@@ -218,6 +218,13 @@
       "when": 1784668689845,
       "tag": "0030_outgoing_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784669138838,
+      "tag": "0031_es_ceom_admin_function",
+      "breakpoints": true
     }
   ]
 }
