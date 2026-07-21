@@ -584,13 +584,6 @@ export async function registrarProduccion(
     return { ok: false, error: "No tenés permiso para registrar producciones en este tenant." };
   }
 
-  // El producto (y por ende su receta/insumos) debe ser del tenant — sin esto
-  // se leía la composición/costos de un producto ajeno y se descontaba stock
-  // de insumos de otro tenant antes de fallar la acreditación (auditoría de
-  // autorización). fichaProducto gatea sobre el tenant del producto.
-  const fichaProd = await fichaProducto(solicitante, input.productoId);
-  if (!fichaProd.ok) return fichaProd;
-
   // Regla 3.4 / caso borde 4: sin vinculacion, no hay Produccion.
   const vinculacion = await repo.obtenerVinculacionPorProducto(input.productoId);
   if (!vinculacion) {
@@ -600,8 +593,17 @@ export async function registrarProduccion(
     };
   }
 
+  // La receta (y por ende producto/insumos) debe ser del tenant — sin esto se
+  // leía la composición/costos de un producto ajeno y se descontaba stock de
+  // insumos de otro tenant (auditoría de autorización). Se valida vía la receta
+  // (no vía fichaProducto) para no exigir el permiso productos:ver a un rol que
+  // solo tiene operativo: la vinculación siempre ata producto y receta al mismo
+  // tenant (vincularProductoAReceta lo garantiza), así que un productoId ajeno
+  // resuelve a una receta ajena y se rechaza acá.
   const receta = await repo.obtenerRecetaPorId(vinculacion.recetaId);
-  if (!receta) return { ok: false, error: "Receta no encontrada." };
+  if (!receta || receta.tenantId !== tenantId) {
+    return { ok: false, error: "Receta no encontrada." };
+  }
 
   const composicion = await repo.obtenerComposicionReceta(vinculacion.recetaId);
   const cantidadLotesProducidos = Number(input.cantidadLotesProducidos);
