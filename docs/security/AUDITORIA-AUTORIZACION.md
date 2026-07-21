@@ -23,6 +23,16 @@ permisos.
 Todas fueron corregidas en esta sesión (§6). Los hallazgos Medios/Bajos quedan documentados (§7),
 sin corregir, según lo pedido.
 
+**Actualización 2026-07-21 (segunda pasada):** poblar el manifiesto de acceso (§8.3) destapó 2
+funciones más con la misma clase de bug, en una variante distinta y más grave: `construirDashboard`/
+`obtenerCapacidadAlmacenamientoWidget` recibían un `usuario` **ya resuelto** por parámetro en vez de
+uno derivado internamente. Se documentaron primero como "bajo riesgo, no explotable" por razonar
+sobre los callers del código — verificación empírica contra el `server-reference-manifest.json` real
+de `pnpm build` mostró que esa suposición era falsa: Next.js les asigna un action ID igual que a
+cualquier endpoint legítimo, así que eran invocables por POST directo con un `usuario` forjado,
+evadiendo `tienePermiso()` por completo. Reclasificadas a **Crítico** y corregidas (§8.3.1). El total
+de Críticos corregidos en esta auditoría es **26 funciones + UI-044**, no 24.
+
 ---
 
 ## 2. Hallazgo sistémico raíz — por qué esto es explotable, no defense-in-depth
@@ -245,31 +255,65 @@ funciones por AST (usando el compilador de TypeScript, sin dependencias nuevas) 
 4. Las entradas donde el análisis estático no alcanza, o donde el nivel declarado documenta un hueco
    ya conocido y no corregido, se marcan `verificacion: "manual"` con una `nota` obligatoria — el
    test exige que toda entrada `"manual"` tenga nota no vacía.
+5. **Falla si un endpoint recibe un objeto de identidad/permisos/tenant ya resuelto por parámetro**
+   (`UsuarioConRol`, `SolicitanteCeomAdmin`, `Institucion`) — ver §8.3.1, es la regla que cierra la
+   clase de bug de `construirDashboard`. Validado con la misma técnica de prueba negativa.
 
 Cómo agregar una entrada nueva: `src/lib/security/README.md`.
 
-**Hallazgos nuevos que destapó poblar el manifiesto** (no corregidos en este alcance, ver notas
-completas en `access-manifest.ts`):
-- `app/app/(shell)/inicio-actions.ts::construirDashboard` y
-  `::obtenerCapacidadAlmacenamientoWidget` reciben `usuario: UsuarioConRol` como **parámetro** en vez
-  de resolverlo internamente vía `obtenerUsuarioActual()` — único caso entre las 152 funciones
-  (grep confirmado). Hoy no es explotable: los únicos callers son `page.tsx` (Server Component) y
-  `obtenerDashboardAction` (misma archivo), ninguno de los cuales es un Client Component, así que
-  Next.js no genera un action-id invocable por el cliente para ellas. Es frágil por construcción, no
-  por uso actual — si algún día un Client Component las importa directo, un cliente podría enviar un
-  `usuario` forjado sin sesión real. Fix recomendado: moverlas a un módulo sin `"use server"` (mismo
-  patrón que el resto de los módulos de negocio) o hacer que resuelvan su propio usuario.
-- `app/app/(shell)/consentimiento/actions.ts::obtenerInstitucionPorIdAction` no llama a
-  `obtenerUsuarioActual()` — a diferencia de sus 9 hermanas del mismo archivo, es invocable sin
-  sesión. El módulo (`obtenerInstitucionPorId`) documenta la intención como "abierto a cualquier
-  authenticated", pero el thin actual no aplica ese gate. Expone solo metadato de bajo riesgo
-  (nombre/tipo/contacto de una Institución del catálogo), no datos de negocio de un tenant.
-- `app/app/(shell)/ventas/actions.ts::registrarVentaAction`: `input.sucursalId` no se revalida contra
-  el tenant al crear la Venta — mismo patrón Medio ya documentado para `activoId`/`sucursalId` en
-  Patrimonio (§7, M3/M4), no confirmado por el barrido original para Ventas.
+#### 8.3.1 Los 3 hallazgos que destapó poblar el manifiesto — los 3 corregidos
 
-Ninguno de los tres es Crítico ni Alto (no hay fuga de datos ni escritura cross-tenant confirmada) —
-quedan documentados para Fase C, igual que los Medios/Bajos de §7.
+**`construirDashboard` / `obtenerCapacidadAlmacenamientoWidget` — reclasificado de "no explotable" a
+CRÍTICO tras verificación empírica, y corregido.**
+
+Al poblar el manifiesto el 2026-07-21 se documentó esto como un hallazgo de bajo riesgo, razonando
+sobre los *callers* del código ("solo lo llama un Server Component, Next.js no debería exponer un
+action-id"). Esa suposición **nunca se verificó contra el build real** — y era incorrecta. Evidencia
+concreta, extraída de `.next/server/app/app/(shell)/page/server-reference-manifest.json` después de
+`pnpm build`:
+
+```json
+"70d02b0d0b823008d6a118475b11877e770f5fd340": {
+  "workers": { "app/app/(shell)/page": { "exportedName": "construirDashboard", ... } },
+  "exportedName": "construirDashboard",
+  "filename": "src/app/app/(shell)/inicio-actions.ts"
+},
+"40df26756844e3fe225461d04d6d46be04310f34ce": {
+  "workers": { "app/app/(shell)/page": { "exportedName": "obtenerCapacidadAlmacenamientoWidget", ... } },
+  ...
+}
+```
+
+Ambas funciones tienen un **action ID real**, en el mismo manifiesto y con la misma forma que
+`obtenerDashboardAction`/`cerrarSesion` (los endpoints legítimos de esa misma ruta). Next.js asigna
+un action ID a **toda** función exportada de un archivo `"use server"`, sin importar si algún Client
+Component la importa — el caller del código nunca determina quién puede invocarla desde afuera. Con
+el action ID en mano, un atacante podía enviar un POST directo con `Next-Action: <hash>` y un
+`usuario` forjado (`{ esOwner: true, tenantId: "<otro-tenant>" }`) como primer argumento, y
+`tienePermiso()` habría confiado en esos campos tal como llegaron: bypass completo de autorización
+en una sola llamada, no solo de este dashboard sino de facto de todo `tienePermiso`. **Crítico.**
+
+Corregido: ambas funciones resuelven `usuario` internamente vía `obtenerUsuarioActual()` en vez de
+recibirlo por parámetro, como las otras 150 funciones del manifiesto. `construirDashboard` ahora
+devuelve `ResultadoAccion<DatosDashboard>` (antes devolvía `DatosDashboard` sin envolver);
+`obtenerDashboardAction` pasó a ser un passthrough puro; `page.tsx` desenvuelve el resultado y
+redirige a `/login` en el caso `!ok` (solo alcanzable por una sesión revocada entre el chequeo inicial
+de la página y esta llamada, milisegundos después). Verificado: `pnpm typecheck`/`lint`/`test`/`build`
+limpios.
+
+**`obtenerInstitucionPorIdAction` — corregido.** No llamaba a `obtenerUsuarioActual()`, a diferencia
+de sus 9 hermanas del mismo archivo — invocable sin sesión. Se agregó el mismo chequeo que el resto.
+
+**`registrarVentaAction` — corregido.** `input.sucursalId` no se revalidaba contra el tenant al
+registrar la Venta. Se agregó `listarSucursalesPorTenant(solicitante, tenantId)` + chequeo de
+membresía antes de continuar, mismo patrón ya usado para FKs anidados en otros módulos.
+
+**Mecanismo agregado para que la clase `construirDashboard` no vuelva a pasar** (regla 5 arriba):
+`access-manifest.test.ts` ahora falla si cualquiera de las 152 funciones recibe `UsuarioConRol`,
+`SolicitanteCeomAdmin` o `Institucion` como tipo de parámetro — sin excepción de manifiesto, es una
+regla incondicional. Validada con una prueba negativa: reintroducir `usuario: UsuarioConRol` como
+parámetro en una función `"use server"` de prueba → falla citando el archivo y la función exactos;
+borrarla → vuelve a pasar.
 
 ### 8.4 Arreglar el bypass de RLS (recomendación estratégica)
 La defensa real de fondo es que la base **también** rechace el acceso cross-tenant. Hoy Drizzle corre
@@ -284,13 +328,17 @@ esta clase de bug de "explotable" en "defensa en profundidad". Prioridad alta po
 
 ## 9. Estado
 
-- **Críticos:** 24 funciones + UI-044 → **corregidos** (commits `46e62cf`, `4430b61`, `f03af71`,
-  `bb8ca95`, `a36dfa7`, `82eaf27`). `pnpm typecheck`/`lint` limpios.
-- **Medios/Bajos (M1–M6, más los 3 hallazgos del manifiesto §8.3):** documentados, sin corregir
-  (según lo pedido).
+- **Críticos:** 24 funciones + UI-044 + `construirDashboard`/`obtenerCapacidadAlmacenamientoWidget`
+  (reclasificadas de Media a Crítica tras verificación empírica, §8.3.1) → **26 funciones + UI-044,
+  todas corregidas** (commits `46e62cf`, `4430b61`, `f03af71`, `bb8ca95`, `a36dfa7`, `82eaf27`,
+  `a0cb0a7`). `pnpm typecheck`/`lint`/`test`/`build` limpios.
+- **Medios/Bajos:** M1–M6 (§7) siguen documentados, sin corregir (según lo pedido). Los otros 2
+  hallazgos del manifiesto (`obtenerInstitucionPorIdAction`, `registrarVentaAction`) sí se
+  corrigieron (commits `a72a27e`, `881aa21`) por ser mecánicos y de bajo riesgo de regresión.
 - **Mecanismo:** guard `recursoPerteneceAlTenant` + test de regresión implementados (§8.1/8.2);
   manifiesto de acceso + test de cobertura por AST sobre las 152 funciones `"use server"`
-  implementado (§8.3); backstop RLS sigue como recomendación estratégica pendiente (§8.4).
+  implementado (§8.3), incluida la regla que prohíbe recibir identidad/permisos/tenant por
+  parámetro (§8.3.1); backstop RLS sigue como recomendación estratégica pendiente (§8.4).
 - **Positivos que resisten:** Gastos, Simulaciones, Financiero, Reportes, Suscripción, el boundary de
   `/admin` (todas las admin actions exigen `ceom_admin` pese a que el layout no lo hace) y el boundary
   de `/portal` (el Gateway de Consentimiento exige `tieneConsentimiento`/`estaEnCartera` antes de
