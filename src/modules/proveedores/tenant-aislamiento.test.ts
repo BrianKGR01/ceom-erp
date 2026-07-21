@@ -153,22 +153,19 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
   });
 
   // Etapa 3 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md §10.9):
-  // estos dos casos se escriben y corren ANTES de que exista es_ceom_admin()
-  // ni la policy de bypass (3.a/3.b) — a propósito, para confirmar que cada
-  // uno falla/pasa por la razón correcta antes de que un bypass real pueda
-  // ocultar un falso positivo. El primero hoy debe dar 0 filas (RLS filtra,
-  // comoCeomAdmin() todavía se comporta igual que comoUsuario()); pasa a dar
-  // 1 fila recién después de 3.b. El segundo debe dar 0 filas siempre, antes
-  // y después — es el que prueba que un ceom_admin desactivado no hereda el
-  // bypass ni una vez que exista.
-  it("un ceom_admin real todavía NO ve el proveedor de un tenant ajeno vía comoCeomAdmin() — hasta que exista la policy de bypass (3.b)", async () => {
-    // TODO(Etapa 3, 3.b): cuando se aplique la policy de bypass de
-    // es_ceom_admin() sobre las 4 tablas de Proveedores, este assert pasa a
-    // ser toHaveLength(1) — dejarlo en 0 ahora es la prueba de que el test
-    // mide algo real (RLS filtrando de verdad), no un tautología que pasaría
-    // igual sin ningún mecanismo detrás.
+  // escritos y corridos ANTES de que existiera es_ceom_admin() ni la policy
+  // de bypass (3.a/3.b) — confirmado en su momento que el primero daba 0
+  // filas (RLS filtrando de verdad, no una tautología) y el segundo también
+  // — ver el commit de esa etapa para el estado "antes". Con 3.a/3.b ya
+  // aplicados (policy real en las 4 tablas de Proveedores, verificada con
+  // EXPLAIN ANALYZE real antes de escribirla, §10.3), el primero pasa a
+  // dar 1 fila; el segundo se queda en 0 — prueba que el filtro
+  // eliminado_en/activo de es_ceom_admin() funciona con el bypass ya real,
+  // no solo en ausencia de él.
+  it("un ceom_admin real ve el proveedor de un tenant ajeno vía comoCeomAdmin() — bypass de RLS real (3.b), no del guard de app", async () => {
     const filas = await comoCeomAdmin(usuarioCeomAdmin, (tx) => repo.listarProveedoresPorTenant(tx, tenantA));
-    expect(filas).toHaveLength(0);
+    expect(filas).toHaveLength(1);
+    expect(filas[0].id).toBe(proveedorDeA);
   });
 
   it("un ceom_admin desactivado (activo=false) NO ve el proveedor de un tenant ajeno, con o sin bypass de RLS", async () => {

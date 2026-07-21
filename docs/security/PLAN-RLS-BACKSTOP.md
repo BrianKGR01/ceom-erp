@@ -1052,35 +1052,55 @@ acceso de `ceom_admin` a la fila de identidad de OTRO tenant, si hace falta, nec
 distinto (ej. una función separada que no dependa circularmente de sí misma), no extendiendo el mismo
 patrón sin pensarlo. Documentado también como decisión abierta en §10.11.
 
-**Costo por fila — medido en vivo, no asumido.** `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` contra
-`usuarios` (16 filas) bajo `SET LOCAL ROLE authenticated` + JWT real:
+**Costo por fila — medido en vivo con la policy REAL aplicada (no simulada), y la hipótesis original de
+"una vez por consulta" resultó INCORRECTA para `es_ceom_admin()` específicamente — corregido acá antes
+de implementar 3.b.** Verificación pendiente de la primera versión de este documento, ahora cerrada:
+`CREATE POLICY` real (dentro de una transacción con `rollback`, mismo criterio que Stage 0 §8.1) sobre
+`usuarios` y `proveedores`, combinada con la policy de tenant propio ya existente, bajo `SET LOCAL ROLE
+authenticated` + JWT de un `ceom_admin` real.
 
 ```
-"Filter": "(usuarios.tenant_id = (InitPlan 1).col1)"
-"Plans": [{"Node Type": "Result", "Parent Relationship": "InitPlan",
-           "Output": ["current_tenant_id()"], "Actual Loops": 1}]
+"Filter": "((usuarios.tenant_id = (InitPlan 1).col1) OR (usuarios.tenant_id = (InitPlan 2).col1)
+            OR es_ceom_admin())"
 ```
 
-`current_tenant_id()` se evalúa como **`InitPlan`** — una sola vez por consulta (`Actual Loops: 1`),
-no una vez por fila candidata. El resultado escalar se reutiliza para el filtro de cada fila sin
-volver a invocar la función. Como `es_ceom_admin()` tendría exactamente la misma forma (`STABLE`, sin
-argumentos, sin referencia a ninguna columna de la fila evaluada), el optimizador debería tratarla
-igual — el costo esperado es "una función más, una vez por consulta", no "una función más, una vez
-por fila".
+**`current_tenant_id()` sigue hoisteándose a `InitPlan` (confirmado con la policy real, no solo
+simulada) — pero `es_ceom_admin()` NO.** Aparece como una llamada de función directa dentro del
+`Filter`, sin nodo `InitPlan` propio. Se probaron tres variantes para descartar causas (`es_ceom_admin()
+= true` explícito; una versión sin el `JOIN` a `roles`, solo contra `usuarios`; una función trivial
+`select true`) — ninguna cambió el resultado: **una función booleana usada como término suelto de un
+`OR` nunca se hoistea en Postgres, sin importar cuán simple sea su cuerpo.** El mecanismo que sí
+hoistea `current_tenant_id()` es específico de su forma de uso: aparece como operando de una
+comparación (`columna = current_tenant_id()`), no como predicado booleano suelto — esa es la
+diferencia real, no `SECURITY DEFINER`, ni la presencia de un `JOIN`, ni la complejidad del cuerpo.
 
-**Con reserva honesta, no una garantía completa.** No pude crear una policy real de bypass para
-probar el caso de DOS policies permisivas reales combinadas por `OR` (`tenant_id = current_tenant_id()
-OR es_ceom_admin()`) — eso requiere `CREATE POLICY`, DDL prohibido en esta fase. Un intento de
-simular la combinación con una cláusula `WHERE` escrita a mano (no vía el mecanismo real de RLS)
-mostró un resultado ambiguo: el `securityQual` inyectado automáticamente por RLS se hoisteó a
-`InitPlan` (como arriba), pero las referencias adicionales que agregué a mano NO generaron sus propios
-`InitPlan` separados — y no puedo confirmar si eso es porque el mecanismo de combinación real de dos
-policies permisivas se comporta distinto a una cláusula `WHERE` escrita por el usuario, o si de verdad
-habría una segunda evaluación por fila. **Recomiendo que el primer paso de la implementación real de
-la Etapa 3 (no de este diagnóstico) sea repetir exactamente este mismo `EXPLAIN ANALYZE` con la policy
-real de Proveedores ya aplicada, dentro de una transacción con `rollback` al final — mismo criterio
-ya usado en el propio Stage 0 (§8.1) para verificar `SET ROLE` antes de confiar en él — antes de dar
-por buena la hipótesis de "una vez por consulta" para el caso de dos policies reales.**
+**La consecuencia práctica es acotada, y también se verificó en vivo, no se asumió.** Postgres evalúa
+`OR` con cortocircuito por fila: si el primer término (`tenant_id = current_tenant_id()`) ya es
+verdadero para una fila, `es_ceom_admin()` ni se llama para esa fila. Con la policy real activa se
+probaron dos escenarios:
+
+1. **Sin filtro adicional en la query** (`select * from usuarios`): `es_ceom_admin()` se evalúa para
+   cada fila que NO pertenece al tenant propio del `ceom_admin` ("CEOM Ops") — en este caso, para
+   prácticamente toda la tabla.
+2. **Con el filtro que la aplicación YA agrega siempre** (`select * from usuarios where tenant_id =
+   '<tenant objetivo>'`, exactamente como hace cada función de Panel Admin CEOM hoy, §10.1):
+   Postgres evalúa `tenant_id = '<objetivo>'` primero (comparación literal, sin subconsulta, la más
+   barata) — `Rows Removed by Filter` confirma que la mayoría de las filas de la tabla se descartan
+   ahí mismo, **antes** de llegar al `OR` que contiene `es_ceom_admin()`. El costo real de
+   `es_ceom_admin()` queda acotado a cuántas filas tiene el TENANT OBJETIVO en esa tabla, no la tabla
+   completa — para el tamaño real de este producto (unidades a decenas de filas por tenant por tabla,
+   confirmado en las mediciones de la Etapa 2), es un costo despreciable.
+
+**Invariante de diseño que hay que preservar, no solo constatar una vez:** esto solo es cierto porque
+**cada función de Panel Admin CEOM ya pasa `tenantId` como filtro explícito de la query, no solo como
+argumento de la policy** (confirmado en la matriz de §10.1 — ninguna hace un `SELECT` sin acotar por
+tenant). Si en el futuro alguna función nueva bypaseada por `es_ceom_admin()` hiciera una consulta
+genuinamente sin filtro de tenant (un reporte "de toda la plataforma" sobre una tabla de negocio, no
+solo sobre `tenants` como hoy hace `saludAgregadaPlataforma`), el costo dejaría de estar acotado —
+evaluaría `es_ceom_admin()` una vez por cada fila de CUALQUIER tenant en esa tabla. Dejar esto como
+regla explícita para el checklist de futuras migraciones (§10.8, 3.e): toda query que dependa del
+bypass de `es_ceom_admin()` debe mantener un filtro de tenant explícito en la propia consulta, nunca
+confiar solo en la policy para acotar el resultado.
 
 **Superficie — mismo criterio ya aplicado a `current_tenant_id()`.** Grants actuales de
 `current_tenant_id()`, confirmados en vivo: `EXECUTE` para `authenticated`, `postgres`, `service_role`

@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
-import { crudPolicy } from "../../db/rls";
+import { ceomAdminBypassPolicy, crudPolicy } from "../../db/rls";
 // Referenciar tenants/sucursales de Identidad es el patron esperado (todo
 // modulo de negocio le pertenece a un tenant) — no es la excepcion de caja
 // negra documentada para plan_id.
@@ -66,6 +66,9 @@ export const proveedores = pgTable(
       "proveedores",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    // Etapa 3 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+    // §10.3/§10.8, sub-etapa 3.b).
+    ceomAdminBypassPolicy("proveedores"),
   ]
 ).enableRLS();
 
@@ -122,6 +125,7 @@ export const compras = pgTable(
           or (${table.tipo} = 'reventa' and ${table.productoId} is not null and ${table.insumoId} is null)`
     ),
     ...crudPolicy("compras", sql`${table.tenantId} = (select current_tenant_id())`),
+    ceomAdminBypassPolicy("compras"),
   ]
 ).enableRLS();
 
@@ -142,6 +146,7 @@ export const pagosCompra = pgTable(
       "pagos_compra",
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
+    ceomAdminBypassPolicy("pagos_compra"),
   ]
 ).enableRLS();
 
@@ -163,5 +168,6 @@ export const comprasAjuste = pgTable(
       "compras_ajuste",
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
+    ceomAdminBypassPolicy("compras_ajuste"),
   ]
 ).enableRLS();
