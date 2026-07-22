@@ -2283,3 +2283,43 @@ sin arreglarla toda — es para decidir, no para actuar automáticamente.
 
 **No se corrigió nada de esta sección salvo lo ya cerrado en §13.11** — es un mapa para decidir dónde
 invertir el mismo esfuerzo después, no una lista de trabajo ya completado.
+
+## 15. Etapa 4.a — implementado (2026-07-21)
+
+Opción A′ (§13.2, confirmada por el usuario). Sub-etapas atómicas, cada una con su propio commit salvo
+donde §13.11 exige que dos vayan juntas.
+
+### 15.1 4.a.1 — Identidad real sembrada, sin usarse todavía
+
+`src/modules/identidad/constants.ts`: `ROL_GATEWAY_SISTEMA_ID`/`GATEWAY_SISTEMA_USUARIO_ID` nuevos —
+deliberadamente un rol PROPIO, nunca `ROL_CEOM_ADMIN_ID` (ver comentario en el propio archivo). Migración
+`drizzle/migrations/0034_gateway_sistema_seed.sql` (custom, `drizzle-kit generate --custom`, mismo
+patrón que `0005_seed_ceom_ops_tenant.sql`): rol de sistema nuevo + fila real en `auth.users` + fila
+real en `usuarios` (tenant CEOM Ops), aplicada con `drizzle-kit migrate`.
+
+**Verificado antes de aplicar (transacción con rollback, misma metodología de §8.1/§12.2):**
+`current_tenant_id()` resuelve a CEOM Ops para este id; `es_ceom_admin()` da `false` (confirma que el
+rol propio efectivamente separa este bypass del de `ceom_admin` — el punto central de la Opción A′).
+
+**Idempotencia — verificada, no asumida:** re-ejecutar el `INSERT` de `usuarios` por fuera del tracking
+de `drizzle-kit` (simulando que alguien lo corra a mano) falla ruidosamente:
+`duplicate key value violates unique constraint "usuarios_pkey"` — nunca duplica en silencio. En el
+camino normal (`pnpm drizzle-kit migrate`), la migración ya aplicada no vuelve a correr en absoluto
+(tabla interna de tracking de Drizzle).
+
+**Login imposible — verificado en vivo contra el proyecto real (`riertvgnjaujstwyqoom`), no solo
+inspeccionado en el schema.** Con un cliente `anon` real (`@supabase/supabase-js`, mismas credenciales
+públicas que usa la app) contra `gateway-sistema@ceom.internal`:
+
+| Intento | Resultado |
+|---|---|
+| `signInWithPassword` (password arbitraria) | Rechazado: `"Invalid login credentials"` (400) |
+| `signInWithOtp` (magic link/OTP, `shouldCreateUser: false`) | Rechazado: `"Signups not allowed for otp"` (422) |
+| `resetPasswordForEmail` | Sin error en la respuesta (comportamiento anti-enumeración esperado de Supabase) — pero **verificado por SQL que NO generó ningún `recovery_token`** (`recovery_token`/`recovery_sent_at` siguen `null` después del intento) — no queda ningún flujo de recuperación real pendiente de completar. |
+
+Los 3 caminos de autenticación quedan cerrados en la práctica. Capa adicional, no la única: el dominio
+`ceom.internal` no es un dominio real con recepción de correo — aunque alguno de los 3 caminos hubiera
+generado un enlace, no hay bandeja de entrada real que lo reciba.
+
+`get_advisors` (security) sin hallazgos nuevos tras aplicar la migración — los mismos 4 ya conocidos y
+aceptados (§8.5, §10.3, §12.4).
