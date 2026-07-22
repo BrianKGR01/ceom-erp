@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import {
   agregarTenantACartera,
   aprobarSolicitud,
@@ -285,47 +286,64 @@ describe.skipIf(!hasCredenciales)(
     }, 60000);
 
     afterAll(async () => {
-      // Orden por FK, mismo criterio que panel-admin-ceom.test.ts y
-      // operativo-nicho1.test.ts.
-      await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
-      await db
-        .delete(vinculacionesProductoReceta)
-        .where(eq(vinculacionesProductoReceta.recetaId, recetaId));
-      await db.delete(recetaInsumos).where(eq(recetaInsumos.recetaId, recetaId));
-      await db.delete(recetas).where(eq(recetas.tenantId, tenantId));
-      await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
-      await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
-      await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
-      await db.delete(activos).where(eq(activos.tenantId, tenantId));
+      // "producciones" referencia producto_id Y activo_id; "ventas"
+      // (detalles_venta) y "compras" referencian producto_id -- ninguna de
+      // las tres puede paralelizarse contra la familia de "productos"/
+      // "activos" (bug real encontrado corriendo la suite completa: la
+      // primera versión de este archivo las separaba, mismo error que en
+      // proveedores.test.ts/financiero.test.ts/operativo-nicho1.test.ts).
+      // Van todas en una sola cadena secuencial; gastos y consentimiento sí
+      // son independientes de esa cadena y entre sí.
+      await limpiarConAuthGarantizada(
+        async () => {
+          await limpiarEnParalelo([
+            async () => {
+              await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
+              await db
+                .delete(vinculacionesProductoReceta)
+                .where(eq(vinculacionesProductoReceta.recetaId, recetaId));
+              await db.delete(recetaInsumos).where(eq(recetaInsumos.recetaId, recetaId));
+              await db.delete(recetas).where(eq(recetas.tenantId, tenantId));
+              await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
+              await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
+              await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
 
-      await db.delete(gastos).where(eq(gastos.id, gastoId));
-      await db.delete(categoriasGasto).where(eq(categoriasGasto.id, categoriaGastoId));
+              await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
+              await db.delete(ventas).where(eq(ventas.id, ventaId));
+              await db.delete(canalesVenta).where(eq(canalesVenta.id, canalVentaId));
 
-      await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
-      await db.delete(ventas).where(eq(ventas.id, ventaId));
-      await db.delete(canalesVenta).where(eq(canalesVenta.id, canalVentaId));
+              await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
+              await db.delete(compras).where(eq(compras.id, compraId));
 
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoVentaId));
-      await db.delete(stock).where(eq(stock.productoId, productoVentaId));
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoProduccionId));
-      await db.delete(stock).where(eq(stock.productoId, productoProduccionId));
-      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
-      await db.delete(compras).where(eq(compras.id, compraId));
-      await db.delete(productos).where(eq(productos.id, productoVentaId));
-      await db.delete(productos).where(eq(productos.id, productoProduccionId));
-
-      await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
-      await db
-        .delete(solicitudesSeguimiento)
-        .where(eq(solicitudesSeguimiento.tenantId, tenantId));
-      await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
-      await db.delete(instituciones).where(eq(instituciones.id, institucionId));
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await db.delete(planes).where(eq(planes.id, planId));
-      await admin.auth.admin.deleteUser(ownerId);
+              // Recién acá es seguro borrar productos/activos -- todo lo que
+              // los referenciaba ya salió arriba.
+              await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoVentaId));
+              await db.delete(stock).where(eq(stock.productoId, productoVentaId));
+              await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoProduccionId));
+              await db.delete(stock).where(eq(stock.productoId, productoProduccionId));
+              await db.delete(productos).where(eq(productos.id, productoVentaId));
+              await db.delete(productos).where(eq(productos.id, productoProduccionId));
+              await db.delete(activos).where(eq(activos.tenantId, tenantId));
+            },
+            async () => {
+              await db.delete(gastos).where(eq(gastos.id, gastoId));
+              await db.delete(categoriasGasto).where(eq(categoriasGasto.id, categoriaGastoId));
+            },
+            async () => {
+              await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
+              await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
+              await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
+              await db.delete(instituciones).where(eq(instituciones.id, institucionId));
+            },
+          ]);
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+          await db.delete(planes).where(eq(planes.id, planId));
+        },
+        () => admin.auth.admin.deleteUser(ownerId)
+      );
     }, 30000);
 
     it("caso 1: tenant en cartera sin ningun modulo aprobado — visible, pero nada autorizado", async () => {

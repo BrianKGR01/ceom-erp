@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import {
@@ -110,41 +111,47 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
   });
 
   afterAll(async () => {
-    await db
-      .delete(permisosEspecialesPorUsuario)
-      .where(eq(permisosEspecialesPorUsuario.usuarioId, ownerId));
+    // "detalles_venta" (y "ajustes_venta"/"pagos_venta") referencian
+    // producto_id/venta_id -- "ventas" tiene que salir ANTES de "productos",
+    // no en paralelo (bug real encontrado corriendo la suite completa,
+    // mismo patrón que reportes.test.ts/simulaciones.test.ts). El permiso
+    // especial (Identidad) sí es independiente de ambas.
+    await limpiarConAuthGarantizada(
+      async () => {
+        await limpiarEnParalelo([
+          () =>
+            db
+              .delete(permisosEspecialesPorUsuario)
+              .where(eq(permisosEspecialesPorUsuario.usuarioId, ownerId)),
+          async () => {
+            const ventaIds = db.select({ id: ventas.id }).from(ventas).where(eq(ventas.tenantId, tenantId));
+            await db.delete(ajustesVenta).where(inArray(ajustesVenta.ventaId, ventaIds));
+            await db.delete(pagosVenta).where(inArray(pagosVenta.ventaId, ventaIds));
+            await db.delete(detallesVenta).where(inArray(detallesVenta.ventaId, ventaIds));
+            await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
+            await db.delete(eventos).where(eq(eventos.tenantId, tenantId));
+            await db.delete(clientes).where(eq(clientes.tenantId, tenantId));
+            await db.delete(metodosPago).where(eq(metodosPago.tenantId, tenantId));
+            await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
 
-    const ventasDelTenant = await db
-      .select({ id: ventas.id })
-      .from(ventas)
-      .where(eq(ventas.tenantId, tenantId));
-    for (const v of ventasDelTenant) {
-      await db.delete(ajustesVenta).where(eq(ajustesVenta.ventaId, v.id));
-      await db.delete(pagosVenta).where(eq(pagosVenta.ventaId, v.id));
-      await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, v.id));
-    }
-    await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
-    await db.delete(eventos).where(eq(eventos.tenantId, tenantId));
-    await db.delete(clientes).where(eq(clientes.tenantId, tenantId));
-    await db.delete(metodosPago).where(eq(metodosPago.tenantId, tenantId));
-    await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
+            const productoIds = db
+              .select({ id: productos.id })
+              .from(productos)
+              .where(eq(productos.tenantId, tenantId));
+            await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+            await db.delete(stock).where(inArray(stock.productoId, productoIds));
+            await db.delete(productos).where(eq(productos.tenantId, tenantId));
+            await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+          },
+        ]);
 
-    const productosDelTenant = await db
-      .select({ id: productos.id })
-      .from(productos)
-      .where(eq(productos.tenantId, tenantId));
-    for (const p of productosDelTenant) {
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, p.id));
-      await db.delete(stock).where(eq(stock.productoId, p.id));
-    }
-    await db.delete(productos).where(eq(productos.tenantId, tenantId));
-    await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
-
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    await admin.auth.admin.deleteUser(ownerId);
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+      },
+      () => admin.auth.admin.deleteUser(ownerId)
+    );
   }, 30000);
 
   it(

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
@@ -23,9 +23,8 @@ describe.skipIf(!hasCredenciales)("Modulo 11 - Suscripcion (integracion)", () =>
   const planesCreados: string[] = [];
 
   afterAll(async () => {
-    for (const id of planesCreados) {
-      await db.delete(planes).where(eq(planes.id, id));
-    }
+    if (planesCreados.length === 0) return;
+    await db.delete(planes).where(inArray(planes.id, planesCreados));
   });
 
   it("obtenerPlanPorId y listarPlanes leen el catalogo sin gate de rol", async () => {

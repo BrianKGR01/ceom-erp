@@ -26,6 +26,7 @@ import {
 } from "./actions";
 import * as repo from "./repository";
 import { categoriasProducto, movimientosStock, productos, stock } from "./schema";
+import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 
 const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
@@ -78,34 +79,38 @@ describe.skipIf(!hasCredenciales)(
 
     afterAll(async () => {
       const usuarioIds = colaboradorId ? [ownerId, colaboradorId] : [ownerId];
-      await db
-        .delete(permisosEspecialesPorUsuario)
-        .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds));
+      await limpiarConAuthGarantizada(
+        async () => {
+          await limpiarEnParalelo([
+            () =>
+              db
+                .delete(permisosEspecialesPorUsuario)
+                .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds)),
+            async () => {
+              const productoIds = db
+                .select({ id: productos.id })
+                .from(productos)
+                .where(eq(productos.tenantId, tenantId));
+              await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+              await db.delete(stock).where(inArray(stock.productoId, productoIds));
+              await db.delete(productos).where(eq(productos.tenantId, tenantId));
+              await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+            },
+          ]);
 
-      const productosDelTenant = await db
-        .select({ id: productos.id })
-        .from(productos)
-        .where(eq(productos.tenantId, tenantId));
-      for (const p of productosDelTenant) {
-        await db.delete(movimientosStock).where(eq(movimientosStock.productoId, p.id));
-        await db.delete(stock).where(eq(stock.productoId, p.id));
-      }
-      await db.delete(productos).where(eq(productos.tenantId, tenantId));
-      await db
-        .delete(categoriasProducto)
-        .where(eq(categoriasProducto.tenantId, tenantId));
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(permisos).where(
-        inArray(
-          permisos.rolId,
-          db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
-        )
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(permisos).where(
+            inArray(
+              permisos.rolId,
+              db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
+            )
+          );
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+        },
+        () => limpiarEnParalelo(usuarioIds.map((id) => () => admin.auth.admin.deleteUser(id)))
       );
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await admin.auth.admin.deleteUser(ownerId);
-      if (colaboradorId) await admin.auth.admin.deleteUser(colaboradorId);
     });
 
     it("caso de uso 1: carga inicial en Modo Basico via entrada_ajuste_manual", async () => {

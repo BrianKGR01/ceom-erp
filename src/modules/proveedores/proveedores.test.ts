@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -92,27 +93,38 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
   });
 
   afterAll(async () => {
-    const comprasDelTenant = await db
-      .select({ id: compras.id })
-      .from(compras)
-      .where(eq(compras.tenantId, tenantId));
-    for (const c of comprasDelTenant) {
-      await db.delete(comprasAjuste).where(eq(comprasAjuste.compraId, c.id));
-      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, c.id));
-    }
-    await db.delete(compras).where(eq(compras.tenantId, tenantId));
-    await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
-    await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
-    await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
-    await db.delete(insumos).where(eq(insumos.id, insumoId));
-    await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
-    await db.delete(stock).where(eq(stock.productoId, productoId));
-    await db.delete(productos).where(eq(productos.id, productoId));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    await admin.auth.admin.deleteUser(ownerId);
+    // "compras" tiene FK a insumos Y a productos (check constraint: exactamente
+    // uno segun "tipo") -- tiene que salir ANTES de esas dos familias, no en
+    // paralelo con ellas (bug real encontrado corriendo la suite completa:
+    // "compras_insumo_id_insumos_id_fk" violado al paralelizar sin esta
+    // dependencia). insumos y productos sí son independientes entre sí.
+    await limpiarConAuthGarantizada(
+      async () => {
+        const compraIds = db.select({ id: compras.id }).from(compras).where(eq(compras.tenantId, tenantId));
+        await db.delete(comprasAjuste).where(inArray(comprasAjuste.compraId, compraIds));
+        await db.delete(pagosCompra).where(inArray(pagosCompra.compraId, compraIds));
+        await db.delete(compras).where(eq(compras.tenantId, tenantId));
+        await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
+
+        await limpiarEnParalelo([
+          async () => {
+            await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
+            await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
+            await db.delete(insumos).where(eq(insumos.id, insumoId));
+          },
+          async () => {
+            await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
+            await db.delete(stock).where(eq(stock.productoId, productoId));
+            await db.delete(productos).where(eq(productos.id, productoId));
+          },
+        ]);
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+      },
+      () => admin.auth.admin.deleteUser(ownerId)
+    );
   });
 
   it("registrarCompra sin proveedor asociado (caso borde 3.4/5.2) calcula costo_unitario", async () => {
