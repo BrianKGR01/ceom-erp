@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Check,
   ClipboardList,
   Copy,
   Inbox,
@@ -15,8 +14,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SwitchRow } from "@/components/ui/switch-row";
 import { PageHeader } from "@/components/shared/page-header";
-import { cn } from "@/lib/utils";
 import type { ModuloVeedorForm } from "@/modules/consentimiento/validation";
 import { generarCodigoAccesoAction } from "./actions";
 
@@ -131,43 +130,28 @@ export function GenerarCodigoCliente({
             const permitido = modulosPermitidos.includes(modulo);
             const marcado = seleccionados.includes(modulo);
             return (
-              <button
+              <SwitchRow
                 key={modulo}
-                type="button"
+                checked={marcado && permitido}
+                onCheckedChange={() => toggleModulo(modulo)}
                 disabled={!permitido}
-                onClick={() => toggleModulo(modulo)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-3 rounded-xl border p-4 text-left transition-colors",
-                  !permitido && "cursor-not-allowed border-gray-border bg-gray-bg opacity-60",
-                  permitido && marcado && "border-primary bg-pastel-blue-bg",
-                  permitido && !marcado && "border-gray-border hover:border-primary/50"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "flex size-6 shrink-0 items-center justify-center rounded-md border",
-                      marcado && permitido ? "border-primary bg-primary text-white" : "border-gray-border bg-card"
-                    )}
-                  >
-                    {marcado && permitido && <Check className="size-4" />}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-navy">{info.label}</p>
-                    <p className="text-xs text-text-muted">{info.descripcion}</p>
-                  </div>
-                </div>
-                {permitido ? (
-                  <span className="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text">
-                    Disponible
-                  </span>
-                ) : (
-                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-gray-bg px-2 py-0.5 text-xs font-medium text-text-muted">
-                    <Lock className="size-3" />
-                    Deshabilitado
-                  </span>
-                )}
-              </button>
+                label={info.label}
+                description={info.descripcion}
+                icon={info.icon}
+                className="p-4"
+                trailing={
+                  permitido ? (
+                    <span className="shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-xs font-medium text-success-text">
+                      Disponible
+                    </span>
+                  ) : (
+                    <span className="flex shrink-0 items-center gap-1 rounded-full bg-gray-bg px-2 py-0.5 text-xs font-medium text-text-muted">
+                      <Lock className="size-3" />
+                      Deshabilitado
+                    </span>
+                  )
+                }
+              />
             );
           })}
         </div>
