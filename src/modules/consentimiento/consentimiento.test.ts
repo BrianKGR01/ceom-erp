@@ -1,7 +1,8 @@
-import { eq, like } from "drizzle-orm";
+import { eq, inArray, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -93,36 +94,43 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
 
   afterAll(async () => {
     // aprobaciones_tenant.codigo_acceso_id referencia codigos_acceso — hay
-    // que borrar las aprobaciones antes que los codigos.
-    await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
-    await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
-    await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
-    await db
-      .delete(carteraInstitucional)
-      .where(eq(carteraInstitucional.tenantId, tenantId));
-    await db.delete(instituciones).where(eq(instituciones.id, institucionId));
-
-    // Instituciones auto-creadas al canjear codigo (tests de canje) — limpiar por prefijo/sufijo.
-    const institucionesGeneradas = await db
+    // que borrar las aprobaciones antes que los codigos. Dos grupos sin FK
+    // entre sí (la institución "principal" del describe vs. las auto-creadas
+    // al canjear código) corren en paralelo.
+    const institucionesCanjeadas = db
       .select({ id: instituciones.id })
       .from(instituciones)
       .where(like(instituciones.nombre, `Consultora Canjeada ${sufijo}%`));
-    for (const i of institucionesGeneradas) {
-      await db
-        .delete(aprobacionesTenant)
-        .where(eq(aprobacionesTenant.institucionId, i.id));
-      await db
-        .delete(carteraInstitucional)
-        .where(eq(carteraInstitucional.institucionId, i.id));
-      await db.delete(instituciones).where(eq(instituciones.id, i.id));
-    }
 
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    await db.delete(planes).where(eq(planes.id, planId));
-    await admin.auth.admin.deleteUser(ownerId);
+    await limpiarConAuthGarantizada(
+      async () => {
+        await limpiarEnParalelo([
+          async () => {
+            await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
+            await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
+            await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
+            await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
+            await db.delete(instituciones).where(eq(instituciones.id, institucionId));
+          },
+          async () => {
+            await db
+              .delete(aprobacionesTenant)
+              .where(inArray(aprobacionesTenant.institucionId, institucionesCanjeadas));
+            await db
+              .delete(carteraInstitucional)
+              .where(inArray(carteraInstitucional.institucionId, institucionesCanjeadas));
+            await db.delete(instituciones).where(like(instituciones.nombre, `Consultora Canjeada ${sufijo}%`));
+          },
+        ]);
+
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+        await db.delete(planes).where(eq(planes.id, planId));
+      },
+      () => borrarUsuariosAuth(admin, [ownerId])
+    );
   });
 
   it("seccion 3.1: aprobarSolicitud con un subconjunto de lo pedido — tieneConsentimiento refleja exactamente eso", async () => {
@@ -171,19 +179,27 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
       });
       if (authError || !authData.user) throw authError ?? new Error("setup fallo: createUser");
 
-      const vinculada = await vincularInstitucionAutenticada(email, authData.user.id);
-      expect(vinculada?.id).toBe(institucionMagic.data.institucionId);
-      expect(vinculada?.authUserId).toBe(authData.user.id);
+      // `try/finally`: la limpieza está después de los asserts, y este `it`
+      // crea su propia Institución y su propio usuario de Auth -- el
+      // `afterAll` del describe no los alcanza si un assert falla antes.
+      try {
+        const vinculada = await vincularInstitucionAutenticada(email, authData.user.id);
+        expect(vinculada?.id).toBe(institucionMagic.data.institucionId);
+        expect(vinculada?.authUserId).toBe(authData.user.id);
 
-      // Idempotente: una segunda llamada con la misma auth_user_id no
-      // falla ni intenta re-vincular — devuelve la misma Institucion.
-      const vinculadaDeNuevo = await vincularInstitucionAutenticada(email, authData.user.id);
-      expect(vinculadaDeNuevo?.id).toBe(institucionMagic.data.institucionId);
-
-      await db
-        .delete(instituciones)
-        .where(eq(instituciones.id, institucionMagic.data.institucionId));
-      await admin.auth.admin.deleteUser(authData.user.id);
+        // Idempotente: una segunda llamada con la misma auth_user_id no
+        // falla ni intenta re-vincular — devuelve la misma Institucion.
+        const vinculadaDeNuevo = await vincularInstitucionAutenticada(email, authData.user.id);
+        expect(vinculadaDeNuevo?.id).toBe(institucionMagic.data.institucionId);
+      } finally {
+        await limpiarConAuthGarantizada(
+          () =>
+            db
+              .delete(instituciones)
+              .where(eq(instituciones.id, institucionMagic.data.institucionId)),
+          () => borrarUsuariosAuth(admin, [authData.user.id])
+        );
+      }
     },
     20000
   );
@@ -195,13 +211,15 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     });
     if (authError || !authData.user) throw authError ?? new Error("setup fallo: createUser");
 
-    const resultado = await vincularInstitucionAutenticada(
-      `email-que-no-existe-${sufijo}@ceom-erp.test`,
-      authData.user.id
-    );
-    expect(resultado).toBeNull();
-
-    await admin.auth.admin.deleteUser(authData.user.id);
+    try {
+      const resultado = await vincularInstitucionAutenticada(
+        `email-que-no-existe-${sufijo}@ceom-erp.test`,
+        authData.user.id
+      );
+      expect(resultado).toBeNull();
+    } finally {
+      await borrarUsuariosAuth(admin, [authData.user.id]);
+    }
   });
 
   it("solicitarMagicLinkInstitucion NO crea un usuario de Supabase Auth para un email sin Institucion (anti-enumeracion)", async () => {

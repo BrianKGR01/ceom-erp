@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import {
   consultarCapacidad,
   consultarPasivoDeActivo,
@@ -71,20 +72,19 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
   });
 
   afterAll(async () => {
-    const pasivosDelTenant = await db
-      .select({ id: pasivos.id })
-      .from(pasivos)
-      .where(eq(pasivos.tenantId, tenantId));
-    for (const p of pasivosDelTenant) {
-      await db.delete(pagosPasivo).where(eq(pagosPasivo.pasivoId, p.id));
-    }
-    await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));
-    await db.delete(activos).where(eq(activos.tenantId, tenantId));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    await admin.auth.admin.deleteUser(ownerId);
+    await limpiarConAuthGarantizada(
+      async () => {
+        const pasivoIds = db.select({ id: pasivos.id }).from(pasivos).where(eq(pasivos.tenantId, tenantId));
+        await db.delete(pagosPasivo).where(inArray(pagosPasivo.pasivoId, pasivoIds));
+        await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));
+        await db.delete(activos).where(eq(activos.tenantId, tenantId));
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+      },
+      () => borrarUsuariosAuth(admin, [ownerId])
+    );
   });
 
   it("crearActivo sin datos de capacidad (mobiliario) — caso borde 5.1", async () => {

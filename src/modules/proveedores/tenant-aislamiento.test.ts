@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { comoCeomAdmin, comoGatewaySistema, comoSistema, comoUsuario } from "@/db/contexto";
@@ -7,6 +7,7 @@ import { aprobacionesTenant, instituciones } from "@/modules/consentimiento/sche
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import { authUsers, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
 import { productos } from "@/modules/productos/schema";
+import { limpiarEnParalelo } from "@/test-utils/limpieza";
 import * as repo from "./repository";
 import { compras, pagosCompra, proveedores } from "./schema";
 
@@ -229,28 +230,37 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
   });
 
   afterAll(async () => {
-    await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeA));
-    await db.delete(compras).where(eq(compras.id, compraDeA));
-    await db.delete(productos).where(eq(productos.id, productoDeA));
-    await db.delete(sucursales).where(eq(sucursales.id, sucursalDeA));
-    await db.delete(proveedores).where(eq(proveedores.tenantId, tenantA));
-    await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeC));
-    await db.delete(compras).where(eq(compras.id, compraDeC));
-    await db.delete(productos).where(eq(productos.id, productoDeC));
-    await db.delete(sucursales).where(eq(sucursales.id, sucursalDeC));
-    await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantA));
-    await db.delete(instituciones).where(eq(instituciones.id, institucionId));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantA));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantB));
-    await db.delete(usuarios).where(eq(usuarios.id, usuarioCeomAdmin));
-    await db.delete(usuarios).where(eq(usuarios.id, usuarioCeomAdminDesactivado));
-    await db.delete(tenants).where(eq(tenants.id, tenantA));
-    await db.delete(tenants).where(eq(tenants.id, tenantB));
-    await db.delete(tenants).where(eq(tenants.id, tenantC));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioA));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioB));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioCeomAdmin));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioCeomAdminDesactivado));
+    const authIds = [usuarioA, usuarioB, usuarioCeomAdmin, usuarioCeomAdminDesactivado];
+
+    // Dos cadenas por tenant (A y C) sin FK entre sí: dentro de cada una el
+    // orden importa (pagos_compra -> compras -> productos -> sucursales,
+    // aprobaciones_tenant -> instituciones), entre ellas no.
+    await limpiarEnParalelo([
+      async () => {
+        await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeA));
+        await db.delete(compras).where(eq(compras.id, compraDeA));
+        await db.delete(productos).where(eq(productos.id, productoDeA));
+        await db.delete(sucursales).where(eq(sucursales.id, sucursalDeA));
+        await db.delete(proveedores).where(eq(proveedores.tenantId, tenantA));
+        await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantA));
+        await db.delete(instituciones).where(eq(instituciones.id, institucionId));
+      },
+      async () => {
+        await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeC));
+        await db.delete(compras).where(eq(compras.id, compraDeC));
+        await db.delete(productos).where(eq(productos.id, productoDeC));
+        await db.delete(sucursales).where(eq(sucursales.id, sucursalDeC));
+      },
+    ]);
+
+    // `usuarios.id` referencia `auth.users.id` (`usuarios_id_users_id_fk`,
+    // ON DELETE NO ACTION): auth.users va SIEMPRE después de usuarios, nunca
+    // en paralelo. Paralelizarlo revienta con 23503 -- verificado corriendo
+    // este archivo, no razonado.
+    await db.delete(usuarios).where(inArray(usuarios.tenantId, [tenantA, tenantB]));
+    await db.delete(usuarios).where(inArray(usuarios.id, authIds));
+    await db.delete(tenants).where(inArray(tenants.id, [tenantA, tenantB, tenantC]));
+    await db.delete(authUsers).where(inArray(authUsers.id, authIds));
   });
 
   it("tenant B no ve el proveedor de tenant A vía comoUsuario() (RLS filtra la fila)", async () => {

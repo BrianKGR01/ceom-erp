@@ -7,6 +7,7 @@ import { logsAccesoAdminCeom } from "@/modules/consentimiento/schema";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import { crearProducto } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
@@ -136,31 +137,36 @@ describe.skipIf(!hasCredenciales)(
     });
 
     afterAll(async () => {
-      // Orden por FK: movimientos_stock/stock -> productos (sin tenant_id
-      // propio, solo producto_id), pagos_compra -> compras, antes de poder
-      // borrar productos/compras/tenant (mismo criterio que el resto de los
-      // tests de integración de este repo).
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
-      await db.delete(stock).where(eq(stock.productoId, productoId));
-      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
-      await db.delete(compras).where(eq(compras.id, compraId));
-      await db.delete(productos).where(eq(productos.id, productoId));
-      await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.tenantId, tenantId));
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await db.delete(planes).where(eq(planes.id, planId));
-      await admin.auth.admin.deleteUser(ownerId);
+      // Orden por FK: "compras" referencia "productos" (compras.producto_id)
+      // -- tienen que salir en ese orden, no en paralelo (bug real
+      // encontrado corriendo la suite completa: paralelizar esto violaba
+      // "compras_producto_id_productos_id_fk", mismo error que en
+      // proveedores.test.ts/financiero.test.ts). pagos_compra -> compras;
+      // movimientos_stock/stock -> productos, antes de cada uno.
+      await limpiarConAuthGarantizada(
+        async () => {
+          await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
+          await db.delete(compras).where(eq(compras.id, compraId));
+          await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
+          await db.delete(stock).where(eq(stock.productoId, productoId));
+          await db.delete(productos).where(eq(productos.id, productoId));
+          await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.tenantId, tenantId));
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+          await db.delete(planes).where(eq(planes.id, planId));
 
-      // saludAgregadaPlataforma() (caso 1) audita bajo CEOM_OPS_TENANT_ID,
-      // no bajo el tenant efímero de este test (Etapa 3 del backstop de
-      // RLS, docs/security/PLAN-RLS-BACKSTOP.md §10.5) — sin este delete,
-      // el siguiente `db.delete(usuarios)` de abajo choca contra la FK de
-      // logs_acceso_admin_ceom.usuario_ceom_id.
-      await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.usuarioCeomId, ceomAdminId));
-      await db.delete(usuarios).where(eq(usuarios.id, ceomAdminId));
-      await admin.auth.admin.deleteUser(ceomAdminId);
+          // saludAgregadaPlataforma() (caso 1) audita bajo CEOM_OPS_TENANT_ID,
+          // no bajo el tenant efímero de este test (Etapa 3 del backstop de
+          // RLS, docs/security/PLAN-RLS-BACKSTOP.md §10.5) — sin este delete,
+          // el `db.delete(usuarios)` del ceom_admin choca contra la FK de
+          // logs_acceso_admin_ceom.usuario_ceom_id.
+          await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.usuarioCeomId, ceomAdminId));
+          await db.delete(usuarios).where(eq(usuarios.id, ceomAdminId));
+        },
+        () => borrarUsuariosAuth(admin, [ownerId, ceomAdminId])
+      );
     });
 
     it("caso 1: saludAgregadaPlataforma con ceom_admin real cuenta el tenant de prueba, y queda auditada", async () => {
@@ -256,23 +262,34 @@ describe.skipIf(!hasCredenciales)(
         creadoPor: null,
       });
 
-      const detalle = await consultarTenantDetalle(owner!, tenantAjeno.id);
-      expect(detalle.ok).toBe(false);
+      // `try/finally`: los asserts de abajo están ANTES de la limpieza, y hay
+      // un `return` temprano en el medio. Sin el `finally`, un assert que
+      // falla (o el return) se lleva puesto el tenant ajeno Y su usuario de
+      // Auth -- este `it` crea su propio fixture completo, no lo hereda del
+      // `beforeAll`, así que el `afterAll` del describe no lo alcanza.
+      try {
+        const detalle = await consultarTenantDetalle(owner!, tenantAjeno.id);
+        expect(detalle.ok).toBe(false);
 
-      const logs = await listarLogsAcceso(
-        { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
-        { tenantId: tenantAjeno.id }
-      );
-      expect(logs.ok).toBe(true);
-      if (!logs.ok) return;
-      expect(logs.data.length).toBe(0);
-
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantAjeno.id));
-      await db.delete(roles).where(eq(roles.tenantId, tenantAjeno.id));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantAjeno.id));
-      await db.delete(tenants).where(eq(tenants.id, tenantAjeno.id));
-      await db.delete(planes).where(eq(planes.id, otroPlan.data.planId));
-      await admin.auth.admin.deleteUser(otroAuth.user.id);
+        const logs = await listarLogsAcceso(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { tenantId: tenantAjeno.id }
+        );
+        expect(logs.ok).toBe(true);
+        if (!logs.ok) return;
+        expect(logs.data.length).toBe(0);
+      } finally {
+        await limpiarConAuthGarantizada(
+          async () => {
+            await db.delete(usuarios).where(eq(usuarios.tenantId, tenantAjeno.id));
+            await db.delete(roles).where(eq(roles.tenantId, tenantAjeno.id));
+            await db.delete(sucursales).where(eq(sucursales.tenantId, tenantAjeno.id));
+            await db.delete(tenants).where(eq(tenants.id, tenantAjeno.id));
+            await db.delete(planes).where(eq(planes.id, otroPlan.data.planId));
+          },
+          () => borrarUsuariosAuth(admin, [otroAuth.user.id])
+        );
+      }
     });
   }
 );

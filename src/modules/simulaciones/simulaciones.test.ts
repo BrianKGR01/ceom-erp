@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { crearCategoriaGasto, crearGastoManual, registrarPagoGasto } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
@@ -134,47 +135,46 @@ describe.skipIf(!hasCredenciales)(
     });
 
     afterAll(async () => {
-      await db.delete(simulaciones).where(eq(simulaciones.tenantId, tenantId));
-      await db
-        .delete(configuracionSimulaciones)
-        .where(eq(configuracionSimulaciones.tenantId, tenantId));
+      // "detalles_venta" referencia producto_id -- "ventas" y "productos"
+      // van en la misma cadena secuencial, no en ramas paralelas separadas
+      // (bug real encontrado corriendo la suite completa, mismo patrón que
+      // reportes.test.ts/financiero.test.ts). simulaciones/configuracion/
+      // gastos sí son independientes (sin FK a productos ni a ventas).
+      await limpiarConAuthGarantizada(
+        async () => {
+          await limpiarEnParalelo([
+            () => db.delete(simulaciones).where(eq(simulaciones.tenantId, tenantId)),
+            () => db.delete(configuracionSimulaciones).where(eq(configuracionSimulaciones.tenantId, tenantId)),
+            async () => {
+              const gastoIds = db.select({ id: gastos.id }).from(gastos).where(eq(gastos.tenantId, tenantId));
+              await db.delete(pagosGasto).where(inArray(pagosGasto.gastoId, gastoIds));
+              await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
+              await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
+            },
+            async () => {
+              const ventaIds = db.select({ id: ventas.id }).from(ventas).where(eq(ventas.tenantId, tenantId));
+              await db.delete(detallesVenta).where(inArray(detallesVenta.ventaId, ventaIds));
+              await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
+              await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
 
-      const ventasDelTenant = await db
-        .select({ id: ventas.id })
-        .from(ventas)
-        .where(eq(ventas.tenantId, tenantId));
-      for (const v of ventasDelTenant) {
-        await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, v.id));
-      }
-      await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
-      await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
+              const productoIds = db
+                .select({ id: productos.id })
+                .from(productos)
+                .where(eq(productos.tenantId, tenantId));
+              await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+              await db.delete(stock).where(inArray(stock.productoId, productoIds));
+              await db.delete(productos).where(eq(productos.tenantId, tenantId));
+              await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+            },
+          ]);
 
-      const gastosDelTenant = await db
-        .select({ id: gastos.id })
-        .from(gastos)
-        .where(eq(gastos.tenantId, tenantId));
-      for (const g of gastosDelTenant) {
-        await db.delete(pagosGasto).where(eq(pagosGasto.gastoId, g.id));
-      }
-      await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
-      await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
-
-      const productosDelTenant = await db
-        .select({ id: productos.id })
-        .from(productos)
-        .where(eq(productos.tenantId, tenantId));
-      for (const p of productosDelTenant) {
-        await db.delete(movimientosStock).where(eq(movimientosStock.productoId, p.id));
-        await db.delete(stock).where(eq(stock.productoId, p.id));
-      }
-      await db.delete(productos).where(eq(productos.tenantId, tenantId));
-      await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
-
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await admin.auth.admin.deleteUser(ownerId);
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+        },
+        () => borrarUsuariosAuth(admin, [ownerId])
+      );
     });
 
     it("caso 1: simularPrecio con rotacion real calcula impactoProyectadoBs y persiste la simulacion", async () => {

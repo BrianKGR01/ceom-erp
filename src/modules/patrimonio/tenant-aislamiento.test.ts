@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { comoSistema, comoUsuario } from "@/db/contexto";
@@ -86,13 +86,15 @@ describe.skipIf(!hasPostgres)("Patrimonio — aislamiento cross-tenant (RLS real
   });
 
   afterAll(async () => {
+    // Cadena única de FK, nada paralelizable: `usuarios.id` referencia
+    // `auth.users.id` (`usuarios_id_users_id_fk`, ON DELETE NO ACTION), así
+    // que auth.users va SIEMPRE al final. El setup de este archivo es SQL
+    // crudo (sin la API de Auth), así que ese borrado sale por la misma
+    // conexión que el resto y no necesita limpiarConAuthGarantizada().
     await db.delete(activos).where(eq(activos.tenantId, tenantA));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantA));
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantB));
-    await db.delete(tenants).where(eq(tenants.id, tenantA));
-    await db.delete(tenants).where(eq(tenants.id, tenantB));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioA));
-    await db.delete(authUsers).where(eq(authUsers.id, usuarioB));
+    await db.delete(usuarios).where(inArray(usuarios.tenantId, [tenantA, tenantB]));
+    await db.delete(tenants).where(inArray(tenants.id, [tenantA, tenantB]));
+    await db.delete(authUsers).where(inArray(authUsers.id, [usuarioA, usuarioB]));
   });
 
   it("tenant B no ve el activo de tenant A vía comoUsuario() (RLS filtra la fila)", async () => {

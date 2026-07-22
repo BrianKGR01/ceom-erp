@@ -42,6 +42,7 @@ import {
   stockInsumo,
   vinculacionesProductoReceta,
 } from "./schema";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 
 const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
@@ -133,58 +134,69 @@ describe.skipIf(!hasCredenciales)(
 
     afterAll(async () => {
       const usuarioIds = colaboradorId ? [ownerId, colaboradorId] : [ownerId];
-      await db
-        .delete(permisosEspecialesPorUsuario)
-        .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds));
+      // "producciones" referencia producto_id Y activo_id; "receta_insumos"
+      // referencia insumo_id; "vinculaciones_producto_receta" referencia
+      // producto_id -- ninguna de las tablas de esta cadena puede
+      // paralelizarse contra "insumos"/"productos"/"activos" (bug real
+      // encontrado corriendo la suite completa: la primera versión de este
+      // archivo sí las separaba en paralelo, violando
+      // "receta_insumos_insumo_id_insumos_id_fk"). Solo el permiso especial
+      // (tabla de Identidad, sin relación con ninguna de estas) es
+      // genuinamente independiente.
+      await limpiarConAuthGarantizada(
+        async () => {
+          await limpiarEnParalelo([
+            () =>
+              db
+                .delete(permisosEspecialesPorUsuario)
+                .where(inArray(permisosEspecialesPorUsuario.usuarioId, usuarioIds)),
+            async () => {
+              const produccionIds = db
+                .select({ id: producciones.id })
+                .from(producciones)
+                .where(eq(producciones.tenantId, tenantId));
+              await db.delete(produccionesAjuste).where(inArray(produccionesAjuste.produccionId, produccionIds));
+              await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
+              await db
+                .delete(vinculacionesProductoReceta)
+                .where(eq(vinculacionesProductoReceta.recetaId, recetaId));
+              await db.delete(recetaInsumos).where(eq(recetaInsumos.recetaId, recetaId));
+              await db.delete(recetas).where(eq(recetas.tenantId, tenantId));
 
-      const produccionesDelTenant = await db
-        .select({ id: producciones.id })
-        .from(producciones)
-        .where(eq(producciones.tenantId, tenantId));
-      for (const p of produccionesDelTenant) {
-        await db.delete(produccionesAjuste).where(eq(produccionesAjuste.produccionId, p.id));
-      }
-      await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
-      await db
-        .delete(vinculacionesProductoReceta)
-        .where(eq(vinculacionesProductoReceta.recetaId, recetaId));
-      await db.delete(recetaInsumos).where(eq(recetaInsumos.recetaId, recetaId));
-      await db.delete(recetas).where(eq(recetas.tenantId, tenantId));
+              // Recién acá es seguro borrar insumos/productos/activos.
+              const insumoIds = db.select({ id: insumos.id }).from(insumos).where(eq(insumos.tenantId, tenantId));
+              await db.delete(movimientosInsumo).where(inArray(movimientosInsumo.insumoId, insumoIds));
+              await db.delete(stockInsumo).where(inArray(stockInsumo.insumoId, insumoIds));
+              await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
 
-      const insumosDelTenant = await db
-        .select({ id: insumos.id })
-        .from(insumos)
-        .where(eq(insumos.tenantId, tenantId));
-      for (const i of insumosDelTenant) {
-        await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, i.id));
-        await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, i.id));
-      }
-      await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
+              const productoIds = db
+                .select({ id: productos.id })
+                .from(productos)
+                .where(eq(productos.tenantId, tenantId));
+              await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+              await db.delete(stock).where(inArray(stock.productoId, productoIds));
+              await db.delete(productos).where(eq(productos.tenantId, tenantId));
+              await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
 
-      const productosDelTenant = await db
-        .select({ id: productos.id })
-        .from(productos)
-        .where(eq(productos.tenantId, tenantId));
-      for (const p of productosDelTenant) {
-        await db.delete(movimientosStock).where(eq(movimientosStock.productoId, p.id));
-        await db.delete(stock).where(eq(stock.productoId, p.id));
-      }
-      await db.delete(productos).where(eq(productos.tenantId, tenantId));
-      await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+              await db.delete(activos).where(eq(activos.tenantId, tenantId));
+            },
+          ]);
 
-      await db.delete(activos).where(eq(activos.tenantId, tenantId));
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(permisos).where(
-        inArray(
-          permisos.rolId,
-          db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
-        )
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(permisos).where(
+            inArray(
+              permisos.rolId,
+              db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId))
+            )
+          );
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+        },
+        // `Promise.all` cortaba en el primer rechazo y podía dejar el otro
+        // usuario de Auth sin borrar -- `limpiarEnParalelo` los intenta todos.
+        () => borrarUsuariosAuth(admin, usuarioIds)
       );
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await admin.auth.admin.deleteUser(ownerId);
-      if (colaboradorId) await admin.auth.admin.deleteUser(colaboradorId);
     });
 
     it("regla 3.4 / caso borde 4: registrarProduccion sin vinculacion se bloquea", async () => {

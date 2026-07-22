@@ -1,22 +1,65 @@
 # Plan RLS Backstop — Fase 0: diagnóstico y diseño
 
-**Estado: aprobado — Etapas 0, 1, 2 y 3 (alcance acordado) implementadas y verificadas (2026-07-21,
-ver §8, §9 y §11).** El diagnóstico original (§1-§7) sigue siendo de solo lectura tal cual se
-escribió; §8 documenta lo que se implementó después (Etapas 0-1), §9 la Etapa 2 (barrido de N+1 +
-Proveedores), §10 el diagnóstico de la Etapa 3 (bypass de `ceom_admin`, incluye una corrección real
-a la hipótesis de costo de `es_ceom_admin()` — ver §10.3), y §11 lo que se implementó de la Etapa 3
-sobre ese diagnóstico. **§9.6 encontró una regresión real** que cambia una premisa del plan (el
-camino Gateway/Panel Admin CEOM no es independiente de las Etapas 3/4 como se asumía) — **§10/§11 la
-resuelven para Proveedores y dejan el patrón (`ceomAdminBypassPolicy()`, `ContextoRlsNoResueltoError`)
-listo para reusar en cada módulo que migre después.** `logs_acceso_admin_ceom` (sub-etapa 3.d) sigue
-pendiente, deliberadamente. **Etapa 4.a (identidad real del Gateway, Opción A′) implementada y
-verificada — ver §13/§14/§15.** **Etapa 4.b (policies del portal que re-derivan la vigencia del
-consentimiento) diagnosticada en §16 — conclusión: sí, pero NO en la forma de §2.3 Caso 3 (esa forma
-quedó arquitectónicamente inviable después de 4.a) — ver §16 para el diseño real y la decisión
-pendiente del usuario.** Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
-originó este trabajo.
+**Trabajo en pausa a partir del 2026-07-22 (consolidación, §17) — no es abandono.**
+Las guardas de aplicación (`tienePermiso()`, `tieneConsentimiento()`, etc.) siempre fueron la
+primera línea de defensa y siguen intactas sin cambios; RLS es defensa en profundidad, y ya cubre
+el mecanismo base, dos módulos completos, el bypass de `ceom_admin` y el camino del Gateway sobre
+su única superficie real hoy. Lo que sigue se va a absorber de a poco, módulo por módulo, sin
+apuro. **Si estás retomando esto sin haber vivido las sesiones anteriores: no hace falta leer las
+~3000 líneas de abajo.** Las tres tablas de esta sección son el resumen ejecutivo; el checklist
+para migrar el próximo módulo vive completo y por sí solo en
+`docs/security/CHECKLIST-MIGRACION-RLS.md` — no requiere este documento. El resto de este archivo
+(§1 en adelante) es el diario de diagnóstico/implementación, útil para el *por qué* de una decisión
+puntual, no para arrancar.
 
-Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
+## Estado por etapa
+
+| Etapa | Qué | Estado | Detalle |
+|---|---|---|---|
+| 0 | `src/db/contexto.ts` — mecanismo base (`comoUsuario`/`comoCeomAdmin`/`comoGatewaySistema`/`comoSistema`) | ✅ Hecho | §8.1-§8.2 |
+| 1 | Patrimonio → `comoUsuario()` | ✅ Hecho (sin `FORCE`) | §8.3 |
+| 2 | Barrido de N+1 (13 módulos) + Proveedores → `comoUsuario()` | ✅ Hecho (con `FORCE`) | §9 |
+| 2 (resto) | Consentimiento/Suscripción/Simulaciones/Gastos/Productos/Ventas/Identidad → `comoUsuario()` | ❌ Sin empezar | Orden sugerido en §3.1, a revisar contra roadmap de negocio |
+| 3 (3.a-3.c, 3.e) | `es_ceom_admin()` + bypass en las 4 tablas de Proveedores + checklist | ✅ Hecho (alcance acordado) | §10-§11 |
+| 3.d | Policy bespoke de `logs_acceso_admin_ceom` | ❌ Diferida a propósito | Inerte hasta que Consentimiento migre — §11.4 |
+| 3.f | Hoisting a `InitPlan` de `es_ceom_admin()` (`(select ...)`) | ✅ Hecho | §12 |
+| 4.a | Identidad real del Gateway, Opción A′ (`es_gateway_sistema()`, fila sembrada) | ✅ Hecho | §13-§15 |
+| 4.b.0 | Backstop grueso del Gateway por tenant+módulo (`tenant_tiene_consentimiento_vigente()`) | ✅ Hecho | §16 |
+| 4.b.1 | Backstop fino por institución (requiere GUC nuevo) | ❌ Diferida a propósito | §16.11 decisión 2 |
+| 5 | `FORCE ROW LEVEL SECURITY` en las 44 tablas de negocio | 🟡 Parcial — por-módulo, no una pasada final | Proveedores sí (§9.2), Patrimonio no (Etapa 1 fue previa a esa decisión) |
+| 6 | Eliminar el export crudo `db` de `client.ts` | ❌ Sin empezar | Nadie debería necesitarlo ya, no verificado con un grep dedicado |
+
+## Módulos — estado de RLS real
+
+| Módulo | `comoUsuario()` | `FORCE RLS` | Bypass `ceom_admin` | Bypass Gateway |
+|---|---|---|---|---|
+| Patrimonio | ✅ | ❌ | — (no alcanzado por Panel Admin CEOM/Gateway) | — |
+| Proveedores | ✅ | ✅ | ✅ (`proveedores`/`compras`/`compras_ajuste`/`pagos_compra`) | ✅ (`compras`/`pagos_compra`, único camino real hoy) |
+| Consentimiento | ❌ | ❌ | — | N/A — sus propias tablas (`aprobaciones_tenant`/`instituciones`) nunca deben recibir bypass, ver regla dura §16.6 |
+| Suscripción, Simulaciones, Gastos, Productos, Ventas, Identidad, Operativo/Nicho-1 | ❌ | ❌ | ❌ | ❌ (latente — Ventas/Gastos/Nicho-1 confirmado alcanzable por Panel Admin CEOM/Gateway cuando migren, §9.6/§16.2) |
+
+*Nota: Consentimiento no está migrado, pero ya tiene dos objetos de esquema nuevos que otros
+módulos migrados consumen — el índice único parcial `aprobaciones_tenant_vigente_unica` y la
+función `SECURITY DEFINER tenant_tiene_consentimiento_vigente()` (ambos de la Etapa 4.b.0). Ninguno
+de los dos depende de que Consentimiento migre para funcionar.*
+
+## Decisiones tomadas, sin ejecutar todavía
+
+| Decisión | Dónde se tomó | Por qué sigue así |
+|---|---|---|
+| 4.b.1 — backstop fino del Gateway por institución | §16.11 decisión 2 | Requiere plumbing nuevo (GUC `request.gateway.institucion_id` en `comoGatewaySistema()`); valor incremental real pero menor que el gap que 4.b.0 ya cerró |
+| Etapa 6 — borrar el export crudo `db` | Tabla original §3 | No debería tener consumidores ya, pero nunca se verificó con un grep dedicado antes de borrarlo |
+| M1-M6 (`docs/security/AUDITORIA-AUTORIZACION.md` §7) | Auditoría de autorización previa a este plan | Hallazgos Medios/Bajos (FKs anidadas sin validar contra el tenant — clase de bug que RLS explícitamente NO cubre, §6) — documentados a propósito sin corregir, recomendado cerrarlos "en Fase C junto con la migración" del módulo correspondiente |
+| `panel-admin-ceom.test.ts` caso 3 — sin ninguna aserción de `estadoResultados`/`costoFijoTotal` | §14.2/§14.3 | Quedó fuera del pedido puntual que sí corrigió el archivo hermano (`monitoreo-institucional.test.ts`, §13.11) |
+| `consultarOperativoTenant`/`consultarInventarioOperativoTenant` (Panel Admin CEOM) — cero tests | §10.6/§14.2 | Gap de cobertura, no de assert débil — nunca se escribió el test, no solo quedó flojo |
+
+*Corrección sobre una referencia que puede estar circulando de sesiones anteriores:
+`monitoreo-institucional.test.ts:156` — el assert débil que señalaban §9.6/§10.6 **ya está
+corregido** (commit `8fa5bc1`, 2026-07-21, antes de la Etapa 4.b) — verificado de nuevo el
+2026-07-22 (cero `typeof === "number"` en ese archivo). No es parte de esta lista.*
+
+Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que originó este trabajo.
+Diagnóstico original hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
 `riertvgnjaujstwyqoom`, región `sa-east-1`, Postgres 17.6.1.141) más lectura directa de
 `src/db/`, los 10 `schema.ts` de módulos y `drizzle/migrations/`.
 
@@ -1507,6 +1550,11 @@ igual que las tablas de la Familia B ya diferidas. Una policy ahí hoy sería ta
    antes (la excepción original era más ancha), ahora la superficie es más chica.
 
 ### 11.2 3.e — checklist para las próximas migraciones, con lo aprendido de verdad (no solo lo previsto en §10.8)
+
+**Consolidado y ampliado (con lo aprendido en las Etapas 3.f/4.a/4.b.0) en
+`docs/security/CHECKLIST-MIGRACION-RLS.md` — usar ESE archivo para migrar el próximo módulo, no
+esta lista.** Esta sección queda como estaba, sin editar, por su valor histórico (qué se sabía en
+este punto exacto del plan).
 
 El checklist original de §10.8 seguía siendo correcto en su forma — se agregan acá los puntos que
 solo se confirmaron al implementar, no al diagnosticar:
@@ -3104,7 +3152,9 @@ misma identidad de sistema, dato distinto de `aprobaciones_tenant`). Reversible:
 nueva + recrear la vieja (`gatewaySistemaBypassPolicy` sigue existiendo como función, no se borra en
 esta sub-etapa).
 
-**4.b.0.d — Checklist nuevo para cuando Ventas/Gastos/Operativo-Nicho-1 migren**, mismo formato que
+**4.b.0.d — Checklist nuevo para cuando Ventas/Gastos/Operativo-Nicho-1 migren** — ya incorporado a
+`docs/security/CHECKLIST-MIGRACION-RLS.md` (ítems 9 y 12), que es el artefacto a usar de acá en
+adelante. Queda acá, sin editar, el texto original: mismo formato que
 3.e/§11.2, con los ítems específicos de esta etapa agregados: (1) ¿esta tabla la alcanza el Gateway?
 si sí, ¿qué módulo veedor fijo le corresponde?; (2) aplicar `gatewayVigenciaBypassPolicy()`, nunca
 `gatewaySistemaBypassPolicy()` sola, en el mismo commit que la migración a `comoUsuario()` (mismo
@@ -3163,3 +3213,98 @@ producción para toda institución).
    vieja forma a propósito), así que lo más limpio es que el nombre nuevo deje obsoleto al viejo de
    forma explícita, no que un parámetro opcional permita seguir generando la forma insegura por
    omisión.
+
+---
+
+## 17. Consolidación — pausa limpia antes de volver a UI (2026-07-22)
+
+El trabajo de RLS se pausa acá, sin cambios funcionales. Esta sección existe para que retomarlo
+dentro de dos meses no cueste una sesión de arqueología. Lo que se hizo:
+
+### 17.1 Los tres artefactos de "no releas el plan"
+
+1. **Las tres tablas al principio de este documento** (estado por etapa, estado por módulo,
+   decisiones tomadas sin ejecutar). Son el único resumen que alguien debería necesitar leer.
+2. **`docs/security/CHECKLIST-MIGRACION-RLS.md`** — el checklist de 3.e, consolidado como
+   artefacto standalone. Cubre lo que estaba disperso entre §9, §10, §11.2, §12, §14 y §16.10:
+   barrido de N+1 previo (§9.1), frontera hacia módulos no migrados (§9.3), refuerzo del assert
+   débil de agregación cross-tenant **en el mismo cambio** (§14 — Ventas/Gastos/Nicho-1 lo tienen
+   confirmado; sin esto el módulo migra en verde devolviendo ceros filtrados como datos reales),
+   test de aislamiento corrido ANTES de la policy, `ceomAdminBypassPolicy()` con hoisting a
+   `InitPlan` desde el día uno (§12), `gatewayVigenciaBypassPolicy()` en el mismo commit si el
+   módulo es alcanzable por el Gateway, la regla dura de que
+   `tenant_tiene_consentimiento_vigente()` nunca hoistea y toda query del Gateway necesita su
+   filtro explícito de tenant (§16.5.2), migración probada contra contenedor limpio
+   (`dev-practices.md` §7.2), y suite COMPLETA —no solo la del módulo— antes de cerrar (§9.6).
+3. **`docs/dev-practices/dev-practices.md` §10** — el método que se repitió y atrapó algo real
+   cada vez: diagnóstico de solo lectura antes de implementar, verificar hipótesis con evidencia
+   antes de actuar, validar todo test de seguridad rompiéndolo a propósito, correr el caso
+   negativo antes del fix.
+
+### 17.2 Limpieza de datos de prueba — el residuo era peor de lo que se veía
+
+Una fila huérfana de más de una semana casi rompe la migración `0037_aprobaciones_tenant_vigente_unica`.
+El barrido aplicó a los 16 archivos de test de integración el patrón que ya usaba
+`vigencia-dorado.test.ts`: borrado por patrón de nombre o por `inArray(col, subquery)` en vez de
+bucles N+1, `afterAll` resistente a fallos parciales (`limpiarEnParalelo()`, `Promise.allSettled`
+con `AggregateError`), y orden de FK correcto.
+
+Dos hallazgos que no se esperaban, ambos encontrados **corriendo** la suite en vez de razonar sobre
+el diseño:
+
+- **La paralelización ingenua introdujo bugs de FK reales.** Nueve archivos trataban como
+  independientes familias de tablas que sí se referencian (`compras`/`producciones`/
+  `detalles_venta`/`receta_insumos`/`vinculaciones_producto_receta` contra
+  `productos`/`insumos`/`activos`). La corrida completa falló con `23503` concreto
+  (`compras_insumo_id_insumos_id_fk`, `receta_insumos_insumo_id_insumos_id_fk`). Corregido
+  fusionando las familias cruzadas en cadenas secuenciales y dejando en paralelo solo las
+  genuinamente independientes — cada archivo lleva el comentario de por qué.
+- **51 usuarios de `auth.users` huérfanos**, contra 2 legítimos, con las tablas de `public`
+  perfectamente limpias y las 32 suites en verde. `admin.auth.admin.deleteUser()` era la última
+  línea de cada `afterAll` — y **tiene** que ir última, porque `public.usuarios.id` referencia
+  `auth.users.id` (`usuarios_id_users_id_fk`, `ON DELETE NO ACTION`). Cualquier excepción previa
+  lo salteaba, y una vez borrada la fila de `usuarios` no queda ningún join por el cual una
+  limpieza posterior pudiera encontrarlo (`auth.users` no tiene `tenant_id`). Cerrado con
+  `limpiarConAuthGarantizada()` (`src/test-utils/limpieza.ts`): el borrado de Auth corre igual
+  aunque el de negocio falle, y el error de la parte que falló se relanza en vez de esconderse.
+  Mismo tratamiento (`try/finally`) para las limpiezas que viven dentro de un `it` después de sus
+  asserts, en `consentimiento.test.ts` y `panel-admin-ceom.test.ts`.
+
+- **Y todavía faltaba una capa: garantizar que el borrado de Auth se EJECUTE no garantiza que
+  FUNCIONE.** Con todo lo anterior aplicado y una corrida 32/32 archivos / 216/216 tests en verde,
+  quedó un `operativo-owner-*@ceom-erp.test` huérfano. La causa:
+  `admin.auth.admin.deleteUser()` **no rechaza la promesa** cuando la API falla — devuelve el
+  fallo en el `{ error }` del valor de retorno. Todos los call sites hacían `await
+  admin.auth.admin.deleteUser(id)` sin mirar ese `error`, así que un DELETE que volvía 403 se veía
+  idéntico a uno exitoso: usuario huérfano, suite en verde. Cerrado con `borrarUsuariosAuth()`,
+  que chequea el `error` y lo lanza (y de paso filtra ids `undefined`, para que un `beforeAll`
+  cortado a mitad no genere un fallo secundario que entierre el error real). Los 17 call sites
+  migrados.
+
+  El 403 venía de una condición intermitente del propio proyecto de Supabase —
+  `unrecognized JWT kid <nil> for algorithm ES256` sobre `POST /admin/users`, ~4 de cada 100
+  requests, con la clave `sb_secret_*` correcta y la mayoría de las llamadas resolviendo bien
+  (`actor_username: service_role`). No se agregó reintento a propósito: un reintento habría
+  escondido un problema de infraestructura real detrás de una suite verde, que es exactamente el
+  patrón que esta sección existe para eliminar.
+
+**Dos advertencias para quien repita esta limpieza**, ambas aprendidas de errores cometidos en
+esta misma sesión:
+
+1. **El orden `usuarios` → `auth.users` no es convención, es una FK.** La primera versión del
+   barrido paralelizó el borrado de `auth.users` contra el resto, apoyada en una consulta de
+   `information_schema` que "confirmaba" que no había FK. La consulta filtraba
+   `constraint_column_usage` por `table_schema = 'public'`, lo que descarta justamente las FK
+   cruzadas de esquema — el resultado vacío no era evidencia de nada. Apareció como `23503` real
+   corriendo `proveedores/tenant-aislamiento.test.ts`. Las dos FK reales son
+   `usuarios_id_users_id_fk` e `instituciones_auth_user_id_users_id_fk`.
+2. **"Usuario de `auth.users` sin fila en `public.usuarios`" NO alcanza como criterio de
+   huérfano.** Las Instituciones se autentican por `instituciones.auth_user_id`, no por
+   `usuarios` — un login de Institución legítimo cumple esa condición por diseño. Filtrar SIEMPRE
+   además por el patrón de email de los fixtures (`%@ceom-erp.test`); es lo que evitó tocar la
+   cuenta real de la institución de QA manual `institucion prueva`.
+
+Estado de la base de desarrollo al cierre, verificado después de una corrida completa en verde
+(32/32 archivos, 216/216 tests): 3 tenants (todos legítimos y documentados), 6 instituciones
+(fixtures de QA manual), 2 usuarios `@ceom-erp.test` (ambos con su fila de `usuarios`), cero
+tenants/instituciones con sufijo numérico de test. Cero residuo automatizado.

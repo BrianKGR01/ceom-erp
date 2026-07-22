@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -116,55 +117,55 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
   });
 
   afterAll(async () => {
-    const ventasDelTenant = await db
-      .select({ id: ventas.id })
-      .from(ventas)
-      .where(eq(ventas.tenantId, tenantId));
-    for (const v of ventasDelTenant) {
-      await db.delete(ajustesVenta).where(eq(ajustesVenta.ventaId, v.id));
-      await db.delete(pagosVenta).where(eq(pagosVenta.ventaId, v.id));
-      await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, v.id));
-    }
-    await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
-    await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
-    await db.delete(metodosPago).where(eq(metodosPago.tenantId, tenantId));
+    // "gastos" es la única familia genuinamente independiente -- ni
+    // "ventas" (via detalles_venta.producto_id) ni "compras" (via
+    // compras.producto_id/insumo_id) pueden paralelizarse contra "productos":
+    // ambas lo referencian. Bug real encontrado corriendo la suite completa
+    // (una versión anterior de este archivo SÍ las separaba en paralelo,
+    // mismo error que en proveedores.test.ts: "compras_producto_id_..._fk"
+    // violado por la carrera) — ventas/compras/productos van en una sola
+    // cadena secuencial, no en ramas paralelas.
+    await limpiarConAuthGarantizada(
+      async () => {
+        await limpiarEnParalelo([
+          async () => {
+            const gastoIds = db.select({ id: gastos.id }).from(gastos).where(eq(gastos.tenantId, tenantId));
+            await db.delete(pagosGasto).where(inArray(pagosGasto.gastoId, gastoIds));
+            await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
+            await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
+          },
+          async () => {
+            const ventaIds = db.select({ id: ventas.id }).from(ventas).where(eq(ventas.tenantId, tenantId));
+            await db.delete(ajustesVenta).where(inArray(ajustesVenta.ventaId, ventaIds));
+            await db.delete(pagosVenta).where(inArray(pagosVenta.ventaId, ventaIds));
+            await db.delete(detallesVenta).where(inArray(detallesVenta.ventaId, ventaIds));
+            await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
+            await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
+            await db.delete(metodosPago).where(eq(metodosPago.tenantId, tenantId));
 
-    const gastosDelTenant = await db
-      .select({ id: gastos.id })
-      .from(gastos)
-      .where(eq(gastos.tenantId, tenantId));
-    for (const g of gastosDelTenant) {
-      await db.delete(pagosGasto).where(eq(pagosGasto.gastoId, g.id));
-    }
-    await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
-    await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
+            const compraIds = db.select({ id: compras.id }).from(compras).where(eq(compras.tenantId, tenantId));
+            await db.delete(pagosCompra).where(inArray(pagosCompra.compraId, compraIds));
+            await db.delete(compras).where(eq(compras.tenantId, tenantId));
+            await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
 
-    const comprasDelTenant = await db
-      .select({ id: compras.id })
-      .from(compras)
-      .where(eq(compras.tenantId, tenantId));
-    for (const c of comprasDelTenant) {
-      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, c.id));
-    }
-    await db.delete(compras).where(eq(compras.tenantId, tenantId));
-    await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
+            const productoIds = db
+              .select({ id: productos.id })
+              .from(productos)
+              .where(eq(productos.tenantId, tenantId));
+            await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+            await db.delete(stock).where(inArray(stock.productoId, productoIds));
+            await db.delete(productos).where(eq(productos.tenantId, tenantId));
+            await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+          },
+        ]);
 
-    const productosDelTenant = await db
-      .select({ id: productos.id })
-      .from(productos)
-      .where(eq(productos.tenantId, tenantId));
-    for (const p of productosDelTenant) {
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, p.id));
-      await db.delete(stock).where(eq(stock.productoId, p.id));
-    }
-    await db.delete(productos).where(eq(productos.tenantId, tenantId));
-    await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
-
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    await admin.auth.admin.deleteUser(ownerId);
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+      },
+      () => borrarUsuariosAuth(admin, [ownerId])
+    );
   });
 
   it("caso de uso 1/2: estadoResultados cuenta una venta pendiente de cobro; flujoCaja no, hasta que se pague", async () => {

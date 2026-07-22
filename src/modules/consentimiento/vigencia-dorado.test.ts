@@ -1,4 +1,4 @@
-import { eq, like, sql } from "drizzle-orm";
+import { eq, inArray, like, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
@@ -6,6 +6,7 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import {
   aprobarSolicitud,
   crearInstitucion,
@@ -111,25 +112,34 @@ describe.skipIf(!hasCredenciales)("Vigencia de consentimiento — test dorado TS
     // ANTES de intentar borrar cualquiera de los dos padres (bug real
     // encontrado en la primera corrida de este archivo: borrar
     // instituciones antes reventaba con 23503).
-    await db.execute(
-      sql`delete from solicitudes_seguimiento where tenant_id in (select id from tenants where nombre_negocio like ${`${prefijoTenant}%`})`
+    await limpiarConAuthGarantizada(
+      async () => {
+        const tenantsDeEsteArchivo = db
+          .select({ id: tenants.id })
+          .from(tenants)
+          .where(like(tenants.nombreNegocio, `${prefijoTenant}%`));
+        const institucionesDeEsteArchivo = db
+          .select({ id: instituciones.id })
+          .from(instituciones)
+          .where(like(instituciones.nombre, `${prefijoInstitucion}%`));
+
+        await db.delete(solicitudesSeguimiento).where(inArray(solicitudesSeguimiento.tenantId, tenantsDeEsteArchivo));
+        await db
+          .delete(aprobacionesTenant)
+          .where(inArray(aprobacionesTenant.institucionId, institucionesDeEsteArchivo));
+        await db.delete(instituciones).where(like(instituciones.nombre, `${prefijoInstitucion}%`));
+        await db.delete(aprobacionesTenant).where(inArray(aprobacionesTenant.tenantId, tenantsDeEsteArchivo));
+        // Solo tenantDelOwnerId tiene filas reales de usuarios/roles/sucursales
+        // (crearTenantConOwner las siembra) -- los demás tenants de este archivo
+        // son inserts crudos de solo la tabla tenants (crearTenantDeEscenario),
+        // sin Owner real detrás -- nada que limpiar ahí salvo el tenant mismo.
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantDelOwnerId));
+        await db.delete(roles).where(eq(roles.tenantId, tenantDelOwnerId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantDelOwnerId));
+        await db.delete(tenants).where(like(tenants.nombreNegocio, `${prefijoTenant}%`));
+      },
+      () => borrarUsuariosAuth(admin, [ownerId])
     );
-    await db.execute(
-      sql`delete from aprobaciones_tenant where institucion_id in (select id from instituciones where nombre like ${`${prefijoInstitucion}%`})`
-    );
-    await db.delete(instituciones).where(like(instituciones.nombre, `${prefijoInstitucion}%`));
-    await db.execute(
-      sql`delete from aprobaciones_tenant where tenant_id in (select id from tenants where nombre_negocio like ${`${prefijoTenant}%`})`
-    );
-    // Solo tenantDelOwnerId tiene filas reales de usuarios/roles/sucursales
-    // (crearTenantConOwner las siembra) -- los demás tenants de este archivo
-    // son inserts crudos de solo la tabla tenants (crearTenantDeEscenario),
-    // sin Owner real detrás -- nada que limpiar ahí salvo el tenant mismo.
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantDelOwnerId));
-    await db.delete(roles).where(eq(roles.tenantId, tenantDelOwnerId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantDelOwnerId));
-    await db.delete(tenants).where(like(tenants.nombreNegocio, `${prefijoTenant}%`));
-    await admin.auth.admin.deleteUser(ownerId);
   });
 
   /** Llama directo a la función SQL candidata — sin pasar por RLS/policy,

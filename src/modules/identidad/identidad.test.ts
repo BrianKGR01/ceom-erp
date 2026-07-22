@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import {
   actualizarPermisosRol,
   actualizarTenant,
@@ -88,29 +89,31 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
   });
 
   afterAll(async () => {
-    await db.delete(planes).where(eq(planes.nombre, `Plan QA ${sufijo}`));
-    await db.delete(permisosEspecialesPorUsuario).where(
-      inArray(permisosEspecialesPorUsuario.usuarioId, [ownerId, colaboradorId])
+    await limpiarConAuthGarantizada(
+      async () => {
+        await limpiarEnParalelo([
+          () => db.delete(planes).where(eq(planes.nombre, `Plan QA ${sufijo}`)),
+          () =>
+            db
+              .delete(permisosEspecialesPorUsuario)
+              .where(inArray(permisosEspecialesPorUsuario.usuarioId, [ownerId, colaboradorId])),
+        ]);
+        await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+
+        const rolesDelTenant = db.select({ id: roles.id }).from(roles).where(eq(roles.tenantId, tenantId));
+        await limpiarEnParalelo([
+          () => db.delete(permisosEspecialesPorRol).where(inArray(permisosEspecialesPorRol.rolId, rolesDelTenant)),
+          () => db.delete(permisos).where(inArray(permisos.rolId, rolesDelTenant)),
+        ]);
+
+        await db.delete(roles).where(eq(roles.tenantId, tenantId));
+        await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+        await db.delete(tenants).where(eq(tenants.id, tenantId));
+      },
+      // `Promise.all` cortaba en el primer rechazo y dejaba los demás usuarios
+      // de Auth sin borrar -- `limpiarEnParalelo` los intenta todos igual.
+      () => borrarUsuariosAuth(admin, authIdsCreados)
     );
-    await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-
-    const rolesDelTenant = await db
-      .select({ id: roles.id })
-      .from(roles)
-      .where(eq(roles.tenantId, tenantId));
-    for (const rol of rolesDelTenant) {
-      await db
-        .delete(permisosEspecialesPorRol)
-        .where(eq(permisosEspecialesPorRol.rolId, rol.id));
-      await db.delete(permisos).where(eq(permisos.rolId, rol.id));
-    }
-
-    await db.delete(roles).where(eq(roles.tenantId, tenantId));
-    await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-    await db.delete(tenants).where(eq(tenants.id, tenantId));
-    for (const id of authIdsCreados) {
-      await admin.auth.admin.deleteUser(id);
-    }
   });
 
   it("crearTenantConOwner crea tenant, sucursal principal y usuario owner de forma atomica", async () => {

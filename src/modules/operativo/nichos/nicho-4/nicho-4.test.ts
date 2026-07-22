@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -75,15 +76,23 @@ describe.skipIf(!hasCredenciales)(
     });
 
     afterAll(async () => {
-      await db.delete(activos).where(eq(activos.tenantId, tenantId));
-      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
-      await db.delete(stock).where(eq(stock.productoId, productoId));
-      await db.delete(productos).where(eq(productos.id, productoId));
-      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
-      await db.delete(roles).where(eq(roles.tenantId, tenantId));
-      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
-      await db.delete(tenants).where(eq(tenants.id, tenantId));
-      await admin.auth.admin.deleteUser(ownerId);
+      await limpiarConAuthGarantizada(
+        async () => {
+          await limpiarEnParalelo([
+            () => db.delete(activos).where(eq(activos.tenantId, tenantId)),
+            async () => {
+              await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
+              await db.delete(stock).where(eq(stock.productoId, productoId));
+              await db.delete(productos).where(eq(productos.id, productoId));
+            },
+          ]);
+          await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+          await db.delete(roles).where(eq(roles.tenantId, tenantId));
+          await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+          await db.delete(tenants).where(eq(tenants.id, tenantId));
+        },
+        () => borrarUsuariosAuth(admin, [ownerId])
+      );
     });
 
     it("consultarCapacidadAlmacenamientoUsada cruza stock real de Productos contra la capacidad del Activo", async () => {
