@@ -94,3 +94,53 @@ export function gatewaySistemaBypassPolicy(tableName: string) {
     using: sql`(select es_gateway_sistema())`,
   });
 }
+
+/**
+ * Backstop de VIGENCIA para el Gateway (Etapa 4.b.0, docs/security/
+ * PLAN-RLS-BACKSTOP.md §16.9.1) — reemplaza a `gatewaySistemaBypassPolicy()`
+ * en TODA tabla que la toque, nunca convive con ella (semántica `OR` de
+ * policies permisivas múltiples: la vieja, sin restricción de tenant, anula
+ * a la nueva). `gatewaySistemaBypassPolicy()` ya no debería usarse en
+ * ninguna tabla — no queda como opción "por si acaso": se borra del código
+ * en el mismo commit que reemplaza su último call-site (§16.11 decisión 6),
+ * así que referenciarla es un error de compilación, no un lint a ignorar.
+ *
+ * Restringe el bypass de `es_gateway_sistema()` (que por sí solo autoriza
+ * CUALQUIER tenant, sin excepción — el gap real que motivó esta etapa,
+ * §16.1.2) a "este tenant tiene consentimiento vigente de ALGUNA institución
+ * para el módulo veedor de esta tabla". Backstop GRUESO, no fino: no
+ * distingue QUÉ institución pregunta (eso es 4.b.1, diferido — necesita un
+ * canal nuevo para que la identidad de la institución llegue a la sesión de
+ * base de datos, que hoy no existe bajo `comoGatewaySistema()`).
+ *
+ * `tenantIdExpr`: por defecto la columna `tenant_id` directa de la tabla.
+ * Tablas hijas sin `tenant_id` propio (ej. `pagos_compra`, tenant vía
+ * `compra_id → compras.tenant_id`) pasan su propio fragmento — mismo
+ * criterio que el segundo argumento de `crudPolicy()`.
+ *
+ * REGLA DURA sobre el costo, no solo documentada en el plan — verificada con
+ * `EXPLAIN ANALYZE` real (§16.5): a diferencia de `es_ceom_admin()`/
+ * `es_gateway_sistema()` (sin argumentos, constantes por consulta, SÍ
+ * hoistean a un `InitPlan` con `(select ...)`), `tenant_tiene_consentimiento_vigente()`
+ * toma `tenant_id` como argumento — varía por fila. Envolverla en
+ * `(select ...)` NO la hoistea nunca, sin importar cómo se escriba: Postgres
+ * la ejecuta como un `SubPlan` CORRELACIONADO, una vez por cada fila
+ * candidata. El costo queda acotado SOLO si la query de aplicación trae su
+ * propio filtro de tenant explícito (~4ms medido) — sin ese filtro, el costo
+ * escala linealmente con el tamaño de la tabla (~450ms a 40k filas
+ * sintéticas, el peor caso medido). Toda tabla nueva que reciba esta policy
+ * entra en el checklist de §16.10 con este ítem explícito: la query real que
+ * el Gateway usa sobre esa tabla, ¿trae su filtro de tenant?
+ */
+export function gatewayVigenciaBypassPolicy(
+  tableName: string,
+  moduloVeedor: "financiero" | "operativo" | "inventario_operativo",
+  tenantIdExpr: SQL = sql`tenant_id`
+) {
+  return pgPolicy(`${tableName}_gateway_vigencia_bypass`, {
+    for: "select",
+    to: authenticatedRole,
+    using: sql`(select es_gateway_sistema())
+      and (select public.tenant_tiene_consentimiento_vigente((${tenantIdExpr}), ${sql.raw(`'${moduloVeedor}'::modulo_veedor`)}))`,
+  });
+}
