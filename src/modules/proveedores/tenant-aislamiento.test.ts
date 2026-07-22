@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { comoCeomAdmin, comoGatewaySistema, comoSistema, comoUsuario } from "@/db/contexto";
+import { aprobacionesTenant, instituciones } from "@/modules/consentimiento/schema";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import { authUsers, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
 import { productos } from "@/modules/productos/schema";
@@ -29,6 +30,17 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
   let sucursalDeA: string;
   let productoDeA: string;
   let compraDeA: string;
+  // Etapa 4.b.0 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+  // §16.10, tests ANTES de la policy): tenantC tiene compra+pago reales
+  // igual que tenantA, pero SIN ninguna fila en aprobaciones_tenant -- el
+  // par exacto que hace falta para probar que la ausencia de consentimiento
+  // bloquea al Gateway, no solo que la presencia de consentimiento lo deja
+  // pasar (eso ya lo prueba, sin querer, el test viejo de tenantA).
+  let tenantC: string;
+  let sucursalDeC: string;
+  let productoDeC: string;
+  let compraDeC: string;
+  let institucionId: string;
 
   beforeAll(async () => {
     usuarioA = randomUUID();
@@ -60,8 +72,18 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
         fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
       })
       .returning();
+    const [tc] = await db
+      .insert(tenants)
+      .values({
+        nombreNegocio: `Aislamiento RLS Proveedores C sin consentimiento ${sufijo}`,
+        monedaPrincipal: "BOB",
+        estadoSuscripcion: "activa",
+        fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
+      })
+      .returning();
     tenantA = ta.id;
     tenantB = tb.id;
+    tenantC = tc.id;
 
     await db.insert(usuarios).values([
       {
@@ -151,6 +173,59 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
       monto: "250",
       fechaPago: "2025-06-01",
     });
+
+    // Etapa 4.b.0 (docs/security/PLAN-RLS-BACKSTOP.md §16.10): institución
+    // real + aprobación vigente ("financiero", no revocada) para tenantA —
+    // sin esto, el test viejo de la línea ~250 ("el Gateway ve los pagos de
+    // compra de un tenant ajeno") dejaría de pasar en cuanto la policy pase
+    // a exigir vigencia, y quedaría indistinguible de un bug real.
+    const [institucion] = await db
+      .insert(instituciones)
+      .values({ nombre: `Institucion Aislamiento Proveedores ${sufijo}`, tipo: "incubadora" })
+      .returning();
+    institucionId = institucion.id;
+    await db.insert(aprobacionesTenant).values({
+      tenantId: tenantA,
+      institucionId,
+      modulosAprobados: ["financiero"],
+      aprobadoPor: usuarioA,
+    });
+
+    // tenantC: compra + pago reales, igual forma que tenantA, pero SIN
+    // ninguna fila en aprobaciones_tenant — el par que prueba que la
+    // AUSENCIA de consentimiento bloquea al Gateway (§16.10, caso negativo).
+    const [sucursalC] = await db
+      .insert(sucursales)
+      .values({ tenantId: tenantC, nombre: "Sucursal C", esPrincipal: true })
+      .returning();
+    sucursalDeC = sucursalC.id;
+
+    const [productoC] = await db
+      .insert(productos)
+      .values({ tenantId: tenantC, nombre: "Producto C", unidadVenta: "unidad", precioVenta: "20" })
+      .returning();
+    productoDeC = productoC.id;
+
+    const [compraC] = await db
+      .insert(compras)
+      .values({
+        tenantId: tenantC,
+        sucursalId: sucursalDeC,
+        tipo: "reventa",
+        productoId: productoDeC,
+        cantidad: "10",
+        costoUnitario: "50",
+        montoTotal: "500",
+        fechaCompra: "2025-06-01",
+      })
+      .returning();
+    compraDeC = compraC.id;
+
+    await db.insert(pagosCompra).values({
+      compraId: compraDeC,
+      monto: "500",
+      fechaPago: "2025-06-01",
+    });
   });
 
   afterAll(async () => {
@@ -159,12 +234,19 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
     await db.delete(productos).where(eq(productos.id, productoDeA));
     await db.delete(sucursales).where(eq(sucursales.id, sucursalDeA));
     await db.delete(proveedores).where(eq(proveedores.tenantId, tenantA));
+    await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeC));
+    await db.delete(compras).where(eq(compras.id, compraDeC));
+    await db.delete(productos).where(eq(productos.id, productoDeC));
+    await db.delete(sucursales).where(eq(sucursales.id, sucursalDeC));
+    await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantA));
+    await db.delete(instituciones).where(eq(instituciones.id, institucionId));
     await db.delete(usuarios).where(eq(usuarios.tenantId, tenantA));
     await db.delete(usuarios).where(eq(usuarios.tenantId, tenantB));
     await db.delete(usuarios).where(eq(usuarios.id, usuarioCeomAdmin));
     await db.delete(usuarios).where(eq(usuarios.id, usuarioCeomAdminDesactivado));
     await db.delete(tenants).where(eq(tenants.id, tenantA));
     await db.delete(tenants).where(eq(tenants.id, tenantB));
+    await db.delete(tenants).where(eq(tenants.id, tenantC));
     await db.delete(authUsers).where(eq(authUsers.id, usuarioA));
     await db.delete(authUsers).where(eq(authUsers.id, usuarioB));
     await db.delete(authUsers).where(eq(authUsers.id, usuarioCeomAdmin));
@@ -229,16 +311,33 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
   // por ese id puntual, no por rol, así que no se puede fabricar un usuario
   // de prueba nuevo que lo satisfaga: se usa la fila real sembrada en
   // 0034_gateway_sistema_seed.sql.
-  it("el Gateway ve los pagos de compra de un tenant ajeno vía comoGatewaySistema() — bypass de solo lectura (4.a.3)", async () => {
+  it("el Gateway ve los pagos de compra de un tenant CON consentimiento vigente vía comoGatewaySistema() (4.a.3 + 4.b.0)", async () => {
     const total = await comoGatewaySistema((tx) =>
       repo.sumarPagosCompraPeriodo(tx, tenantA, "2020-01-01", "2030-01-01")
     );
     expect(total).toBe(250);
   });
 
-  it("el Gateway NO puede escribir (UPDATE) una compra de un tenant ajeno — gatewaySistemaBypassPolicy() es for:\"select\" únicamente, no \"all\"", async () => {
+  // Etapa 4.b.0 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+  // §16.1.2/§16.10) — escrito y corrido ANTES de aplicar
+  // gatewayVigenciaBypassPolicy(): confirmado que este test FALLABA con la
+  // policy vieja (gatewaySistemaBypassPolicy(), sin ninguna restricción de
+  // tenant) — daba 500, no 0, exactamente el gap real que motivó esta etapa.
+  // No es una tautología: tenantC tiene un pago real de 500 (mismo seed que
+  // tenantA), la única diferencia es que tenantC no tiene ninguna fila en
+  // aprobaciones_tenant. Con gatewayVigenciaBypassPolicy() aplicada, pasa a
+  // dar 0 — ver el mensaje del commit que aplica la policy para el estado
+  // "antes" documentado, mismo criterio que §11.1 punto 4 del plan.
+  it("el Gateway NO ve los pagos de compra de un tenant SIN consentimiento vigente — antes de 4.b.0 esto es la vulnerabilidad real (§16.1.2)", async () => {
+    const total = await comoGatewaySistema((tx) =>
+      repo.sumarPagosCompraPeriodo(tx, tenantC, "2020-01-01", "2030-01-01")
+    );
+    expect(total).toBe(0);
+  });
+
+  it("el Gateway NO puede escribir (UPDATE) una compra de un tenant ajeno — gatewayVigenciaBypassPolicy() es for:\"select\" únicamente, no \"all\"", async () => {
     // Ataca "compras" directo (no "proveedores", que ni siquiera tiene
-    // gatewaySistemaBypassPolicy() — probar ahí no demostraría nada sobre
+    // gatewayVigenciaBypassPolicy() — probar ahí no demostraría nada sobre
     // el recorte for:"select"). tx.update() en vez de un helper de
     // repository.ts: no hace falta uno nuevo solo para este negativo.
     await comoGatewaySistema((tx) =>

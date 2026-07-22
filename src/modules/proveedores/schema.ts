@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
-import { ceomAdminBypassPolicy, crudPolicy, gatewaySistemaBypassPolicy } from "../../db/rls";
+import { ceomAdminBypassPolicy, crudPolicy, gatewayVigenciaBypassPolicy } from "../../db/rls";
 // Referenciar tenants/sucursales de Identidad es el patron esperado (todo
 // modulo de negocio le pertenece a un tenant) — no es la excepcion de caja
 // negra documentada para plan_id.
@@ -134,7 +134,13 @@ export const compras = pgTable(
     // identidad real de solicitanteGateway() (4.a.3) — separarlas reabre
     // la fuga silenciosa documentada en §13.11 (coalesce(sum(...),0)
     // enmascara "RLS filtró todo" como "el tenant no tuvo pagos").
-    gatewaySistemaBypassPolicy("compras"),
+    //
+    // Etapa 4.b.0 (§16.9.1/§16.10, 4.b.0.c): reemplaza a
+    // gatewaySistemaBypassPolicy("compras") — esa policy no tenía NINGUNA
+    // restricción de tenant (el gap real de §16.1.2, ya en producción desde
+    // 4.a.3). Nunca conviven las dos: la vieja, sin restricción, anularía a
+    // la nueva por semántica OR de policies permisivas múltiples.
+    gatewayVigenciaBypassPolicy("compras", "financiero"),
   ]
 ).enableRLS();
 
@@ -156,10 +162,17 @@ export const pagosCompra = pgTable(
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
     ceomAdminBypassPolicy("pagos_compra"),
-    // Ver comentario junto a gatewaySistemaBypassPolicy("compras") arriba —
-    // sumarPagosCompraPeriodo() hace JOIN contra esta tabla, necesita el
-    // bypass acá también.
-    gatewaySistemaBypassPolicy("pagos_compra"),
+    // Ver comentario junto a gatewayVigenciaBypassPolicy("compras", ...)
+    // arriba — sumarPagosCompraPeriodo() hace JOIN contra esta tabla,
+    // necesita el bypass acá también. "pagos_compra" no tiene tenant_id
+    // propio (tabla hija) — el tercer argumento reemplaza el default de
+    // gatewayVigenciaBypassPolicy() con el mismo camino que ya usa
+    // crudPolicy() arriba (compra_id → compras.tenant_id).
+    gatewayVigenciaBypassPolicy(
+      "pagos_compra",
+      "financiero",
+      sql`(select compras.tenant_id from compras where compras.id = pagos_compra.compra_id)`
+    ),
   ]
 ).enableRLS();
 

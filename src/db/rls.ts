@@ -66,34 +66,15 @@ export function ceomAdminBypassPolicy(tableName: string) {
   });
 }
 
-/**
- * Bypass del Gateway de Consentimiento (Etapa 4.a, docs/security/
- * PLAN-RLS-BACKSTOP.md §13/§14/§15, Opción A′) — PROPIA y deliberadamente
- * distinta de `ceomAdminBypassPolicy()`, nunca reusar esa para este caso.
- *
- * Dos diferencias, ambas a propósito, ambas la razón de ser de esta función
- * separada:
- * 1. `for: "select"` únicamente, nunca `"all"` — el Gateway solo lee. No
- *    hay `withCheck` porque no hay policy de escritura que proteger.
- * 2. Usa `es_gateway_sistema()` (filtra por `usuarios.id` puntual), no
- *    `es_ceom_admin()` (filtra por rol) — así este bypass NUNCA se hereda
- *    automáticamente de cualquier tabla que ya tenga o llegue a tener
- *    `ceomAdminBypassPolicy()`. Cada tabla que el Gateway necesite leer
- *    recibe esta policy explícitamente, en el mismo commit que esa tabla
- *    migre a `comoUsuario()` (checklist 3.e/§11.2, con el ítem nuevo de
- *    §14.3) — nunca "porque total ya tiene la de ceom_admin".
- *
- * `(select es_gateway_sistema())` desde el día uno (§12): hoisted a
- * `InitPlan` sin tener que corregirlo después, mismo patrón ya aplicado en
- * `ceomAdminBypassPolicy()`.
- */
-export function gatewaySistemaBypassPolicy(tableName: string) {
-  return pgPolicy(`${tableName}_gateway_sistema_bypass`, {
-    for: "select",
-    to: authenticatedRole,
-    using: sql`(select es_gateway_sistema())`,
-  });
-}
+// NOTA HISTÓRICA (Etapa 4.b.0, docs/security/PLAN-RLS-BACKSTOP.md §16.1.2/
+// §16.9.1/§16.11 decisión 6): `gatewaySistemaBypassPolicy()` vivió acá desde
+// la Etapa 4.a hasta la 4.b.0 — bypass del Gateway sin NINGUNA restricción
+// de tenant (`using: (select es_gateway_sistema())`, nada más). Se borró por
+// completo en vez de dejarse "por si acaso" o marcada con un comentario de
+// "no usar": ninguna tabla debe volver a usar esa forma, y la única manera
+// de hacerlo "imposible de usar por accidente" es que referenciarla sea un
+// error de compilación, no una convención a recordar. Reemplazada por
+// `gatewayVigenciaBypassPolicy()`, abajo.
 
 /**
  * Backstop de VIGENCIA para el Gateway (Etapa 4.b.0, docs/security/
@@ -131,13 +112,22 @@ export function gatewaySistemaBypassPolicy(tableName: string) {
  * sintéticas, el peor caso medido). Toda tabla nueva que reciba esta policy
  * entra en el checklist de §16.10 con este ítem explícito: la query real que
  * el Gateway usa sobre esa tabla, ¿trae su filtro de tenant?
+ *
+ * El nombre de policy generado (`${tableName}_gateway_sistema_bypass`)
+ * deliberadamente NO cambia respecto al de la Etapa 4.a, aunque la función
+ * TypeScript sí se renombró — es la MISMA policy, con la condición más
+ * estricta (`ALTER POLICY ... USING (...)`, mismo patrón que la migración de
+ * hoisting de §12), no una policy nueva. Server-side, además, evita una
+ * limitación real de esta base de código: `drizzle-kit generate` no puede
+ * resolver un rename de policy sin un prompt interactivo (TTY), y este
+ * entorno no tiene uno — nombrarla distinto hubiera bloqueado la migración.
  */
 export function gatewayVigenciaBypassPolicy(
   tableName: string,
   moduloVeedor: "financiero" | "operativo" | "inventario_operativo",
   tenantIdExpr: SQL = sql`tenant_id`
 ) {
-  return pgPolicy(`${tableName}_gateway_vigencia_bypass`, {
+  return pgPolicy(`${tableName}_gateway_sistema_bypass`, {
     for: "select",
     to: authenticatedRole,
     using: sql`(select es_gateway_sistema())

@@ -472,9 +472,10 @@ export async function registrarCompraDeAjuste(
  * PLAN-RLS-BACKSTOP.md §13/§15.3, Opción A′): `solicitanteGateway()` ya no
  * es un objeto sintético — es una fila real sembrada
  * (`0034_gateway_sistema_seed.sql`), y `compras`/`pagos_compra` tienen
- * `gatewaySistemaBypassPolicy()` (solo lectura, filtra por id puntual, no
- * por rol — nunca `es_ceom_admin()`, ver §13.3 sobre por qué reusar ese
- * bypass hubiera sido una regresión). El camino Gateway ahora también
+ * `gatewayVigenciaBypassPolicy()` (Etapa 4.b.0, §16.9.1 — solo lectura,
+ * filtra por id puntual + vigencia de consentimiento del tenant, no por rol
+ * — nunca `es_ceom_admin()`, ver §13.3 sobre por qué reusar ese bypass
+ * hubiera sido una regresión). El camino Gateway ahora también
  * entra por el `try` (`comoUsuario()`) y sale con el dato real — ya no
  * dispara `ContextoRlsNoResueltoError`.
  *
