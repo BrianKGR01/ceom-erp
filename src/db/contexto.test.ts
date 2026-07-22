@@ -68,6 +68,7 @@ const ALLOWLIST_IMPORTA_DB_CRUDO: string[] = ["src/modules/proveedores/actions.t
 const FUNCIONES_DE_CONTEXTO = new Set([
   "comoUsuario",
   "comoCeomAdmin",
+  "comoGatewaySistema",
   "comoInstitucion",
   "comoSistema",
 ]);

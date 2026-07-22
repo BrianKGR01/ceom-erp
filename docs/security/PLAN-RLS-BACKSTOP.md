@@ -2323,3 +2323,22 @@ generado un enlace, no hay bandeja de entrada real que lo reciba.
 
 `get_advisors` (security) sin hallazgos nuevos tras aplicar la migración — los mismos 4 ya conocidos y
 aceptados (§8.5, §10.3, §12.4).
+
+### 15.2 4.a.2 — `es_gateway_sistema()` + `comoGatewaySistema()`, sin bypass todavía
+
+Migración `drizzle/migrations/0035_es_gateway_sistema_function.sql`: función propia, filtra por
+`u.id = 'b4e2d0a3-...'` (el id puntual sembrado en 4.a.1) — **no** por `r.id`/`es_rol_sistema` como
+`es_ceom_admin()`. Verificado en vivo (transacción con rollback) contra la fila real: `es_gateway_sistema()`
+da `true`, `es_ceom_admin()` sigue dando `false` para la misma fila — confirma que la separación de rol
+de 4.a.1 efectivamente aísla los dos bypasses, el punto central de la Opción A′.
+
+`src/db/contexto.ts`: `comoGatewaySistema()` agregada — mecánicamente idéntica a `comoCeomAdmin()`
+(Caso 2, la fila pertenece a un tenant real), símbolo propio para que el allowlist de tests distinga
+sus call-sites. `src/db/rls.ts`: `gatewaySistemaBypassPolicy()` agregada (`for: "select"` únicamente,
+`(select es_gateway_sistema())` hoisted desde el día uno) — **sin aplicar a ninguna tabla todavía**,
+eso es 4.a.3. `src/db/contexto.test.ts`: `"comoGatewaySistema"` sumado a `FUNCIONES_DE_CONTEXTO` (el
+allowlist de call-sites se actualiza en 4.a.3, junto con el import real).
+
+`pnpm typecheck` (0 errores), `src/db/contexto.test.ts` (4/4 verde con el símbolo nuevo agregado),
+`pnpm lint` (0 errores, mismos 13 warnings preexistentes). Nada usa todavía esta función ni esta
+policy — `solicitanteGateway()` sigue devolviendo el objeto sintético.
