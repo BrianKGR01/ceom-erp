@@ -22,8 +22,54 @@ $$;
 
 create schema if not exists auth;
 
+-- Columnas reales de Supabase Auth (verificado en vivo contra el proyecto
+-- Cloud real, riertvgnjaujstwyqoom, vía information_schema.columns —
+-- 2026-07-22, Etapa 4.a del backstop de RLS). Antes este stub solo tenía
+-- "id uuid primary key" -- alcanzaba mientras ninguna migración insertara
+-- en auth.users directo (todas las anteriores solo llamaban a auth.uid()).
+-- 0034_gateway_sistema_seed.sql fue la primera en insertar una fila real
+-- (aud/role/email/encrypted_password/banned_until/etc.) y reventó en CI
+-- con "column aud does not exist" -- este stub no reflejaba ese
+-- requisito nuevo. Se agregan las 33 columnas reales (no solo las que esa
+-- migración usa) para no repetir este mismo modo de falla con la próxima
+-- migración que también necesite insertar en auth.users -- misma nullability
+-- que la real: todas NULL salvo id/is_sso_user/is_anonymous.
 create table if not exists auth.users (
-  id uuid primary key
+  instance_id uuid,
+  id uuid primary key,
+  aud text,
+  role text,
+  email text,
+  encrypted_password text,
+  email_confirmed_at timestamptz,
+  invited_at timestamptz,
+  confirmation_token text,
+  confirmation_sent_at timestamptz,
+  recovery_token text,
+  recovery_sent_at timestamptz,
+  email_change_token_new text,
+  email_change text,
+  email_change_sent_at timestamptz,
+  last_sign_in_at timestamptz,
+  raw_app_meta_data jsonb,
+  raw_user_meta_data jsonb,
+  is_super_admin boolean,
+  created_at timestamptz,
+  updated_at timestamptz,
+  phone text,
+  phone_confirmed_at timestamptz,
+  phone_change text,
+  phone_change_token text,
+  phone_change_sent_at timestamptz,
+  confirmed_at timestamptz,
+  email_change_token_current text,
+  email_change_confirm_status smallint,
+  banned_until timestamptz,
+  reauthentication_token text,
+  reauthentication_sent_at timestamptz,
+  is_sso_user boolean not null default false,
+  deleted_at timestamptz,
+  is_anonymous boolean not null default false
 );
 
 -- Misma expresion que auth.uid() real de Supabase (drizzle-orm/supabase/rls

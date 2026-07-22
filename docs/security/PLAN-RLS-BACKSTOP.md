@@ -2399,3 +2399,39 @@ confirmando que el camino real (no solo el simulado en la prueba negativa de §1
 `consultarPagosCompraEnPeriodo()` — ya no lo dispara el Gateway (tiene fila real), pero se mantiene
 como defensa en profundidad para cualquier otro solicitante sin fila real que hoy no existe. No se
 retira sin confirmar antes que ningún caller pueda depender de él.
+
+### 15.4 CI en rojo tras abrir el PR — `auth.users` del stub no reflejaba lo que 4.a.1 necesitaba
+
+El PR #14 falló en el paso "Aplicar migraciones reales de drizzle contra el contenedor" —
+`0034_gateway_sistema_seed.sql` inserta en `auth.users` con columnas (`aud`, `role`, `encrypted_password`,
+`banned_until`, etc.) que existen en el proyecto Cloud real de desarrollo (contra el que se verificó todo
+en §15.1) pero no en `scripts/ci/stub-supabase-schemas.sql`, que hasta ese momento solo definía
+`auth.users(id uuid primary key)` — nada la había necesitado más rica hasta esta migración. `pnpm test`
+local pasó (205/205) porque corrió contra el proyecto Cloud compartido, que ya tenía el schema completo
+de antes — **la migración nunca se probó contra un Postgres vacío antes de abrir el PR**, exactamente el
+gap que este plan ya conocía en abstracto (§8.4: "no hay DB en CI" para la suite completa) pero que acá
+mordió en un lugar nuevo — migraciones, no tests de aislamiento.
+
+**Diagnóstico, no asumido:** `gh run view --log-failed` no mostraba el error real, solo
+`Process completed with exit code 1` — el mensaje real (`column "aud" of relation "users" does not exist`)
+solo aparece en los logs crudos del contenedor Postgres (`docker logs`, capturados en Actions bajo el
+step "Stop containers", no bajo el step que corre `drizzle-kit`).
+
+**Reproducido en limpio antes de arreglar** (`docker run postgres:16` + `scripts/ci/apply-stub.mjs` +
+`drizzle-kit migrate`, `.env.local` movido fuera del camino para no filtrar el proyecto Cloud real —
+mismo riesgo ya documentado en §7.2 de `docs/dev-practices/dev-practices.md`): mismo error exacto,
+confirmado antes de tocar nada.
+
+**Arreglo:** `scripts/ci/stub-supabase-schemas.sql` — `auth.users` ahora tiene las 33 columnas reales
+(verificadas vía `information_schema.columns` contra `riertvgnjaujstwyqoom`, misma nullability: todas
+`NULL` salvo `id`/`is_sso_user`/`is_anonymous`), no solo las que esta migración puntual necesita —
+para no repetir este modo de falla con la próxima migración que también escriba en `auth.users`.
+Re-verificado en el mismo contenedor limpio: las 37 migraciones (`0000`-`0036`) aplican de punta a
+punta, la fila del Gateway y las 2 policies quedan correctas, y la idempotencia se sostiene (un
+`INSERT` manual repetido sigue fallando con `duplicate key`, no duplica en silencio).
+
+**Proceso reforzado, no solo el síntoma:** `docs/dev-practices/dev-practices.md` §7.2 (nueva) — toda
+migración que escriba en `auth`/`storage` (no solo que llame a `auth.uid()`) se prueba contra un
+contenedor limpio antes de declararse terminada, con el procedimiento exacto documentado ahí. "Suite
+completa en verde localmente" no prueba "las migraciones aplican de punta a punta" — son dos
+verificaciones distintas, y de acá en más quedan como dos pasos distintos, no uno.
