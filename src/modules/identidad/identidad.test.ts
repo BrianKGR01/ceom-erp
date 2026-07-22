@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import {
   actualizarPermisosRol,
   actualizarTenant,
@@ -112,7 +112,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       },
       // `Promise.all` cortaba en el primer rechazo y dejaba los demás usuarios
       // de Auth sin borrar -- `limpiarEnParalelo` los intenta todos igual.
-      () => limpiarEnParalelo(authIdsCreados.map((id) => () => admin.auth.admin.deleteUser(id)))
+      () => borrarUsuariosAuth(admin, authIdsCreados)
     );
   });
 

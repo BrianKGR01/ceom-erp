@@ -2,7 +2,7 @@ import { eq, inArray, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -129,7 +129,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
         await db.delete(tenants).where(eq(tenants.id, tenantId));
         await db.delete(planes).where(eq(planes.id, planId));
       },
-      () => admin.auth.admin.deleteUser(ownerId)
+      () => borrarUsuariosAuth(admin, [ownerId])
     );
   });
 
@@ -197,7 +197,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
             db
               .delete(instituciones)
               .where(eq(instituciones.id, institucionMagic.data.institucionId)),
-          () => admin.auth.admin.deleteUser(authData.user.id)
+          () => borrarUsuariosAuth(admin, [authData.user.id])
         );
       }
     },
@@ -218,7 +218,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
       );
       expect(resultado).toBeNull();
     } finally {
-      await admin.auth.admin.deleteUser(authData.user.id);
+      await borrarUsuariosAuth(admin, [authData.user.id]);
     }
   });
 

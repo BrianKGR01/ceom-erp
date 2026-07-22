@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -164,7 +164,7 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
         await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
         await db.delete(tenants).where(eq(tenants.id, tenantId));
       },
-      () => admin.auth.admin.deleteUser(ownerId)
+      () => borrarUsuariosAuth(admin, [ownerId])
     );
   });
 

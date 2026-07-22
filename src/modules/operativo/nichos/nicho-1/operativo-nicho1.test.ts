@@ -42,7 +42,7 @@ import {
   stockInsumo,
   vinculacionesProductoReceta,
 } from "./schema";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 
 const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
@@ -195,7 +195,7 @@ describe.skipIf(!hasCredenciales)(
         },
         // `Promise.all` cortaba en el primer rechazo y podía dejar el otro
         // usuario de Auth sin borrar -- `limpiarEnParalelo` los intenta todos.
-        () => limpiarEnParalelo(usuarioIds.map((id) => () => admin.auth.admin.deleteUser(id)))
+        () => borrarUsuariosAuth(admin, usuarioIds)
       );
     });
 

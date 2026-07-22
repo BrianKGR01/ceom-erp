@@ -26,7 +26,7 @@ import {
 } from "./actions";
 import * as repo from "./repository";
 import { categoriasProducto, movimientosStock, productos, stock } from "./schema";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 
 const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
@@ -109,7 +109,7 @@ describe.skipIf(!hasCredenciales)(
           await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
           await db.delete(tenants).where(eq(tenants.id, tenantId));
         },
-        () => limpiarEnParalelo(usuarioIds.map((id) => () => admin.auth.admin.deleteUser(id)))
+        () => borrarUsuariosAuth(admin, usuarioIds)
       );
     });
 

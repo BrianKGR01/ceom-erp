@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { crearCategoriaGasto, crearGastoManual, registrarPagoGasto } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
@@ -173,7 +173,7 @@ describe.skipIf(!hasCredenciales)(
           await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
           await db.delete(tenants).where(eq(tenants.id, tenantId));
         },
-        () => admin.auth.admin.deleteUser(ownerId)
+        () => borrarUsuariosAuth(admin, [ownerId])
       );
     });
 

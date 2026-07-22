@@ -7,7 +7,7 @@ import { logsAccesoAdminCeom } from "@/modules/consentimiento/schema";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import { crearProducto } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
@@ -165,10 +165,7 @@ describe.skipIf(!hasCredenciales)(
           await db.delete(logsAccesoAdminCeom).where(eq(logsAccesoAdminCeom.usuarioCeomId, ceomAdminId));
           await db.delete(usuarios).where(eq(usuarios.id, ceomAdminId));
         },
-        () =>
-          limpiarEnParalelo(
-            [ownerId, ceomAdminId].map((id) => () => admin.auth.admin.deleteUser(id))
-          )
+        () => borrarUsuariosAuth(admin, [ownerId, ceomAdminId])
       );
     });
 
@@ -290,7 +287,7 @@ describe.skipIf(!hasCredenciales)(
             await db.delete(tenants).where(eq(tenants.id, tenantAjeno.id));
             await db.delete(planes).where(eq(planes.id, otroPlan.data.planId));
           },
-          () => admin.auth.admin.deleteUser(otroAuth.user.id)
+          () => borrarUsuariosAuth(admin, [otroAuth.user.id])
         );
       }
     });

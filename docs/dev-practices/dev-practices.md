@@ -417,6 +417,16 @@ vacía se leyó como evidencia. Apareció corriendo el test (`23503`,
 también es una hipótesis: si su resultado es "no hay nada", vale la pena
 preguntarse si la consulta podía haber encontrado algo.
 
+**Tercera vuelta de lo mismo, y la más útil de las tres:** garantizar que un
+paso de limpieza se EJECUTE no garantiza que FUNCIONE. Con el arreglo anterior
+ya aplicado y una corrida 32/32 archivos / 216/216 tests en verde, igual quedó
+un usuario de Auth huérfano — porque `admin.auth.admin.deleteUser()` no rechaza
+la promesa cuando la API falla: devuelve el error en el `{ error }` del valor de
+retorno. Un `await` suelto sobre esa llamada se ve idéntico funcione o falle.
+Regla general para cualquier SDK con ese contrato (`{ data, error }` en vez de
+excepciones): en código de limpieza, chequear el `error` explícitamente, o el
+paso es decorativo. Verde no es lo mismo que hecho.
+
 ---
 
 ## 11. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)

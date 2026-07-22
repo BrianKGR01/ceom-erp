@@ -63,6 +63,42 @@ export async function limpiarEnParalelo(pasos: Array<() => Promise<unknown>>): P
  * El fallo de la parte de base NO se esconde: se relanza después de intentar
  * la limpieza de Auth, y si fallan las dos partes se agregan.
  */
+type AdminDeAuth = {
+  auth: { admin: { deleteUser: (id: string) => Promise<{ error: unknown }> } };
+};
+
+/**
+ * Borra usuarios de Supabase Auth y FALLA si alguno no se borró de verdad.
+ *
+ * `admin.auth.admin.deleteUser()` NO rechaza la promesa cuando la API
+ * devuelve un error: lo reporta en el `{ error }` del valor de retorno. Un
+ * `await admin.auth.admin.deleteUser(id)` suelto se ve entonces exactamente
+ * igual funcione o falle — y deja el usuario huérfano con la suite en verde,
+ * que es el peor de los dos mundos.
+ *
+ * Encontrado así, no razonado: una corrida 32/32 archivos / 216/216 tests dejó
+ * un `operativo-owner-*@ceom-erp.test` colgado porque el DELETE volvió con 403
+ * (la API de Auth del proyecto estaba rechazando de forma intermitente con
+ * `unrecognized JWT kid <nil> for algorithm ES256`) y nadie miraba el `error`.
+ *
+ * También filtra ids `undefined`: si el `beforeAll` se cortó antes de crear
+ * algún usuario, no hay nada que borrar por ese lado.
+ */
+export async function borrarUsuariosAuth(
+  admin: AdminDeAuth,
+  ids: Array<string | undefined | null>
+): Promise<void> {
+  const definidos = ids.filter((id): id is string => Boolean(id));
+  if (definidos.length === 0) return;
+
+  await limpiarEnParalelo(
+    definidos.map((id) => async () => {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) throw error;
+    })
+  );
+}
+
 export async function limpiarConAuthGarantizada(
   limpiezaDb: () => Promise<unknown>,
   limpiezaAuth: () => Promise<unknown>

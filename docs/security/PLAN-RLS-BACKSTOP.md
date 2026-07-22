@@ -3270,6 +3270,24 @@ el diseño:
   Mismo tratamiento (`try/finally`) para las limpiezas que viven dentro de un `it` después de sus
   asserts, en `consentimiento.test.ts` y `panel-admin-ceom.test.ts`.
 
+- **Y todavía faltaba una capa: garantizar que el borrado de Auth se EJECUTE no garantiza que
+  FUNCIONE.** Con todo lo anterior aplicado y una corrida 32/32 archivos / 216/216 tests en verde,
+  quedó un `operativo-owner-*@ceom-erp.test` huérfano. La causa:
+  `admin.auth.admin.deleteUser()` **no rechaza la promesa** cuando la API falla — devuelve el
+  fallo en el `{ error }` del valor de retorno. Todos los call sites hacían `await
+  admin.auth.admin.deleteUser(id)` sin mirar ese `error`, así que un DELETE que volvía 403 se veía
+  idéntico a uno exitoso: usuario huérfano, suite en verde. Cerrado con `borrarUsuariosAuth()`,
+  que chequea el `error` y lo lanza (y de paso filtra ids `undefined`, para que un `beforeAll`
+  cortado a mitad no genere un fallo secundario que entierre el error real). Los 17 call sites
+  migrados.
+
+  El 403 venía de una condición intermitente del propio proyecto de Supabase —
+  `unrecognized JWT kid <nil> for algorithm ES256` sobre `POST /admin/users`, ~4 de cada 100
+  requests, con la clave `sb_secret_*` correcta y la mayoría de las llamadas resolviendo bien
+  (`actor_username: service_role`). No se agregó reintento a propósito: un reintento habría
+  escondido un problema de infraestructura real detrás de una suite verde, que es exactamente el
+  patrón que esta sección existe para eliminar.
+
 **Dos advertencias para quien repita esta limpieza**, ambas aprendidas de errores cometidos en
 esta misma sesión:
 

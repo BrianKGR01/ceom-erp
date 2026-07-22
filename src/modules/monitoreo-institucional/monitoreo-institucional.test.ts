@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
-import { limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import {
   agregarTenantACartera,
   aprobarSolicitud,
@@ -342,7 +342,7 @@ describe.skipIf(!hasCredenciales)(
           await db.delete(tenants).where(eq(tenants.id, tenantId));
           await db.delete(planes).where(eq(planes.id, planId));
         },
-        () => admin.auth.admin.deleteUser(ownerId)
+        () => borrarUsuariosAuth(admin, [ownerId])
       );
     }, 30000);
 

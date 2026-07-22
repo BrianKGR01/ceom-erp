@@ -6,7 +6,7 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
-import { limpiarConAuthGarantizada } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import {
   aprobarSolicitud,
   crearInstitucion,
@@ -138,7 +138,7 @@ describe.skipIf(!hasCredenciales)("Vigencia de consentimiento — test dorado TS
         await db.delete(sucursales).where(eq(sucursales.tenantId, tenantDelOwnerId));
         await db.delete(tenants).where(like(tenants.nombreNegocio, `${prefijoTenant}%`));
       },
-      () => admin.auth.admin.deleteUser(ownerId)
+      () => borrarUsuariosAuth(admin, [ownerId])
     );
   });
 

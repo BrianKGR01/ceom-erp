@@ -5,7 +5,7 @@ import { crearClienteAdmin } from "@/lib/supabase/server";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
-import { limpiarConAuthGarantizada } from "@/test-utils/limpieza";
+import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import {
   consultarCapacidad,
   consultarPasivoDeActivo,
@@ -83,7 +83,7 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
         await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
         await db.delete(tenants).where(eq(tenants.id, tenantId));
       },
-      () => admin.auth.admin.deleteUser(ownerId)
+      () => borrarUsuariosAuth(admin, [ownerId])
     );
   });
 
