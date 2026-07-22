@@ -39,7 +39,7 @@ function esCeomAdmin(solicitante: UsuarioConRol): boolean {
 
 function requiereCeomAdmin(solicitante: UsuarioConRol): { ok: false; error: string } | null {
   if (!esCeomAdmin(solicitante)) {
-    return { ok: false, error: "Solo CEOM Admin puede usar el Panel Admin CEOM." };
+    return { ok: false, error: "Solo el equipo CEOM puede usar el Panel Admin CEOM." };
   }
   return null;
 }
@@ -51,7 +51,7 @@ function requiereCeomAdmin(solicitante: UsuarioConRol): { ok: false; error: stri
  * estado_acceso, distribución por plan y por nicho. % onboarding
  * completado y % retención NO se implementan (no hay checklist de
  * onboarding ni definición de retención todavía) — ver pendientes abajo.
- * Cross-tenant, no es "acceso a un tenant puntual" — se audita igual (Etapa
+ * Cross-tenant, no es "acceso a un negocio puntual" — se audita igual (Etapa
  * 3 del backstop de RLS, docs/security/PLAN-RLS-BACKSTOP.md §10.5/§10.11
  * decision 6: antes esta lectura no dejaba ningún rastro), atribuido a
  * CEOM_OPS_TENANT_ID porque logs_acceso_admin_ceom exige un tenant_id real

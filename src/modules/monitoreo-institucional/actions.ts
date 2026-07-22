@@ -97,7 +97,7 @@ export async function estadoTenant(
   }>
 > {
   if (!(await estaEnCartera(institucionId, tenantId))) {
-    return { ok: false, error: "Este tenant no está en la cartera de la institución." };
+    return { ok: false, error: "Este negocio no está en la cartera de la institución." };
   }
   return obtenerTenantParaVeedor(tenantId);
 }

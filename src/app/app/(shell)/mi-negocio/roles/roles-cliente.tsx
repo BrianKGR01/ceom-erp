@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { nombreRolVisible } from "@/lib/vocabulario";
 import type { Accion, Modulo } from "@/modules/identidad/actions";
 import {
   actualizarPermisosRolAction,
@@ -52,13 +53,13 @@ interface Colaborador {
 
 const MODULOS: { id: Modulo; label: string }[] = [
   { id: "productos", label: "Productos" },
-  { id: "inventario", label: "Inventario" },
+  { id: "inventario", label: "Stock" },
   { id: "ventas", label: "Ventas" },
-  { id: "costos_gastos", label: "Costos y Gastos" },
-  { id: "patrimonio", label: "Patrimonio" },
-  { id: "operativo", label: "Operativo" },
-  { id: "financiero", label: "Financiero" },
-  { id: "simulaciones", label: "Simulaciones" },
+  { id: "costos_gastos", label: "Gastos" },
+  { id: "patrimonio", label: "Bienes y deudas" },
+  { id: "operativo", label: "Producción" },
+  { id: "financiero", label: "Finanzas" },
+  { id: "simulaciones", label: "Simulador" },
   { id: "reportes", label: "Reportes" },
   { id: "proveedores", label: "Proveedores" },
 ];
@@ -67,12 +68,12 @@ const ACCIONES: { id: Accion; label: string }[] = [
   { id: "ver", label: "Ver" },
   { id: "crear", label: "Crear" },
   { id: "editar", label: "Editar" },
-  { id: "anular_ajustar", label: "Anular/Ajustar" },
+  { id: "anular_ajustar", label: "Anular o corregir" },
 ];
 
 const DESCRIPCION_SISTEMA: Record<string, string> = {
   Owner: "Acceso total a todas las configuraciones y módulos de la plataforma.",
-  "CEOM Admin": "Gestión administrativa y soporte de la instancia CEOM (equipo interno).",
+  "CEOM Admin": "Gestión administrativa y soporte a cargo del equipo CEOM.",
 };
 
 type Matriz = Record<Modulo, Record<Accion, boolean>>;
@@ -96,7 +97,7 @@ function SubnavMiNegocio() {
       </Link>
       <span className="text-navy">Roles</span>
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
-        Capacidades Especiales
+        Permisos especiales
       </Link>
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
@@ -164,10 +165,12 @@ function ReasignarYEliminarDialog({
     <Dialog open={open} onOpenChange={abrir}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reasigná antes de eliminar &ldquo;{rol?.nombre}&rdquo;</DialogTitle>
+          <DialogTitle>
+            Reasigná antes de eliminar &ldquo;{rol ? nombreRolVisible(rol.nombre) : ""}&rdquo;
+          </DialogTitle>
           <DialogDescription>
             {colaboradoresDelRol.length} colaborador(es) todavía tienen este rol — elegí a dónde
-            los movés para poder eliminarlo (Módulo 1, sección 6.3).
+            los movés para poder eliminarlo.
           </DialogDescription>
         </DialogHeader>
 
@@ -176,7 +179,7 @@ function ReasignarYEliminarDialog({
             <div key={c.id} className="space-y-1.5">
               <Label>{c.nombreCompleto}</Label>
               <Select
-                items={Object.fromEntries(rolesDestino.map((r) => [r.id, r.nombre]))}
+                items={Object.fromEntries(rolesDestino.map((r) => [r.id, nombreRolVisible(r.nombre)]))}
                 value={reasignaciones[c.id] ?? ""}
                 onValueChange={(v) => v && setReasignaciones((prev) => ({ ...prev, [c.id]: v }))}
               >
@@ -186,7 +189,7 @@ function ReasignarYEliminarDialog({
                 <SelectContent>
                   {rolesDestino.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {r.nombre}
+                      {nombreRolVisible(r.nombre)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -344,8 +347,8 @@ export function RolesCliente({ roles, colaboradores }: { roles: Rol[]; colaborad
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="font-heading text-base font-semibold text-navy">{rol.nombre}</h2>
-                {rol.esRolSistema && <Badge variant="warning">Rol de sistema</Badge>}
+                <h2 className="font-heading text-base font-semibold text-navy">{nombreRolVisible(rol.nombre)}</h2>
+                {rol.esRolSistema && <Badge variant="warning">Rol predefinido</Badge>}
               </div>
               {!rol.esRolSistema && (
                 <div className="flex gap-1">
@@ -406,7 +409,7 @@ export function RolesCliente({ roles, colaboradores }: { roles: Rol[]; colaborad
           {error && <p className="mt-3 text-xs text-error-text">{error}</p>}
 
           <div className="mt-5">
-            <h3 className="mb-2 text-sm font-semibold text-navy">Matriz de Permisos</h3>
+            <h3 className="mb-2 text-sm font-semibold text-navy">Qué puede hacer este rol</h3>
             {cargandoMatriz ? (
               <p className="py-8 text-center text-sm text-text-muted">Cargando...</p>
             ) : (

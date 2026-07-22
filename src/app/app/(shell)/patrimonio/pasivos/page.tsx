@@ -32,11 +32,11 @@ export default async function PasivosPage() {
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="mx-auto max-w-4xl space-y-4 py-6">
         <PageHeader
-          title="Pasivos"
+          title="Deudas"
           description="Gestioná las deudas y obligaciones financieras del negocio."
           action={
             <Link href="/app/patrimonio" className="text-sm font-medium text-primary hover:underline">
-              Ver activos
+              Ver bienes
             </Link>
           }
         />

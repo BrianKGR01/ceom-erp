@@ -83,7 +83,7 @@ function AjusteDialog({
             <span className="flex size-8 items-center justify-center rounded-full bg-warning-bg text-warning-text">
               <Wrench className="size-4" />
             </span>
-            <DialogTitle>Producción de Ajuste</DialogTitle>
+            <DialogTitle>Corregir una producción</DialogTitle>
           </div>
           <DialogDescription>
             Nunca edita la producción original — queda registrada como una corrección aparte, con

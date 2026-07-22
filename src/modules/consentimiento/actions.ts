@@ -29,7 +29,7 @@ function requiereCeomAdmin(
   solicitante: SolicitanteCeomAdmin
 ): { ok: false; error: string } | null {
   if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
-    return { ok: false, error: "Solo CEOM Admin puede gestionar esto." };
+    return { ok: false, error: "Solo el equipo CEOM puede gestionar esto." };
   }
   return null;
 }
@@ -39,7 +39,7 @@ function requiereOwnerDelTenant(
   tenantId: string
 ): { ok: false; error: string } | null {
   if (!solicitante.esOwner || solicitante.tenantId !== tenantId) {
-    return { ok: false, error: "Solo el Owner de este tenant puede hacer esto." };
+    return { ok: false, error: "Solo el dueño del negocio puede hacer esto." };
   }
   return null;
 }
@@ -323,7 +323,7 @@ export async function listarSolicitudesPorTenant(
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarSolicitudesPorTenant>>>> {
   const esCeomAdmin = solicitante.rolId === ROL_CEOM_ADMIN_ID;
   if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
-    return { ok: false, error: "No tenés permiso para ver las solicitudes de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver las solicitudes." };
   }
   return { ok: true, data: await repo.listarSolicitudesPorTenant(tenantId) };
 }
@@ -351,7 +351,7 @@ export async function consultarAprobacionesPorTenant(
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarAprobacionesPorTenant>>>> {
   const esCeomAdmin = solicitante.rolId === ROL_CEOM_ADMIN_ID;
   if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
-    return { ok: false, error: "No tenés permiso para ver las aprobaciones de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver las aprobaciones." };
   }
   return { ok: true, data: await repo.listarAprobacionesPorTenant(tenantId) };
 }
@@ -397,7 +397,7 @@ export async function generarCodigoAcceso(
   const tenantRes = await obtenerTenantPorId(solicitante, tenantId);
   if (!tenantRes.ok) return tenantRes;
   if (!tenantRes.data.planId) {
-    return { ok: false, error: "Este tenant no tiene un plan asignado." };
+    return { ok: false, error: "Este negocio no tiene un plan asignado." };
   }
 
   const plan = await obtenerPlanPorId(tenantRes.data.planId);

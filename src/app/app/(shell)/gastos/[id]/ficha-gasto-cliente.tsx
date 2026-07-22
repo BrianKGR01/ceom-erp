@@ -26,7 +26,7 @@ type OrigenGasto = "manual" | "comision_venta_automatica" | "cuota_pasivo_automa
 
 const LABEL_TIPO: Record<TipoGasto, string> = {
   fijo: "Fijo",
-  variable_no_productivo: "Variable no productivo",
+  variable_no_productivo: "Variable",
   unico: "Único",
 };
 

@@ -14,10 +14,15 @@ import { obtenerMiPlanAction } from "../actions";
 // objeto real (bug real encontrado al verificar esta pantalla: "Cannot read
 // properties of undefined (reading 'label')"). Se duplica el mapeo acá,
 // mismo criterio que CAMPOS_BOOLEANOS más abajo.
+// Nombres de usuario de los 3 tipos de informacion compartible
+// (docs/manual/glosario.md seccion 4). OJO: este mapa esta duplicado a
+// proposito en consentimiento/generar-cliente.tsx por la restriccion
+// Server/Client Component explicada arriba — renombrar uno sin el otro deja
+// la app diciendo dos cosas distintas para el mismo dato.
 const MODULOS_VEEDOR_LABEL: Record<string, string> = {
-  financiero: "Módulo Financiero",
-  operativo: "Módulo Operativo",
-  inventario_operativo: "Inventario Operativo",
+  financiero: "Ventas y finanzas",
+  operativo: "Producción",
+  inventario_operativo: "Insumos y stock",
 };
 
 const ESTADO_INFO: Record<string, { label: string; variant: "success" | "warning" | "error" }> = {
@@ -30,9 +35,9 @@ const ESTADO_INFO: Record<string, { label: string; variant: "success" | "warning
 };
 
 const CAMPOS_BOOLEANOS: { key: "incluyeSucursales" | "permiteMultiplesOwners" | "permiteDowngradeAutogestionado"; label: string; descripcion: string }[] = [
-  { key: "incluyeSucursales", label: "Incluye sucursales", descripcion: "El tenant puede operar con más de una sucursal." },
-  { key: "permiteMultiplesOwners", label: "Múltiples Owners", descripcion: "El tenant puede tener más de un usuario Owner." },
-  { key: "permiteDowngradeAutogestionado", label: "Downgrade autogestionado", descripcion: "El tenant puede bajar de plan sin pasar por CEOM Admin." },
+  { key: "incluyeSucursales", label: "Incluye sucursales", descripcion: "Tu negocio puede tener más de una sucursal." },
+  { key: "permiteMultiplesOwners", label: "Más de un dueño", descripcion: "Tu negocio puede tener más de un dueño." },
+  { key: "permiteDowngradeAutogestionado", label: "Podés bajar de plan por tu cuenta", descripcion: "Podés bajar de plan sin pasar por el equipo CEOM." },
 ];
 
 function SubnavMiNegocio() {
@@ -48,7 +53,7 @@ function SubnavMiNegocio() {
         Roles
       </Link>
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
-        Capacidades Especiales
+        Permisos especiales
       </Link>
       <span className="text-navy">Mi Plan</span>
     </div>
@@ -73,7 +78,7 @@ export default async function MiPlanPage() {
 
       {!resultado.ok || !resultado.data.plan ? (
         <p className="mt-10 text-center text-sm text-text-muted">
-          {resultado.ok ? "Este tenant todavía no tiene un plan asignado." : resultado.error}
+          {resultado.ok ? "Tu negocio todavía no tiene un plan asignado." : resultado.error}
         </p>
       ) : (
         <MiPlanContenido datos={resultado.data} />
@@ -161,17 +166,17 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           </div>
 
           <div className="border-t border-gray-border pt-4">
-            <p className="text-sm font-medium text-navy">Módulos veedor permitidos</p>
+            <p className="text-sm font-medium text-navy">Qué información podés compartir</p>
             <p className="text-xs text-text-muted">
-              Lo que una Institución externa puede ver de tu negocio si le das consentimiento.
+              Lo que una Institución puede ver de tu negocio si le das permiso.
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {plan.modulosVeedorPermitidos.length === 0 ? (
-                <span className="text-xs text-text-muted">Sin módulos veedor habilitados</span>
+                <span className="text-xs text-text-muted">Tu plan no incluye compartir información</span>
               ) : (
                 plan.modulosVeedorPermitidos.map((m) => (
                   <Badge key={m} variant="info">
-                    {MODULOS_VEEDOR_LABEL[m] ?? m}
+                    {MODULOS_VEEDOR_LABEL[m] ?? "Sin especificar"}
                   </Badge>
                 ))
               )}
@@ -181,8 +186,8 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
       </Card>
 
       <p className="text-xs text-text-muted">
-        Cambiar de plan es una acción exclusiva de CEOM Admin — contactá a soporte si necesitás
-        upgrade o downgrade.
+        Cambiar de plan es una acción exclusiva del equipo CEOM — contactá a soporte si necesitás
+        subir o bajar de plan.
       </p>
     </div>
   );

@@ -85,7 +85,7 @@ export async function simularPrecio(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "crear"))) {
-    return { ok: false, error: "No tenés permiso para simular precios en este tenant." };
+    return { ok: false, error: "No tenés permiso para simular precios." };
   }
 
   const costoEsManual = input.costoManual !== undefined;
@@ -186,7 +186,7 @@ export async function calcularPuntoEquilibrio(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "crear"))) {
-    return { ok: false, error: "No tenés permiso para calcular el punto de equilibrio en este tenant." };
+    return { ok: false, error: "No tenés permiso para calcular el punto de equilibrio." };
   }
 
   const costoFijoRes = await costoFijoTotal(solicitante, tenantId, input.periodo);
@@ -253,7 +253,7 @@ export async function obtenerConfiguracion(
   tenantId: string
 ): Promise<Resultado<{ umbralMargenAlertaPct: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver la configuración de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver la configuración." };
   }
   const config = await repo.obtenerConfiguracion(tenantId);
   return {
@@ -268,7 +268,7 @@ export async function actualizarUmbralAlerta(
   umbralPct: string | number
 ): Promise<Resultado<{ umbralMargenAlertaPct: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "editar"))) {
-    return { ok: false, error: "No tenés permiso para editar la configuración de este tenant." };
+    return { ok: false, error: "No tenés permiso para editar la configuración." };
   }
   const config = await repo.upsertConfiguracion(tenantId, String(umbralPct), solicitante.id);
   return { ok: true, data: { umbralMargenAlertaPct: Number(config.umbralMargenAlertaPct) } };
@@ -302,7 +302,7 @@ export async function comparativoMultiSku(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el comparativo en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el comparativo." };
   }
 
   const [productosRes, configRes] = await Promise.all([
@@ -367,7 +367,7 @@ export async function listarSimulaciones(
   productoId?: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarSimulacionesPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "simulaciones", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver simulaciones en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver simulaciones." };
   }
   return { ok: true, data: await repo.listarSimulacionesPorTenant(tenantId, productoId) };
 }

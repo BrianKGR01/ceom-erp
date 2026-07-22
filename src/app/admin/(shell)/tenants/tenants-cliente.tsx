@@ -55,20 +55,20 @@ export function TenantsCliente({
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy">Tenants</h1>
+          <h1 className="font-heading text-2xl font-semibold text-navy">Negocios</h1>
           <p className="mt-1 text-sm text-text-muted">Salud agregada de la plataforma.</p>
         </div>
         <div className="flex items-center gap-2">
           <SearchInput
             className="sm:w-64"
-            placeholder="Buscar tenant..."
+            placeholder="Buscar negocio..."
             value={busqueda}
             onChange={setBusqueda}
           />
           <Link href="/admin/tenants/nuevo">
             <Button>
               <Plus className="size-4" />
-              Nuevo Tenant
+              Nuevo negocio
             </Button>
           </Link>
         </div>
@@ -80,7 +80,7 @@ export function TenantsCliente({
             <Building2 className="size-5" />
           </span>
           <div>
-            <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total tenants</p>
+            <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total de negocios</p>
             <p className="font-heading text-xl font-semibold text-navy">{tenants.length}</p>
           </div>
         </div>
@@ -126,10 +126,10 @@ export function TenantsCliente({
         )}
         {porNicho.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-card px-4 py-3 shadow-card">
-            <span className="text-xs font-medium text-text-muted">Por nicho:</span>
+            <span className="text-xs font-medium text-text-muted">Por rubro:</span>
             {porNicho.map((n) => (
               <Badge key={n.nichoId ?? "sin_nicho"} variant="outline">
-                {n.nichoId ? (NICHO_LABEL[n.nichoId] ?? n.nichoId) : "Modo Básico"} ({n.cantidad})
+                {n.nichoId ? (NICHO_LABEL[n.nichoId] ?? "Sin especificar") : "Modo Básico"} ({n.cantidad})
               </Badge>
             ))}
           </div>
@@ -137,14 +137,14 @@ export function TenantsCliente({
       </div>
 
       {filtrados.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-text-muted">Ningún tenant coincide con esta búsqueda.</p>
+        <p className="mt-10 text-center text-sm text-text-muted">Ningún negocio coincide con esta búsqueda.</p>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-2xl bg-card shadow-card">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-bg text-xs text-text-muted uppercase">
               <tr>
-                <th className="px-4 py-3 font-medium">Tenant</th>
-                <th className="px-4 py-3 font-medium">Nicho</th>
+                <th className="px-4 py-3 font-medium">Negocio</th>
+                <th className="px-4 py-3 font-medium">Rubro</th>
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
               </tr>
@@ -160,7 +160,7 @@ export function TenantsCliente({
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-text-muted">
-                      {t.nichoId ? (NICHO_LABEL[t.nichoId] ?? t.nichoId) : "Modo Básico"}
+                      {t.nichoId ? (NICHO_LABEL[t.nichoId] ?? "Sin especificar") : "Modo Básico"}
                     </td>
                     <td className="px-4 py-3 text-text-muted">
                       {t.planId ? (nombrePlan.get(t.planId) ?? "—") : "Sin plan"}

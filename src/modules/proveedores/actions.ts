@@ -58,7 +58,7 @@ export async function crearProveedor(
   input: DatosProveedor
 ): Promise<Resultado<{ proveedorId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear proveedores en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear proveedores." };
   }
 
   return comoUsuario(solicitante.id, async (tx) => {
@@ -121,7 +121,7 @@ export async function listarProveedores(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarProveedoresPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver proveedores en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver proveedores." };
   }
   return comoUsuario(solicitante.id, async (tx) => ({
     ok: true,
@@ -246,13 +246,13 @@ export async function registrarCompra(
   Resultado<{ compraId: string; costoUnitario: number; entradaStock?: DatosEntradaStock }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar compras en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar compras." };
   }
   if (input.tipo === "insumo" && (!input.insumoId || input.productoId)) {
-    return { ok: false, error: "Una compra de insumo requiere insumoId (y no productoId)." };
+    return { ok: false, error: "Para una compra de insumo tenés que elegir un insumo, no un producto." };
   }
   if (input.tipo === "reventa" && (!input.productoId || input.insumoId)) {
-    return { ok: false, error: "Una compra de reventa requiere productoId (y no insumoId)." };
+    return { ok: false, error: "Para una compra de reventa tenés que elegir un producto, no un insumo." };
   }
 
   return comoUsuario(solicitante.id, async (tx) => {
@@ -318,7 +318,7 @@ export async function recibirCompra(
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
     if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
-      return { ok: false, error: "No tenés permiso para recibir compras en este tenant." };
+      return { ok: false, error: "No tenés permiso para recibir compras." };
     }
     if (compra.estado === "recibido") {
       return { ok: false, error: "Esta compra ya está recibida." };
@@ -344,7 +344,7 @@ export async function historialPrecio(
   item: { insumoId: string } | { productoId: string }
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarComprasPorItem>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el historial de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el historial." };
   }
   return comoUsuario(solicitante.id, async (tx) => ({
     ok: true,
@@ -363,7 +363,7 @@ export async function listarCompras(
   opts: { estadoPago?: EstadoPagoCompra; estado?: EstadoCompra } = {}
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarComprasPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver compras." };
   }
   return comoUsuario(solicitante.id, async (tx) => ({
     ok: true,
@@ -495,7 +495,7 @@ export async function consultarPagosCompraEnPeriodo(
   opts: { sucursalId?: string } = {}
 ): Promise<Resultado<{ totalPagado: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver compras en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver compras." };
   }
   try {
     return await comoUsuario(solicitante.id, async (tx) => {

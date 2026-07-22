@@ -318,18 +318,275 @@ frecuente. Cuando se tome, tres condiciones no negociables:
   cubre con una fracción, y encima sobre un log que no puede distinguir esa invitación de una
   lectura.
 
-**El hueco que ninguna de las tres cierra, y que hay que decidir aparte:** el **tenant de un solo
-usuario** con el email muerto. C no aplica (no hay bandeja), B no tiene destino (no hay colaborador).
-Es el caso más probable en un emprendimiento chico. Las salidas posibles —dar de alta un colaborador
-por pedido verificado del titular, o cambiar el email de Auth del dueño previa verificación de
-identidad fuera de banda— son ambas más invasivas que B y merecen su propia sección de este
-documento. **Escribirla es el siguiente paso, no parte de esta decisión.**
+**El hueco que ninguna de las tres cierra:** el **tenant de un solo usuario** con el email muerto. C
+no aplica (no hay bandeja), B no tiene destino (no hay colaborador). Es el caso más probable en un
+emprendimiento chico. → **desarrollado en §9.**
 
 ---
 
-## 7. Estado
+## 7. El alta de usuarios está rota — traza end-to-end
 
-Diagnóstico cerrado y verificado en código. **Sin cambios aplicados** — ni a `identidad/actions.ts`,
-ni a `seed-admin.ts`, ni al login. Ninguna de las opciones está implementada.
+> Sección agregada el 2026-07-22 tras evidencia nueva. **Esto cambia la urgencia de todo lo
+> anterior:** el problema no es sólo "qué pasa si el dueño pierde el acceso". Es que **hoy el dueño
+> nunca llega a tenerlo**, salvo que se lo siembre a mano.
 
-Pendiente de decisión del usuario antes de tocar nada.
+### 7.1 Dónde aterriza el dueño cuando hace clic
+
+`crearTenant()` invita con `inviteUserByEmail(input.ownerEmail)` — **sin `redirectTo`**
+([`identidad/actions.ts:369`](../../src/modules/identidad/actions.ts#L369)). El correo lleva el
+`ConfirmationURL` de Supabase, que resuelve así:
+
+```
+1. clic  → https://<proyecto>.supabase.co/auth/v1/verify?token=…&type=invite&redirect_to=<Site URL>
+2. Supabase valida el token, marca email_confirmed_at, emite sesión
+3. redirect → <Site URL> con los tokens en el fragmento (#access_token=…) o en ?code=
+4. el navegador carga <Site URL>
+```
+
+Como no se pasa `redirectTo`, el paso 3 usa el **Site URL configurado en el dashboard de Supabase**
+— no `NEXT_PUBLIC_SITE_URL` del `.env.local`, que sólo lo lee la app para el magic link de
+Instituciones. **Pero el valor concreto da igual, porque no hay ningún destino que sirva:**
+
+| Destino candidato | Qué pasa |
+|---|---|
+| `/` | [`src/app/page.tsx`](../../src/app/page.tsx) es **el boilerplate de `create-next-app`** — "To get started, edit the page.tsx file". Sin cliente de Supabase, sin lectura del fragmento. El token se descarta. |
+| `/login` | Server Component; ignora el fragmento (que ni siquiera viaja al servidor). Pide email + contraseña, que el invitado todavía no tiene. |
+| `/app/*` | [`(shell)/layout.tsx:20`](<../../src/app/app/(shell)/layout.tsx#L20>) → `obtenerUsuarioActual()` es `null` (no hay cookie de sesión) → `redirect("/login")`. |
+| `/portal/auth/callback` | Único route handler del proyecto, y **hostil a este caso**: canjea el código, no encuentra Institución con ese email, hace `signOut()` y redirige a `/portal?error=sin_institucion` ([route.ts:29-35](../../src/app/portal/auth/callback/route.ts#L29)). |
+
+**No existe en toda la app ninguna ruta capaz de convertir un token de email en una sesión de
+`/app`.** No hay `middleware.ts`, no hay cliente de navegador en `src/lib/supabase/`, y —lo
+definitivo— **no hay una sola línea de código que fije una contraseña**: cero llamadas a
+`updateUser` o `resetPasswordForEmail` en `src/` y `scripts/`. El único uso de `password` fuera de
+tests es leer el campo del formulario de login.
+
+> **Corolario duro:** toda cuenta de este proyecto que hoy tiene contraseña la obtuvo **fuera de la
+> aplicación** — dashboard de Supabase o `admin.createUser({password})` en tests. No hay excepción
+> posible, porque la app no sabe fijar contraseñas.
+
+### 7.2 Confirmación empírica en la base real
+
+Consulta a `auth.users` del proyecto `riertvgnjaujstwyqoom` (2026-07-22). De 16 cuentas reales,
+**sólo 2 pasaron alguna vez por `inviteUserByEmail`**:
+
+| Cuenta | Invitada | Email confirmado | Contraseña | Logueó | Estado |
+|---|---|---|---|---|---|
+| `ceom.qa.alta.…@gmail.com` | sí | **no** | **no** | **nunca** | Owner de "QA Alta Tenant" |
+| `runinkgr@gmail.com` | sí | sí | sí | sí | colaborador de "Mi Negocio de Prueba" |
+
+Las otras 14 se crearon con `admin.createUser({ password, email_confirm: true })` desde los tests —
+nunca vieron un correo.
+
+**Hay un tenant congelado desde el nacimiento en la base ahora mismo.** "QA Alta Tenant
+1784397681183" tiene un único usuario, su Owner, que nunca confirmó el email, nunca fijó contraseña
+y nunca entró. Ese tenant además **no tiene ningún rol personalizado**, así que aunque su dueño
+entrara mañana no tendría a quién invitar sin crear un rol primero. **El escenario de H-33 no es
+hipotético: ya ocurrió, y ocurrió en el alta, no en una pérdida de acceso.**
+
+El caso de `runinkgr` no contradice nada: `email_confirmed_at` lo marca Supabase en el paso 2, con
+el solo hecho de abrir el link — no prueba que la app haya capturado la sesión. La contraseña, por
+§7.1, salió necesariamente del dashboard.
+
+### 7.3 El límite de correo, y por qué es lo de menos
+
+`inviteUserByEmail` devolvió `email rate limit exceeded`. Según la documentación de Supabase, con el
+servicio SMTP incorporado ese límite es **project-wide**, sumando `/auth/v1/signup`, `/auth/v1/recover`
+y `/auth/v1/user` en un solo cupo horario, y **sólo se puede subir configurando SMTP propio**
+([auth rate limits](https://supabase.com/docs/guides/platform/going-into-prod), [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)).
+Implicación directa: **dar de alta varios usuarios seguidos es imposible** — cada alta consume del
+mismo cupo, y ese cupo lo comparte con la futura recuperación de contraseña de H-05.
+
+**Pero hay una restricción bastante peor que el límite, y explica el tenant congelado.** El SMTP
+incorporado de Supabase:
+
+> *"Unless you configure a custom SMTP server for your project, Supabase Auth will refuse to deliver
+> messages to addresses that are not part of the project's team."* — con error *"Email address not
+> authorized"*.
+
+Es decir: **hoy el sistema sólo puede mandarle un correo a los miembros del equipo de la
+organización de Supabase.** Invitar a un cliente real, o a alguien del equipo que no esté en esa
+lista, no falla ruidosamente — simplemente no llega. Eso es exactamente el patrón de
+`ceom.qa.alta.…@gmail.com` (dirección inventada, jamás entregada) frente a `runinkgr@gmail.com`
+(dirección que sí llegó).
+
+La propia doc dice que el SMTP incorporado es para *"toy projects, demos or any non-mission-critical
+application"* y urge SMTP propio para todo lo demás.
+
+**Conclusión:** el alta de negocios no está "pendiente de validar el clic". **Está rota para
+cualquiera que no sea miembro del equipo de Supabase**, y seguirá rota aunque se configure SMTP
+propio, porque el link sigue sin tener dónde aterrizar (§7.1). Son dos fallas independientes: la
+entrega del correo y el destino del enlace. **Hay que arreglar las dos.**
+
+---
+
+## 8. Procedimiento confiable para dar de alta a alguien HOY
+
+Sin tocar código, sin depender del correo. Cuatro pasos, dos de ellos manuales.
+
+> **No uses el botón "Invitar colaborador" de la app para esto.** Si el cupo de correo lo deja
+> pasar, crea la fila en `usuarios` apuntando a una cuenta de Auth **sin contraseña y sin forma de
+> fijarla**, y el email queda ocupado — con lo cual ya no podés crear esa cuenta desde el dashboard.
+> Es la trampa exacta en la que quedó `ceom.qa.alta.…@gmail.com`.
+
+### Paso 0 — Asegurate de que exista un rol para esa persona *(en la app, si hace falta)*
+
+`/app/mi-negocio/roles` → "Crear rol". Es una acción de Owner, no toca el correo, funciona hoy.
+Roles no-sistema disponibles ahora en **Mi Negocio de Prueba** (`d672ef4b-0ead-4348-8000-0e8c61beb8c3`):
+
+| Rol | `rol_id` |
+|---|---|
+| Vendedor QA | `f121159f-1417-4e1a-a814-c0949fb43e25` |
+| Jesus Reyes | `be7d7a12-c6b0-4ddc-b7d1-f7a959a38b8f` |
+
+> ⚠️ **Nunca uses un rol de sistema** — ni `17eb761e-…` (Owner) ni `c1027307-…` (CEOM Admin). La
+> propia app los rechaza en `invitarUsuario()`
+> ([:596-601](../../src/modules/identidad/actions.ts#L596)) porque CEOM Admin otorga el bypass
+> cross-tenant de `tienePermiso()`. Insertando a mano **no hay nada que te frene**.
+
+### Paso 1 — Crear la cuenta de Auth sin mandar correo *(dashboard de Supabase)*
+
+**Authentication → Users → Add user → Create new user**
+- Email: el correo real de la persona
+- Password: una contraseña temporal
+- ✅ **Auto Confirm User** — imprescindible; sin esto `email_confirmed_at` queda en `null` y el login
+  falla con *"Email not confirmed"*
+
+Este camino **no envía ningún correo**: no consume cupo y no lo afecta la restricción de direcciones
+autorizadas. Es lo que hace que el procedimiento sea confiable.
+
+### Paso 2 — Copiar el UUID
+
+Queda visible en la fila del usuario recién creado en esa misma pantalla.
+
+### Paso 3 — Crear la fila de la app *(SQL Editor)*
+
+```sql
+insert into usuarios (id, tenant_id, nombre_completo, email, rol_id, es_owner, activo)
+values (
+  '<UUID-del-paso-2>',
+  'd672ef4b-0ead-4348-8000-0e8c61beb8c3',   -- tenant_id
+  'Nombre Apellido',
+  'persona@ejemplo.com',                    -- mismo email que en el paso 1
+  'f121159f-1417-4e1a-a814-c0949fb43e25',   -- rol_id no-sistema de ESE tenant
+  false,                                     -- es_owner: siempre false acá
+  true                                       -- activo
+);
+```
+
+`id` debe ser **exactamente** el UUID de Auth: `obtenerUsuarioActual()` resuelve la fila por ese id
+([`identidad/actions.ts:41`](../../src/modules/identidad/actions.ts#L41)). Si no coinciden, el login
+de Supabase funciona pero la app responde *"Tu cuenta no está completamente configurada todavía"*
+([`login/actions.ts`](<../../src/app/(auth)/login/actions.ts>)).
+
+### Paso 4 — Entregar y verificar
+
+La persona entra en `/login` con ese email y la contraseña temporal. Debería caer en `/app`.
+
+**Caveats que tenés que asumir, porque no hay forma de evitarlos hoy:**
+- **La contraseña temporal es permanente.** No hay pantalla de cambio de contraseña en la app (§3).
+  Para cambiarla hay que volver al dashboard. Entregala por un canal seguro y no la reutilices.
+- **Si la persona la pierde, vuelve al mismo problema.** Sin H-05 no hay autoservicio.
+
+### Para desatascar a `ceom.qa.alta.…@gmail.com` (el Owner congelado)
+
+Su fila en `usuarios` ya existe y es correcta; lo único que le falta es contraseña. Fijásela a esa
+cuenta de Auth existente desde **Authentication → Users**, en el menú de la fila. No hace falta
+tocar `usuarios` ni volver a invitar. *(No verifiqué la UI del dashboard yo mismo — si esa opción no
+estuviera disponible en tu versión, la alternativa es borrar la cuenta de Auth y su fila de
+`usuarios` y rehacer el alta con los pasos 1-3.)*
+
+---
+
+## 9. El tenant de un solo usuario con el correo muerto
+
+El hueco que ninguna de las tres opciones de §5 cierra, y el más probable en el mercado objetivo:
+**un emprendimiento donde el dueño es el único usuario**, y su dirección de correo dejó de ser
+alcanzable — cuenta corporativa dada de baja, dominio vencido, casilla personal abandonada, persona
+desvinculada o fallecida.
+
+Hoy en la base hay **dos tenants en esa forma exacta**: "QA Alta Tenant" (un solo usuario, su Owner,
+sin roles creados) y —salvo por un colaborador de prueba— casi "Mi Negocio de Prueba". No es un caso
+de borde teórico: es la forma por defecto de un tenant recién creado.
+
+**Por qué ninguna opción anterior alcanza:**
+
+| Opción | Por qué falla acá |
+|---|---|
+| C (H-05) | El correo de recuperación va a una bandeja que nadie lee. |
+| B (reasignar titularidad) | No hay colaborador al que reasignar. El conjunto de destinos válidos está vacío. |
+| A (bypass completo) | "Funcionaría" — invitando a alguien nuevo al tenant. Pero eso es exactamente el poder que §5-A descarta, y acá se ejercería sobre el negocio de alguien que **no puede confirmar nada**, porque su único canal de contacto está muerto. |
+
+**Lo que hace especial a este caso:** en B, el consentimiento está implícito — CEOM elige entre
+personas que el propio tenant admitió, y el nuevo dueño puede confirmar que la operación fue
+legítima. Acá **no queda nadie dentro del sistema capaz de confirmar ni desmentir**. Cualquier
+recuperación es, por construcción, la palabra de un tercero sobre quién es el dueño de un negocio.
+Es un problema de verificación de identidad fuera de banda, no de permisos.
+
+### Las salidas posibles
+
+**D.1 — Cambiar la dirección de correo de la cuenta de Auth del dueño.**
+La menos invasiva en términos de modelo de permisos: no se toca `usuarios`, no cambia nadie de rol,
+no entra ninguna identidad nueva. Se actualiza el email de Auth y a partir de ahí H-05 hace el resto
+— el dueño se recupera solo. **Es la única salida que no le da a CEOM ningún poder nuevo *dentro* de
+la app.** El poder que sí requiere es sobre Supabase Auth, que CEOM ya tiene de hecho (el
+`SUPABASE_SECRET_KEY` está en sus manos).
+*Riesgo:* quien controle ese procedimiento puede apoderarse de cualquier negocio redirigiendo el
+correo del dueño. Todo el peso recae en la verificación de identidad previa.
+
+**D.2 — Alta de un colaborador por pedido verificado, y después B.**
+CEOM inserta un colaborador designado por el titular y luego le transfiere la titularidad con el
+camino acotado de §5-B. Requiere dos poderes (invitar + reasignar), o sea prácticamente A restringida
+a un caso. Más piezas, más superficie, y el resultado es el mismo que D.1.
+
+**D.3 — No resolverlo en producto.** Declararlo explícitamente fuera de alcance: sin acceso al
+correo registrado, el negocio no se recupera. Es una respuesta legítima y honesta si se dice **antes**
+—en el onboarding— y si se le da al dueño una forma de prevenirlo.
+
+**D.4 — Prevención: exigir un segundo contacto en el onboarding.**
+No es una salida, es lo que hace que las otras tres casi nunca se necesiten. Un email de respaldo o
+un segundo colaborador pedido al crear el negocio convierte este caso en el de §5-B, que ya sabemos
+resolver de forma contenible.
+
+### Recomendación para este caso
+
+**D.4 como default del producto, D.1 como excepción documentada, D.2 nunca.**
+
+D.4 es lo único que ataca la causa: hoy un tenant nace con un único punto de fallo y nadie se lo
+advierte al dueño. Pedir un contacto de respaldo en el onboarding cuesta un campo y elimina la
+mayoría de estos casos.
+
+Para los que igual ocurran, **D.1 es preferible a D.2** por una razón concreta: cambia *un dato de
+contacto*, no la composición del equipo ni el mapa de permisos. Deja al dueño recuperándose por el
+camino normal de H-05 en vez de crear una identidad nueva dentro del negocio. Pero **exige un
+procedimiento de verificación de identidad escrito y auditado** —qué prueba se pide, quién la
+aprueba, qué queda registrado—, y ese procedimiento es la parte difícil, no el cambio técnico.
+
+**Qué quedaría en el log.** Nada, hoy. `logs_acceso_admin_ceom` no tiene forma de representar "se
+cambió el correo del dueño del tenant X de A a B por pedido verificado" — no hay columna de acción
+ni de valor anterior (§4). Y es invisible para el tenant. **De las tres decisiones de este
+documento, ésta es la que más necesita una fila de auditoría propia y la que hoy menos tiene.**
+
+**Lo que falta antes de poder decidir D.1 en serio:** definir la verificación de identidad
+fuera de banda. Es una decisión de operaciones y legal, no de código, y hasta que exista, D.1 no
+debería ejecutarse ni una vez.
+
+---
+
+## 10. Estado
+
+Diagnóstico cerrado y verificado — en código, contra la base real del proyecto
+`riertvgnjaujstwyqoom`, y contra la documentación de Supabase. **Sin cambios aplicados**: ni a
+`identidad/actions.ts`, ni a `seed-admin.ts`, ni al login, ni a la base de datos. Ninguna de las
+opciones está implementada.
+
+**Lo urgente ya no es §5.** Es §7: el alta de usuarios no funciona para nadie fuera del equipo de
+Supabase. El procedimiento manual de §8 es el puente mientras tanto.
+
+Orden sugerido, sujeto a tu decisión:
+1. **SMTP propio** — sin eso no sale ningún correo a un cliente real (§7.3).
+2. **Ruta de callback de Auth + fijar contraseña** — cierra H-05 y, con la misma pieza, el tramo de
+   la invitación que hoy no aterriza en ningún lado (§7.1). Es la Opción C de §5.
+3. **Reemplazar el boilerplate de `create-next-app` en `/`** — hoy es el destino más probable del
+   enlace de invitación.
+4. **Segundo contacto en el onboarding** (§9, D.4).
+5. Recién después, el camino acotado de reasignación de titularidad (§5-B).

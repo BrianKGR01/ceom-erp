@@ -30,10 +30,10 @@ export function AdminShell({
   const asideRef = useRef<HTMLElement>(null);
 
   const items: ItemNav[] = [
-    { href: "/admin/tenants", label: "Tenants", icono: Building2 },
+    { href: "/admin/tenants", label: "Negocios", icono: Building2 },
     { href: "/admin/planes", label: "Planes", icono: CreditCard },
     { href: "/admin/instituciones", label: "Instituciones", icono: Landmark },
-    { href: "/admin/logs", label: "Logs de Acceso", icono: ListChecks },
+    { href: "/admin/logs", label: "Registro de accesos", icono: ListChecks },
   ];
 
   function esActivo(href: string) {

@@ -24,8 +24,18 @@ interface FilaLog {
   creadoEn: string | Date;
 }
 
+// Mapa explicito, no derivacion mecanica del identificador: los nombres son
+// los de docs/manual/glosario.md seccion 4. La version anterior
+// (capitalizar + sacar guiones bajos) producia "Inventario operativo", que es
+// el nombre del modulo interno, no el del dato que se consulto.
+const MODULO_CONSULTADO_LABEL: Record<string, string> = {
+  financiero: "Ventas y finanzas",
+  operativo: "Producción",
+  inventario_operativo: "Insumos y stock",
+};
+
 function formatoModulo(modulo: string): string {
-  return modulo.charAt(0).toUpperCase() + modulo.slice(1).replaceAll("_", " ");
+  return MODULO_CONSULTADO_LABEL[modulo] ?? "Sin especificar";
 }
 
 function formatoFechaHora(fecha: string | Date): string {
@@ -67,12 +77,12 @@ export function LogsCliente({
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Logs de Acceso" description="Auditoría interna de consultas de ceom_admin a datos de un tenant. Nunca visible para el tenant." />
+      <PageHeader title="Registro de accesos" description="Auditoría interna de las consultas del equipo CEOM a los datos de un negocio. Nunca visible para el negocio." />
 
       <div className="flex flex-wrap items-center gap-2">
         {tenants.length > 0 && (
           <Select
-            items={{ todos: "Todos los tenants", ...Object.fromEntries(tenants.map((t) => [t.id, t.nombreNegocio])) }}
+            items={{ todos: "Todos los negocios", ...Object.fromEntries(tenants.map((t) => [t.id, t.nombreNegocio])) }}
             value={tenantId}
             onValueChange={(v) => {
               if (!v) return;
@@ -84,7 +94,7 @@ export function LogsCliente({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos los tenants</SelectItem>
+              <SelectItem value="todos">Todos los negocios</SelectItem>
               {tenants.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.nombreNegocio}
@@ -135,7 +145,7 @@ export function LogsCliente({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-border text-left text-[11px] tracking-wide text-text-muted uppercase">
-                <th className="px-5 py-3 font-medium">Tenant</th>
+                <th className="px-5 py-3 font-medium">Negocio</th>
                 <th className="px-5 py-3 font-medium">Módulo consultado</th>
                 <th className="px-5 py-3 font-medium">Usuario CEOM</th>
                 <th className="px-5 py-3 text-right font-medium">Fecha</th>
@@ -144,7 +154,7 @@ export function LogsCliente({
             <tbody>
               {filas.map((fila, index) => (
                 <tr key={`${fila.tenantId}-${fila.creadoEn}-${index}`} className="border-b border-gray-border last:border-0">
-                  <td className="px-5 py-3 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Tenant"}</td>
+                  <td className="px-5 py-3 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Sin especificar"}</td>
                   <td className="px-5 py-3 text-text-body">{formatoModulo(fila.moduloConsultado)}</td>
                   <td className="px-5 py-3 font-mono text-xs text-text-muted">{fila.usuarioCeomId.slice(0, 8)}…</td>
                   <td className="px-5 py-3 text-right text-text-muted">{formatoFechaHora(fila.creadoEn)}</td>

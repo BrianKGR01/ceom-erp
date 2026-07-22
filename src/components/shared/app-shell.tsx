@@ -196,11 +196,11 @@ export function AppShell({
     { href: "/app/productos", label: "Catálogo", icono: Package },
     {
       href: "/app/patrimonio",
-      label: "Patrimonio",
+      label: "Bienes y deudas",
       icono: Building2,
       subitems: [
-        { href: "/app/patrimonio", label: "Activos" },
-        { href: "/app/patrimonio/pasivos", label: "Pasivos" },
+        { href: "/app/patrimonio", label: "Bienes" },
+        { href: "/app/patrimonio/pasivos", label: "Deudas" },
       ],
     },
     {
@@ -223,7 +223,7 @@ export function AppShell({
               { href: "/app/onboarding", label: "Negocio" },
               { href: "/app/mi-negocio/colaboradores", label: "Colaboradores" },
               { href: "/app/mi-negocio/roles", label: "Roles" },
-              { href: "/app/mi-negocio/capacidades", label: "Capacidades Especiales" },
+              { href: "/app/mi-negocio/capacidades", label: "Permisos especiales" },
               { href: "/app/mi-negocio/plan", label: "Mi Plan" },
             ],
           } satisfies ItemNav,
@@ -249,7 +249,7 @@ export function AppShell({
         { href: "/app/produccion/capacidad", label: "Capacidad" },
       ],
     },
-    { href: "/app/simulaciones", label: "Simulaciones", icono: Calculator },
+    { href: "/app/simulaciones", label: "Simulador", icono: Calculator },
     { href: "/app/reportes", label: "Reportes", icono: BarChart3 },
     { href: "/app/consentimiento", label: "Compartir Datos", icono: KeyRound },
   ];

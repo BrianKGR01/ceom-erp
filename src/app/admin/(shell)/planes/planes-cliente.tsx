@@ -54,9 +54,9 @@ const MONEDAS = [
 ];
 
 const CAMPOS_BOOLEANOS: { key: keyof Plan & ("incluyeSucursales" | "permiteMultiplesOwners" | "permiteDowngradeAutogestionado"); label: string; descripcion: string }[] = [
-  { key: "incluyeSucursales", label: "Incluye sucursales", descripcion: "El tenant puede operar con más de una sucursal." },
-  { key: "permiteMultiplesOwners", label: "Múltiples Owners", descripcion: "El tenant puede tener más de un usuario Owner." },
-  { key: "permiteDowngradeAutogestionado", label: "Downgrade autogestionado", descripcion: "El tenant puede bajar de plan sin pasar por CEOM Admin." },
+  { key: "incluyeSucursales", label: "Incluye sucursales", descripcion: "El negocio puede tener más de una sucursal." },
+  { key: "permiteMultiplesOwners", label: "Más de un dueño", descripcion: "El negocio puede tener más de un dueño." },
+  { key: "permiteDowngradeAutogestionado", label: "Puede bajar de plan por su cuenta", descripcion: "El negocio puede bajar de plan sin pasar por el equipo CEOM." },
 ];
 
 interface FormState {
@@ -258,9 +258,9 @@ function PlanFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Módulos veedor permitidos</Label>
+            <Label>Qué información se puede compartir</Label>
             <p className="text-xs text-text-muted">
-              Qué puede habilitar un tenant con este plan al generar un Código de Acceso para una Institución.
+              Qué puede compartir un negocio con este plan al generar un Código de Acceso para una Institución.
             </p>
             <div className="space-y-2">
               {(Object.keys(MODULOS_VEEDOR_INFO) as ModuloVeedorForm[]).map((modulo) => {
@@ -322,7 +322,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-semibold text-navy">Planes</h1>
-          <p className="mt-1 text-sm text-text-muted">Catálogo de planes disponibles para los tenants.</p>
+          <p className="mt-1 text-sm text-text-muted">Catálogo de planes disponibles para los negocios.</p>
         </div>
         <Button onClick={abrirNuevo}>
           <Plus className="size-4" />
@@ -348,7 +348,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
               </p>
               <div className="mt-3 flex flex-wrap gap-1">
                 {plan.modulosVeedorPermitidos.length === 0 ? (
-                  <span className="text-xs text-text-muted">Sin módulos veedor habilitados</span>
+                  <span className="text-xs text-text-muted">Sin información habilitada para compartir</span>
                 ) : (
                   plan.modulosVeedorPermitidos.map((m) => (
                     <Badge key={m} variant="info">

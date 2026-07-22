@@ -26,7 +26,7 @@ export async function subirLogoAction(
 ): Promise<{ ok: true; data: { url: string } } | { ok: false; error: string }> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
-  if (!usuario.esOwner) return { ok: false, error: "Solo el Owner puede cambiar el logo." };
+  if (!usuario.esOwner) return { ok: false, error: "Solo el dueño del negocio puede cambiar el logo." };
 
   const resultado = await subirImagen(usuario.tenantId, "logos", file);
   if (!resultado.ok) return resultado;
@@ -59,7 +59,7 @@ export async function elegirRubro(nicho: "nicho_1" | "nicho_4"): Promise<Resulta
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
   const parsed = asignarNichoSchema.safeParse({ nicho });
-  if (!parsed.success) return { ok: false, error: "Rubro inválido." };
+  if (!parsed.success) return { ok: false, error: "Elegí uno de los rubros de la lista." };
 
   const resultado = await asignarNicho(usuario, parsed.data.nicho);
   if (!resultado.ok) return resultado;

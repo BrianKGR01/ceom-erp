@@ -168,7 +168,7 @@ No son jerga, son la misma cosa llamada de dos formas. Conviene cerrarlas en el 
 | Problema | Dónde | Decisión |
 |---|---|---|
 | **"Email" vs "correo"** | "Email": `colaboradores-cliente.tsx:136`, `clientes-cliente.tsx:110`, `canjear-cliente.tsx:196,271`, `instituciones-cliente.tsx:518,620`, `nuevo-tenant-cliente.tsx:177`. "Correo": `login/actions.ts:17` | Unificar en **"Correo electrónico"** (label) / **"correo"** (prosa). |
-| **`variable_no_productivo` con dos etiquetas distintas** | "Variable" en `gastos/gastos-cliente.tsx:29` vs "Variable no productivo" en `gastos/[id]/ficha-gasto-cliente.tsx:29` | Unificar en **"Variable"**. El listado y la ficha muestran hoy nombres distintos para el mismo gasto. |
+| **`variable_no_productivo` con ~~dos~~ **tres** etiquetas distintas** | "Variable" en `gastos/gastos-cliente.tsx:29`, "Variable no productivo" en `gastos/[id]/ficha-gasto-cliente.tsx:29`, y **"Var. No Productivo"** en el filtro del listado (`gastos-cliente.tsx:149,161`) — esta tercera apareció al aplicar el renombrado | Unificar en **"Variable"**. El listado y la ficha muestran hoy nombres distintos para el mismo gasto. ✅ **Aplicado el 2026-07-22** en las tres. |
 | **Mapas `MAPA[valor] ?? valor`**: degradan al identificador crudo si aparece un valor nuevo | `tenants-cliente.tsx:132,163`, `portal/cartera-cliente.tsx:172`, `mi-negocio/plan/page.tsx:174` | El fallback debe ser un texto neutro (**"Sin especificar"**), nunca el identificador. Hoy un `nicho_2` futuro se imprimiría literal en el portal externo. |
 | **Etiqueta derivada mecánicamente** (quita guiones bajos y capitaliza) | `admin/(shell)/logs/logs-cliente.tsx:27-28` | Reemplazar por un mapa explícito con los términos de la sección 4. Hoy produce "Inventario operativo". |
 | **UUID truncado como identidad de una persona** | `logs-cliente.tsx:149` — muestra 8 caracteres de un UUID en `font-mono` en la columna "Usuario CEOM" | Mostrar el nombre. Es una pantalla de auditoría: un UUID a medias no sirve ni para auditar. Ver `hallazgos.md` H-07. |
@@ -190,7 +190,44 @@ vocabulario nazca unificado, no para pedir pantallas nuevas.
 
 ---
 
+---
+
+## 10. Términos encontrados al aplicar el glosario (2026-07-22)
+
+> Estos no estaban en las secciones 1-9. Aparecieron al recorrer los archivos para renombrar, y se
+> decidieron con el mismo criterio del resto. Quedan acá para que el glosario siga siendo la única
+> fuente.
+
+| Término técnico actual | Término de usuario | Dónde aparecía | Nota |
+|---|---|---|---|
+| **Capacidades por Rol** (`<h2>`) | **Permisos por rol** | `capacidades-cliente.tsx:242` | Consecuencia de `Capacidades Especiales → Permisos especiales` (sección 2). El glosario tenía el título de la pantalla y el ítem del nav, no este encabezado interno. |
+| **Módulos a solicitar** | **Qué información solicitar** | `admin/(shell)/instituciones/instituciones-cliente.tsx:823` | Es el mismo concepto que "Módulos veedor permitidos" (sección 3) pero del lado de quien pide. Se redacta en paralelo a "Qué información podés compartir". |
+| **Tenants Asignados** / **Vincular Tenant** | **Negocios asignados** / **Vincular negocio** | `instituciones-cliente.tsx:357,365` | Cubierto por la regla general de `Tenant → Negocio`; se anota porque son rótulos propios, no la palabra suelta. |
+| **`NoAutorizado modulo="Financiero"`** (y sus 3 hermanos) | los nombres de la sección 4 | `portal/cartera/[tenantId]/ficha-cliente.tsx:204,215,228,263` | El aviso de "no tenés acceso a este módulo" nombraba el módulo interno. La sección 4 no listaba esta ubicación. |
+| **Total tenants** (stat-card) | **Total de negocios** | `tenants-cliente.tsx:83`, `portal/cartera-cliente.tsx:112` | |
+
+### Decisión de implementación: los nombres de rol se traducen al mostrar
+
+`Owner` y `CEOM Admin` no son cadenas de JSX: son el valor de `roles.nombre` en la base, y se
+renderizan en 6 lugares de 3 pantallas. Se resolvió con `nombreRolVisible()`
+(`src/lib/vocabulario.ts`), que traduce **al mostrar**, en vez de migrar el dato — renombrar la fila
+tendría impacto en permisos y seeds, y el glosario pide cambiar lo que se ve, no los identificadores.
+Un rol que crea el negocio se muestra tal cual lo escribió su dueño.
+
+### Lo que quedó sin cerrar
+
+| Ítem | Por qué |
+|---|---|
+| **UUID truncado como identidad de una persona** (sección 8, `logs-cliente.tsx:149`) | **No es un renombrado.** La fila de log (`FilaLog`) solo trae `usuarioCeomId`; mostrar el nombre necesita que el backend lo exponga. Ver `hallazgos.md` H-07. Sigue mostrando 8 caracteres del UUID. |
+| **`MODULOS_VEEDOR_INFO` duplicado** (sección 8) | Se renombraron **los dos** mapas y se verificó que quedaron idénticos, pero la duplicación sigue existiendo. Eliminarla es UI-046 de `docs/ui/AUDITORIA-UI-UX.md`. |
+
+---
+
 ## Resumen para la sesión de UI
+
+> ✅ **Aplicado el 2026-07-22.** Los 6 ítems de este orden están hechos, en 4 commits (uno por
+> superficie: `/app`, `/admin`, `/portal`, mensajes de error). Las excepciones están arriba, en
+> "Lo que quedó sin cerrar".
 
 Si hay que priorizar, este es el orden por impacto:
 

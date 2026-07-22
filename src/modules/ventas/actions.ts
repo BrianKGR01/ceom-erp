@@ -65,7 +65,7 @@ export async function crearCliente(
   input: DatosCliente
 ): Promise<Resultado<{ clienteId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear clientes en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear clientes." };
   }
   const cliente = await repo.crearCliente({ tenantId, ...input });
   return { ok: true, data: { clienteId: cliente.id } };
@@ -103,7 +103,7 @@ export async function listarClientes(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarClientesPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver clientes en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver clientes." };
   }
   return { ok: true, data: await repo.listarClientesPorTenant(tenantId) };
 }
@@ -122,7 +122,7 @@ export async function crearCanalVenta(
   input: DatosCanalVenta
 ): Promise<Resultado<{ canalVentaId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear canales de venta en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear canales de venta." };
   }
   const canal = await repo.crearCanalVenta({
     tenantId,
@@ -174,7 +174,7 @@ export async function listarCanalesVenta(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarCanalesVentaPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver canales de venta en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver canales de venta." };
   }
   return { ok: true, data: await repo.listarCanalesVentaPorTenant(tenantId) };
 }
@@ -191,7 +191,7 @@ export async function crearMetodoPago(
   input: DatosMetodoPago
 ): Promise<Resultado<{ metodoPagoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear métodos de pago en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear métodos de pago." };
   }
   const metodo = await repo.crearMetodoPago({ tenantId, nombre: input.nombre });
   return { ok: true, data: { metodoPagoId: metodo.id } };
@@ -245,7 +245,7 @@ export async function listarMetodosPago(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarMetodosPagoPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver métodos de pago en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver métodos de pago." };
   }
   return { ok: true, data: await repo.listarMetodosPagoPorTenant(tenantId) };
 }
@@ -285,7 +285,7 @@ export async function abrirEvento(
   // que atar el tenantId elegido al del solicitante para que un Owner no cree
   // eventos en otro tenant (auditoría de autorización).
   if (!recursoPerteneceAlTenant(solicitante, tenantId)) {
-    return { ok: false, error: "No tenés permiso para gestionar eventos en este tenant." };
+    return { ok: false, error: "No tenés permiso para gestionar eventos." };
   }
 
   // Se precarga con el default del canal si no se especifica (seccion 1.6).
@@ -380,7 +380,7 @@ export async function listarEventos(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarEventosPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver eventos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver eventos." };
   }
   return { ok: true, data: await repo.listarEventosPorTenant(tenantId) };
 }
@@ -424,7 +424,7 @@ export async function registrarVenta(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar ventas." };
   }
   if (input.lineas.length === 0) {
     return { ok: false, error: "La venta necesita al menos una línea de producto." };
@@ -673,7 +673,7 @@ export async function listarVentas(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarVentasPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   return { ok: true, data: await repo.listarVentasPorTenant(tenantId) };
 }
@@ -687,7 +687,7 @@ export async function listarVentasConTotal(
   tenantId: string
 ): Promise<Resultado<Array<Awaited<ReturnType<typeof repo.listarVentasPorTenant>>[number] & { total: number }>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const ventas = await repo.listarVentasPorTenant(tenantId);
   const totales = await Promise.all(ventas.map((v) => repo.obtenerTotalVenta(v.id)));
@@ -761,7 +761,7 @@ export async function importarVentaHistorica(
   ) {
     return {
       ok: false,
-      error: "No tenés permiso para importar historial de ventas en este tenant.",
+      error: "No tenés permiso para importar historial de ventas.",
     };
   }
   if (input.lineas.length === 0) {
@@ -814,7 +814,7 @@ export async function consultarIngresosPeriodo(
   opts: { sucursalId?: string; productoId?: string } = {}
 ): Promise<Resultado<{ ingresos: number; costos: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const { ingresos, costos } = await repo.sumarIngresosCostosPeriodo(
     tenantId,
@@ -835,7 +835,7 @@ export async function consultarUnidadesVendidasPeriodo(
   opts: { sucursalId?: string } = {}
 ): Promise<Resultado<{ unidadesVendidas: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const unidadesVendidas = await repo.sumarUnidadesVendidasPeriodo(
     tenantId,
@@ -866,7 +866,7 @@ export async function rankingProductos(
   Resultado<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const filas = await repo.listarRankingProductos(
     tenantId,
@@ -894,7 +894,7 @@ export async function historicoVentas(
   opts: { incluirEventos: boolean }
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarHistoricoVentas>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const filas = await repo.listarHistoricoVentas(
     tenantId,
@@ -911,7 +911,7 @@ export async function margenPorCanalYProducto(
   periodo: PeriodoConsulta
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarMargenPorCanalYProducto>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const filas = await repo.listarMargenPorCanalYProducto(
     tenantId,
@@ -928,7 +928,7 @@ export async function consultarPagosVentaEnPeriodo(
   opts: { sucursalId?: string } = {}
 ): Promise<Resultado<{ totalPagado: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const totalPagado = await repo.sumarPagosVentaPeriodo(
     tenantId,
@@ -946,7 +946,7 @@ export async function consultarAjustesVentaEnPeriodo(
   opts: { sucursalId?: string; productoId?: string } = {}
 ): Promise<Resultado<{ totalAjustes: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver ventas en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const totalAjustes = await repo.sumarAjustesVentaPeriodo(
     tenantId,

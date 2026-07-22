@@ -72,7 +72,7 @@ export async function flujoCaja(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver Financiero en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
 
   const [pagosVentaRes, pagosCompraRes, pagosGastoRes] = await Promise.all([
@@ -114,7 +114,7 @@ export async function estadoResultados(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver Financiero en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
 
   const [ingresosCostosRes, gastosRes, ajustesRes] = await Promise.all([
@@ -149,7 +149,7 @@ export async function margenPorProducto(
   periodo: PeriodoFinanciero
 ): Promise<Resultado<{ margenPorcentaje: number | null; ingresosAjustados: number; costos: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver Financiero en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
 
   const [ingresosCostosRes, ajustesRes] = await Promise.all([
@@ -182,7 +182,7 @@ export async function costoFijoTotal(
   periodo: PeriodoFinanciero
 ): Promise<Resultado<{ costoFijoTotal: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver Financiero en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
 
   const resultado = await consultarTotalCostosFijos(solicitante, tenantId, periodo);

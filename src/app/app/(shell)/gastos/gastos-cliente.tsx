@@ -146,7 +146,7 @@ export function GastosCliente({
               items={{
                 todos: "Tipo de Gasto",
                 fijo: "Fijo",
-                variable_no_productivo: "Var. No Productivo",
+                variable_no_productivo: "Variable",
                 unico: "Único",
               }}
               value={filtroTipo}
@@ -158,7 +158,7 @@ export function GastosCliente({
               <SelectContent>
                 <SelectItem value="todos">Tipo de Gasto: Todos</SelectItem>
                 <SelectItem value="fijo">Fijo</SelectItem>
-                <SelectItem value="variable_no_productivo">Var. No Productivo</SelectItem>
+                <SelectItem value="variable_no_productivo">Variable</SelectItem>
                 <SelectItem value="unico">Único</SelectItem>
               </SelectContent>
             </Select>

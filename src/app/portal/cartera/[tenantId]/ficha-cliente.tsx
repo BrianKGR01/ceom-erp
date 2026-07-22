@@ -33,9 +33,9 @@ type TabId = "ventas" | "financiero" | "operativo" | "inventario";
 
 const TABS: { id: TabId; label: string; icono: typeof TrendingUp }[] = [
   { id: "ventas", label: "Tendencia de Ventas", icono: TrendingUp },
-  { id: "financiero", label: "Financiero", icono: Banknote },
-  { id: "operativo", label: "Operativo", icono: Factory },
-  { id: "inventario", label: "Inventario Operativo", icono: Boxes },
+  { id: "financiero", label: "Ventas y finanzas", icono: Banknote },
+  { id: "operativo", label: "Producción", icono: Factory },
+  { id: "inventario", label: "Insumos y stock", icono: Boxes },
 ];
 
 const ESTADO_INFO: Record<string, { label: string; variant: "success" | "warning" | "error" }> = {
@@ -201,7 +201,7 @@ export function FichaTenantCliente({
               (ventas === null ? (
                 <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
               ) : !ventas.autorizado ? (
-                <NoAutorizado modulo="Financiero" />
+                <NoAutorizado modulo="Ventas y finanzas" />
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <StatCard label="Ingresos del período" valor={formatoMoneda(ventas.detalle.ingresos)} />
@@ -212,7 +212,7 @@ export function FichaTenantCliente({
               (financiero === null ? (
                 <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
               ) : !financiero.autorizado ? (
-                <NoAutorizado modulo="Financiero" />
+                <NoAutorizado modulo="Ventas y finanzas" />
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.detalle.flujoCaja)} />
@@ -225,7 +225,7 @@ export function FichaTenantCliente({
               (operativo === null ? (
                 <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
               ) : !operativo.autorizado ? (
-                <NoAutorizado modulo="Operativo" />
+                <NoAutorizado modulo="Producción" />
               ) : (
                 <div className="space-y-4">
                   <StatCard label="Costo de Merma del período" valor={formatoMoneda(operativo.detalle.mermaCostoTotal)} />
@@ -260,7 +260,7 @@ export function FichaTenantCliente({
               (inventario === null ? (
                 <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
               ) : !inventario.autorizado ? (
-                <NoAutorizado modulo="Inventario Operativo" />
+                <NoAutorizado modulo="Insumos y stock" />
               ) : inventario.detalle.insumos.length === 0 ? (
                 <p className="py-10 text-center text-sm text-text-muted">Sin insumos cargados.</p>
               ) : (

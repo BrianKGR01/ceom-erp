@@ -32,7 +32,7 @@ function requiereCeomAdmin(
   if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
     return {
       ok: false,
-      error: "Solo CEOM Admin puede gestionar el catálogo de categorías sugeridas.",
+      error: "Solo el equipo CEOM puede gestionar el catálogo de categorías sugeridas.",
     };
   }
   return null;
@@ -51,7 +51,7 @@ export async function crearCategoria(
   input: DatosCategoria
 ): Promise<Resultado<{ categoriaId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "productos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear categorías en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear categorías." };
   }
 
   const categoria = await repo.crearCategoria({
@@ -99,7 +99,7 @@ export async function listarCategorias(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarCategoriasPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "productos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver categorías en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver categorías." };
   }
   return { ok: true, data: await repo.listarCategoriasPorTenant(tenantId) };
 }
@@ -161,7 +161,7 @@ export async function crearProducto(
   input: DatosProducto
 ): Promise<Resultado<{ productoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "productos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear productos en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear productos." };
   }
 
   const producto = await repo.crearProducto({
@@ -262,7 +262,7 @@ export async function listarProductos(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarProductosPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "productos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver productos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver productos." };
   }
   return { ok: true, data: await repo.listarProductosPorTenant(tenantId) };
 }
@@ -330,7 +330,7 @@ export async function listarMovimientosStock(
   const producto = await repo.obtenerProductoPorId(productoId);
   if (!producto) return { ok: false, error: "Producto no encontrado." };
   if (!(await tienePermiso(solicitante, producto.tenantId, "inventario", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el stock." };
   }
   return { ok: true, data: await repo.listarMovimientosStock(productoId, sucursalId) };
 }
@@ -345,7 +345,7 @@ export async function consultarStock(
   const producto = await repo.obtenerProductoPorId(productoId);
   if (!producto) return { ok: false, error: "Producto no encontrado." };
   if (!(await tienePermiso(solicitante, producto.tenantId, "inventario", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el stock." };
   }
 
   const filaStock = await repo.obtenerStock(productoId, sucursalId);
@@ -367,7 +367,7 @@ export async function consultarStockTotalPorSucursal(
   sucursalId: string
 ): Promise<Resultado<{ stockTotal: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el stock de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el stock." };
   }
   const stockTotal = await repo.sumarStockPorSucursal(tenantId, sucursalId);
   return { ok: true, data: { stockTotal } };
@@ -384,7 +384,7 @@ export async function configurarStockMinimo(
   const producto = await repo.obtenerProductoPorId(productoId);
   if (!producto) return { ok: false, error: "Producto no encontrado." };
   if (!(await tienePermiso(solicitante, producto.tenantId, "inventario", "editar"))) {
-    return { ok: false, error: "No tenés permiso para configurar el stock mínimo en este tenant." };
+    return { ok: false, error: "No tenés permiso para configurar el stock mínimo." };
   }
 
   await repo.actualizarStockMinimo(
@@ -463,7 +463,7 @@ export async function registrarEntradaProduccion(
   }
 ): Promise<Resultado<{ movimientoId: string; cantidadActual: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar entradas de stock en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar entradas de stock." };
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
@@ -492,7 +492,7 @@ export async function registrarEntradaCompraReventa(
   }
 ): Promise<Resultado<{ movimientoId: string; cantidadActual: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar entradas de stock en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar entradas de stock." };
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
@@ -523,7 +523,7 @@ export async function registrarAjusteManualStock(
   if (
     !(await tienePermiso(solicitante, tenantId, "inventario", "anular_ajustar"))
   ) {
-    return { ok: false, error: "No tenés permiso para ajustar stock en este tenant." };
+    return { ok: false, error: "No tenés permiso para ajustar stock." };
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
@@ -557,7 +557,7 @@ export async function descontarStockVenta(
   }
 ): Promise<Resultado<{ movimientoId: string; cantidadActual: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
-    return { ok: false, error: "No tenés permiso para descontar stock en este tenant." };
+    return { ok: false, error: "No tenés permiso para descontar stock." };
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
@@ -610,7 +610,7 @@ export async function registrarTransferenciaStock(
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
-    return { ok: false, error: "No tenés permiso para transferir stock en este tenant." };
+    return { ok: false, error: "No tenés permiso para transferir stock." };
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;

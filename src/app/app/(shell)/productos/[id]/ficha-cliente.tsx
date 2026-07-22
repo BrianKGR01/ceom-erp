@@ -299,7 +299,7 @@ export function FichaCliente({
     router.push("/app/productos");
   }
 
-  // --- Vincular a proceso operativo ---
+  // --- Vincular a una receta ---
   const [vinculoAbierto, setVinculoAbierto] = useState(false);
   const [vinculo, setVinculo] = useState(recetaVinculada);
   const [vinculoRecetaId, setVinculoRecetaId] = useState(recetas[0]?.id ?? "");
@@ -385,7 +385,7 @@ export function FichaCliente({
         </Button>
         <Button variant="outline" onClick={abrirVinculo}>
           <ChefHat className="size-4" />
-          {vinculo ? `Receta: ${vinculo.recetaNombre}` : "Vincular a proceso operativo"}
+          {vinculo ? `Receta: ${vinculo.recetaNombre}` : "Vincular a una receta"}
         </Button>
         <Button variant="destructive" onClick={() => setEliminarAbierto(true)}>
           <Trash2 className="size-4" />
@@ -792,11 +792,11 @@ export function FichaCliente({
         </DialogContent>
       </Dialog>
 
-      {/* Vincular a proceso operativo */}
+      {/* Vincular a una receta */}
       <Dialog open={vinculoAbierto} onOpenChange={setVinculoAbierto}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Vincular a proceso operativo</DialogTitle>
+            <DialogTitle>Vincular a una receta</DialogTitle>
             <DialogDescription>
               Conectá este producto con una Receta de Producción — el costo operativo y el stock
               van a actualizarse automáticamente con cada lote producido.

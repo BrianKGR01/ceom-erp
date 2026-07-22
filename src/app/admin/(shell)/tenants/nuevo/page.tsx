@@ -11,12 +11,12 @@ export default async function NuevoTenantPage() {
       <div className="mx-auto max-w-2xl space-y-4 py-6">
         <Breadcrumb
           items={[
-            { label: "Tenants", href: "/admin/tenants" },
-            { label: "Nuevo Tenant" },
+            { label: "Negocios", href: "/admin/tenants" },
+            { label: "Nuevo negocio" },
           ]}
         />
         <PageHeader
-          title="Alta de Nuevo Tenant"
+          title="Alta de nuevo negocio"
           description="Configura una nueva institución y su administrador principal."
         />
 

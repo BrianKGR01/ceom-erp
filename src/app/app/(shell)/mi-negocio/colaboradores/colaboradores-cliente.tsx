@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Crown, Pencil, Plus, PowerOff, Search, UserPlus } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { nombreRolVisible } from "@/lib/vocabulario";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,7 +69,7 @@ function SubnavMiNegocio() {
         Roles
       </Link>
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
-        Capacidades Especiales
+        Permisos especiales
       </Link>
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
@@ -133,7 +134,7 @@ function InvitarColaboradorDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Correo electrónico</Label>
             <Input id="email" type="email" placeholder="colaborador@correo.com" {...form.register("email")} />
             {form.formState.errors.email && (
               <p className="text-xs text-error-text">{form.formState.errors.email.message}</p>
@@ -301,11 +302,11 @@ function TransferirOwnerDialog({
             <span className="flex size-8 items-center justify-center rounded-full bg-warning-bg text-warning-text">
               <Crown className="size-4" />
             </span>
-            <DialogTitle>Transferir mi condición de Owner</DialogTitle>
+            <DialogTitle>Pasar el negocio a otra persona</DialogTitle>
           </div>
           <DialogDescription>
             Es irreversible desde acá — el colaborador elegido pasa a tener acceso total, y vos
-            quedás con el rol que elijas. Solo puede haber un Owner por negocio.
+            quedás con el rol que elijas. Solo puede haber un dueño por negocio.
           </DialogDescription>
         </DialogHeader>
 
@@ -313,7 +314,7 @@ function TransferirOwnerDialog({
           <div className="space-y-1.5">
             <Label htmlFor="destino-owner">Transferir a</Label>
             <Select
-              items={Object.fromEntries(candidatos.map((c) => [c.id, `${c.nombreCompleto} (${c.rol.nombre})`]))}
+              items={Object.fromEntries(candidatos.map((c) => [c.id, `${c.nombreCompleto} (${nombreRolVisible(c.rol.nombre)})`]))}
               value={destinoId}
               onValueChange={(v) => v && setDestinoId(v)}
             >
@@ -323,21 +324,21 @@ function TransferirOwnerDialog({
               <SelectContent>
                 {candidatos.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.nombreCompleto} ({c.rol.nombre})
+                    {c.nombreCompleto} ({nombreRolVisible(c.rol.nombre)})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {candidatos.length === 0 && (
               <p className="text-xs text-text-muted">
-                No hay colaboradores activos para transferir la condición de Owner.
+                No hay colaboradores activos a quienes pasarles el negocio.
               </p>
             )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="rol-saliente">Tu nuevo rol</Label>
             <Select
-              items={Object.fromEntries(rolesElegibles.map((r) => [r.id, r.nombre]))}
+              items={Object.fromEntries(rolesElegibles.map((r) => [r.id, nombreRolVisible(r.nombre)]))}
               value={rolSalienteId}
               onValueChange={(v) => v && setRolSalienteId(v)}
             >
@@ -367,7 +368,7 @@ function TransferirOwnerDialog({
             Cancelar
           </Button>
           <Button variant="destructive" onClick={confirmar} disabled={guardando}>
-            {guardando ? "Transfiriendo..." : "Transferir Owner"}
+            {guardando ? "Transfiriendo..." : "Pasar el negocio"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -415,7 +416,7 @@ export function ColaboradoresCliente({
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setDialogoTransferir(true)}>
               <Crown className="size-4" />
-              Transferir Owner
+              Pasar el negocio
             </Button>
             <Button onClick={() => setDialogoInvitar(true)}>
               <Plus className="size-4" />
@@ -444,13 +445,13 @@ export function ColaboradoresCliente({
               <div className="flex items-start justify-between">
                 <Avatar nombre={c.nombreCompleto} size="lg" />
                 <div className="flex flex-col items-end gap-1">
-                  {c.esOwner && <Badge variant="warning">Owner</Badge>}
+                  {c.esOwner && <Badge variant="warning">Dueño</Badge>}
                   <Badge variant={c.activo ? "success" : "error"}>{c.activo ? "Activo" : "Suspendido"}</Badge>
                 </div>
               </div>
               <h2 className="mt-3 font-heading text-base font-semibold text-navy">{c.nombreCompleto}</h2>
               <p className="text-xs text-text-muted">{c.email}</p>
-              <p className="mt-2 text-sm text-navy">{c.rol.nombre}</p>
+              <p className="mt-2 text-sm text-navy">{nombreRolVisible(c.rol.nombre)}</p>
 
               <div className="mt-4 flex gap-2 border-t border-gray-border pt-3">
                 <Button

@@ -38,7 +38,7 @@ function requiereCeomAdmin(
   solicitante: Solicitante
 ): { ok: false; error: string } | null {
   if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
-    return { ok: false, error: "Solo CEOM Admin puede gestionar el catálogo de planes." };
+    return { ok: false, error: "Solo el equipo CEOM puede gestionar el catálogo de planes." };
   }
   return null;
 }

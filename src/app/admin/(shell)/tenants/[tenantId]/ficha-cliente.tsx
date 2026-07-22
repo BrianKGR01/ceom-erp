@@ -74,9 +74,9 @@ const ESTADOS_SUSCRIPCION: { id: "activa" | "pausada" | "vencida"; label: string
 type TabId = "financiero" | "operativo" | "inventario";
 
 const TABS: { id: TabId; label: string; icono: typeof Banknote }[] = [
-  { id: "financiero", label: "Financiero", icono: Banknote },
-  { id: "operativo", label: "Operativo", icono: Factory },
-  { id: "inventario", label: "Inventario Operativo", icono: Boxes },
+  { id: "financiero", label: "Ventas y finanzas", icono: Banknote },
+  { id: "operativo", label: "Producción", icono: Factory },
+  { id: "inventario", label: "Insumos y stock", icono: Boxes },
 ];
 
 const ESTADO_INFO: Record<string, { label: string; variant: "success" | "warning" | "error" }> = {
@@ -175,7 +175,7 @@ function CambiarPlanDialog({
             </span>
             <DialogTitle>Cambiar Plan</DialogTitle>
           </div>
-          <DialogDescription>Upgrade o downgrade del plan de este tenant.</DialogDescription>
+          <DialogDescription>Subir o bajar el plan de este negocio.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1.5">
@@ -377,7 +377,7 @@ export function FichaTenantAdminCliente({
     <div className="min-h-screen bg-gray-bg p-6">
       <Link href="/admin/tenants" className="flex w-fit items-center gap-1.5 text-xs font-medium text-text-muted hover:text-navy">
         <ArrowLeft className="size-3.5" />
-        Volver a Tenants
+        Volver a Negocios
       </Link>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
