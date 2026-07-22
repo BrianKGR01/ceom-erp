@@ -310,9 +310,25 @@ export function PosCliente({
               )}
             </div>
 
+            {/* H-01: el canal es obligatorio para vender y un negocio nuevo
+                no tiene ninguno, así que este es el estado con el que se
+                encuentra todo el mundo la primera vez. El "+ Nuevo canal"
+                siempre existió, pero colgaba debajo del hueco que dejaba la
+                grilla de canales al no renderizarse. Se pasa al patrón que ya
+                usa GastoForm para "+ Crear nueva" categoría: el enlace vive
+                en la misma fila que el label, y debajo siempre hay algo. */}
             <div className="space-y-1.5">
-              <Label>Canal de venta</Label>
-              {canales.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <Label>Canal de venta</Label>
+                <button
+                  type="button"
+                  onClick={() => setCanalDialogAbierto(true)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  + Nuevo canal
+                </button>
+              </div>
+              {canales.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2">
                   {canales.map((canal) => (
                     <button
@@ -330,14 +346,13 @@ export function PosCliente({
                     </button>
                   ))}
                 </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-gray-border px-3 py-2 text-xs text-text-muted">
+                  Todavía no tenés canales de venta. Creá uno acá arriba para poder registrar
+                  la venta — por ejemplo &quot;Local&quot;, &quot;WhatsApp&quot; o
+                  &quot;Feria&quot;.
+                </p>
               )}
-              <button
-                type="button"
-                onClick={() => setCanalDialogAbierto(true)}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                + Nuevo canal
-              </button>
             </div>
 
             {eventos.length > 0 && (
