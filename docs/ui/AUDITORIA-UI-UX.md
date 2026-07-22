@@ -159,9 +159,9 @@ Componentes compartidos existentes y su cobertura real (`src/components/ui/*`,
 - **Primitivas completas y bien resueltas:** `Button` (6 variantes × 8 tamaños, radio 8px exacto en
   el tamaño default), `Badge` (4 variantes semánticas + `outline`, pill correcto), `Card` (con
   `size="sm"|"default"`), `Dialog`, `Input`/`Textarea` (con `text-base`/`md:text-sm` responsive para
-  evitar zoom de iOS), `Select`, `Checkbox`, `Switch`, `Skeleton` (existe, pero no se usa en ningún
-  lado — ver UI-024), `Stepper` (existe, un solo consumidor — ver UI-013), `PageHeader`,
-  `Breadcrumb`, `EmptyState`.
+  evitar zoom de iOS), `Select`, `Checkbox`, `Switch`, `Skeleton` (~~existe, pero no se usa en ningún
+  lado~~ — 1 consumidor desde la Fase B, ver UI-024), `Stepper` (existe, un solo consumidor — ver
+  UI-013), `PageHeader`, `Breadcrumb`, `EmptyState`, y desde la Fase B `SwitchRow` (ver UI-019/UI-020).
 - **Formularios "grandes" compartidos:** `ActivoForm`, `GastoForm`, `InsumoForm`, `PasivoForm`,
   `ProductForm` (`src/components/shared/*-form.tsx`) — los 5 formularios de alta/edición de
   entidades principales.
@@ -805,8 +805,8 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
   paso, y UI-041/UI-042 para dos hallazgos nuevos encontrados al verificarlo en páginas con overflow
   preexistente.
 
-### [UI-019] Bug de interacción: botón anidado dentro de botón en el checklist de módulos veedor de Planes
-- **Severidad:** Alta
+### [UI-019] Bug de interacción: botón anidado dentro de botón en el checklist de módulos veedor de Planes — **RESUELTO en Fase B (2026-07-22)**
+- **Severidad:** Alta → **Estado: cerrado**
 - **Categoría:** Componentes
 - **Alcance:** `/admin/planes` (`PlanFormDialog`).
 - **Evidencia:** `planes-cliente.tsx:264-286` — cada opción de "Módulos veedor permitidos" es un
@@ -825,9 +825,23 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
   `CAMPOS_BOOLEANOS` en el mismo archivo).
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
+- **Resuelto:** se tomó la propuesta, pero extrayendo la fila a un componente compartido
+  (`src/components/ui/switch-row.tsx`, `SwitchRow`) en vez de arreglarla en el lugar, porque el
+  mismo patrón hacía falta en las otras 3 superficies de UI-020. La fila es un `<div>` y el único
+  control interactivo es el `Switch`; el texto es un `<label>` asociado por `id` para no perder
+  área de clic al sacar el `<button>`.
+  **Verificado en vivo** (dev server, DOM real, componente aislado): un clic sobre el switch
+  togglea **exactamente una vez** — que era el caso roto — y un clic sobre el texto también;
+  `Space`/`Enter` con foco en el switch toggleaen; la fila `disabled` no reacciona por ninguna de
+  las dos vías; el nombre accesible que recibe un lector de pantalla es real y completo
+  ("Módulo Financiero | Flujo de caja y estado de resultados"), porque base-ui cablea solo su
+  `aria-labelledby` contra el `<label>`; y no queda ningún `[data-slot="switch"]` dentro de un
+  `<button>`. `CAMPOS_BOOLEANOS` del mismo diálogo **no** se migró: ya era un `<div>` correcto y su
+  caja tiene un borde único alrededor de las 3 filas en vez de un borde por fila — migrarlo
+  cambiaría cómo se ve sin corregir ningún bug.
 
-### [UI-020] Checkbox cuadrado reimplementado a mano en 3 lugares con 3 tamaños distintos
-- **Severidad:** Baja
+### [UI-020] Checkbox cuadrado reimplementado a mano en 3 lugares con 3 tamaños distintos — **RESUELTO en Fase B (2026-07-22)**
+- **Severidad:** Baja → **Estado: cerrado**
 - **Categoría:** Componentes
 - **Alcance:** `/app/consentimiento` (generar código, `generar-cliente.tsx:147-154`, `size-6`),
   `/app/consentimiento/solicitudes` (`solicitudes-cliente.tsx:217-224`, `size-5`),
@@ -841,6 +855,17 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
   para "elegir módulos veedor" en todo el sistema.
 - **Esfuerzo:** S.
 - **Depende de:** decisión de widget único (sección 7).
+- **Resuelto:** ejecutada la decisión 5 (sección 7) — **`Switch` en todos lados, no checkbox**. Los
+  3 checkboxes cuadrados a mano (`generar-cliente.tsx` `size-6`, `solicitudes-cliente.tsx` `size-5`,
+  `instituciones-cliente.tsx` `size-5`) pasan a `SwitchRow`, el mismo componente con el que se
+  resolvió UI-019 en Planes. Las **4** superficies que consumen `MODULOS_VEEDOR_INFO` quedan con el
+  mismo widget, el mismo tamaño y la misma semántica. Nota: no se usó `Checkbox` (la otra mitad de
+  la propuesta original) precisamente porque la decisión 5 eligió `Switch` — la propuesta se escribió
+  antes de esa decisión.
+  De paso los 3 dejan de ser `<button>` con el control adentro: ahí todavía **no** era el bug de
+  UI-019 porque el "checkbox" era un `<span>` decorativo, pero meterle un `Switch` adentro lo habría
+  convertido en uno. Se pierde el `hover:border-primary/50` de la fila completa: al no ser ya
+  clickeable entera, un hover sobre toda la fila sería una afordancia falsa.
 
 ### [UI-021] Avatar circular con inicial en al menos 3 tamaños/radios sin componente compartido
 - **Severidad:** Baja
@@ -903,8 +928,8 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 
 ### Estados
 
-### [UI-024] No hay ningún `<Skeleton>` en uso en toda la aplicación — el propio componente existe pero 0 consumidores
-- **Severidad:** Media
+### [UI-024] No hay ningún `<Skeleton>` en uso en toda la aplicación — el propio componente existe pero 0 consumidores — **RESUELTO parcialmente en Fase B (2026-07-22)**
+- **Severidad:** Media → **Estado: regla de uso definida y 1 consumidor migrado; el resto es Fase C**
 - **Categoría:** Estados
 - **Alcance:** transversal — confirmado en los 14 clústeres, ninguno reporta un uso de `<Skeleton>`.
 - **Evidencia:** `components/ui/skeleton.tsx` existe (`animate-pulse rounded-md bg-muted`) pero no
@@ -922,6 +947,23 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
   introducir `<Skeleton>` con boundaries de Suspense donde el fetch tarde perceptiblemente.
 - **Esfuerzo:** M.
 - **Depende de:** ninguno.
+- **Resuelto (parcial):** regla de uso documentada en `docs/design-system.md` sección 8.11 y
+  **1 consumidor real migrado**: la Ficha de Tenant de `/admin`
+  (`admin/(shell)/tenants/[tenantId]/ficha-cliente.tsx`), una de las pantallas que este mismo
+  hallazgo citaba por resolver la espera con el texto plano "Cargando...", en sus 3 tabs con fetch
+  cliente-side. Dos decisiones que conviene no perder:
+  1. Los placeholders reproducen la **forma** del contenido real (card de dato, fila de tabla) en
+     vez de ser una barra genérica, para que el layout no salte al llegar los datos.
+  2. El contenedor lleva `role="status"` + `aria-label`. El texto "Cargando..." que se reemplazó sí
+     era anunciado por un lector de pantalla; un skeleton puramente visual no lo es. Sin esto, la
+     migración habría mejorado la experiencia visual empeorando la accesible.
+  **No** se tocó el patrón de `opacity-60` sobre contenido ya cargado al cambiar un filtro
+  (Dashboard/Reportes/Simulaciones) — tal como decía la propuesta, ese patrón es correcto y
+  cambiarlo por skeletons haría parpadear la pantalla entera en cada cambio de período. Los ~7
+  archivos restantes con "Cargando..." de carga inicial (Ficha de Tenant de `/portal`, Instituciones,
+  Ficha de Insumo, Ficha de Producto) **no se tocaron** — migración masiva es Fase C. Los boundaries
+  de Suspense sobre carga server-side, que la propuesta también mencionaba, quedan igualmente para
+  Fase C: los 3 casos migrados acá son fetch cliente-side, no Suspense.
 
 ### [UI-025] Errores de sesión expirada / fallo de servidor se tragan silenciosamente y se muestran como "sin datos"
 - **Severidad:** Alta
@@ -1139,8 +1181,8 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
 
-### [UI-035] Botón anidado dentro de botón también rompe accesibilidad, no solo interacción
-- **Severidad:** Media
+### [UI-035] Botón anidado dentro de botón también rompe accesibilidad, no solo interacción — **RESUELTO en Fase B (2026-07-22)**
+- **Severidad:** Media → **Estado: cerrado**
 - **Categoría:** Accesibilidad
 - **Alcance:** mismo caso que UI-019 (`/admin/planes`).
 - **Evidencia:** HTML inválido (`<button>` dentro de `<button>`) — el comportamiento de foco y
@@ -1151,6 +1193,9 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 - **Propuesta:** la misma que UI-019 — resuelve ambos de una vez.
 - **Esfuerzo:** S.
 - **Depende de:** ninguno (mismo fix que UI-019).
+- **Resuelto:** cerrado por el mismo fix que UI-019, como preveía. Verificado además que el control
+  resultante tiene nombre accesible real y `aria-checked`/`aria-disabled` correctos — ver el detalle
+  de verificación en UI-019.
 
 ### [UI-036] Formularios con selección de tarjetas sin agrupación semántica para lectores de pantalla
 - **Severidad:** Baja
@@ -1344,6 +1389,73 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 
 ---
 
+### Hallazgos nuevos, encontrados durante la Fase B (2026-07-22)
+
+> Misma regla de trabajo que en la Fase A: lo que aparece fuera del alcance definido se anota y se
+> sigue, no se corrige en el mismo lote.
+
+### [UI-045] Vocabulario técnico interno expuesto en la interfaz — insumo para el glosario
+- **Severidad:** Media
+- **Categoría:** Copy
+- **Estado:** **anotado a propósito, sin corregir.** El renombrado se hace de una sola vez, con el
+  glosario (`docs/manual/glosario.md`) cerrado, en su propia tarea — no pantalla por pantalla.
+- **Alcance y evidencia** (verificado por grep sobre texto visible, no sobre identificadores):
+  1. **"tenant"** — el caso ya confirmado, pero el hallazgo importante es que **no se queda en
+     `/admin`**, que sería defendible por ser un panel interno de CEOM. Se filtra a dos superficies
+     de usuario final:
+     - `/app/mi-negocio/plan` (`plan/page.tsx:33-35,76`), que ve el **dueño del negocio**:
+       *"El tenant puede operar con más de una sucursal"*, *"El tenant puede tener más de un usuario
+       Owner"*, *"Este tenant todavía no tiene un plan asignado"*. El "tenant" del que habla la
+       pantalla es el negocio del propio lector.
+     - `/portal` (`cartera-cliente.tsx:92,98,112`), que ve una **institución externa**:
+       *"Mi Cartera de Tenants"*, *"Buscar tenant..."*, *"Total tenants"*.
+  2. **"módulos veedor"** (`planes-cliente.tsx:261,351`: *"Módulos veedor permitidos"*, *"Sin módulos
+     veedor habilitados"*). Es el nombre interno del concepto. Dato útil para el glosario: **el
+     producto ya tiene una redacción en lenguaje llano para esto mismo**, en la pantalla que ve el
+     usuario final — `generar-cliente.tsx:116` dice *"para que un proveedor, socio o asesor vea datos
+     de tu negocio"*, sin usar la palabra "veedor" ni "módulo". El glosario no necesita inventar el
+     término llano: ya está escrito, solo falta usarlo también del lado admin.
+  3. **"Owner"** — anglicismo para un rol, en texto visible de usuario final:
+     *"Transferir mi condición de Owner"* y el botón *"Transferir Owner"*
+     (`colaboradores-cliente.tsx:304,370`), *"Owner inicial"* (`nuevo-tenant-cliente.tsx:159`),
+     *"Múltiples Owners"* (`plan/page.tsx:34`). UI-039 ya registraba anglicismos pero solo listaba
+     "Downgrade" y "Close"; "Owner" es bastante más frecuente y más central que los dos.
+- **Impacto en el usuario:** un emprendedor lee, en la pantalla de su propio plan, una palabra que
+  describe su negocio con el vocabulario del modelo de datos multi-tenant. No es ambigüedad léxica
+  como UI-037 (dos palabras para un concepto), es vocabulario de implementación filtrado a la
+  superficie.
+- **Propuesta:** sumar los 3 al glosario y renombrar en una tanda única cuando el glosario cierre.
+  **No renombrar antes** — hacerlo pantalla por pantalla es exactamente cómo se generan las
+  divergencias que documenta UI-037.
+- **Esfuerzo:** S por término una vez decidida la palabra; el trabajo real es el glosario.
+- **Depende de:** `docs/manual/glosario.md` (en construcción a la fecha de este hallazgo).
+
+### [UI-046] `MODULOS_VEEDOR_INFO` se exporta desde un archivo `"use client"` de página y lo importa `/admin` cruzando superficies
+- **Severidad:** Media
+- **Categoría:** Componentes / Arquitectura
+- **Alcance:** `src/app/app/(shell)/consentimiento/generar-cliente.tsx` (donde está definido) y sus
+  5 importadores: `codigos-cliente.tsx`, `aprobaciones-cliente.tsx`, `solicitudes-cliente.tsx`
+  (misma superficie) y `planes-cliente.tsx:27` + `instituciones-cliente.tsx:39`, que lo importan
+  desde `/admin` con la ruta literal `@/app/app/(shell)/consentimiento/generar-cliente`.
+- **Evidencia:** el mapa de metadatos de los Módulos Veedor (label, descripción, ícono) vive dentro
+  de un componente de página marcado `"use client"`. Esto **ya causó un bug real y está documentado
+  en el propio código**: `mi-negocio/plan/page.tsx:11-16` explica que un Server Component que importa
+  un export de un archivo `"use client"` recibe una referencia vacía en el servidor, no el objeto
+  real (*"Cannot read properties of undefined (reading 'label')"*), y por eso esa pantalla **duplica
+  el mapeo** en un `MODULOS_VEEDOR_LABEL` local. O sea: hay una copia divergente en producción hoy,
+  con 3 labels repetidos a mano y sin descripción ni ícono.
+- **Impacto en el usuario:** indirecto — es la misma clase de causa raíz que UI-017 (utilidad
+  duplicada que después diverge). Si mañana se agrega un cuarto Módulo Veedor, aparece en 5
+  pantallas y falta en `/app/mi-negocio/plan`, en silencio.
+- **Propuesta:** mover el mapa a un archivo neutro sin `"use client"` (junto a `ModuloVeedorForm`,
+  que ya vive en `@/modules/consentimiento/validation`) y borrar la copia de `plan/page.tsx`.
+- **Esfuerzo:** S.
+- **Depende de:** ninguno. **No corregido en Fase B** — la Fase B tocó los 4 consumidores del widget
+  pero no necesitó mover la constante, y moverla es un cambio de import de 6 archivos que merece su
+  propio commit.
+
+---
+
 ## 6. Backlog priorizado en fases
 
 ### Fase A — Fundaciones (tokens, layout base, navegación) — **CERRADA el 2026-07-20**
@@ -1375,7 +1487,7 @@ de Fase B (`Avatar`, `Button.loading`, `FormError`) porque encajaban en el mismo
 (primitivas nuevas de `components/ui/`) y no ampliaban el alcance de forma sustancial. `pnpm
 typecheck`/`lint`/`test` (177/177) y `pnpm build` pasan limpios al cierre de la fase.
 
-### Fase B — Componentes compartidos
+### Fase B — Componentes compartidos — **CERRADA el 2026-07-22**
 **Objetivo:** cerrar los huecos de la capa de primitivas que hoy fuerzan la reimplementación ad-hoc.
 
 | ID | Descripción |
@@ -1383,14 +1495,25 @@ typecheck`/`lint`/`test` (177/177) y `pnpm build` pasan limpios al cierre de la 
 | ~~UI-021~~ | ~~`<Avatar>`~~ — adelantado y cerrado en Fase A, ver arriba |
 | ~~UI-022~~ | ~~Estado `loading` visual en `Button`~~ — adelantado y cerrado en Fase A, ver arriba |
 | ~~UI-027~~ | ~~`<FormError>` centralizado con `role="alert"`~~ — adelantado y cerrado en Fase A, ver arriba |
-| UI-024 | Introducir `<Skeleton>` con boundaries de Suspense en fichas/listados pesados |
-| UI-019 / UI-035 | Fix del botón anidado en Planes (mecánico, pero valida el patrón antes de generalizar) |
-| UI-020 | Unificar checkbox/switch para "elegir módulos veedor" |
+| ~~UI-024~~ | ~~Introducir `<Skeleton>`~~ — hecho, regla de uso documentada + 1 consumidor (Ficha de Tenant de `/admin`, 3 tabs). Boundaries de Suspense sobre carga server-side quedan para Fase C |
+| ~~UI-019 / UI-035~~ | ~~Fix del botón anidado en Planes~~ — hecho vía `SwitchRow`, verificado en vivo |
+| ~~UI-020~~ | ~~Unificar checkbox/switch para "elegir módulos veedor"~~ — hecho, `Switch` en las 4 superficies (decisión 5) |
+| ~~—~~ | ~~`SwitchRow`~~ — primitiva nueva, no estaba en el backlog original; salió de resolver UI-019 y UI-020 con una sola pieza en vez de dos fixes separados. 4 consumidores |
 
 **Criterio de "hecho":** cada componente nuevo tiene al menos 2 consumidores migrados como prueba de
-concepto; el bug de Planes está corregido. **Reducida** — 3 de los 6 ítems originales ya se
-resolvieron en Fase A; quedan `Skeleton`, el fix de Planes (UI-019/035) y el widget único de módulos
-veedor (UI-020).
+concepto; el bug de Planes está corregido. **Cumplido** — `SwitchRow` cierra con 4 consumidores
+(Planes, Generar Código, Aprobar Solicitud, Nueva Solicitud de `/admin`), por encima del mínimo de 2,
+porque UI-020 pedía explícitamente unificar el widget *en toda la app* y no era una migración masiva
+diferible. `Skeleton` cierra con 1 consumidor: es el mínimo que pedía el criterio de Fase A para una
+primitiva y la migración del resto es Fase C mecánica.
+
+`pnpm typecheck`, `pnpm lint` (0 errores; 13 warnings preexistentes de `react-hooks/incompatible-library`
+en formularios RHF, ninguno en archivos de esta fase) y `pnpm build` pasan limpios. `pnpm test`:
+212 pasan, 4 skipped, **0 tests fallados**; 3 archivos de integración cortan por el fallo
+intermitente de infraestructura de Supabase Auth (`AuthApiError: ... unrecognized JWT kid <nil> for
+algorithm ES256`), que ya se manifestaba igual en la corrida de baseline **antes** de tocar nada y
+que afecta a un archivo distinto en cada corrida — no tiene relación con esta fase, que solo toca
+`.tsx` de presentación.
 
 ### Fase C — Pantalla por pantalla
 **Objetivo:** aplicar las fundaciones y componentes de A/B a las 117 pantallas existentes, módulo por
@@ -1419,6 +1542,7 @@ módulo (mismo orden en que se construyeron originalmente es razonable, para no 
 | UI-028 | Corregir semántica de color de margen negativo |
 | UI-030 / UI-031 / UI-032 | Migrar los ~8-9 consumidores restantes a `formatMoneda`/`formatFecha` (helper ya listo desde Fase A); decidir la precisión de costo unitario de insumo/producción (UI-031, sin resolver) |
 | UI-043 | Ignorar el toggle de colapso del sidebar por debajo de 1024px, o condicionar `mostrarExpandido` al breakpoint |
+| UI-046 | Mover `MODULOS_VEEDOR_INFO` fuera del archivo `"use client"` de página y borrar la copia duplicada de `plan/page.tsx` |
 
 **Criterio de "hecho":** cada módulo, al cerrarse, pasa el mismo checklist con el que se auditó acá
 (layout, navegación, componentes, estados, datos) sin hallazgos nuevos de las categorías ya
@@ -1428,13 +1552,25 @@ componente/helper nuevo (`Tabs`, `ToggleGroup`/`OptionCard`, `lib/format.ts`, `P
 A — lo que resta acá es exclusivamente migración mecánica de consumidores, no diseño ni construcción
 de primitivas nuevas.
 
+**Sugerencia de agrupación (2026-07-22, al cerrar la Fase B):** UI-011, UI-041 y UI-043 conviene
+hacerlos como **un solo lote de "responsive mobile"**, separado del resto de la Fase C. Los tres son
+bugs de layout en viewports angostos, ninguno depende de una primitiva nueva, y los tres comparten
+el mismo costo dominante: **no es escribir el fix, es verificarlo en vivo a 375/768/1024px**, que es
+un tipo de trabajo distinto al de migrar consumidores a un componente ya construido. Hacerlos juntos
+paga esa verificación una sola vez, y UI-042 se cierra solo como consecuencia de UI-011/UI-041 (no
+tiene fix propio, y tratarlo por separado llevaría a aplicarle un workaround al `Dialog`, que sería
+tratar el síntoma). Advertencia sobre UI-043: es el más barato de escribir (un booleano condicionado
+a un breakpoint) pero toca `app-shell.tsx`, el archivo con más superficie de impacto de la aplicación
+— la revisión adversarial de la Fase A encontró 4 bugs en el diff de ese mismo archivo, así que
+"barato de escribir" no equivale acá a "barato de verificar".
+
 ### Fase D — Pulido y accesibilidad
 **Objetivo:** cerrar los hallazgos de menor severidad y los de accesibilidad que no bloquean uso
 pero sí calidad.
 
 | ID | Descripción |
 |---|---|
-| UI-029 / UI-037 / UI-039 / UI-040 | Copy: asimetrías funcionales, glosario de términos, anglicismos, frases engañosas |
+| UI-029 / UI-037 / UI-039 / UI-040 / UI-045 | Copy: asimetrías funcionales, glosario de términos, anglicismos, frases engañosas, vocabulario técnico interno expuesto ("tenant", "módulos veedor", "Owner") |
 | UI-038 | Corregir copy desactualizado de `/portal` (podría adelantarse antes si se prioriza cara a usuario externo) |
 | UI-034 / UI-036 | Accesibilidad: teclado en controles custom, agrupación semántica de selectores |
 | UI-033 | Paginación real (depende de backend, fuera de alcance — solo vigilancia) |

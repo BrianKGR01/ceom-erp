@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SwitchRow } from "@/components/ui/switch-row";
 import { cn } from "@/lib/utils";
 import { MODULOS_VEEDOR_INFO } from "@/app/app/(shell)/consentimiento/generar-cliente";
 import type { ModuloVeedorForm } from "@/modules/consentimiento/validation";
@@ -264,23 +265,14 @@ function PlanFormDialog({
             <div className="space-y-2">
               {(Object.keys(MODULOS_VEEDOR_INFO) as ModuloVeedorForm[]).map((modulo) => {
                 const info = MODULOS_VEEDOR_INFO[modulo];
-                const marcado = form.modulosVeedorPermitidos.includes(modulo);
                 return (
-                  <button
+                  <SwitchRow
                     key={modulo}
-                    type="button"
-                    onClick={() => toggleModulo(modulo)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-colors",
-                      marcado ? "border-primary bg-pastel-blue-bg" : "border-gray-border"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <info.icon className="size-4 text-primary" />
-                      <span className="text-sm font-medium text-navy">{info.label}</span>
-                    </div>
-                    <Switch checked={marcado} onCheckedChange={() => toggleModulo(modulo)} />
-                  </button>
+                    checked={form.modulosVeedorPermitidos.includes(modulo)}
+                    onCheckedChange={() => toggleModulo(modulo)}
+                    label={info.label}
+                    icon={info.icon}
+                  />
                 );
               })}
             </div>

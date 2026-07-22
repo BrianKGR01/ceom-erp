@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/shared/page-header";
-import { cn } from "@/lib/utils";
+import { SwitchRow } from "@/components/ui/switch-row";
 import { NavConsentimiento, MODULOS_VEEDOR_INFO } from "../generar-cliente";
 import { aprobarSolicitudAction, rechazarSolicitudAction } from "../actions";
 
@@ -203,30 +203,15 @@ function AprobarSolicitudDialog({
         <div className="space-y-2">
           {solicitud.modulosSolicitados.map((modulo) => {
             const info = MODULOS_VEEDOR_INFO[modulo];
-            const marcado = seleccionados.includes(modulo);
             return (
-              <button
+              <SwitchRow
                 key={modulo}
-                type="button"
-                onClick={() => toggle(modulo)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                  marcado ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded-md border",
-                    marcado ? "border-primary bg-primary text-white" : "border-gray-border bg-card"
-                  )}
-                >
-                  {marcado && <Check className="size-3.5" />}
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-navy">{info.label}</p>
-                  <p className="text-xs text-text-muted">{info.descripcion}</p>
-                </div>
-              </button>
+                checked={seleccionados.includes(modulo)}
+                onCheckedChange={() => toggle(modulo)}
+                label={info.label}
+                description={info.descripcion}
+                icon={info.icon}
+              />
             );
           })}
         </div>

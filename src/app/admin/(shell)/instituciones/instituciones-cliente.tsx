@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   Building2,
-  Check,
   GraduationCap,
   Landmark,
   Link2,
@@ -34,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SwitchRow } from "@/components/ui/switch-row";
 import { cn } from "@/lib/utils";
 import type { ModuloVeedorForm } from "@/modules/consentimiento/validation";
 import { MODULOS_VEEDOR_INFO } from "@/app/app/(shell)/consentimiento/generar-cliente";
@@ -823,27 +823,14 @@ function NuevaSolicitudDialog({
             <Label>Módulos a solicitar</Label>
             {(Object.keys(MODULOS_VEEDOR_INFO) as ModuloVeedorForm[]).map((modulo) => {
               const info = MODULOS_VEEDOR_INFO[modulo];
-              const marcado = modulos.includes(modulo);
               return (
-                <button
+                <SwitchRow
                   key={modulo}
-                  type="button"
-                  onClick={() => toggle(modulo)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                    marcado ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-5 shrink-0 items-center justify-center rounded-md border",
-                      marcado ? "border-primary bg-primary text-white" : "border-gray-border bg-card"
-                    )}
-                  >
-                    {marcado && <Check className="size-3.5" />}
-                  </span>
-                  <p className="text-sm font-medium text-navy">{info.label}</p>
-                </button>
+                  checked={modulos.includes(modulo)}
+                  onCheckedChange={() => toggle(modulo)}
+                  label={info.label}
+                  icon={info.icon}
+                />
               );
             })}
           </div>

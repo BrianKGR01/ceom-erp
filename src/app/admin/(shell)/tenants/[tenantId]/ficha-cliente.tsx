@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -96,6 +97,34 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
     <div className="rounded-2xl bg-card p-4 shadow-card">
       <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">{label}</p>
       <p className="mt-1 font-heading text-xl font-semibold text-navy">{valor}</p>
+    </div>
+  );
+}
+
+// Placeholders de carga de cada tab. Reproducen la forma del contenido real
+// (card de dato, fila de tabla) para que el layout no salte cuando llegan los
+// datos. `role="status"` + `aria-label` preservan el anuncio que antes daba el
+// texto plano "Cargando..." — un skeleton solo, sin eso, es invisible para un
+// lector de pantalla.
+function SkeletonStatCard() {
+  return (
+    <div className="rounded-2xl bg-card p-4 shadow-card">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="mt-1.5 h-6 w-32" />
+    </div>
+  );
+}
+
+function SkeletonTabla({ columnas, filas = 3 }: { columnas: number; filas?: number }) {
+  return (
+    <div className="divide-y divide-gray-border rounded-xl border border-gray-border">
+      {Array.from({ length: filas }, (_, fila) => (
+        <div key={fila} className="flex gap-3 px-3 py-2.5">
+          {Array.from({ length: columnas }, (_, columna) => (
+            <Skeleton key={columna} className="h-4 flex-1" />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -440,7 +469,11 @@ export function FichaTenantAdminCliente({
         <div className="p-4">
           {tabActivo === "financiero" &&
             (financiero === null ? (
-              <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
+              <div role="status" aria-label="Cargando datos financieros" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+                <SkeletonStatCard />
+              </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.flujoCaja)} />
@@ -451,7 +484,10 @@ export function FichaTenantAdminCliente({
 
           {tabActivo === "operativo" &&
             (operativo === null ? (
-              <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
+              <div role="status" aria-label="Cargando datos operativos" className="space-y-4">
+                <SkeletonStatCard />
+                <SkeletonTabla columnas={2} />
+              </div>
             ) : (
               <div className="space-y-4">
                 <StatCard label="Costo de Merma del período" valor={formatoMoneda(operativo.mermaCostoTotal)} />
@@ -482,7 +518,9 @@ export function FichaTenantAdminCliente({
 
           {tabActivo === "inventario" &&
             (inventario === null ? (
-              <p className="py-10 text-center text-sm text-text-muted">Cargando...</p>
+              <div role="status" aria-label="Cargando inventario">
+                <SkeletonTabla columnas={3} />
+              </div>
             ) : inventario.insumos.length === 0 ? (
               <p className="py-10 text-center text-sm text-text-muted">Sin insumos cargados.</p>
             ) : (

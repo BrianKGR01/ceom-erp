@@ -286,6 +286,55 @@ Extraído del bloque ícono+`Input` reimplementado con valores ligeramente disti
   combinar manualmente texto-en-gerundio + `disabled` (antes el único feedback de "esto está
   corriendo" en toda la app era ese combo, ni siquiera parejo entre botones) — ver UI-022.
 
+### 8.10 `SwitchRow` (`src/components/ui/switch-row.tsx`) — Fase B
+Fila "opción con interruptor". Extraída de las 4 superficies que resolvían **el mismo** concepto de
+negocio (elegir un subconjunto de Módulos Veedor) con 3 widgets distintos — ver UI-019/UI-020/UI-035.
+
+- **Cuándo usar:** activar/desactivar cada ítem de una lista de opciones independientes entre sí
+  (no mutuamente excluyentes). Si son mutuamente excluyentes, es `ToggleGroup` u `OptionCard`.
+- **Regla estructural, no negociable:** la fila es un `<div>` y el **único** control interactivo es
+  el `Switch`. Envolver la fila en un `<button>` con el `Switch` adentro es HTML inválido y hace que
+  un clic sobre el switch dispare el toggle dos veces, anulándose — ese era exactamente el bug
+  UI-019. Para no perder área de clic, el texto es un `<label>` asociado al switch por `id`.
+- **API:**
+  ```tsx
+  <SwitchRow
+    checked={marcado}
+    onCheckedChange={() => toggle(modulo)}
+    label="Módulo Financiero"
+    description="Flujo de caja y estado de resultados" // opcional
+    icon={Wallet}                                      // opcional
+    disabled={!permitido}                              // opcional
+    trailing={<Badge variant="success">Disponible</Badge>} // opcional, va antes del switch
+  />
+  ```
+- **Verificado en vivo** (DOM real, dev server): clic en el switch y clic en el texto toggleaen
+  exactamente una vez cada uno; `Space`/`Enter` con foco en el switch toggleaen; la fila `disabled`
+  no reacciona ni por switch ni por label; el nombre accesible que anuncia un lector de pantalla
+  incluye label + description, porque base-ui cablea solo su `aria-labelledby` contra el `<label>`
+  asociado. **Detalle de implementación a no romper:** base-ui renderiza el switch como
+  `<span role="switch">` y aparte un `<input type="checkbox" tabindex="-1">` fuera de ese span; el
+  `id` que recibe `Switch` aterriza en ese input, que es lo que hace que el `<label htmlFor>`
+  funcione. El tab-stop es el `<span>`, no el input.
+
+### 8.11 `Skeleton` (`src/components/ui/skeleton.tsx`) — Fase B
+El componente existía desde el scaffolding inicial de shadcn pero no tenía **ningún** consumidor en
+toda la aplicación (UI-024). No cambió su implementación; lo que se agregó es la regla de uso.
+
+- **Cuándo usar:** una espera con contenido que todavía no llegó y cuya forma ya se conoce (tabs de
+  una ficha que traen sus datos por separado, listados pesados). Reemplaza al texto plano
+  "Cargando...".
+- **Cuándo NO usar:** cuando el contenido **ya está en pantalla** y se está refrescando por un
+  cambio de filtro/período — ahí el patrón correcto, ya consistente en Dashboard/Reportes/
+  Simulaciones, es atenuar lo que ya se ve con `opacity-60`/`pointer-events-none`. Cambiar eso por
+  un skeleton haría parpadear la pantalla entera en cada cambio de filtro.
+- **Dos reglas al componer:** (1) el placeholder reproduce la **forma** del contenido real (card de
+  dato, fila de tabla) para que el layout no salte cuando llegan los datos; (2) el contenedor lleva
+  `role="status"` + `aria-label="Cargando…"`, porque un skeleton sin eso es completamente invisible
+  para un lector de pantalla — el texto "Cargando..." que reemplaza sí se anunciaba.
+- **Referencia aplicada:** Ficha de Tenant de `/admin`, en sus 3 tabs
+  (`src/app/admin/(shell)/tenants/[tenantId]/ficha-cliente.tsx`).
+
 ---
 
 ## 9. Arquitectura de navegación — regla de los tres mecanismos (decisión 6)
@@ -314,4 +363,4 @@ dos secciones hermanas de igual jerarquía — el mecanismo ad-hoc original que 
 
 ---
 
-*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7, 8 y 9 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`) y quedan completas al cierre de esa fase — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
+*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7, 8 y 9 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`); las subsecciones 8.10 y 8.11 se agregaron en la Fase B (2026-07-22) — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
