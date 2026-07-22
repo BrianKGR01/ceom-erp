@@ -41,7 +41,7 @@
 | [H-10](#h-10) | 🟠 | Los gastos recurrentes no se generan solos |
 | [H-11](#h-11) | 🟡 | Un gasto recurrente pausado no se puede reactivar |
 | [H-12](#h-12) | 🟠 | "Tenant" en 105 mensajes de error |
-| [H-13](#h-13) | 🟡 | Dos huecos en el registro de accesos de CEOM |
+| [H-13](#h-13) | 🟡 | Dos cosas que el registro de accesos no distingue |
 | [H-14](#h-14) | 🟠 | No hay pantalla para dar de alta a otra persona del equipo CEOM |
 | [H-15](#h-15) | 🟡 | Un producto sin costo degrada seis pantallas en silencio |
 | [H-16](#h-16) | 🟡 | El filtro de sucursal del panel solo afecta a dos de cinco tarjetas |
@@ -80,6 +80,18 @@
 | [H-39](#h-39) | 🟡 | Guardar una receta reemplaza su composición completa |
 | [H-40](#h-40) | 🟡 | La producción no es atómica y falla en silencio |
 | [H-41](#h-41) | 🟡 | "Vencida" sin fecha de próximo pago saltea el período de gracia |
+
+### Fase 4 — aparecidos al documentar `/admin` y `/portal`
+
+| ID | Severidad | Hallazgo |
+|---|---|---|
+| [H-42](#h-42) | 🔴 | Una institución no puede canjear un segundo código |
+| [H-43](#h-43) | 🟠 | El correo de una institución figura como opcional y no lo es |
+| [H-44](#h-44) | 🟡 | No hay historial de cambios administrativos |
+| [H-45](#h-45) | 🟠 | La suscripción no vence sola, no cobra y no avisa |
+| [H-46](#h-46) | 🟡 | "Pausada" bloquea el acceso a los propios datos, sin gracia |
+| [H-47](#h-47) | 🟡 | Bajar de plan no revoca lo que el negocio ya comparte |
+| [H-48](#h-48) | ⚪ | La cartera es una lista, no un tablero de seguimiento |
 
 ---
 
@@ -342,17 +354,31 @@ experiencia más extendido del producto.
 ---
 
 <a id="h-13"></a>
-## H-13 🟡 Dos huecos en el registro de accesos de CEOM
+## H-13 🟡 Dos cosas que el registro de accesos no distingue
 
-Ambos ya están documentados en `docs/ui/pantallas.md`; se consolidan acá porque afectan la lectura
-de una pantalla de auditoría.
+> **Corregido el 2026-07-22.** La versión anterior decía que abrir la ficha de un negocio **no**
+> quedaba registrado. **Es falso.** `consultarTenantDetalle` sí registra el acceso
+> (`panel-admin-ceom/actions.ts:123`, con `moduloConsultado: "identidad"`), y `"identidad"` **sí** es
+> un valor del enum desde la Etapa 3 del backstop de RLS — agregado exactamente para esto
+> (`identidad/schema.ts:62-73`). El error venía de `docs/ui/pantallas.md:1027`, que quedó
+> desactualizado; se tomó de ahí en vez de verificarlo contra el código. Es el mismo tipo de deriva
+> que registra H-22.
 
-1. **Abrir la ficha de un negocio no queda registrado.** Las tres pestañas de consulta (Financiero,
-   Operativo, Inventario Operativo) sí registran el acceso; el dato general del negocio, no —
-   "identidad" no es un valor del enum de módulos.
-2. **"Inventario Operativo" se registra como "operativo".** Las consultas de insumos y las de
-   producción quedan indistinguibles en el registro, porque el enum de permisos no separa lo que sí
-   separa el enum del gateway. Quien lea la pantalla no tiene forma de saberlo.
+**Lo que sí queda registrado — la cobertura es buena:** las tres pestañas de consulta, la ficha del
+negocio y hasta la vista de salud agregada disparan `registrarAccesoAdminCeom`.
+
+Quedan dos puntos ciegos, ambos de **granularidad**, no de cobertura:
+
+1. **"Inventario Operativo" se registra como `"operativo"`.** Las consultas de insumos y las de
+   producción quedan indistinguibles en el registro. Es una decisión deliberada y comentada
+   (`panel-admin-ceom/actions.ts:186-193`): el enum de permisos de Identidad no separa insumos de
+   producción; solo el enum del Gateway lo hace, y no es reutilizable ahí. Quien lea la pantalla no
+   tiene forma de saber cuál de las dos se consultó.
+2. **La vista de salud agregada se registra contra el negocio "CEOM Ops", no contra ningún negocio
+   real** (`:74`). Es coherente —es una consulta cross-tenant, no de un negocio puntual— pero
+   significa que **filtrar el registro por un negocio nunca muestra esas consultas**. Un negocio que
+   pregunte "¿quién miró mis datos?" recibe una respuesta que excluye las lecturas agregadas donde
+   estuvo incluido.
 
 ---
 
@@ -892,6 +918,169 @@ después.
 **Por qué se registra igual:** el efecto es que un negocio pasa de operar normalmente a no poder ni
 ver sus datos, sin transición, y desde `/app` es indistinguible de un error. Vale como nota para el
 capítulo de CEOM: **poner "vencida" sin fecha bloquea al negocio en el acto.**
+
+---
+
+<a id="h-42"></a>
+## H-42 🔴 Una institución no puede canjear un segundo código
+
+**Qué pasa.** El asistente de canje del portal **siempre** manda `institucionNueva` y nunca
+`institucionId`: el tipo de `canjearCodigoAccesoAction` (`src/app/portal/actions.ts:21-26`) lo exige
+como obligatorio, y `canjear-cliente.tsx:57-65` lo arma siempre desde el formulario. No hay ninguna
+opción de "ya estoy registrada".
+
+`canjearCodigoAcceso` entonces llama a `repo.crearInstitucion()` de forma incondicional
+(`consentimiento/actions.ts:467-480`). Pero `instituciones.email` tiene un índice único parcial
+(`consentimiento/schema.ts:78-80`).
+
+**Resultado, según qué correo use la institución:**
+
+| Correo | Qué pasa |
+|---|---|
+| **El mismo de la primera vez** | El insert viola el índice único. **La excepción no está capturada en ningún punto de la cadena** — no hay `try/catch` en la acción ni en el wrapper, así que no devuelve `{ ok: false, error }`: la Server Action lanza y el usuario ve un error genérico de Next.js, sin ninguna explicación de qué pasó ni de qué hacer. |
+| **Uno distinto** | Se crea una **segunda institución independiente**, con su propia cartera de un solo negocio. Como el enlace mágico resuelve por correo (`obtenerInstitucionPorEmail`, `repository.ts:91-98`, con `limit 1`), cada correo entra a una institución distinta y **no hay forma de unirlas** ni de ver los dos negocios juntos. |
+
+**Por qué es 🔴.** Cae en las dos mitades del criterio: la tarea no se puede completar, y por el
+segundo camino se completa mal sin que el usuario se dé cuenta. Y le pasa al actor con menos
+herramientas para entender el error: alguien sin cuenta, sin soporte dentro del producto y sin
+ninguna pantalla que le explique su propia situación.
+
+**Es además el caso más probable del actor.** Una incubadora con diez emprendimientos en un programa
+va a recibir diez códigos. El flujo está diseñado para el primero y falla en el segundo.
+
+**Qué haría falta.** Mínimo: capturar la violación de unicidad y devolver un mensaje que explique qué
+hacer. Mejor: permitir canjear un código estando ya autenticada en el portal —la sesión ya resuelve
+`obtenerInstitucionActual()`— y pasar ese `institucionId`, que es el parámetro que la función ya
+acepta y que nadie usa.
+
+**Circunvalación documentada en el manual:** pedirle al equipo de CEOM que vincule el negocio a la
+institución existente y genere una solicitud de seguimiento (el camino 2), que llega al mismo
+resultado sin tocar este flujo.
+
+**Citado en el manual:** `instituciones/01-primer-acceso.md`.
+
+---
+
+<a id="h-43"></a>
+## H-43 🟠 El correo de una institución figura como opcional y no lo es
+
+**Qué pasa.** El formulario de alta de institución en `/admin` tiene campo de correo, pero lo manda
+como `email.trim() || undefined` (`instituciones-cliente.tsx:474`): es opcional, y la columna es
+nullable a propósito —una institución puede existir antes de tener identidad de Auth.
+
+**Pero el correo es lo único con lo que una institución entra al portal.** El reingreso es por enlace
+mágico, y `solicitarMagicLinkInstitucion` busca por correo: sin correo cargado, no hay institución que
+encontrar y el enlace nunca se envía.
+
+**El resultado:** una institución creada desde `/admin` sin correo **existe como registro, aparece en
+listados, puede tener cartera y solicitudes aprobadas — y no puede entrar a ver nada.** Nada lo
+advierte, ni al crearla ni después.
+
+**Se agrava con el diseño del mensaje genérico.** `solicitarMagicLinkInstitucion` devuelve siempre
+`ok` exista o no el correo, para no filtrar qué direcciones están registradas
+(`consentimiento/actions.ts:203-213`). La decisión es correcta, pero significa que la institución no
+recibe ninguna señal distinguible entre "tu correo está mal" y "no tenés correo cargado".
+
+**Qué haría falta.** Marcar el campo como requerido en el formulario de `/admin`, o mostrar un aviso
+en la ficha de toda institución sin correo indicando que no puede acceder al portal.
+
+---
+
+<a id="h-44"></a>
+## H-44 🟡 No hay historial de cambios administrativos
+
+**Qué pasa.** `actualizarPlanTenant` y `actualizarEstadoSuscripcionTenant`
+(`identidad/repository.ts:249-277`) escriben `modificadoPor` y `modificadoEn` sobre la fila del
+negocio. **Pisan el valor anterior en cada cambio**, y no existe ninguna tabla de historial ni de
+auditoría de cambios en todo el esquema.
+
+Además, ninguna pantalla muestra esos dos campos.
+
+**Consecuencia.** No se puede responder cuándo cambió de plan un negocio, quién puso su cuenta en
+vencida, ni cuántas veces pasó por el ciclo. Lo único recuperable es el último cambio, consultando la
+base a mano.
+
+**Por qué importa más de lo que parece.** El registro de accesos existe justamente para trazar lo que
+el equipo hace sobre un negocio — pero traza **lecturas**, no **modificaciones**. Las acciones con
+consecuencias comerciales reales (cambiar el plan, bloquear el acceso) son las que no dejan rastro.
+
+---
+
+<a id="h-45"></a>
+## H-45 🟠 La suscripción no vence sola, no cobra y no avisa
+
+**Qué pasa.** El ciclo de suscripción es **enteramente manual**. No hay ninguna pieza automática:
+
+- **No hay cobro ni facturación.** `precioMensual` y `moneda` del plan son informativos: ningún
+  código los consume para nada.
+- **Nada marca un negocio como vencido.** `calcularEstadoAcceso()` es una función pura que se evalúa
+  al leer; el `estadoSuscripcion` solo cambia si alguien entra al diálogo de `/admin` y lo cambia. El
+  `ANCLA.md` de identidad lo registra: *"No corre un scheduler real para transición de etapas de
+  suscripción… algo externo tiene que invocarla periódicamente cuando exista esa infraestructura"*.
+  Esa infraestructura no existe.
+- **No hay ningún aviso al cliente.** Ni al acercarse el vencimiento, ni al vencer, ni al bloquearse.
+  El negocio se entera cuando entra y ve el cartel.
+
+**Por qué importa.** Un negocio que dejó de pagar **sigue operando indefinidamente** hasta que
+alguien del equipo se acuerde de marcarlo. Y uno que sí se marca pasa de trabajar con normalidad a
+tener el acceso restringido sin ningún preaviso — con una gracia de 3 días por defecto, que es corta
+para un cliente que paga por transferencia.
+
+**Nota de alcance:** puede ser una decisión consciente para el MVP. Se registra igual porque el
+manual de CEOM tiene que decir explícitamente que el ciclo se sostiene a mano, y porque la
+combinación "sin aviso + gracia de 3 días" es la que va a generar los reclamos.
+
+---
+
+<a id="h-46"></a>
+## H-46 🟡 "Pausada" bloquea el acceso a los propios datos, sin gracia
+
+`calcularEstadoAcceso` resuelve `pausada` → `bloqueado` directamente
+(`identidad/actions.ts:63`), con el comentario: *"pausada no tiene comportamiento definido en
+Modulo_01 — se trata como bloqueado por seguridad"*.
+
+Es una decisión defendible ante la ambigüedad del spec. Pero el nombre del estado sugiere una
+suspensión benigna y el efecto es el más duro de los tres: el negocio **no puede ni ver sus propios
+datos**, y sin período de gracia, a diferencia de `vencida`.
+
+**Lo que falta es el caso intermedio:** "suspender la operación sin cortarle el acceso a su
+información" no existe hoy. Quien quiera ese efecto tiene que usar `vencida`, que semánticamente dice
+otra cosa.
+
+---
+
+<a id="h-47"></a>
+## H-47 🟡 Bajar de plan no revoca lo que el negocio ya comparte
+
+`generarCodigoAcceso` valida los tipos de información contra el plan **en el momento de generar el
+código** (`consentimiento/actions.ts:406-415`). `cambiarPlanTenant` solo actualiza `planId`
+(`identidad/repository.ts:249-259`): no toca las aprobaciones vigentes ni los códigos ya canjeados.
+
+Consecuencia: un negocio que baja a un plan más restrictivo **sigue compartiendo** todo lo que ya
+había compartido. Solo no va a poder generar códigos nuevos con esos tipos.
+
+No es necesariamente incorrecto —revocar automáticamente un consentimiento que el dueño otorgó es una
+decisión delicada— pero hoy no está decidido: simplemente no pasa nada, y nadie lo ve. Si la intención
+comercial es que el plan limite el acceso vigente, falta implementarlo; si la intención es
+respetar el consentimiento ya dado, conviene decirlo en la pantalla.
+
+---
+
+<a id="h-48"></a>
+## H-48 ⚪ La cartera es una lista, no un tablero de seguimiento
+
+La cartera de una institución muestra los negocios con su cohorte, fechas, rubro, plan y estado de
+acceso, más cuatro totales. Nada más.
+
+Lo que el diseño de referencia proponía y **no se construyó**, por no tener respaldo en el backend:
+avance de onboarding, actividad reciente y alertas de inactividad. Está registrado como corrección de
+alcance deliberada en `docs/ui/pantallas.md`, no como olvido.
+
+**Por qué se anota igual:** es exactamente lo que una incubadora con veinte emprendimientos va a
+buscar primero, y es el pedido de producto más previsible del actor Institución. Detectar quién se
+quedó quieto hoy requiere entrar negocio por negocio.
+
+Tampoco hay exportación (H-20), así que armar un informe del programa es trabajo manual completo.
 
 ---
 

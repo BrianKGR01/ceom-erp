@@ -1,9 +1,13 @@
 # Manual de usuario de CEOM — estructura y convenciones
 
-> **Estado: Fase 1.** Existen el glosario, esta estructura, la auditoría por actor, los hallazgos y
-> **una sola sección escrita completa** ([`negocio/01-primeros-pasos.md`](negocio/01-primeros-pasos.md))
-> que sirve de referencia de calidad para todo lo demás. El resto del índice es esqueleto: los
-> archivos marcados `pendiente` todavía no existen.
+> **Estado: completo.** Los 20 capítulos de los tres actores están escritos, más los cuatro
+> documentos transversales. [`negocio/01-primeros-pasos.md`](negocio/01-primeros-pasos.md) se escribió
+> primero como referencia de calidad y sigue siendo el modelo de nivel de detalle.
+>
+> Todo se verificó contra el código, no contra la documentación funcional ni contra
+> [`docs/ui/pantallas.md`](../ui/pantallas.md), que tiene deriva conocida (ver H-22). Los flujos se
+> recorrieron con la lente de un **negocio recién creado**, no del que puebla `pnpm seed:demo` — ahí
+> se escondían varios de los hallazgos.
 
 ---
 
@@ -68,20 +72,20 @@ El grueso del manual. El orden es el recorrido real de alguien que arranca de ce
 
 | # | Archivo | Qué cubre | Estado |
 |---|---|---|---|
-| 01 | `equipo-ceom/01-antes-de-empezar.md` | Cómo se crea el primer acceso administrativo y por qué no hay una pantalla para eso. Qué hay que tener listo antes de dar de alta el primer negocio. | pendiente |
-| 02 | `equipo-ceom/02-planes.md` | El catálogo de planes: qué controla cada campo y qué pasa si no hay ningún plan activo. | pendiente |
-| 03 | `equipo-ceom/03-alta-de-negocios.md` | Dar de alta un negocio, qué se crea automáticamente, qué recibe el dueño, y qué queda pendiente de configurar del lado del negocio. | pendiente |
-| 04 | `equipo-ceom/04-seguimiento-de-negocios.md` | El listado con salud agregada, la ficha, cambiar de plan, cambiar el estado de la suscripción, y las tres pestañas de consulta. | pendiente |
-| 05 | `equipo-ceom/05-instituciones.md` | Alta de instituciones, cartera, crear solicitudes de seguimiento. | pendiente |
-| 06 | `equipo-ceom/06-registro-de-accesos.md` | Qué queda registrado cuando el equipo consulta datos de un negocio, y qué no. | pendiente |
+| 01 | [`equipo-ceom/01-antes-de-empezar.md`](equipo-ceom/01-antes-de-empezar.md) | Cómo se crea el primer acceso administrativo y por qué no hay una pantalla para eso. Qué hay que tener listo antes de dar de alta el primer negocio. | ✅ escrito |
+| 02 | [`equipo-ceom/02-planes.md`](equipo-ceom/02-planes.md) | El catálogo de planes: qué controla cada campo y qué pasa si no hay ningún plan activo. | ✅ escrito |
+| 03 | [`equipo-ceom/03-alta-de-negocios.md`](equipo-ceom/03-alta-de-negocios.md) | Dar de alta un negocio, qué se crea automáticamente, qué recibe el dueño, y qué queda pendiente de configurar del lado del negocio. | ✅ escrito |
+| 04 | [`equipo-ceom/04-seguimiento-de-negocios.md`](equipo-ceom/04-seguimiento-de-negocios.md) | El listado con salud agregada, la ficha, cambiar de plan, cambiar el estado de la suscripción, y las tres pestañas de consulta. | ✅ escrito |
+| 05 | [`equipo-ceom/05-instituciones.md`](equipo-ceom/05-instituciones.md) | Alta de instituciones, cartera, crear solicitudes de seguimiento. | ✅ escrito |
+| 06 | [`equipo-ceom/06-registro-de-accesos.md`](equipo-ceom/06-registro-de-accesos.md) | Qué queda registrado cuando el equipo consulta datos de un negocio, y qué no. | ✅ escrito |
 
 ### Instituciones — el portal
 
 | # | Archivo | Qué cubre | Estado |
 |---|---|---|---|
-| 01 | `instituciones/01-primer-acceso.md` | Los dos caminos de entrada (código de acceso y solicitud), canjear el código, y cómo se vuelve a entrar después. | pendiente |
-| 02 | `instituciones/02-tu-cartera.md` | La cartera de negocios y qué significa cada estado. | pendiente |
-| 03 | `instituciones/03-ver-un-negocio.md` | Las cuatro pestañas, qué muestra cada una, y por qué algunas aparecen con candado. | pendiente |
+| 01 | [`instituciones/01-primer-acceso.md`](instituciones/01-primer-acceso.md) | Los dos caminos de entrada (código de acceso y solicitud), canjear el código, y cómo se vuelve a entrar después. | ✅ escrito |
+| 02 | [`instituciones/02-tu-cartera.md`](instituciones/02-tu-cartera.md) | La cartera de negocios y qué significa cada estado. | ✅ escrito |
+| 03 | [`instituciones/03-ver-un-negocio.md`](instituciones/03-ver-un-negocio.md) | Las cuatro pestañas, qué muestra cada una, y por qué algunas aparecen con candado. | ✅ escrito |
 
 ---
 

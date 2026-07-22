@@ -125,7 +125,8 @@ suscripción `pausada` da `bloqueado` de una. Y `vencida` **sin** fecha de próx
 **Alcance real de "salud":** solo esos cuatro agregados. El porcentaje de onboarding completado y la
 retención, mencionados en el diseño del módulo, no están implementados.
 
-> ⚠️ Abrir la ficha de un negocio **no** queda registrado; solo las tres pestañas. (H-13)
+> ⚠️ Abrir la ficha **sí** queda registrado, igual que las tres pestañas. Lo que no se distingue en
+> el registro es una consulta de insumos de una de producción. (H-13)
 > 🚧 El listado no pagina. (H-21)
 
 ### 4-5 — Instituciones, cartera y solicitudes (`/admin/instituciones`)
