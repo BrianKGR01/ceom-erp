@@ -354,7 +354,7 @@ function CarteraTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="font-heading text-sm font-semibold text-navy">Tenants Asignados</p>
+        <p className="font-heading text-sm font-semibold text-navy">Negocios asignados</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setDialogoSolicitud(true)} disabled={!cartera || cartera.length === 0}>
             <Send className="size-4" />
@@ -362,7 +362,7 @@ function CarteraTab({
           </Button>
           <Button size="sm" onClick={() => setDialogoVincular(true)}>
             <Link2 className="size-4" />
-            Vincular Tenant
+            Vincular negocio
           </Button>
         </div>
       </div>
@@ -372,12 +372,12 @@ function CarteraTab({
       {cargando ? (
         <p className="py-6 text-center text-sm text-text-muted">Cargando...</p>
       ) : !cartera || cartera.length === 0 ? (
-        <p className="py-6 text-center text-sm text-text-muted">Sin tenants asignados todavía.</p>
+        <p className="py-6 text-center text-sm text-text-muted">Sin negocios asignados todavía.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-border text-left text-[11px] tracking-wide text-text-muted uppercase">
-              <th className="py-2 font-medium">Tenant</th>
+              <th className="py-2 font-medium">Negocio</th>
               <th className="py-2 font-medium">Estado</th>
               <th className="py-2 font-medium">Plan</th>
               <th className="py-2 text-right font-medium">Acciones</th>
@@ -389,7 +389,7 @@ function CarteraTab({
               const badge = tenant ? BADGE_ESTADO_SUSCRIPCION[tenant.estadoSuscripcion] : null;
               return (
                 <tr key={fila.id} className="border-b border-gray-border last:border-0">
-                  <td className="py-2.5 font-medium text-navy">{tenant?.nombreNegocio ?? "Tenant"}</td>
+                  <td className="py-2.5 font-medium text-navy">{tenant?.nombreNegocio ?? "Sin especificar"}</td>
                   <td className="py-2.5">
                     {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
                   </td>
@@ -666,7 +666,7 @@ function VincularTenantDialog({
 
   async function guardar() {
     if (!tenantId) {
-      setError("Elegí un tenant.");
+      setError("Elegí un negocio.");
       return;
     }
     setGuardando(true);
@@ -691,14 +691,14 @@ function VincularTenantDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Vincular tenant a la cartera</DialogTitle>
-          <DialogDescription>Asigná un tenant existente a esta institución.</DialogDescription>
+          <DialogTitle>Vincular negocio a la cartera</DialogTitle>
+          <DialogDescription>Asigná un negocio existente a esta institución.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="tenant-vincular">Tenant</Label>
+            <Label htmlFor="tenant-vincular">Negocio</Label>
             {tenantsDisponibles.length === 0 ? (
-              <p className="text-xs text-text-muted">Todos los tenants ya están en esta cartera.</p>
+              <p className="text-xs text-text-muted">Todos los negocios ya están en esta cartera.</p>
             ) : (
               <Select
                 items={Object.fromEntries(tenantsDisponibles.map((t) => [t.id, t.nombreNegocio]))}
@@ -706,7 +706,7 @@ function VincularTenantDialog({
                 onValueChange={(v) => v && setTenantId(v)}
               >
                 <SelectTrigger id="tenant-vincular" className="w-full">
-                  <SelectValue placeholder="Elegí un tenant" />
+                  <SelectValue placeholder="Elegí un negocio" />
                 </SelectTrigger>
                 <SelectContent>
                   {tenantsDisponibles.map((t) => (
@@ -770,7 +770,7 @@ function NuevaSolicitudDialog({
 
   async function guardar() {
     if (!tenantId) {
-      setError("Elegí un tenant.");
+      setError("Elegí un negocio.");
       return;
     }
     if (modulos.length === 0) {
@@ -796,19 +796,19 @@ function NuevaSolicitudDialog({
         <DialogHeader>
           <DialogTitle>Nueva Solicitud de Seguimiento</DialogTitle>
           <DialogDescription>
-            CEOM registra el pedido en nombre de la institución — el Owner del tenant decide qué aprueba.
+            CEOM registra el pedido en nombre de la institución — el dueño del negocio decide qué aprueba.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="tenant-solicitud">Tenant</Label>
+            <Label htmlFor="tenant-solicitud">Negocio</Label>
             <Select
               items={Object.fromEntries(tenantsEnCartera.map((t) => [t.id, t.nombreNegocio]))}
               value={tenantId}
               onValueChange={(v) => v && setTenantId(v)}
             >
               <SelectTrigger id="tenant-solicitud" className="w-full">
-                <SelectValue placeholder="Elegí un tenant" />
+                <SelectValue placeholder="Elegí un negocio" />
               </SelectTrigger>
               <SelectContent>
                 {tenantsEnCartera.map((t) => (
@@ -820,7 +820,7 @@ function NuevaSolicitudDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Módulos a solicitar</Label>
+            <Label>Qué información solicitar</Label>
             {(Object.keys(MODULOS_VEEDOR_INFO) as ModuloVeedorForm[]).map((modulo) => {
               const info = MODULOS_VEEDOR_INFO[modulo];
               return (

@@ -156,9 +156,9 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
         <div className="border-t border-gray-border pt-6">
           <div className="mb-1 flex items-center gap-2">
             <UserPlus className="size-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-navy">Owner inicial</h2>
+            <h2 className="font-heading text-base font-semibold text-navy">Dueño inicial</h2>
           </div>
-          <p className="mb-3 text-sm text-text-muted">El usuario administrador principal de este Tenant.</p>
+          <p className="mb-3 text-sm text-text-muted">La persona que va a administrar este negocio.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ownerNombreCompleto">Nombre completo</Label>
@@ -191,7 +191,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             <Info className="mt-0.5 size-4 shrink-0" />
             <p>
               <span className="font-medium">Nota:</span> Se creará la sucursal principal
-              automáticamente y se enviará una invitación por email a este Owner para que fije su
+              automáticamente y se enviará una invitación por correo a este dueño para que fije su
               contraseña y acceda al sistema.
             </p>
           </div>
@@ -204,7 +204,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             Cancelar
           </Button>
           <Button type="submit" disabled={guardando}>
-            {guardando ? "Creando..." : "Crear Tenant"}
+            {guardando ? "Creando..." : "Crear negocio"}
           </Button>
         </div>
       </div>
