@@ -68,7 +68,7 @@ export function TenantsCliente({
           <Link href="/admin/tenants/nuevo">
             <Button>
               <Plus className="size-4" />
-              Nuevo Tenant
+              Nuevo negocio
             </Button>
           </Link>
         </div>

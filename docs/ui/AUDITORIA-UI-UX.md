@@ -1394,11 +1394,23 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 > Misma regla de trabajo que en la Fase A: lo que aparece fuera del alcance definido se anota y se
 > sigue, no se corrige en el mismo lote.
 
-### [UI-045] Vocabulario técnico interno expuesto en la interfaz — insumo para el glosario
-- **Severidad:** Media
+### [UI-045] Vocabulario técnico interno expuesto en la interfaz — insumo para el glosario — **RESUELTO el 2026-07-22**
+- **Severidad:** Media → **Estado: cerrado**
 - **Categoría:** Copy
-- **Estado:** **anotado a propósito, sin corregir.** El renombrado se hace de una sola vez, con el
-  glosario (`docs/manual/glosario.md`) cerrado, en su propia tarea — no pantalla por pantalla.
+- **Estado original:** anotado a propósito, sin corregir — el renombrado se hizo de una sola vez, con
+  el glosario (`docs/manual/glosario.md`) cerrado, en su propia tarea.
+- **Resuelto:** aplicado el glosario completo en 4 commits, uno por superficie (`/app`, `/admin`,
+  `/portal`, mensajes de error). Los 3 términos que este hallazgo señalaba están cerrados:
+  **"tenant" → "negocio"** en las tres superficies (incluidas las dos que motivaron el hallazgo:
+  `/app/mi-negocio/plan`, que le hablaba al dueño de "el tenant" refiriéndose a su propio negocio, y
+  `/portal`, que decía "Mi Cartera de Tenants" a una institución externa); **"módulos veedor" → los
+  3 nombres llanos** de la sección 4 del glosario, propagando la redacción que el producto ya tenía
+  en `generar-cliente.tsx`; y **"Owner" → "Dueño"**, resuelto con `nombreRolVisible()`
+  (`src/lib/vocabulario.ts`) porque el nombre del rol vive en la base, no en el JSX. De paso se
+  borró la fuga de documentación interna ("(Módulo 1, sección 6.3)") y se aplicaron las decisiones
+  de `override → excepción` y `Nicho → Rubro`. **Ningún identificador de código se renombró.**
+  Detalle de lo que quedó fuera (el UUID del Registro de accesos, que necesita backend) en la
+  sección 10 del glosario.
 - **Alcance y evidencia** (verificado por grep sobre texto visible, no sobre identificadores):
   1. **"tenant"** — el caso ya confirmado, pero el hallazgo importante es que **no se queda en
      `/admin`**, que sería defendible por ser un panel interno de CEOM. Se filtra a dos superficies
@@ -1570,7 +1582,7 @@ pero sí calidad.
 
 | ID | Descripción |
 |---|---|
-| UI-029 / UI-037 / UI-039 / UI-040 / UI-045 | Copy: asimetrías funcionales, glosario de términos, anglicismos, frases engañosas, vocabulario técnico interno expuesto ("tenant", "módulos veedor", "Owner") |
+| UI-029 / UI-037 / UI-039 / UI-040 / ~~UI-045~~ | Copy: asimetrías funcionales, glosario de términos, anglicismos, frases engañosas. **UI-045 cerrado el 2026-07-22** (glosario aplicado a las 3 superficies + mensajes de error); de paso quedaron cerrados "Downgrade autogestionado" de UI-039 y la asimetría `variable_no_productivo` de UI-037 |
 | UI-038 | Corregir copy desactualizado de `/portal` (podría adelantarse antes si se prioriza cara a usuario externo) |
 | UI-034 / UI-036 | Accesibilidad: teclado en controles custom, agrupación semántica de selectores |
 | UI-033 | Paginación real (depende de backend, fuera de alcance — solo vigilancia) |
