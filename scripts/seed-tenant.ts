@@ -18,6 +18,7 @@
 
 import { eq } from "drizzle-orm";
 import { client as pgClient, db } from "@/db/client";
+import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
 import { crearTenant } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
 import { roles, usuarios } from "@/modules/identidad/schema";
@@ -83,8 +84,23 @@ async function main() {
     return;
   }
 
+  // DA-01: mismo paso que hace el alta real desde /admin/tenants/nuevo
+  // (app/admin/(shell)/tenants/actions.ts). Se repite acá a proposito: este
+  // script llama a crearTenant() directo, sin pasar por esa Server Action,
+  // y sin esto un tenant sembrado arrancaria distinto a uno real.
+  const siembra = await sembrarCategoriasGastoDefault(
+    { ...fila.usuario, rol: fila.rol },
+    resultado.data.tenantId
+  );
+  if (!siembra.ok) {
+    console.error(`No se pudieron sembrar las categorias de gasto default: ${siembra.error}`);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`Tenant creado: ${resultado.data.tenantId}`);
   console.log(`Sucursal principal: ${resultado.data.sucursalId}`);
+  console.log(`Categorias de gasto default: ${siembra.data.categoriaIds.length}`);
   console.log(
     `Owner invitado (${emailOwner}) — le llegó un correo de Supabase para fijar su contraseña.`
   );

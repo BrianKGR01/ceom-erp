@@ -11,6 +11,7 @@ import {
   crearTenantFormSchema,
 } from "@/modules/identidad/validation";
 import type { PeriodoFinanciero } from "@/modules/financiero/actions";
+import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
 import {
   consultarFinancieroTenant,
   consultarInventarioOperativoTenant,
@@ -91,7 +92,7 @@ export async function crearTenantAction(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
-  return crearTenant(usuario, {
+  const resultado = await crearTenant(usuario, {
     nombreNegocio: parsed.data.nombreNegocio,
     monedaPrincipal: parsed.data.monedaPrincipal,
     planId: parsed.data.planId,
@@ -99,6 +100,28 @@ export async function crearTenantAction(input: unknown) {
     ownerEmail: parsed.data.ownerEmail,
     ownerNombreCompleto: parsed.data.ownerNombreCompleto,
   });
+  if (!resultado.ok) return resultado;
+
+  // DA-01: el negocio nuevo arranca con su set de categorías de gasto en vez
+  // de con el selector vacío. La llamada vive acá, en la capa de
+  // composición, y no dentro de crearTenant(): Gastos ya importa Identidad
+  // (tienePermiso), así que invocarlo desde Identidad cerraría un ciclo
+  // entre dos módulos que deben seguir siendo cajas negras.
+  //
+  // No aborta el alta si falla. Para cuando se llega acá, el tenant, su
+  // sucursal y el usuario de Auth del Owner ya están creados y no hay forma
+  // de revertirlos; dejar el alta en error obligaría a rehacerla contra un
+  // email que Auth ya tiene invitado. El costo de que falle es volver al
+  // estado anterior a este fix (selector vacío + escape hatch para crear la
+  // categoría a mano), no un negocio roto.
+  const siembra = await sembrarCategoriasGastoDefault(usuario, resultado.data.tenantId);
+  if (!siembra.ok) {
+    console.error(
+      `[alta de tenant] No se pudieron sembrar las categorías de gasto default del tenant ${resultado.data.tenantId}: ${siembra.error}`
+    );
+  }
+
+  return resultado;
 }
 
 export async function cambiarPlanTenantAction(tenantId: string, nuevoPlanId: string) {
