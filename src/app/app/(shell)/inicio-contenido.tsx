@@ -82,8 +82,8 @@ export function InicioContenido({
         <div className="flex-1">
           <p className="text-sm font-medium text-navy">Cargá tu primer producto</p>
           <p className="text-xs text-text-muted">
-            Es lo único que necesitás para empezar a vender — el resto lo vas completando
-            después.
+            Es el primer paso. Para registrar una venta también vas a elegir un canal —
+            podés crearlo en el momento, desde la misma pantalla de venta.
           </p>
         </div>
         <Button render={<Link href="/app/productos/nuevo" />} nativeButton={false} size="sm">

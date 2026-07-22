@@ -13,6 +13,7 @@ import {
 } from "@/modules/productos/actions";
 import * as repo from "./repository";
 import type { estadoPagoVentaEnum, origenRegistroEnum, tipoAjusteVentaEnum } from "./schema";
+import { errorSignoAjuste } from "./validation";
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -584,6 +585,13 @@ export async function registrarAjusteVenta(
   if (!input.motivo.trim()) {
     return { ok: false, error: "El motivo del ajuste es obligatorio." };
   }
+  // El signo importa: el estado de resultados suma los ajustes, asi que un
+  // ajuste reductor cargado en positivo infla el resultado en vez de
+  // reducirlo. Se valida aca ademas de en el schema de la ruta porque esta
+  // funcion es la superficie publica del modulo — la llaman tests, seeds y
+  // cualquier otro modulo, no solo la Server Action.
+  const errorSigno = errorSignoAjuste(input.tipo, Number(input.montoAjuste));
+  if (errorSigno) return { ok: false, error: errorSigno };
   if (input.cantidadProductoAjustada !== undefined && !input.productoId) {
     return {
       ok: false,

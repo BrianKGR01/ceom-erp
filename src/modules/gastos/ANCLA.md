@@ -57,10 +57,22 @@
 - [x] Tests: `gastos.test.ts` (integración contra Supabase Cloud real, 8
       casos de la prueba de caja negra, incluyendo las dos integraciones
       cruzadas reales).
-- [ ] Pre-carga automática de `CategoriaGasto` al crear el tenant (sección
-      1.2) **fuera de esta tarea** — no hay onboarding UI todavía; se
-      expone `sembrarCategoriasGastoDefault(tenantId)` lista para
-      invocarse, mismo criterio que `CanalVenta` en Ventas.
+- [x] Pre-carga automática de `CategoriaGasto` al crear el tenant (sección
+      1.2) — **conectada el 2026-07-22** (DA-01 de `docs/deuda-aplazada.md`).
+      `sembrarCategoriasGastoDefault()` llevaba ~8 días expuesta con cero
+      llamadores; el motivo original del aplazamiento ("no hay onboarding UI
+      todavía") ya no era cierto. Se invoca desde **la capa de composición**,
+      no desde Identidad: `crearTenantAction`
+      (`src/app/admin/(shell)/tenants/actions.ts`, el alta real) y
+      `scripts/seed-tenant.ts`, que llama a `crearTenant()` directo sin pasar
+      por esa Server Action. **No se puso dentro de `crearTenant()`** porque
+      este módulo ya importa Identidad (`tienePermiso`) y hacerlo cerraría un
+      ciclo entre dos cajas negras. En el alta real la siembra **no aborta el
+      alta si falla** (el tenant y el usuario de Auth ya existen y no se
+      pueden revertir); en el script sí corta, porque ahí sí se puede
+      reintentar. La función sigue **sin dedupe** a propósito: se asume una
+      sola invocación por tenant, y hoy los dos llamadores son mutuamente
+      excluyentes.
 - [ ] Sin scheduler real para `GastoRecurrente` ni para la cuota periódica
       de un Pasivo — ambas funciones de auto-generación existen y funcionan
       de verdad si se invocan, pero nada las dispara periódicamente todavía

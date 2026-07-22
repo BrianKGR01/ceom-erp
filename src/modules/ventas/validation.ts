@@ -70,12 +70,61 @@ export const importarVentaHistoricaFilaSchema = z.object({
   costoUnitarioSnapshot: z.number().min(0),
 });
 
-export const ajusteVentaSchema = z.object({
-  tipo: z.enum(["correccion", "devolucion", "descuento_posterior", "anulacion_total"]),
-  montoAjuste: z.number(),
-  productoId: z.string().optional(),
-  cantidadProductoAjustada: z.number().positive().optional(),
-  motivo: z.string().trim().min(1, "El motivo es obligatorio."),
-  generaPagoNegativo: z.boolean().optional(),
-  metodoPagoId: z.string().optional(),
-});
+// Direccion del ajuste segun su tipo (Modulo_03 seccion 1.3). El estado de
+// resultados SUMA los ajustes (`ingresos - costos - gastos + ajustes`, ver
+// financiero/actions.ts), asi que un ajuste que reduce la venta tiene que
+// quedar guardado en negativo. Antes esto no se validaba en ningun lado y la
+// unica guia era un placeholder del input: una anulacion de 500 cargada como
+// "500" le sumaba 500 al resultado en vez de restarlos.
+//
+// Tres de los cuatro tipos solo pueden reducir, asi que su signo se deriva
+// del tipo y el usuario nunca lo elige. "correccion" es el unico
+// bidireccional a proposito: el doc del modulo lo define como "error de
+// tipeo" y dice explicitamente que el monto puede ser "positivo (corrige un
+// monto cobrado de menos)" — ahi la direccion se pide explicita.
+export const TIPOS_AJUSTE_REDUCTORES = [
+  "devolucion",
+  "descuento_posterior",
+  "anulacion_total",
+] as const;
+
+export type TipoAjusteVenta =
+  | "correccion"
+  | (typeof TIPOS_AJUSTE_REDUCTORES)[number];
+
+export function esTipoAjusteReductor(tipo: TipoAjusteVenta): boolean {
+  return (TIPOS_AJUSTE_REDUCTORES as readonly string[]).includes(tipo);
+}
+
+/** Regla de signo compartida por el schema de ruta y el guard del modulo,
+ * para que ambos digan exactamente lo mismo. Devuelve el error, o null si el
+ * monto es coherente con el tipo. */
+export function errorSignoAjuste(tipo: TipoAjusteVenta, montoAjuste: number): string | null {
+  if (!Number.isFinite(montoAjuste) || montoAjuste === 0) {
+    return "El monto del ajuste no puede ser cero.";
+  }
+  if (esTipoAjusteReductor(tipo) && montoAjuste > 0) {
+    return "Este tipo de ajuste solo puede reducir la venta: el monto tiene que ser negativo.";
+  }
+  return null;
+}
+
+export const ajusteVentaSchema = z
+  .object({
+    tipo: z.enum(["correccion", "devolucion", "descuento_posterior", "anulacion_total"]),
+    montoAjuste: z.number(),
+    productoId: z.string().optional(),
+    cantidadProductoAjustada: z.number().positive().optional(),
+    motivo: z.string().trim().min(1, "El motivo es obligatorio."),
+    generaPagoNegativo: z.boolean().optional(),
+    metodoPagoId: z.string().optional(),
+  })
+  .refine((d) => d.montoAjuste !== 0, {
+    path: ["montoAjuste"],
+    message: "El monto del ajuste no puede ser cero.",
+  })
+  .refine((d) => !esTipoAjusteReductor(d.tipo) || d.montoAjuste < 0, {
+    path: ["montoAjuste"],
+    message:
+      "Este tipo de ajuste solo puede reducir la venta: el monto tiene que ser negativo.",
+  });
