@@ -150,7 +150,7 @@ export async function obtenerMiPlanAction() {
   // la renderiza ya validó (UI-044). Los datos de plan/facturación son
   // exclusivos del Owner, mismo criterio que listarUsuarios/listarRoles.
   if (!usuario.esOwner) {
-    return { ok: false as const, error: "Solo el Owner puede ver el plan del negocio." };
+    return { ok: false as const, error: "Solo el dueño del negocio puede ver el plan del negocio." };
   }
   const tenantRes = await obtenerTenantPorId(usuario, usuario.tenantId);
   if (!tenantRes.ok) return tenantRes;

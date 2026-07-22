@@ -32,7 +32,7 @@ function requiereCeomAdmin(
   if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
     return {
       ok: false,
-      error: "Solo CEOM Admin puede gestionar el catálogo de categorías de gasto sugeridas.",
+      error: "Solo el equipo CEOM puede gestionar el catálogo de categorías de gasto sugeridas.",
     };
   }
   return null;
@@ -62,7 +62,7 @@ export async function crearCategoriaGasto(
   input: DatosCategoriaGasto
 ): Promise<Resultado<{ categoriaId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear categorías de gasto en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear categorías de gasto." };
   }
   const categoria = await repo.crearCategoriaGasto({
     tenantId,
@@ -79,7 +79,7 @@ export async function sembrarCategoriasGastoDefault(
   tenantId: string
 ): Promise<Resultado<{ categoriaIds: string[] }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear categorías de gasto en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear categorías de gasto." };
   }
   // Set fijo de 5 categorias (no crece con datos del tenant) — insercion en
   // paralelo, cada una independiente y el orden no importa.
@@ -123,7 +123,7 @@ export async function listarCategoriasGasto(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarCategoriasGastoPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver categorías de gasto en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver categorías de gasto." };
   }
   return { ok: true, data: await repo.listarCategoriasGastoPorTenant(tenantId) };
 }
@@ -177,7 +177,7 @@ export async function crearGastoManual(
   input: DatosGasto
 ): Promise<Resultado<{ gastoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear gastos." };
   }
   const gasto = await repo.crearGasto({
     tenantId,
@@ -266,7 +266,7 @@ export async function listarGastos(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarGastosPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos." };
   }
   return { ok: true, data: await repo.listarGastosPorTenant(tenantId) };
 }
@@ -340,7 +340,7 @@ export async function generarGastoCuotaPasivo(
   Resultado<{ gastoId: string; pagoPasivo: Awaited<ReturnType<typeof registrarPagoPasivo>> }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar gastos." };
   }
 
   const { gasto } = await repo.crearGastoConPagoTx({
@@ -379,7 +379,7 @@ export async function generarGastoComisionVenta(
   input: { ventaId: string; categoriaId: string }
 ): Promise<Resultado<{ gastoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para registrar gastos." };
   }
 
   const ficha = await fichaVenta(solicitante, input.ventaId);
@@ -429,7 +429,7 @@ export async function crearGastoRecurrente(
   input: DatosGastoRecurrente
 ): Promise<Resultado<{ gastoRecurrenteId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear gastos recurrentes en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear gastos recurrentes." };
   }
   const gastoRecurrente = await repo.crearGastoRecurrente({
     tenantId,
@@ -494,7 +494,7 @@ export async function listarGastosRecurrentes(
   tenantId: string
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarGastosRecurrentesPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos recurrentes en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos recurrentes." };
   }
   return { ok: true, data: await repo.listarGastosRecurrentesPorTenant(tenantId) };
 }
@@ -518,7 +518,7 @@ export async function generarGastoDesdeRecurrente(
   if (
     !(await tienePermiso(solicitante, gastoRecurrente.tenantId, "costos_gastos", "crear"))
   ) {
-    return { ok: false, error: "No tenés permiso para generar gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para generar gastos." };
   }
   if (!gastoRecurrente.activo) {
     return { ok: false, error: "Este gasto recurrente está desactivado." };
@@ -547,7 +547,7 @@ export async function consultarTotalCostosFijos(
   periodo: { desde: string; hasta: string }
 ): Promise<Resultado<{ totalCostosFijos: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos." };
   }
   const totalCostosFijos = await repo.sumarGastosPorTipoEnPeriodo(
     tenantId,
@@ -564,7 +564,7 @@ export async function consultarDistribucionPorCategoria(
   periodo: { desde: string; hasta: string }
 ): Promise<Resultado<Array<{ categoriaId: string; total: number }>>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos." };
   }
   const filas = await repo.sumarGastosPorCategoriaEnPeriodo(
     tenantId,
@@ -583,7 +583,7 @@ export async function consultarPagosGastoEnPeriodo(
   opts: { sucursalId?: string } = {}
 ): Promise<Resultado<{ totalPagado: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos." };
   }
   const totalPagado = await repo.sumarPagosGastoPeriodo(
     tenantId,
@@ -603,7 +603,7 @@ export async function consultarTotalGastosEnPeriodo(
   opts: { sucursalId?: string } = {}
 ): Promise<Resultado<{ totalGastos: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver gastos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver gastos." };
   }
   const totalGastos = await repo.sumarTotalGastosPeriodo(
     tenantId,

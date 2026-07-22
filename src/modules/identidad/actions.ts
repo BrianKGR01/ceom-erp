@@ -158,11 +158,11 @@ export async function obtenerTenantPorId(
 ): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerTenantPorId>>>>> {
   const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
   if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
-    return { ok: false, error: "No tenés permiso para ver este tenant." };
+    return { ok: false, error: "No tenés permiso para ver este negocio." };
   }
 
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
   return { ok: true, data: tenant };
 }
 
@@ -178,7 +178,7 @@ export async function obtenerEstadoAccesoTenant(
   tenantId: string
 ): Promise<Resultado<{ estadoAcceso: EstadoAcceso }>> {
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
   return { ok: true, data: { estadoAcceso: calcularEstadoAcceso(tenant) } };
 }
 
@@ -199,7 +199,7 @@ export async function obtenerTenantParaVeedor(tenantId: string): Promise<
   }>
 > {
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
   return {
     ok: true,
     data: {
@@ -231,7 +231,7 @@ export async function listarTenants(solicitante: UsuarioConRol): Promise<
 > {
   const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
   if (!esCeomAdmin) {
-    return { ok: false, error: "No tenés permiso para listar tenants." };
+    return { ok: false, error: "No tenés permiso para listar negocios." };
   }
   const tenants = await repo.listarTenants();
   return {
@@ -259,7 +259,7 @@ export async function listarSucursalesPorTenant(
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarSucursalesPorTenant>>>> {
   const esCeomAdmin = solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID;
   if (!esCeomAdmin && solicitante.tenantId !== tenantId) {
-    return { ok: false, error: "No tenés permiso para ver las sucursales de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver las sucursales." };
   }
   return { ok: true, data: await repo.listarSucursalesPorTenant(tenantId) };
 }
@@ -352,7 +352,7 @@ export async function crearTenant(
   Resultado<{ tenantId: string; sucursalId: string; usuarioOwnerId: string }>
 > {
   if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
-    return { ok: false, error: "Solo CEOM Admin puede dar de alta un tenant." };
+    return { ok: false, error: "Solo el equipo CEOM puede dar de alta un negocio." };
   }
 
   // Modulo_01 seccion 12: "Básico" es el plan de arranque por defecto. Si
@@ -422,11 +422,11 @@ export async function cambiarPlanTenant(
   nuevoPlanId: string
 ): Promise<Resultado<true>> {
   if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
-    return { ok: false, error: "Solo CEOM Admin puede cambiar el plan de un tenant." };
+    return { ok: false, error: "Solo el equipo CEOM puede cambiar el plan de un negocio." };
   }
 
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
 
   const plan = await obtenerPlanPorId(nuevoPlanId);
   if (!plan || !plan.activo) {
@@ -454,11 +454,11 @@ export async function cambiarEstadoSuscripcion(
   fechaProximoPago?: string
 ): Promise<Resultado<true>> {
   if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
-    return { ok: false, error: "Solo CEOM Admin puede cambiar el estado de suscripción de un tenant." };
+    return { ok: false, error: "Solo el equipo CEOM puede cambiar el estado de suscripción de un negocio." };
   }
 
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
 
   await repo.actualizarEstadoSuscripcionTenant(
     tenantId,
@@ -491,7 +491,7 @@ export async function actualizarTenant(
   }
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede configurar el negocio." };
+    return { ok: false, error: "Solo el dueño puede configurar el negocio." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -512,13 +512,13 @@ export async function asignarNicho(
   nicho: "nicho_1" | "nicho_4"
 ): Promise<Resultado<{ nichoAsignadoEn: string }>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede elegir el rubro del negocio." };
+    return { ok: false, error: "Solo el dueño puede elegir el rubro del negocio." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
 
   const tenant = await repo.obtenerTenantPorId(solicitante.tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
   if (tenant.nichoId) {
     return {
       ok: false,
@@ -540,7 +540,7 @@ export async function completarOnboarding(
   solicitante: UsuarioConRol
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede completar el onboarding." };
+    return { ok: false, error: "Solo el dueño del negocio puede completar el onboarding." };
   }
   await repo.completarOnboardingTenant(solicitante.tenantId);
   return { ok: true, data: true };
@@ -552,7 +552,7 @@ async function requireEscrituraHabilitada(
   tenantId: string
 ): Promise<Resultado<true>> {
   const tenant = await repo.obtenerTenantPorId(tenantId);
-  if (!tenant) return { ok: false, error: "Tenant no encontrado." };
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
   const estado = calcularEstadoAcceso(tenant);
   if (estado !== "activo") {
     return {
@@ -572,7 +572,7 @@ export async function listarUsuarios(
   solicitante: UsuarioConRol
 ): Promise<Resultado<UsuarioConRol[]>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede ver la lista de colaboradores." };
+    return { ok: false, error: "Solo el dueño del negocio puede ver la lista de colaboradores." };
   }
   return { ok: true, data: await repo.listarUsuariosPorTenant(solicitante.tenantId) };
 }
@@ -585,7 +585,7 @@ export async function invitarUsuario(
   // 8.1) no es representable con la matriz generica (identidad no es un
   // modulo del enum "modulo_permiso") — se acota a Owner, ver ANCLA.md.
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede invitar colaboradores." };
+    return { ok: false, error: "Solo el dueño del negocio puede invitar colaboradores." };
   }
 
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
@@ -597,7 +597,7 @@ export async function invitarUsuario(
   // camino le otorgaria el bypass cross-tenant de tienePermiso() por error.
   const rolInvitado = await repo.obtenerRolPorId(input.rolId);
   if (!rolInvitado || rolInvitado.esRolSistema || rolInvitado.tenantId !== solicitante.tenantId) {
-    return { ok: false, error: "Rol inválido." };
+    return { ok: false, error: "Ese rol no se puede asignar." };
   }
 
   const admin = crearClienteAdmin();
@@ -630,7 +630,7 @@ export async function cambiarRolUsuario(
   nuevoRolId: string
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede cambiar roles." };
+    return { ok: false, error: "Solo el dueño del negocio puede cambiar roles." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -648,7 +648,7 @@ export async function cambiarRolUsuario(
   // nunca a un colaborador de tenant).
   const nuevoRol = await repo.obtenerRolPorId(nuevoRolId);
   if (!nuevoRol || nuevoRol.esRolSistema || nuevoRol.tenantId !== solicitante.tenantId) {
-    return { ok: false, error: "Rol inválido." };
+    return { ok: false, error: "Ese rol no se puede asignar." };
   }
 
   await repo.actualizarRolUsuario(usuarioId, nuevoRolId, solicitante.id);
@@ -660,7 +660,7 @@ export async function suspenderUsuario(
   usuarioId: string
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede suspender usuarios." };
+    return { ok: false, error: "Solo el dueño del negocio puede suspender usuarios." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -676,7 +676,7 @@ export async function suspenderUsuario(
     if (owners <= 1) {
       return {
         ok: false,
-        error: "No se puede suspender al unico Owner del tenant.",
+        error: "No se puede suspender al único dueño del negocio.",
       };
     }
   }
@@ -690,7 +690,7 @@ export async function reactivarUsuario(
   usuarioId: string
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede reactivar usuarios." };
+    return { ok: false, error: "Solo el dueño del negocio puede reactivar usuarios." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -723,14 +723,14 @@ export async function transferirOwner(
   rolParaOwnerSaliente: string
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede transferir su condición." };
+    return { ok: false, error: "Solo el dueño del negocio puede transferir su condición." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
 
   const destino = await repo.obtenerUsuarioConRolPorId(nuevoOwnerUsuarioId);
   if (!destino || destino.tenantId !== solicitante.tenantId) {
-    return { ok: false, error: "El colaborador destino no pertenece a este tenant." };
+    return { ok: false, error: "El colaborador destino no pertenece a este negocio." };
   }
   if (!destino.activo) {
     return { ok: false, error: "El colaborador destino no está activo." };
@@ -738,7 +738,7 @@ export async function transferirOwner(
 
   const rolSaliente = await repo.obtenerRolPorId(rolParaOwnerSaliente);
   if (!rolSaliente || rolSaliente.esRolSistema || rolSaliente.tenantId !== solicitante.tenantId) {
-    return { ok: false, error: "El rol elegido para vos no es válido en este tenant." };
+    return { ok: false, error: "El rol elegido para vos no es válido." };
   }
 
   await repo.transferirOwner({
@@ -763,7 +763,7 @@ export async function listarRoles(
   solicitante: UsuarioConRol
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarRolesPorTenant>>>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede ver la lista de roles." };
+    return { ok: false, error: "Solo el dueño del negocio puede ver la lista de roles." };
   }
   return { ok: true, data: await repo.listarRolesPorTenant(solicitante.tenantId) };
 }
@@ -774,7 +774,7 @@ export async function listarPermisosPorRol(
   rolId: string
 ): Promise<Resultado<{ modulo: Modulo; accion: Accion; permitido: boolean }[]>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede ver los permisos de un rol." };
+    return { ok: false, error: "Solo el dueño del negocio puede ver los permisos de un rol." };
   }
   const rol = await repo.obtenerRolPorId(rolId);
   if (!rol || (rol.tenantId !== null && rol.tenantId !== solicitante.tenantId)) {
@@ -795,7 +795,7 @@ export async function crearRolPersonalizado(
   }
 ): Promise<Resultado<{ rolId: string }>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede crear roles." };
+    return { ok: false, error: "Solo el dueño del negocio puede crear roles." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -817,7 +817,7 @@ export async function actualizarPermisosRol(
   permisos: { modulo: Modulo; accion: Accion; permitido: boolean }[]
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede editar permisos." };
+    return { ok: false, error: "Solo el dueño del negocio puede editar permisos." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -836,7 +836,7 @@ export async function eliminarRol(
   rolId: string
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede eliminar roles." };
+    return { ok: false, error: "Solo el dueño del negocio puede eliminar roles." };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -883,7 +883,7 @@ export async function listarCapacidadesEspeciales(solicitante: UsuarioConRol): P
   }>
 > {
   if (!solicitante.esOwner) {
-    return { ok: false, error: "Solo el Owner puede ver las capacidades especiales." };
+    return { ok: false, error: "Solo el dueño del negocio puede ver las capacidades especiales." };
   }
 
   const [roles, usuariosTenant] = await Promise.all([
@@ -920,7 +920,7 @@ export async function otorgarCapacidadEspecialPorRol(
   if (!solicitante.esOwner) {
     return {
       ok: false,
-      error: "Solo el Owner puede otorgar capacidades especiales.",
+      error: "Solo el dueño del negocio puede otorgar capacidades especiales.",
     };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
@@ -950,7 +950,7 @@ export async function otorgarCapacidadEspecialPorUsuario(
   if (!solicitante.esOwner) {
     return {
       ok: false,
-      error: "Solo el Owner puede otorgar capacidades especiales.",
+      error: "Solo el dueño del negocio puede otorgar capacidades especiales.",
     };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);

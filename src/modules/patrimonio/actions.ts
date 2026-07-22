@@ -127,7 +127,7 @@ export async function listarActivos(
   opts: { excluirDadosDeBaja?: boolean } = {}
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarActivosPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver activos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver activos." };
   }
   return comoUsuario(solicitante.id, async (tx) => ({
     ok: true,
@@ -155,7 +155,7 @@ export async function listarPasivos(
   opts: { soloActivos?: boolean } = {}
 ): Promise<Resultado<Awaited<ReturnType<typeof repo.listarPasivosPorTenant>>>> {
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver pasivos en este tenant." };
+    return { ok: false, error: "No tenés permiso para ver pasivos." };
   }
   return comoUsuario(solicitante.id, async (tx) => ({
     ok: true,
@@ -213,7 +213,7 @@ export async function consultarValorPatrimonialTotal(
   tenantId: string
 ): Promise<Resultado<{ valorPatrimonialTotal: number }>> {
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
-    return { ok: false, error: "No tenés permiso para ver el patrimonio de este tenant." };
+    return { ok: false, error: "No tenés permiso para ver el patrimonio." };
   }
 
   return comoUsuario(solicitante.id, async (tx) => {
@@ -265,7 +265,7 @@ export async function crearActivo(
   input: DatosActivo
 ): Promise<Resultado<{ activoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear activos en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear activos." };
   }
 
   return comoUsuario(solicitante.id, async (tx) => {
@@ -381,7 +381,7 @@ export async function crearPasivo(
   input: DatosPasivo
 ): Promise<Resultado<{ pasivoId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "crear"))) {
-    return { ok: false, error: "No tenés permiso para crear pasivos en este tenant." };
+    return { ok: false, error: "No tenés permiso para crear pasivos." };
   }
 
   return comoUsuario(solicitante.id, async (tx) => {
