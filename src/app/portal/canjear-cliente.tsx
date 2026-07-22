@@ -193,7 +193,7 @@ export function CanjearCliente() {
               htmlFor="email-reingreso"
               className="text-[11px] font-normal tracking-wide text-text-muted uppercase"
             >
-              Email
+              Correo electrónico
             </Label>
             <Input
               id="email-reingreso"
@@ -268,7 +268,7 @@ export function CanjearCliente() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Correo electrónico</Label>
               <Input
                 id="email"
                 type="email"

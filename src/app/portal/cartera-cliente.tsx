@@ -89,13 +89,13 @@ export function CarteraCliente({
       <div className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="font-heading text-2xl font-semibold text-navy">Mi Cartera de Tenants</h1>
+            <h1 className="font-heading text-2xl font-semibold text-navy">Mi cartera de negocios</h1>
             <p className="mt-1 text-sm text-text-muted">Seguí el estado de los negocios en tu cartera.</p>
           </div>
           <div className="relative sm:w-64">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
             <Input
-              placeholder="Buscar tenant..."
+              placeholder="Buscar negocio..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="pl-8"
@@ -109,7 +109,7 @@ export function CarteraCliente({
               <Building2 className="size-5" />
             </span>
             <div>
-              <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total tenants</p>
+              <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total de negocios</p>
               <p className="font-heading text-xl font-semibold text-navy">{cartera.length}</p>
             </div>
           </div>
@@ -144,10 +144,10 @@ export function CarteraCliente({
 
         {cartera.length === 0 ? (
           <p className="mt-10 text-center text-sm text-text-muted">
-            Todavía no tenés ningún tenant en tu cartera.
+            Todavía no tenés ningún negocio en tu cartera.
           </p>
         ) : filtrados.length === 0 ? (
-          <p className="mt-10 text-center text-sm text-text-muted">Ningún tenant coincide con esta búsqueda.</p>
+          <p className="mt-10 text-center text-sm text-text-muted">Ningún negocio coincide con esta búsqueda.</p>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtrados.map((fila) => {
@@ -169,7 +169,7 @@ export function CarteraCliente({
                     </div>
                     <h2 className="mt-3 font-heading text-base font-semibold text-navy">{fila.nombreNegocio}</h2>
                     <p className="text-xs text-text-muted">
-                      Nicho: {fila.nichoId ? (NICHO_LABEL[fila.nichoId] ?? fila.nichoId) : "Modo Básico"}
+                      Rubro: {fila.nichoId ? (NICHO_LABEL[fila.nichoId] ?? "Sin especificar") : "Modo Básico"}
                     </p>
                     <div className="mt-4 flex items-center justify-between border-t border-gray-border pt-3 text-xs">
                       <span className="text-text-muted uppercase">Plan actual</span>
