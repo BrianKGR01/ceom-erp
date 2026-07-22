@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup } from "@/components/ui/toggle-group";
+import { formatMoneda } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MetodoPagoIcon } from "@/modules/ventas/components/metodo-pago-icon";
 import { registrarAjusteVentaAction, registrarPagoVentaAction } from "../actions";
@@ -139,19 +141,32 @@ export function FichaVentaCliente({
   // --- Ajuste de venta ---
   const [ajusteAbierto, setAjusteAbierto] = useState(false);
   const [ajusteTipo, setAjusteTipo] = useState<TipoAjuste>("correccion");
+  // El usuario carga siempre una MAGNITUD positiva; el signo lo deriva la
+  // pantalla a partir del tipo (H-30). Antes se pedía el número con signo y
+  // la única guía era un placeholder que desaparecía al escribir, así que una
+  // anulación de 500 cargada como "500" le sumaba 500 al estado de
+  // resultados en vez de restarlos.
   const [ajusteMonto, setAjusteMonto] = useState("");
+  // Solo aplica a "correccion", el único tipo bidireccional (Modulo_03 1.3:
+  // el monto puede ser positivo cuando se cobró de menos). Los otros tres
+  // tipos solo pueden reducir, y para ellos esto no se muestra ni se usa.
+  const [correccionSuma, setCorreccionSuma] = useState(false);
   const [ajusteProductoId, setAjusteProductoId] = useState<string>("ninguno");
   const [ajusteCantidad, setAjusteCantidad] = useState("");
   const [ajusteMotivo, setAjusteMotivo] = useState("");
   const [ajusteError, setAjusteError] = useState<string | null>(null);
   const [registrandoAjuste, setRegistrandoAjuste] = useState(false);
 
+  const ajusteSuma = ajusteTipo === "correccion" && correccionSuma;
+  const magnitudAjuste = Math.abs(Number(ajusteMonto) || 0);
+  const montoAjusteFirmado = ajusteSuma ? magnitudAjuste : -magnitudAjuste;
+
   async function confirmarAjuste() {
     setRegistrandoAjuste(true);
     setAjusteError(null);
     const resultado = await registrarAjusteVentaAction(ventaId, {
       tipo: ajusteTipo,
-      montoAjuste: Number(ajusteMonto),
+      montoAjuste: montoAjusteFirmado,
       productoId: ajusteProductoId !== "ninguno" ? ajusteProductoId : undefined,
       cantidadProductoAjustada:
         ajusteProductoId !== "ninguno" && ajusteCantidad ? Number(ajusteCantidad) : undefined,
@@ -167,13 +182,14 @@ export function FichaVentaCliente({
       {
         id: resultado.data.ajusteId,
         tipo: ajusteTipo,
-        montoAjuste: ajusteMonto,
+        montoAjuste: String(montoAjusteFirmado),
         motivo: ajusteMotivo,
         creadoEn: new Date().toISOString(),
       },
     ]);
     setAjusteAbierto(false);
     setAjusteMonto("");
+    setCorreccionSuma(false);
     setAjusteMotivo("");
     setAjusteProductoId("ninguno");
     setAjusteCantidad("");
@@ -421,15 +437,55 @@ export function FichaVentaCliente({
                 </SelectContent>
               </Select>
             </div>
+            {/* Solo "Corrección" puede ir en las dos direcciones (Modulo_03
+                1.3). Para los otros tres tipos no se pregunta nada: reducen
+                siempre, y el signo lo pone la pantalla. */}
+            {ajusteTipo === "correccion" && (
+              <div className="space-y-1.5">
+                <Label>¿Qué corrige?</Label>
+                <ToggleGroup
+                  value={correccionSuma ? "suma" : "resta"}
+                  onValueChange={(v) => setCorreccionSuma(v === "suma")}
+                  options={[
+                    { value: "resta", label: "Cobré de más" },
+                    { value: "suma", label: "Cobré de menos" },
+                  ]}
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
-              <Label>Monto del ajuste</Label>
+              <Label htmlFor="ajuste-monto">
+                {ajusteSuma ? "Monto a sumar a la venta" : "Monto a descontar de la venta"}
+              </Label>
               <Input
+                id="ajuste-monto"
                 type="number"
+                min="0"
                 step="0.01"
-                placeholder="Negativo si devolvés dinero"
+                inputMode="decimal"
+                placeholder="0.00"
                 value={ajusteMonto}
                 onChange={(e) => setAjusteMonto(e.target.value)}
               />
+              <p className="text-xs text-text-muted">
+                {magnitudAjuste > 0 ? (
+                  <>
+                    Se va a registrar como{" "}
+                    <span
+                      className={cn(
+                        "font-medium",
+                        ajusteSuma ? "text-success-text" : "text-error-text"
+                      )}
+                    >
+                      {ajusteSuma ? "+" : "−"}
+                      {formatMoneda(magnitudAjuste)}
+                    </span>{" "}
+                    {ajusteSuma ? "y va a aumentar" : "y va a reducir"} el resultado del período.
+                  </>
+                ) : (
+                  "Ingresá el monto en positivo — el signo lo aplica el sistema según el tipo de ajuste."
+                )}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>¿Devuelve stock? (opcional)</Label>
@@ -480,7 +536,7 @@ export function FichaVentaCliente({
             </Button>
             <Button
               onClick={confirmarAjuste}
-              disabled={registrandoAjuste || !ajusteMonto || !ajusteMotivo.trim()}
+              disabled={registrandoAjuste || magnitudAjuste <= 0 || !ajusteMotivo.trim()}
             >
               {registrandoAjuste ? "Guardando..." : "Confirmar ajuste"}
             </Button>
