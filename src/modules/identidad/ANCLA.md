@@ -74,14 +74,20 @@
       completo, gateado a `ceom_admin` directo (mismo bypass que ya usa
       `tienePermiso()` para ese rol). Consumido por `panel-admin-ceom` para
       calcular salud agregada de la plataforma.
-- [x] `solicitanteGateway()` (roadmap ítem #11) — arma un `UsuarioConRol`
-      SINTÉTICO (`rolId=ROL_CEOM_ADMIN_ID`, sin fila de usuario real
-      detrás) para que `monitoreo-institucional` pueda "prestar" el bypass
-      cross-tenant de `ceom_admin` y llamar a los `actions.ts` de solo
-      lectura de Financiero/Ventas/Operativo en nombre de una Institución
-      externa ya autorizada por `tieneConsentimiento()`. Decisión de diseño
-      confirmada explícitamente con el usuario antes de implementar — ver
-      "Decisiones" abajo.
+- [x] `solicitanteGateway()` (roadmap ítem #11, **rediseñada 2026-07-21 —
+      Etapa 4.a del backstop de RLS**, docs/security/PLAN-RLS-BACKSTOP.md
+      §13/§15) — ya NO arma un `UsuarioConRol` sintético: lee la fila real
+      sembrada en `0034_gateway_sistema_seed.sql`
+      (`GATEWAY_SISTEMA_USUARIO_ID`, tenant CEOM Ops, rol PROPIO
+      `ROL_GATEWAY_SISTEMA_ID` — nunca `ROL_CEOM_ADMIN_ID`). El acotamiento
+      a "solo lectura, solo tras `tieneConsentimiento()`" sigue siendo el
+      mismo — ahora reforzado en dos capas, no solo en comentario: la rama
+      de `tienePermiso()` para este id puntual deniega cualquier `accion`
+      distinta de `"ver"`, y a nivel de RLS este id solo tiene bypass
+      (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`, filtra por id
+      puntual, no por rol) donde se aplicó explícitamente
+      (`compras`/`pagos_compra` de Proveedores, hoy). Ver "Decisiones"
+      abajo para el porqué del rediseño.
 - [x] `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario`
       (auditoría de Fase 1) — gateadas a `esOwner` + `requireEscrituraHabilitada`,
       hacen upsert real sobre `permisos_especiales_por_rol`/`_por_usuario`.
@@ -335,13 +341,29 @@
   `solicitante` a la segunda "por consistencia" — perdería su único
   propósito.
 
-- **`solicitanteGateway()` es un objeto SINTÉTICO, no una fila de usuario
-  real** — no crear un usuario de sistema real en la base para "arreglar"
-  esto. Reutiliza el mismo bypass cross-tenant que `tienePermiso()` ya le
-  da a `ceom_admin` (líneas 83-88, no valida `tenantId` ni la existencia
-  real de la fila de usuario en esa rama) — por eso alcanza con un objeto
-  en memoria con `rolId=ROL_CEOM_ADMIN_ID` y el `rol` real (traído de
-  `repo.obtenerRolPorId`). **Uso exclusivo**: solo lo invoca
+- **Principio (2026-07-18, sigue vigente, no se revierte): el Gateway es un
+  lector acotado y revocable, nunca un admin** — nunca debe tener un bypass
+  equivalente al de `ceom_admin`, solo la capacidad de leer, exactamente en
+  los caminos que ya usa, después de que `tieneConsentimiento()` ya
+  autorizó. **El mecanismo original que implementaba este principio (un
+  objeto 100% en memoria, `id` sintético sin fila real) quedó obsoleto el
+  2026-07-21**, no el principio: la premisa bajo la que se eligió ("esto
+  nunca va a depender de que RLS real resuelva `current_tenant_id()`/
+  `auth.uid()`") dejó de ser cierta en cuanto Proveedores migró a
+  `comoUsuario()` — un objeto sin fila real no puede resolver eso de forma
+  consistente (diagnóstico completo: docs/security/PLAN-RLS-BACKSTOP.md
+  §9.6, §10.4, §13). La Etapa 4.a de ese plan reemplaza el objeto sintético
+  por una fila real sembrada, pero con un bypass de RLS **propio y de solo
+  lectura** (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`,
+  §13.2/§13.6 de ese plan) — distinto del de `ceom_admin`, nunca heredado
+  de él — más una rama dedicada en `tienePermiso()` que solo permite
+  `"ver"` para ese id puntual (antes era una convención en comentario;
+  ahora es una regla que el código hace cumplir, con test negativo
+  dedicado). La opción alternativa que se evaluó y se descartó — reusar
+  el bypass de `ceom_admin` tal cual, sin rol ni policy propios — sí
+  hubiera traicionado este principio (el Gateway heredaría automáticamente
+  cualquier bypass presente o futuro de `ceom_admin`, incluida escritura);
+  por eso se descartó. **Uso exclusivo**: solo lo invoca
   `monitoreo-institucional/actions.ts`, y solo para lecturas, solo después
   de que `tieneConsentimiento()` ya devolvió `true`. Nunca usar para
   escrituras (los campos de auditoría `creadoPor`/`modificadoPor` quedarían
@@ -502,4 +524,7 @@
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
 
-## Última actualización: 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+## Última actualización: 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
+rediseñada de objeto sintético a fila real y acotada (`GATEWAY_SISTEMA_USUARIO_ID`, rol propio,
+`tienePermiso()` con rama allowlist dedicada). Ver `docs/security/PLAN-RLS-BACKSTOP.md` §13/§15.
+Actualización previa el 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)

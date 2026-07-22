@@ -239,6 +239,27 @@
       "when": 1784672073053,
       "tag": "0033_ceom_admin_bypass_hoist_initplan",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784678101698,
+      "tag": "0034_gateway_sistema_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784678425542,
+      "tag": "0035_es_gateway_sistema_function",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784678996051,
+      "tag": "0036_gateway_sistema_bypass_proveedores",
+      "breakpoints": true
     }
   ]
 }

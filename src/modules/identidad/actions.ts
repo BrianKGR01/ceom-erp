@@ -6,6 +6,7 @@ import {
 import {
   CEOM_OPS_TENANT_ID,
   DURACION_ETAPA_SOLO_LECTURA_DIAS,
+  GATEWAY_SISTEMA_USUARIO_ID,
   ROL_CEOM_ADMIN_ID,
   ROL_OWNER_ID,
 } from "./constants";
@@ -80,6 +81,23 @@ export async function tienePermiso(
   modulo: Modulo,
   accion: Accion
 ): Promise<boolean> {
+  // Etapa 4.a del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+  // §13/§15.3, Opción A′) — REGLA DURA: esta rama es un ALLOWLIST contra un
+  // único valor permitido ("ver"), nunca un denylist contra valores
+  // prohibidos. Si `Accion` gana un miembro nuevo mañana, esta comparación
+  // sigue dando `false` para este id sin que nadie tenga que acordarse de
+  // tocar esta función — el default es denegar, por construcción, no por
+  // disciplina de quien agregue la acción nueva. NUNCA cambiar a
+  // `accion !== "crear" && accion !== "editar" && ...` ni ampliar esta
+  // rama a otro id — el id es un valor fijo (GATEWAY_SISTEMA_USUARIO_ID,
+  // la única fila sembrada en 0034_gateway_sistema_seed.sql), no un rol:
+  // reusar `rolId === ROL_CEOM_ADMIN_ID` acá haría que el Gateway heredara
+  // el bypass completo de un ceom_admin humano, exactamente la regresión
+  // de defensa en profundidad que esta etapa existe para evitar (§13.3).
+  if (solicitante.id === GATEWAY_SISTEMA_USUARIO_ID) {
+    return accion === "ver";
+  }
+
   if (solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID) {
     // Alcance cross-tenant (Modulo_01 seccion 6.5). El consentimiento
     // externo institucional (seccion 7.2) es el futuro Gateway de
@@ -247,42 +265,36 @@ export async function listarSucursalesPorTenant(
 }
 
 /**
- * Solicitante SINTETICO — solo para lecturas mediadas por el Gateway de
- * Consentimiento (Modulo 11, Monitoreo Institucional). Una Institucion
- * externa no es un UsuarioConRol; una vez que tieneConsentimiento() ya
- * confirmo el permiso puntual, el Gateway necesita "prestar" el mismo
- * bypass cross-tenant que ya tiene ceom_admin (ver tienePermiso() arriba,
- * que no valida nada de tenantId ni de la fila real de usuario en esa
- * rama) para poder llamar a los actions.ts de solo lectura de otros
- * modulos sin romper la caja negra. No hay una fila de usuario real
- * detras — objeto de un solo proposito, documentado.
+ * Identidad real y acotada del Gateway de Consentimiento (Etapa 4.a,
+ * docs/security/PLAN-RLS-BACKSTOP.md §13/§15 — Opción A′, reemplaza el
+ * objeto sintético que tenía esta función hasta el 2026-07-21). Fila real
+ * sembrada en `0034_gateway_sistema_seed.sql`, tenant CEOM Ops, rol PROPIO
+ * (`ROL_GATEWAY_SISTEMA_ID`, nunca `ROL_CEOM_ADMIN_ID`) — el motivo
+ * completo de por qué el objeto sintético dejó de alcanzar (rompía
+ * `comoUsuario()` en cuanto un módulo alcanzado por el Gateway migraba a
+ * RLS real) y por qué esta fila usa un rol distinto al de `ceom_admin`
+ * (evitar que el Gateway herede su bypass completo) está en
+ * `identidad/ANCLA.md` y en el plan citado arriba — no reconstruir esa
+ * decisión por inferencia.
  *
- * NUNCA usar para escrituras ni exponer a ningun input externo — solo el
- * propio codigo de monitoreo-institucional/actions.ts lo invoca, y solo
- * despues de que tieneConsentimiento() ya devolvio true.
+ * Sigue siendo solo para lecturas mediadas por el Gateway de Consentimiento
+ * (Módulo 11, Monitoreo Institucional): `tienePermiso()` (arriba) tiene una
+ * rama dedicada para este id puntual que deniega cualquier `accion`
+ * distinta de `"ver"`, y a nivel de RLS este id solo tiene bypass
+ * (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`) donde se aplicó
+ * explícitamente, nunca automático. NUNCA exponer a ningún input externo —
+ * solo el propio código de `monitoreo-institucional/actions.ts` lo invoca,
+ * y solo después de que `tieneConsentimiento()` ya devolvió `true`.
  */
 export async function solicitanteGateway(): Promise<UsuarioConRol> {
-  const rol = await repo.obtenerRolPorId(ROL_CEOM_ADMIN_ID);
-  if (!rol) {
-    throw new Error("Rol CEOM Admin no encontrado — seed de sistema faltante.");
+  const usuario = await repo.obtenerUsuarioConRolPorId(GATEWAY_SISTEMA_USUARIO_ID);
+  if (!usuario) {
+    throw new Error(
+      "Usuario de sistema del Gateway no encontrado — seed de sistema faltante " +
+        "(0034_gateway_sistema_seed.sql)."
+    );
   }
-  return {
-    id: "00000000-0000-0000-0000-000000000000",
-    tenantId: CEOM_OPS_TENANT_ID,
-    nombreCompleto: "Gateway de Consentimiento (sistema)",
-    email: "sistema@ceom.internal",
-    telefono: null,
-    rolId: ROL_CEOM_ADMIN_ID,
-    esOwner: false,
-    activo: true,
-    ultimoAccesoEn: null,
-    creadoPor: null,
-    creadoEn: new Date(),
-    modificadoPor: null,
-    modificadoEn: null,
-    eliminadoEn: null,
-    rol,
-  };
+  return usuario;
 }
 
 /**

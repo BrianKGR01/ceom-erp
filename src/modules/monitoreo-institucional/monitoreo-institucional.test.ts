@@ -15,11 +15,38 @@ import {
   instituciones,
   solicitudesSeguimiento,
 } from "@/modules/consentimiento/schema";
+import { crearGastoManual, crearCategoriaGasto } from "@/modules/gastos/actions";
+import { categoriasGasto, gastos } from "@/modules/gastos/schema";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import {
+  crearInsumo,
+  crearReceta,
+  actualizarComposicionReceta,
+  registrarEntradaCompraInsumo,
+  vincularProductoAReceta,
+  registrarProduccion,
+} from "@/modules/operativo/nichos/nicho-1/actions";
+import {
+  insumos,
+  movimientosInsumo,
+  producciones,
+  recetaInsumos,
+  recetas,
+  stockInsumo,
+  vinculacionesProductoReceta,
+} from "@/modules/operativo/nichos/nicho-1/schema";
+import { crearActivo } from "@/modules/patrimonio/actions";
+import { activos } from "@/modules/patrimonio/schema";
+import { crearProducto } from "@/modules/productos/actions";
+import { movimientosStock, productos, stock } from "@/modules/productos/schema";
+import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
+import { compras, pagosCompra } from "@/modules/proveedores/schema";
 import { crearPlan } from "@/modules/suscripcion/actions";
 import { planes } from "@/modules/suscripcion/schema";
+import { crearCanalVenta, registrarVenta } from "@/modules/ventas/actions";
+import { canalesVenta, detallesVenta, ventas } from "@/modules/ventas/schema";
 import {
   detalleFinanciero,
   detalleInventarioOperativo,
@@ -42,9 +69,29 @@ describe.skipIf(!hasCredenciales)(
     let admin: ReturnType<typeof crearClienteAdmin>;
     const sufijo = Date.now();
     let tenantId: string;
+    let sucursalId: string;
     let ownerId: string;
     let planId: string;
     let institucionId: string;
+
+    // Datos reales de negocio (§10.6/§13.11 del backstop de RLS): sin esto,
+    // los asserts de "caso 2"/"caso 3" solo podian verificar `typeof` o el
+    // booleano `autorizado`, indistinguibles de un RLS que filtra de mas o
+    // de un leak cross-tenant — mismo hallazgo ya corregido una vez en
+    // panel-admin-ceom.test.ts caso 3, acá aplicado a los 4 puntos que
+    // §10.6 dejó listados sin arreglar.
+    let productoVentaId: string;
+    let compraId: string;
+    let canalVentaId: string;
+    let ventaId: string;
+    let categoriaGastoId: string;
+    let gastoId: string;
+    let activoId: string;
+    let insumoId: string;
+    let recetaId: string;
+    let productoProduccionId: string;
+    let produccionId: string;
+    let mermaCostoEsperado: number;
 
     beforeAll(async () => {
       admin = crearClienteAdmin();
@@ -69,7 +116,7 @@ describe.skipIf(!hasCredenciales)(
       if (!plan.ok) throw new Error("setup fallo: crearPlan");
       planId = plan.data.planId;
 
-      const { tenant } = await identidadRepo.crearTenantConOwner({
+      const { tenant, sucursal } = await identidadRepo.crearTenantConOwner({
         tenant: {
           nombreNegocio: `Monitoreo Test ${sufijo}`,
           monedaPrincipal: "BOB",
@@ -84,6 +131,7 @@ describe.skipIf(!hasCredenciales)(
         creadoPor: null,
       });
       tenantId = tenant.id;
+      sucursalId = sucursal.id;
 
       const institucion = await crearInstitucion(
         { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
@@ -97,9 +145,175 @@ describe.skipIf(!hasCredenciales)(
         { institucionId, tenantId, fechaInicio: new Date().toISOString().slice(0, 10) }
       );
       if (!cartera.ok) throw new Error("setup fallo: agregarTenantACartera");
-    });
+
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      // --- Financiero (flujoCaja/estadoResultados/costoFijoTotal) + Ventas (tendenciaVentas) ---
+      // Compra + Pago de Compra reales (mismo patrón que panel-admin-ceom.test.ts
+      // caso 3): costoUnitario = 100/10 = 10.
+      const productoVenta = await crearProducto(owner!, tenantId, {
+        nombre: `Producto Monitoreo Test ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 20,
+      });
+      if (!productoVenta.ok) throw new Error("setup fallo: crearProducto");
+      productoVentaId = productoVenta.data.productoId;
+
+      const compra = await registrarCompra(owner!, tenantId, {
+        sucursalId,
+        tipo: "reventa",
+        productoId: productoVentaId,
+        cantidad: 10,
+        montoTotal: 100,
+        fechaCompra: "2025-06-01",
+      });
+      if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+      compraId = compra.data.compraId;
+      const pago = await registrarPagoCompra(owner!, compraId, {
+        monto: 100,
+        fechaPago: "2025-06-01",
+      });
+      if (!pago.ok) throw new Error("setup fallo: registrarPagoCompra");
+
+      // Venta real: ingresos = precioVenta(20) x cantidad(2) = 40; costos =
+      // costoUnitarioSnapshot(10) x 2 = 20. Sin pagoInicial a propósito —
+      // mantiene pagosVenta en 0 para que flujoCaja siga dando exactamente
+      // -100 (el mismo valor ya establecido en panel-admin-ceom.test.ts).
+      const canal = await crearCanalVenta(owner!, tenantId, {
+        nombre: "Feria",
+        porcentajeComisionDefault: 10,
+      });
+      if (!canal.ok) throw new Error("setup fallo: crearCanalVenta");
+      canalVentaId = canal.data.canalVentaId;
+
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2025-06-02",
+        lineas: [{ productoId: productoVentaId, cantidad: 2 }],
+      });
+      if (!venta.ok) throw new Error("setup fallo: registrarVenta");
+      ventaId = venta.data.ventaId;
+
+      // Gasto fijo real: costoFijoTotal = 15; estadoResultados = 40 - 20 - 15 + 0 = 5.
+      const categoriaGasto = await crearCategoriaGasto(owner!, tenantId, {
+        nombre: `Categoria Monitoreo Test ${sufijo}`,
+      });
+      if (!categoriaGasto.ok) throw new Error("setup fallo: crearCategoriaGasto");
+      categoriaGastoId = categoriaGasto.data.categoriaId;
+
+      const gasto = await crearGastoManual(owner!, tenantId, {
+        tipo: "fijo",
+        categoriaId: categoriaGastoId,
+        monto: 15,
+        fechaGasto: "2025-06-01",
+      });
+      if (!gasto.ok) throw new Error("setup fallo: crearGastoManual");
+      gastoId = gasto.data.gastoId;
+
+      // --- Operativo/Nicho-1 (detalleOperativo, detalleInventarioOperativo) ---
+      // Mismo escenario determinista que operativo-nicho1.test.ts: receta de
+      // 2L leche por lote de 3L rendimiento, 1 lote -> teórico 30 unidades,
+      // real 28 -> merma de 2 unidades, costo total insumos 2L x 5 = 10,
+      // costo/unidad = 10/28.
+      const activo = await crearActivo(owner!, tenantId, {
+        nombre: `Heladera Monitoreo Test ${sufijo}`,
+        tipo: "equipo_productivo",
+        capacidadProduccionCantidad: "160",
+        capacidadProduccionUnidad: "unidad",
+        capacidadAlmacenamientoCantidad: "200",
+        capacidadAlmacenamientoUnidad: "unidad",
+        disponibilidadHorariaSemanal: "40",
+        tiempoEstimadoPorCicloMinutos: "30",
+        valorCompra: 5000,
+        fechaAdquisicion: "2025-01-01",
+      });
+      if (!activo.ok) throw new Error("setup fallo: crearActivo");
+      activoId = activo.data.activoId;
+
+      const insumo = await crearInsumo(owner!, tenantId, {
+        nombre: `Leche Monitoreo Test ${sufijo}`,
+        unidadMedida: "litros",
+        vidaUtilDias: 5,
+      });
+      if (!insumo.ok) throw new Error("setup fallo: crearInsumo");
+      insumoId = insumo.data.insumoId;
+
+      const receta = await crearReceta(owner!, tenantId, {
+        nombre: `Base Gelato Monitoreo Test ${sufijo}`,
+        rendimientoPorLote: 3,
+        unidadRendimiento: "litros",
+      });
+      if (!receta.ok) throw new Error("setup fallo: crearReceta");
+      recetaId = receta.data.recetaId;
+
+      await actualizarComposicionReceta(owner!, recetaId, [
+        { insumoId, cantidadPorLote: 2 },
+      ]);
+      await registrarEntradaCompraInsumo(owner!, tenantId, {
+        insumoId,
+        sucursalId,
+        cantidad: 100,
+        costoCompra: 5,
+      });
+
+      const productoProduccion = await crearProducto(owner!, tenantId, {
+        nombre: `Gelato Monitoreo Test ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 25,
+      });
+      if (!productoProduccion.ok) throw new Error("setup fallo: crearProducto (produccion)");
+      productoProduccionId = productoProduccion.data.productoId;
+
+      await vincularProductoAReceta(owner!, tenantId, {
+        productoId: productoProduccionId,
+        recetaId,
+        cantidadBaseConsumidaPorUnidad: 0.1,
+      });
+
+      const produccion = await registrarProduccion(owner!, tenantId, {
+        productoId: productoProduccionId,
+        sucursalId,
+        activoId,
+        fechaProduccion: "2025-06-01",
+        cantidadLotesProducidos: 1,
+        cantidadRealObtenida: 28,
+      });
+      if (!produccion.ok) throw new Error("setup fallo: registrarProduccion");
+      produccionId = produccion.data.produccionId;
+      mermaCostoEsperado = produccion.data.mermaCosto;
+    }, 60000);
 
     afterAll(async () => {
+      // Orden por FK, mismo criterio que panel-admin-ceom.test.ts y
+      // operativo-nicho1.test.ts.
+      await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
+      await db
+        .delete(vinculacionesProductoReceta)
+        .where(eq(vinculacionesProductoReceta.recetaId, recetaId));
+      await db.delete(recetaInsumos).where(eq(recetaInsumos.recetaId, recetaId));
+      await db.delete(recetas).where(eq(recetas.tenantId, tenantId));
+      await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
+      await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
+      await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
+      await db.delete(activos).where(eq(activos.tenantId, tenantId));
+
+      await db.delete(gastos).where(eq(gastos.id, gastoId));
+      await db.delete(categoriasGasto).where(eq(categoriasGasto.id, categoriaGastoId));
+
+      await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
+      await db.delete(ventas).where(eq(ventas.id, ventaId));
+      await db.delete(canalesVenta).where(eq(canalesVenta.id, canalVentaId));
+
+      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoVentaId));
+      await db.delete(stock).where(eq(stock.productoId, productoVentaId));
+      await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoProduccionId));
+      await db.delete(stock).where(eq(stock.productoId, productoProduccionId));
+      await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
+      await db.delete(compras).where(eq(compras.id, compraId));
+      await db.delete(productos).where(eq(productos.id, productoVentaId));
+      await db.delete(productos).where(eq(productos.id, productoProduccionId));
+
       await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
       await db
         .delete(solicitudesSeguimiento)
@@ -112,7 +326,7 @@ describe.skipIf(!hasCredenciales)(
       await db.delete(tenants).where(eq(tenants.id, tenantId));
       await db.delete(planes).where(eq(planes.id, planId));
       await admin.auth.admin.deleteUser(ownerId);
-    });
+    }, 30000);
 
     it("caso 1: tenant en cartera sin ningun modulo aprobado — visible, pero nada autorizado", async () => {
       const estado = await estadoTenant(institucionId, tenantId);
@@ -153,12 +367,22 @@ describe.skipIf(!hasCredenciales)(
       if (!financiero.ok) return;
       expect(financiero.data.autorizado).toBe(true);
       if (!financiero.data.autorizado) return;
-      expect(typeof financiero.data.detalle.flujoCaja).toBe("number");
+      // Valores reales, no `typeof` (§10.6/§13.11 del backstop de RLS —
+      // exactamente el hallazgo que este assert dejaba pasar en verde):
+      // flujoCaja = pagosVenta(0) - pagosCompra(100) - pagosGasto(0) = -100;
+      // estadoResultados = ingresos(40) - costos(20) - gastos(15) + ajustesVenta(0) = 5;
+      // costoFijoTotal = 15 (el único gasto sembrado es tipo "fijo").
+      expect(financiero.data.detalle.flujoCaja).toBe(-100);
+      expect(financiero.data.detalle.estadoResultados).toBe(5);
+      expect(financiero.data.detalle.costoFijoTotal).toBe(15);
 
       const tendencia = await tendenciaVentas(institucionId, tenantId, periodo);
       expect(tendencia.ok).toBe(true);
       if (!tendencia.ok) return;
       expect(tendencia.data.autorizado).toBe(true);
+      if (!tendencia.data.autorizado) return;
+      // ingresos = precioVenta(20) x cantidad(2) = 40.
+      expect(tendencia.data.detalle.ingresos).toBe(40);
 
       const operativo = await detalleOperativo(institucionId, tenantId, periodo);
       expect(operativo.ok).toBe(true);
@@ -199,11 +423,31 @@ describe.skipIf(!hasCredenciales)(
       expect(operativo.ok).toBe(true);
       if (!operativo.ok) return;
       expect(operativo.data.autorizado).toBe(true);
+      if (!operativo.data.autorizado) return;
+      // Valores reales, no solo el booleano `autorizado` (§10.6/§13.11): la
+      // producción sembrada tiene que aparecer, con su cantidad real
+      // obtenida, y el costo de merma tiene que coincidir con el que
+      // registrarProduccion() ya devolvió (misma fuente de verdad).
+      expect(operativo.data.detalle.producciones).toHaveLength(1);
+      expect(operativo.data.detalle.producciones[0]?.id).toBe(produccionId);
+      expect(Number(operativo.data.detalle.producciones[0]?.cantidadRealObtenida)).toBe(28);
+      // producciones.merma_costo es numeric(12,4) -- el valor persistido (y
+      // el que consultarMermaPeriodo suma) queda redondeado a 4 decimales,
+      // a diferencia del float sin redondear que devuelve la propia acción
+      // de registrarProduccion() -- comparar con esa misma precisión.
+      expect(operativo.data.detalle.mermaCostoTotal).toBeCloseTo(mermaCostoEsperado, 4);
+      expect(operativo.data.detalle.mermaCostoTotal).toBeGreaterThan(0);
 
       const inventario = await detalleInventarioOperativo(institucionId, tenantId);
       expect(inventario.ok).toBe(true);
       if (!inventario.ok) return;
       expect(inventario.data.autorizado).toBe(true);
+      if (!inventario.data.autorizado) return;
+      const filaInsumo = inventario.data.detalle.insumos.find((i) => i.id === insumoId);
+      expect(filaInsumo).toBeDefined();
+      expect(filaInsumo?.nombre).toBe(`Leche Monitoreo Test ${sufijo}`);
+      // costoUnitarioVigente se fija con registrarEntradaCompraInsumo (costoCompra: 5).
+      expect(Number(filaInsumo?.costoUnitarioVigente)).toBe(5);
 
       const financiero = await detalleFinanciero(institucionId, tenantId, periodo);
       expect(financiero.ok).toBe(true);

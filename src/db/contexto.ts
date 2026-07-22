@@ -1,4 +1,5 @@
 import { db as dbInterno } from "./client";
+import { GATEWAY_SISTEMA_USUARIO_ID } from "@/modules/identidad/constants";
 
 // Backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md, Etapa 0). Este es el
 // UNICO archivo del repo que debe importar `db`/`client` de "./client" —
@@ -176,6 +177,29 @@ export async function comoUsuario<T>(usuarioId: string, fn: (tx: Tx) => Promise<
 export async function comoCeomAdmin<T>(usuarioId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return dbInterno.transaction(async (tx) => {
     await fijarContextoYExigirTenant(tx, usuarioId);
+    return fn(tx);
+  });
+}
+
+/**
+ * Caso 2b (Etapa 4.a, docs/security/PLAN-RLS-BACKSTOP.md §13/§15): Gateway
+ * de Consentimiento. Mecánicamente idéntica a `comoCeomAdmin`/`comoUsuario`
+ * (la fila sembrada en `0034_gateway_sistema_seed.sql` pertenece a un tenant
+ * real — CEOM Ops — así que `current_tenant_id()` resuelve igual, Caso 2
+ * encaja sin cambios de mecanismo). Símbolo propio, no alias, por el mismo
+ * motivo que `comoCeomAdmin`: que el test de allowlist distinga sus
+ * call-sites.
+ *
+ * La diferencia real NO está acá — está en qué policy de bypass ve del otro
+ * lado (`es_gateway_sistema()`, propia y de solo lectura, nunca
+ * `es_ceom_admin()`) y en `tienePermiso()`, que restringe este id puntual a
+ * `accion === "ver"`. Este wrapper por sí solo no impone esa restricción —
+ * confiar en `tienePermiso()`/las policies, no en este nombre, para la
+ * defensa real.
+ */
+export async function comoGatewaySistema<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return dbInterno.transaction(async (tx) => {
+    await fijarContextoYExigirTenant(tx, GATEWAY_SISTEMA_USUARIO_ID);
     return fn(tx);
   });
 }

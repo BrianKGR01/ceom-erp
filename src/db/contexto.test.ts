@@ -47,17 +47,19 @@ const ALLOWLIST_COMO_SISTEMA_PREFIJOS = ["scripts/"];
  * está permitida.
  *
  * - `src/modules/proveedores/actions.ts`: SOLO por el fallback de
- *   `consultarPagosCompraEnPeriodo()` — es la única función de Proveedores
- *   alcanzada por el camino Gateway (vía financiero.flujoCaja() ←
- *   Monitoreo Institucional → `solicitanteGateway()`, un solicitante
- *   sintético sin fila real en `usuarios`/`auth.users`). Desde la Etapa 3
- *   (`es_ceom_admin()` + policy de bypass, docs/security/
- *   PLAN-RLS-BACKSTOP.md §10.3/§10.8) el camino `ceom_admin` real (Panel
- *   Admin CEOM) ya pasa por `comoUsuario()` sin excepción — el `db` crudo
- *   solo se usa como fallback cuando `comoUsuario()` lanza
- *   `ContextoRlsNoResueltoError`. Se cierra del todo cuando la Etapa 4
- *   rediseñe el solicitante sintético del Gateway (§10.4) — no expandir a
- *   otras funciones de este archivo sin la misma revisión.
+ *   `consultarPagosCompraEnPeriodo()`. Desde la Etapa 3 (`es_ceom_admin()`
+ *   + policy de bypass) el camino `ceom_admin` real (Panel Admin CEOM) ya
+ *   pasa por `comoUsuario()` sin excepción. Desde la Etapa 4.a (docs/
+ *   security/PLAN-RLS-BACKSTOP.md §13/§15.3, `solicitanteGateway()` con
+ *   fila real + `gatewaySistemaBypassPolicy()` en `compras`/`pagos_compra`)
+ *   el camino Gateway TAMBIÉN pasa por el `try` (`comoUsuario()`) sin
+ *   necesitar el fallback — `current_tenant_id()` ya resuelve para esa
+ *   fila real. El `catch`/`db` crudo queda como defensa en profundidad para
+ *   cualquier OTRO solicitante que no resuelva contexto (hoy, ninguno
+ *   conocido) — no como el camino esperado del Gateway. No remover el
+ *   import ni la excepción sin confirmar que de verdad no queda ningún
+ *   caller que dependa de ella (ver contexto.test.ts historial); no
+ *   expandir a otras funciones de este archivo sin la misma revisión.
  */
 const ALLOWLIST_IMPORTA_DB_CRUDO: string[] = ["src/modules/proveedores/actions.ts"];
 
@@ -68,6 +70,7 @@ const ALLOWLIST_IMPORTA_DB_CRUDO: string[] = ["src/modules/proveedores/actions.t
 const FUNCIONES_DE_CONTEXTO = new Set([
   "comoUsuario",
   "comoCeomAdmin",
+  "comoGatewaySistema",
   "comoInstitucion",
   "comoSistema",
 ]);

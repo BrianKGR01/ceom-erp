@@ -196,6 +196,52 @@ Convención para cualquier script nuevo en esta carpeta:
 
 ---
 
+## 7.2. Migraciones que tocan `auth`/`storage`: verificar contra un contenedor limpio, no solo contra el entorno de desarrollo compartido
+
+**Regla dura, no opcional:** toda migración que inserte/actualice datos en los schemas `auth` o
+`storage` (no solo que llame a `auth.uid()` — que *escriba* en `auth.users`/`storage.objects`) tiene
+que probarse contra un Postgres recién levantado (`docker run postgres:16` + `scripts/ci/apply-stub.mjs`
++ `drizzle-kit migrate`, exactamente el orden de `ci.yml`) **antes** de darla por buena — no alcanza con
+que pase contra el proyecto de Supabase Cloud de desarrollo compartido, porque ese proyecto ya tiene el
+schema real completo de Supabase Auth (33 columnas en `auth.users`), mientras que
+`scripts/ci/stub-supabase-schemas.sql` mantiene una aproximación deliberadamente mínima que solo crece
+cuando una migración nueva la necesita.
+
+**Incidente real** (Etapa 4.a del backstop de RLS, PR #14, 2026-07-22): la migración
+`0034_gateway_sistema_seed.sql` insertaba en `auth.users` con columnas (`aud`, `role`,
+`encrypted_password`, `banned_until`, etc.) que sí existen en el proyecto Cloud real pero que el stub
+de CI no tenía (`auth.users` ahí solo era `id uuid primary key` — nada más lo había necesitado hasta esa
+migración). `pnpm test` completo pasó en local (205/205) porque corrió contra el proyecto Cloud
+compartido, que ya tenía el schema completo — **la migración nunca se probó contra un Postgres vacío
+antes de abrir el PR**, y CI (que sí arranca de cero) reventó con
+`column "aud" of relation "users" does not exist`, un error que solo aparece en los logs crudos del
+contenedor (`docker logs`/el step "Stop containers" de Actions), no en la salida de `drizzle-kit`
+mismo — buscar ahí primero, no conformarse con "Process completed with exit code 1".
+
+**Cómo reproducir en limpio, paso a paso** (lo que faltó hacer antes de este incidente):
+```bash
+docker run -d --name repro -e POSTGRES_PASSWORD=postgres -p 15432:5432 postgres:16
+mv .env.local .env.local.bak   # CRÍTICO: drizzle.config.ts carga .env.local si existe y pisa
+                                 # DATABASE_URL/DIRECT_URL con el proyecto Cloud real sin avisar
+DATABASE_URL="postgresql://postgres:postgres@localhost:15432/postgres" \
+DIRECT_URL="postgresql://postgres:postgres@localhost:15432/postgres" \
+  node scripts/ci/apply-stub.mjs
+DATABASE_URL="postgresql://postgres:postgres@localhost:15432/postgres" \
+DIRECT_URL="postgresql://postgres:postgres@localhost:15432/postgres" \
+  pnpm exec drizzle-kit migrate
+mv .env.local.bak .env.local
+docker rm -f repro
+```
+Si algo falla, `docker logs repro | grep -i error` — no confiar en la salida de `drizzle-kit`, que a
+veces no propaga el mensaje real de Postgres.
+
+**Arreglo, no parche puntual:** cuando el stub le falte algo a una migración nueva, extender
+`scripts/ci/stub-supabase-schemas.sql` con las columnas reales verificadas contra el proyecto Cloud
+(`information_schema.columns`), no simplificar la migración para esquivar el stub — el stub existe para
+aproximar la realidad, la migración está escrita para la realidad.
+
+---
+
 ## 8. Integración continua (GitHub Actions)
 
 ```yaml

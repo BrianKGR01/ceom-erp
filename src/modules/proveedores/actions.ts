@@ -1,10 +1,13 @@
 import { comoUsuario, ContextoRlsNoResueltoError } from "@/db/contexto";
 // Excepcion deliberada y acotada -- SOLO para el fallback de
 // consultarPagosCompraEnPeriodo cuando comoUsuario() no puede resolver
-// contexto (hoy, el solicitante sintetico del Gateway), ver el comentario
-// junto a esa funcion y contexto.test.ts (ALLOWLIST_IMPORTA_DB_CRUDO).
-// Ningun otro uso de "db" es valido en este archivo -- todo lo demas pasa
-// por comoUsuario().
+// contexto. Desde la Etapa 4.a (docs/security/PLAN-RLS-BACKSTOP.md
+// §13/§15.3) el solicitante del Gateway ya tiene fila real, asi que este
+// fallback ya no dispara en la practica para ese camino -- queda como
+// defensa en profundidad para cualquier OTRO solicitante que no resuelva
+// contexto, ver el comentario junto a esa funcion y contexto.test.ts
+// (ALLOWLIST_IMPORTA_DB_CRUDO). Ningun otro uso de "db" es valido en este
+// archivo -- todo lo demas pasa por comoUsuario().
 import { db } from "@/db/client";
 import { registrarEntradaCompraInsumo } from "@/modules/operativo/nichos/nicho-1/actions";
 import { tienePermiso } from "@/modules/identidad/actions";
@@ -459,28 +462,29 @@ export async function registrarCompraDeAjuste(
  * Es la única función de Proveedores alcanzada por el camino Gateway/Panel
  * Admin CEOM, vía financiero.flujoCaja() (docs/security/
  * PLAN-RLS-BACKSTOP.md §9.6/§10.4/§10.7). Etapa 3 (`es_ceom_admin()` +
- * policy de bypass en las 4 tablas de Proveedores) ya resolvió la MITAD del
- * problema: un `ceom_admin` real (Panel Admin CEOM) ahora pasa por
+ * policy de bypass en las 4 tablas de Proveedores) resolvió la mitad del
+ * problema: un `ceom_admin` real (Panel Admin CEOM) pasa por
  * `comoUsuario()` como cualquier otra función del módulo — `RLS` lo deja
  * ver el `tenantId` que quiere inspeccionar gracias al bypass, sin
  * excepción de código.
  *
- * La otra mitad sigue sin arreglo — Monitoreo Institucional llama con
- * `solicitanteGateway()`, un `UsuarioConRol` sintético (id = UUID de ceros)
- * que nunca existe como fila real en `usuarios`/`auth.users`. Ninguna
- * policy de RLS puede autorizar un `auth.uid()` que no existe (§10.4) — es
- * una decisión de la Etapa 4 (sembrar un usuario de sistema real para el
- * Gateway, opción recomendada pero no implementada), no de esta. Mientras
- * tanto, el fallback de abajo cubre específicamente ese caso: intenta
- * `comoUsuario()` primero (camino real, funciona para cualquier solicitante
- * con una fila real — tenant propio o ceom_admin), y solo si el contexto de
- * RLS no pudo resolverse (`ContextoRlsNoResueltoError`, hoy exclusivamente
- * el solicitante sintético del Gateway) cae al camino viejo. Un
- * `ContextoRlsNoResueltoError` real para un caller que NO sea el Gateway
- * significaría un bug genuino en otro lado (ej. un usuario borrado) que
- * este fallback esconde en vez de propagar — riesgo aceptado y documentado,
- * no nuevo: ya existía antes de la Etapa 3, ahora es más angosto (solo el
- * Gateway lo dispara en la práctica, no cualquier ceom_admin). No expandir
+ * **La otra mitad se cerró en la Etapa 4.a** (docs/security/
+ * PLAN-RLS-BACKSTOP.md §13/§15.3, Opción A′): `solicitanteGateway()` ya no
+ * es un objeto sintético — es una fila real sembrada
+ * (`0034_gateway_sistema_seed.sql`), y `compras`/`pagos_compra` tienen
+ * `gatewaySistemaBypassPolicy()` (solo lectura, filtra por id puntual, no
+ * por rol — nunca `es_ceom_admin()`, ver §13.3 sobre por qué reusar ese
+ * bypass hubiera sido una regresión). El camino Gateway ahora también
+ * entra por el `try` (`comoUsuario()`) y sale con el dato real — ya no
+ * dispara `ContextoRlsNoResueltoError`.
+ *
+ * **El fallback de abajo queda de todas formas, como defensa en
+ * profundidad, no como el camino esperado de nadie conocido hoy.** Un
+ * `ContextoRlsNoResueltoError` para cualquier solicitante sin fila real en
+ * `usuarios`/`auth.users` (hoy, ninguno identificado) seguiría cayendo acá
+ * en vez de propagar — riesgo aceptado y documentado, no nuevo. No quitar
+ * este fallback solo porque "ya no lo dispara nadie" sin antes confirmar
+ * que ningún otro caller pueda llegar con un id no resuelto; no expandir
  * este patrón a otras funciones sin la misma revisión.
  */
 export async function consultarPagosCompraEnPeriodo(

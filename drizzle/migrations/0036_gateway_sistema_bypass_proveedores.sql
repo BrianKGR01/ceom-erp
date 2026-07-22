@@ -1,0 +1,2 @@
+CREATE POLICY "compras_gateway_sistema_bypass" ON "compras" AS PERMISSIVE FOR SELECT TO "authenticated" USING ((select es_gateway_sistema()));--> statement-breakpoint
+CREATE POLICY "pagos_compra_gateway_sistema_bypass" ON "pagos_compra" AS PERMISSIVE FOR SELECT TO "authenticated" USING ((select es_gateway_sistema()));

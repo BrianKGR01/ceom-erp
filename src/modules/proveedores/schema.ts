@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
-import { ceomAdminBypassPolicy, crudPolicy } from "../../db/rls";
+import { ceomAdminBypassPolicy, crudPolicy, gatewaySistemaBypassPolicy } from "../../db/rls";
 // Referenciar tenants/sucursales de Identidad es el patron esperado (todo
 // modulo de negocio le pertenece a un tenant) — no es la excepcion de caja
 // negra documentada para plan_id.
@@ -126,6 +126,15 @@ export const compras = pgTable(
     ),
     ...crudPolicy("compras", sql`${table.tenantId} = (select current_tenant_id())`),
     ceomAdminBypassPolicy("compras"),
+    // Etapa 4.a del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+    // §13.11/§15.3): Financiero.flujoCaja() enruta acá vía
+    // consultarPagosCompraEnPeriodo() — el único camino real hoy alcanzado
+    // por el Gateway de Consentimiento sobre una tabla ya migrada a
+    // comoUsuario(). Tiene que aterrizar en el MISMO commit que la
+    // identidad real de solicitanteGateway() (4.a.3) — separarlas reabre
+    // la fuga silenciosa documentada en §13.11 (coalesce(sum(...),0)
+    // enmascara "RLS filtró todo" como "el tenant no tuvo pagos").
+    gatewaySistemaBypassPolicy("compras"),
   ]
 ).enableRLS();
 
@@ -147,6 +156,10 @@ export const pagosCompra = pgTable(
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
     ceomAdminBypassPolicy("pagos_compra"),
+    // Ver comentario junto a gatewaySistemaBypassPolicy("compras") arriba —
+    // sumarPagosCompraPeriodo() hace JOIN contra esta tabla, necesita el
+    // bypass acá también.
+    gatewaySistemaBypassPolicy("pagos_compra"),
   ]
 ).enableRLS();
 
