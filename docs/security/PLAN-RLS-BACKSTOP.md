@@ -2342,3 +2342,60 @@ allowlist de call-sites se actualiza en 4.a.3, junto con el import real).
 `pnpm typecheck` (0 errores), `src/db/contexto.test.ts` (4/4 verde con el símbolo nuevo agregado),
 `pnpm lint` (0 errores, mismos 13 warnings preexistentes). Nada usa todavía esta función ni esta
 policy — `solicitanteGateway()` sigue devolviendo el objeto sintético.
+
+### 15.3 4.a.3 — Cambio atómico: identidad real + `tienePermiso()` angosto + policy de Proveedores
+
+Los tres van en el mismo commit, tal como exigió §13.11 — separar la identidad real de la policy de
+`compras`/`pagos_compra` reabre la fuga silenciosa documentada ahí (`coalesce(sum(...),0)` enmascara
+"RLS filtró todo" como "el tenant no tuvo pagos").
+
+**`identidad/actions.ts`:**
+- `solicitanteGateway()` ya no fabrica un objeto en memoria — lee
+  `repo.obtenerUsuarioConRolPorId(GATEWAY_SISTEMA_USUARIO_ID)` y falla ruidosamente si no existe.
+- `tienePermiso()` — nueva rama, **antes** de la de `ceom_admin`, evaluada por `solicitante.id`
+  (no por rol): `if (solicitante.id === GATEWAY_SISTEMA_USUARIO_ID) return accion === "ver";`. Es un
+  **allowlist** contra un único valor permitido, no un denylist — si el enum `Accion` gana un miembro
+  nuevo mañana, esta comparación sigue dando `false` para este id sin que nadie tenga que acordarse de
+  tocar la función. Cumple los 4 requisitos pedidos explícitamente: (1) id en una única constante
+  (`GATEWAY_SISTEMA_USUARIO_ID`, `identidad/constants.ts`); (2) allowlist estricta, nunca denylist; (3)
+  test negativo dedicado (ver abajo); (4) deny-by-default para acciones nuevas, por construcción de la
+  comparación.
+
+**`proveedores/schema.ts`:** `gatewaySistemaBypassPolicy("compras")` y `gatewaySistemaBypassPolicy("pagos_compra")`
+agregadas junto a `ceomAdminBypassPolicy()` — migración `drizzle/migrations/0036_gateway_sistema_bypass_proveedores.sql`
+(generada por `drizzle-kit generate`, no a mano): `CREATE POLICY ... FOR SELECT ... USING ((select es_gateway_sistema()))`,
+confirmando que nace hoisted desde el día uno (§12), sin tener que corregirlo después.
+
+**Ningún otro archivo cambió de comportamiento.** `monitoreo-institucional/actions.ts` no se tocó —
+sigue llamando a `solicitanteGateway()` exactamente igual; el cambio de identidad es transparente para
+ese módulo. `consultarPagosCompraEnPeriodo()` (Proveedores) tampoco se tocó en su lógica — su `try`
+(`comoUsuario()`, genérico, no `comoGatewaySistema()`) ahora simplemente tiene éxito para la identidad
+real del Gateway en vez de lanzar `ContextoRlsNoResueltoError`, exactamente como ya lo hacía para
+cualquier otro solicitante con fila real (mismo patrón que un `ceom_admin` real, que tampoco pasa por
+`comoCeomAdmin()` en código de producción — solo en tests, ver abajo). El fallback a `db` crudo queda
+como defensa en profundidad para cualquier OTRO solicitante sin fila real (comentario actualizado en
+el propio archivo y en `contexto.test.ts`).
+
+**Tests nuevos, en `proveedores/tenant-aislamiento.test.ts`** (mismo archivo y mismo estilo que los
+casos de `comoCeomAdmin()` ya existentes — a diferencia de esos, que fabrican un UUID de test nuevo en
+cada corrida, `GATEWAY_SISTEMA_USUARIO_ID` es un id FIJO: no se puede fabricar un usuario de prueba que
+lo satisfaga, se usa la fila real sembrada en 4.a.1):
+- `comoGatewaySistema()` lee `pagos_compra` de un tenant ajeno (vía `sumarPagosCompraPeriodo`) — bypass
+  de lectura confirmado en vivo, no simulado.
+- `comoGatewaySistema()` intenta un `UPDATE` sobre `compras` de un tenant ajeno — bloqueado, confirma
+  que `gatewaySistemaBypassPolicy()` es `for:"select"` de verdad, no solo declarado.
+
+**Verificación final:** `pnpm typecheck` (0 errores), `pnpm lint` (0 errores, mismos 13 warnings),
+`pnpm test` completo — **205/205, 31 archivos** (203 previos + 2 tests nuevos del Gateway) —, y
+`monitoreo-institucional.test.ts`/`panel-admin-ceom.test.ts` corridos de punta a punta con la
+identidad real ya wireada: los asserts de valor exacto de §13.11 (`flujoCaja = -100`) siguen pasando,
+confirmando que el camino real (no solo el simulado en la prueba negativa de §13.11) funciona.
+`get_advisors` (security): un hallazgo nuevo, esperado — `es_gateway_sistema()` marcado con el mismo
+`authenticated_security_definer_function_executable` (WARN) que ya tienen `current_tenant_id()`/
+`es_ceom_admin()` — ruido conocido y aceptado, no un hallazgo real (necesario para que
+`gatewaySistemaBypassPolicy()` funcione, mismo criterio de §10.3/§12.4).
+
+**Excepción ad-hoc que queda viva, a propósito:** el fallback a `db` crudo en
+`consultarPagosCompraEnPeriodo()` — ya no lo dispara el Gateway (tiene fila real), pero se mantiene
+como defensa en profundidad para cualquier otro solicitante sin fila real que hoy no existe. No se
+retira sin confirmar antes que ningún caller pueda depender de él.

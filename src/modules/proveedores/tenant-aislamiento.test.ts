@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
-import { comoCeomAdmin, comoSistema, comoUsuario } from "@/db/contexto";
+import { comoCeomAdmin, comoGatewaySistema, comoSistema, comoUsuario } from "@/db/contexto";
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
-import { authUsers, tenants, usuarios } from "@/modules/identidad/schema";
+import { authUsers, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
+import { productos } from "@/modules/productos/schema";
 import * as repo from "./repository";
-import { proveedores } from "./schema";
+import { compras, pagosCompra, proveedores } from "./schema";
 
 // Aisla el mecanismo de RLS (docs/security/PLAN-RLS-BACKSTOP.md §4.3) del
 // guard de aplicación: setup por SQL directo (insert crudo en auth.users,
@@ -25,6 +26,9 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
   let usuarioCeomAdmin: string;
   let usuarioCeomAdminDesactivado: string;
   let proveedorDeA: string;
+  let sucursalDeA: string;
+  let productoDeA: string;
+  let compraDeA: string;
 
   beforeAll(async () => {
     usuarioA = randomUUID();
@@ -109,9 +113,51 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
       })
       .returning();
     proveedorDeA = proveedor.id;
+
+    // Compra + Pago de Compra reales para tenantA (Etapa 4.a, docs/security/
+    // PLAN-RLS-BACKSTOP.md §13.11/§15.3) — gatewaySistemaBypassPolicy() se
+    // aplica a "compras"/"pagos_compra", no a "proveedores", así que el test
+    // del Gateway necesita ejercitar esas dos tablas específicamente, no
+    // reusar proveedorDeA.
+    const [sucursal] = await db
+      .insert(sucursales)
+      .values({ tenantId: tenantA, nombre: "Sucursal A", esPrincipal: true })
+      .returning();
+    sucursalDeA = sucursal.id;
+
+    const [producto] = await db
+      .insert(productos)
+      .values({ tenantId: tenantA, nombre: "Producto A", unidadVenta: "unidad", precioVenta: "20" })
+      .returning();
+    productoDeA = producto.id;
+
+    const [compra] = await db
+      .insert(compras)
+      .values({
+        tenantId: tenantA,
+        sucursalId: sucursalDeA,
+        tipo: "reventa",
+        productoId: productoDeA,
+        cantidad: "10",
+        costoUnitario: "10",
+        montoTotal: "100",
+        fechaCompra: "2025-06-01",
+      })
+      .returning();
+    compraDeA = compra.id;
+
+    await db.insert(pagosCompra).values({
+      compraId: compraDeA,
+      monto: "250",
+      fechaPago: "2025-06-01",
+    });
   });
 
   afterAll(async () => {
+    await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraDeA));
+    await db.delete(compras).where(eq(compras.id, compraDeA));
+    await db.delete(productos).where(eq(productos.id, productoDeA));
+    await db.delete(sucursales).where(eq(sucursales.id, sucursalDeA));
     await db.delete(proveedores).where(eq(proveedores.tenantId, tenantA));
     await db.delete(usuarios).where(eq(usuarios.tenantId, tenantA));
     await db.delete(usuarios).where(eq(usuarios.tenantId, tenantB));
@@ -173,5 +219,33 @@ describe.skipIf(!hasPostgres)("Proveedores — aislamiento cross-tenant (RLS rea
       repo.listarProveedoresPorTenant(tx, tenantA)
     );
     expect(filas).toHaveLength(0);
+  });
+
+  // Etapa 4.a del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+  // §13/§15.3, Opción A′): a diferencia de usuarioCeomAdmin/
+  // usuarioCeomAdminDesactivado arriba (UUIDs generados por test,
+  // cualquiera con rolId=ROL_CEOM_ADMIN_ID pasa es_ceom_admin()),
+  // GATEWAY_SISTEMA_USUARIO_ID es un id FIJO — es_gateway_sistema() filtra
+  // por ese id puntual, no por rol, así que no se puede fabricar un usuario
+  // de prueba nuevo que lo satisfaga: se usa la fila real sembrada en
+  // 0034_gateway_sistema_seed.sql.
+  it("el Gateway ve los pagos de compra de un tenant ajeno vía comoGatewaySistema() — bypass de solo lectura (4.a.3)", async () => {
+    const total = await comoGatewaySistema((tx) =>
+      repo.sumarPagosCompraPeriodo(tx, tenantA, "2020-01-01", "2030-01-01")
+    );
+    expect(total).toBe(250);
+  });
+
+  it("el Gateway NO puede escribir (UPDATE) una compra de un tenant ajeno — gatewaySistemaBypassPolicy() es for:\"select\" únicamente, no \"all\"", async () => {
+    // Ataca "compras" directo (no "proveedores", que ni siquiera tiene
+    // gatewaySistemaBypassPolicy() — probar ahí no demostraría nada sobre
+    // el recorte for:"select"). tx.update() en vez de un helper de
+    // repository.ts: no hace falta uno nuevo solo para este negativo.
+    await comoGatewaySistema((tx) =>
+      tx.update(compras).set({ montoTotal: "999999" }).where(eq(compras.id, compraDeA))
+    );
+
+    const [real] = await comoSistema((tx) => tx.select().from(compras).where(eq(compras.id, compraDeA)));
+    expect(Number(real.montoTotal)).toBe(100);
   });
 });

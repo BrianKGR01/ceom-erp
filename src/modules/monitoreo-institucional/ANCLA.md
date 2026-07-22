@@ -119,4 +119,10 @@
   aprobado — no es un error, es un estado legítimo que la UI debe poder
   distinguir de una falla real.
 
-## Última actualización: 2026-07-18 — UI construida (Mi Cartera + Ficha de Tenant, `/portal`)
+## Última actualización: 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
+(Identidad) dejó de ser un objeto sintético — ver `identidad/ANCLA.md` y
+`docs/security/PLAN-RLS-BACKSTOP.md` §13/§15 para el detalle completo. Este módulo no cambió
+código propio (sigue llamando a `solicitanteGateway()` igual que antes); el rediseño vive
+enteramente en Identidad + las policies de RLS de cada módulo alcanzado.
+
+Actualización previa el 2026-07-18 — UI construida (Mi Cartera + Ficha de Tenant, `/portal`)

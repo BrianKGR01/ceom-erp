@@ -74,14 +74,20 @@
       completo, gateado a `ceom_admin` directo (mismo bypass que ya usa
       `tienePermiso()` para ese rol). Consumido por `panel-admin-ceom` para
       calcular salud agregada de la plataforma.
-- [x] `solicitanteGateway()` (roadmap ítem #11) — arma un `UsuarioConRol`
-      SINTÉTICO (`rolId=ROL_CEOM_ADMIN_ID`, sin fila de usuario real
-      detrás) para que `monitoreo-institucional` pueda "prestar" el bypass
-      cross-tenant de `ceom_admin` y llamar a los `actions.ts` de solo
-      lectura de Financiero/Ventas/Operativo en nombre de una Institución
-      externa ya autorizada por `tieneConsentimiento()`. Decisión de diseño
-      confirmada explícitamente con el usuario antes de implementar — ver
-      "Decisiones" abajo.
+- [x] `solicitanteGateway()` (roadmap ítem #11, **rediseñada 2026-07-21 —
+      Etapa 4.a del backstop de RLS**, docs/security/PLAN-RLS-BACKSTOP.md
+      §13/§15) — ya NO arma un `UsuarioConRol` sintético: lee la fila real
+      sembrada en `0034_gateway_sistema_seed.sql`
+      (`GATEWAY_SISTEMA_USUARIO_ID`, tenant CEOM Ops, rol PROPIO
+      `ROL_GATEWAY_SISTEMA_ID` — nunca `ROL_CEOM_ADMIN_ID`). El acotamiento
+      a "solo lectura, solo tras `tieneConsentimiento()`" sigue siendo el
+      mismo — ahora reforzado en dos capas, no solo en comentario: la rama
+      de `tienePermiso()` para este id puntual deniega cualquier `accion`
+      distinta de `"ver"`, y a nivel de RLS este id solo tiene bypass
+      (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`, filtra por id
+      puntual, no por rol) donde se aplicó explícitamente
+      (`compras`/`pagos_compra` de Proveedores, hoy). Ver "Decisiones"
+      abajo para el porqué del rediseño.
 - [x] `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario`
       (auditoría de Fase 1) — gateadas a `esOwner` + `requireEscrituraHabilitada`,
       hacen upsert real sobre `permisos_especiales_por_rol`/`_por_usuario`.
@@ -518,4 +524,7 @@
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
 
-## Última actualización: 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
+## Última actualización: 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
+rediseñada de objeto sintético a fila real y acotada (`GATEWAY_SISTEMA_USUARIO_ID`, rol propio,
+`tienePermiso()` con rama allowlist dedicada). Ver `docs/security/PLAN-RLS-BACKSTOP.md` §13/§15.
+Actualización previa el 2026-07-20 — Banner de estado del tenant construido en `AppShell`, cierra por completo la UI de este módulo (cero pendientes). Confirmado explícitamente que el bloqueo real de crear/editar en `solo_lectura`/`bloqueado` ya lo hacía `tienePermiso()` desde antes — el banner es señal visual, no control. Actualización previa el mismo día: "Mi Plan" (`/app/mi-negocio/plan`) construida, sin gap de backend, y bug real de RSC/`"use client"` encontrado y corregido (ver Decisiones). Actualización previa el 2026-07-18: Cierre de Gestión de Tenants (UI de Alta/Listado/Ficha de Tenant en `/admin` con panel Cambiar Plan/Cambiar Estado de Suscripción, verificado end-to-end incluida la invitación real por email confirmada vía Admin API) y, antes de eso, gap de backend cerrado (`cambiarPlanTenant`/`cambiarEstadoSuscripcion`) y Colaboradores/Roles/Capacidades Especiales + bug real corregido: `tieneCapacidadEspecial()` ahora bypassea al Owner incondicionalmente (Modulo_01 sección 6.2)
