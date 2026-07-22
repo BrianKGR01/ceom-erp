@@ -338,7 +338,88 @@ Al terminar de construir y verificar todas las pantallas de una tanda de UI:
 
 ---
 
-## 10. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
+## 10. Método de trabajo para tareas de diagnóstico/verificación (seguridad, RLS, y en general)
+
+Cuatro hábitos que se repitieron en las sesiones del backstop de RLS
+(`docs/security/PLAN-RLS-BACKSTOP.md`) y que atraparon algo real cada vez que se
+aplicaron — no es ceremonia, cada uno tiene un incidente concreto detrás.
+
+1. **Diagnóstico de solo lectura antes de implementar, con recomendación explícita
+   al final, no código.** Las Etapas 4.a y 4.b (`§13`, `§16` del plan de RLS)
+   empezaron con una sesión entera de solo lectura — grep, lectura de código,
+   consultas de solo `SELECT` contra la base real — que terminó en una
+   recomendación, nunca en un cambio. Las dos veces cambió el diseño que el
+   propio plan ya daba por sentado: la Etapa 4.a descubrió que la Opción A
+   "obvia" (reusar el bypass de `ceom_admin`) era una regresión real de defensa
+   en profundidad, y propuso A′ en su lugar; la Etapa 4.b descubrió que el
+   diseño original (§2.3 Caso 3) había quedado arquitectónicamente inviable
+   después de la propia Etapa 4.a, y que el gap real a cerrar no era el que
+   motivó la pregunta original. Ninguno de los dos hallazgos aparece si el
+   diagnóstico se salta para llegar antes al código.
+2. **Verificar una hipótesis con evidencia antes de actuar sobre ella, no
+   asumirla porque "tiene sentido".** `es_ceom_admin()` se creyó hoisteable a
+   `InitPlan` por analogía con `current_tenant_id()` — la hipótesis original
+   (`§10.3`) resultó incompleta, corregida recién con `EXPLAIN ANALYZE` real
+   contra volumen sintético (`§12`), que además encontró que el patrón correcto
+   sí existía (`(select ...)`), solo que nunca se había probado. Mismo criterio
+   aplicado en la Etapa 4.b.0: antes de escribir el índice único parcial se
+   verificó con una consulta real que existía exactamente un par
+   institución-tenant con filas duplicadas en la base — no se asumió "cero" ni
+   se limpió "por las dudas" antes de mirar.
+3. **Todo test de seguridad se valida rompiéndolo a propósito, no solo
+   corriéndolo en verde.** Un test que nunca se vio fallar no probó nada —
+   puede estar pasando por casualidad. El test dorado de la Etapa 4.b.0 se
+   confirmó mutando la función SQL real en vivo (dentro de una sesión
+   controlada, restaurada exactamente después) y verificando que el test
+   efectivamente se pone en rojo, por la razón correcta — recién ahí se confía
+   en que un futuro bug real también lo haría.
+4. **El caso negativo se corre ANTES de aplicar el fix, no después.** Un test
+   que "debería fallar sin la policy" solo prueba algo si efectivamente se lo
+   vio fallar sin la policy — si se escribe y se corre después de aplicar el
+   fix, no hay forma de distinguir un test que mide algo real de uno que pasa
+   por tautología. Aplicado en la Etapa 3 (`§11.1` punto 4: un `ceom_admin`
+   real daba 0 filas antes de `es_ceom_admin()`, 1 después) y en la Etapa 4.b.0
+   (confirmado que el Gateway leía datos de un tenant sin consentimiento vigente
+   *antes* de aplicar `gatewayVigenciaBypassPolicy()` — la vulnerabilidad real
+   que motivó la etapa, no una tautología).
+
+**Nota práctica relacionada, encontrada en la sesión de consolidación
+(2026-07-22):** correr varias suites de test completas en paralelo (varios
+`pnpm test` de fondo superpuestos) contra la misma base de desarrollo compartida
+genera falsos positivos de "residuo" — cada corrida usa su propio sufijo
+(`Date.now()`), así que no chocan entre sí, pero confunde el diagnóstico de cuál
+corrida dejó qué. Correr la suite completa en solitario para cualquier
+verificación final de "quedó todo limpio".
+
+**Segunda nota, de la misma sesión, que es el hábito 2 aplicado a sí mismo:**
+"la suite pasó en verde" NO es evidencia de que la base quedó limpia — hay que
+consultarla. Con las 32 suites en verde y las tablas de `public` sin una sola
+fila de sobra, una consulta directa a `auth.users` encontró **51 usuarios
+`@ceom-erp.test` huérfanos** contra 2 legítimos, acumulados de corridas cortadas
+de sesiones anteriores. La causa era estructural, no un descuido puntual:
+`admin.auth.admin.deleteUser()` era la última línea de cada `afterAll` — tiene
+que ir última, porque `public.usuarios.id` referencia `auth.users.id` con
+`ON DELETE NO ACTION` — así que cualquier excepción previa lo salteaba, y una vez
+borrada la fila de `usuarios` no queda ningún join por el cual una limpieza
+posterior pudiera encontrar al usuario de Auth (`auth.users` no tiene
+`tenant_id`). De ahí sale `limpiarConAuthGarantizada()`
+(`src/test-utils/limpieza.ts`): el borrado de Auth corre igual aunque la
+limpieza de negocio falle, y el error de la parte que falló se relanza en vez de
+esconderse.
+
+**Y la misma lección otra vez, en la misma sesión:** la afirmación "`auth.users`
+no tiene FK contra `public.usuarios`" se escribió en tres archivos antes de ser
+verificada. Era falsa. La consulta que la "confirmó" filtraba
+`constraint_column_usage` por `table_schema = 'public'`, lo que descarta
+justamente las FK cruzadas de esquema — la consulta tenía el bug, y su salida
+vacía se leyó como evidencia. Apareció corriendo el test (`23503`,
+`usuarios_id_users_id_fk`), no revisando el diseño. Una consulta de verificación
+también es una hipótesis: si su resultado es "no hay nada", vale la pena
+preguntarse si la consulta podía haber encontrado algo.
+
+---
+
+## 11. Checklist extendido de "tarea terminada" (detalle de lo ya resumido en `AGENTS.md`)
 
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` pasan localmente.
 - [ ] La prueba de caja negra del módulo (sección 6) está cubierta por un test real, no solo mencionada.
