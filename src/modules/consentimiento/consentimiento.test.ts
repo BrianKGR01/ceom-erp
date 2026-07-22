@@ -337,4 +337,72 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     },
     20000
   );
+
+  it("SS16.9.3: aprobar de nuevo el mismo par institucion-tenant revoca automaticamente la aprobacion anterior", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const solicitudA = await crearSolicitudSeguimiento(
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+      { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+    );
+    if (!solicitudA.ok) throw new Error("setup fallo");
+    const aprobacionA = await aprobarSolicitud(owner!, solicitudA.data.solicitudId, {
+      modulosAprobados: ["financiero"],
+    });
+    if (!aprobacionA.ok) throw new Error("setup fallo");
+    expect(await tieneConsentimiento(institucionId, tenantId, "financiero")).toBe(true);
+
+    const solicitudB = await crearSolicitudSeguimiento(
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+      { institucionId, tenantId, modulosSolicitados: ["financiero", "operativo"] }
+    );
+    if (!solicitudB.ok) throw new Error("setup fallo");
+    const aprobacionB = await aprobarSolicitud(owner!, solicitudB.data.solicitudId, {
+      modulosAprobados: ["financiero", "operativo"],
+    });
+    if (!aprobacionB.ok) throw new Error("setup fallo");
+
+    // La vieja quedo revocada automaticamente -- nadie la revoca a mano.
+    const [filaVieja] = await db
+      .select()
+      .from(aprobacionesTenant)
+      .where(eq(aprobacionesTenant.id, aprobacionA.data.aprobacionId));
+    expect(filaVieja.revocadoEn).not.toBeNull();
+
+    // La nueva sigue vigente, con el alcance que ella misma declaro.
+    expect(await tieneConsentimiento(institucionId, tenantId, "financiero")).toBe(true);
+    expect(await tieneConsentimiento(institucionId, tenantId, "operativo")).toBe(true);
+  });
+
+  it("SS16.9.3: aprobaciones_tenant_vigente_unica rechaza una segunda fila no revocada para el mismo par -- constraint real de base, no solo el guard de aplicacion", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const solicitud = await crearSolicitudSeguimiento(
+      { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+      { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+    );
+    if (!solicitud.ok) throw new Error("setup fallo");
+    const aprobacion = await aprobarSolicitud(owner!, solicitud.data.solicitudId, {
+      modulosAprobados: ["financiero"],
+    });
+    if (!aprobacion.ok) throw new Error("setup fallo");
+
+    // Bypass deliberado de crearAprobacionTenant() (que ya revoca antes de
+    // insertar, ver repository.ts) -- este test prueba la RESTRICCION DE
+    // BASE en si misma, no el guard de aplicacion que la vuelve innecesaria
+    // en el camino normal. Si algun dia otro call-site inserta directo sin
+    // pasar por crearAprobacionTenant(), esto es lo que sigue protegiendo.
+    // drizzle-orm 0.45.2 envuelve el PostgresError real dentro de
+    // DrizzleQueryError.cause -- el codigo SQLSTATE no es una propiedad
+    // directa del error rechazado.
+    await expect(
+      db.insert(aprobacionesTenant).values({
+        tenantId,
+        institucionId,
+        modulosAprobados: ["financiero"],
+        aprobadoPor: ownerId,
+      })
+    ).rejects.toMatchObject({
+      cause: { code: "23505", constraint_name: "aprobaciones_tenant_vigente_unica" },
+    });
+  });
 });

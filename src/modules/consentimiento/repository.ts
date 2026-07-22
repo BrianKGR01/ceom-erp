@@ -171,9 +171,34 @@ export async function listarSolicitudesPorTenant(tenantId: string) {
 
 // --- Aprobacion de Tenant ---------------------------------------------------------
 
+/**
+ * "La mas reciente manda" (docs/security/PLAN-RLS-BACKSTOP.md SS16.9.3): una
+ * aprobacion nueva SIEMPRE revoca atomicamente cualquier aprobacion previa
+ * NO revocada del mismo par institucion+tenant antes de insertarse -- nunca
+ * coexisten dos filas vigentes para el mismo par. Sostiene la invariante que
+ * exige aprobaciones_tenant_vigente_unica (indice unico parcial, schema.ts):
+ * sin este revoke previo, el INSERT violaria esa constraint. Antes de este
+ * cambio, obtenerAprobacionVigente() necesitaba "la mas reciente" via ORDER
+ * BY porque el esquema permitia varias filas no revocadas simultaneas -- con
+ * la invariante ya sostenida acá, esa funcion queda simplificable (no se
+ * simplifica en este commit para no mezclar el cambio de invariante con un
+ * cambio de query separado; ver ANCLA.md).
+ */
 export async function crearAprobacionTenant(data: NuevaAprobacionTenant) {
-  const [aprobacion] = await db.insert(aprobacionesTenant).values(data).returning();
-  return aprobacion;
+  return db.transaction(async (tx) => {
+    await tx
+      .update(aprobacionesTenant)
+      .set({ revocadoEn: new Date() })
+      .where(
+        and(
+          eq(aprobacionesTenant.institucionId, data.institucionId),
+          eq(aprobacionesTenant.tenantId, data.tenantId),
+          isNull(aprobacionesTenant.revocadoEn)
+        )
+      );
+    const [aprobacion] = await tx.insert(aprobacionesTenant).values(data).returning();
+    return aprobacion;
+  });
 }
 
 export async function obtenerAprobacionPorId(aprobacionId: string) {
