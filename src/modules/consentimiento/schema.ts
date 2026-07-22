@@ -169,6 +169,28 @@ export const aprobacionesTenant = pgTable(
       "aprobaciones_tenant",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    // "La mas reciente manda" (docs/security/PLAN-RLS-BACKSTOP.md SS16.9.3):
+    // a lo sumo UNA fila no revocada por par institucion+tenant en todo
+    // momento -- invariante de esquema, no una convencion que cada consulta
+    // (TS o, eventualmente, SQL) tiene que replicar con su propio ORDER
+    // BY/desempate. repository.ts:crearAprobacionTenant() revoca
+    // atomicamente cualquier fila previa antes de insertar -- sin eso, esta
+    // constraint rechazaria la insercion.
+    uniqueIndex("aprobaciones_tenant_vigente_unica")
+      .on(table.institucionId, table.tenantId)
+      .where(sql`${table.revocadoEn} is null`),
+    // REGLA DURA (mismo criterio que identidad/schema.ts contra
+    // usuarios/roles, docs/security/PLAN-RLS-BACKSTOP.md SS10.3/SS16.6):
+    // esta tabla NUNCA debe recibir una policy que llame a una funcion de
+    // vigencia (tenant_tiene_consentimiento_vigente()/una futura version
+    // por institucion) que a su vez LEA esta misma tabla -- el dia que
+    // Consentimiento migre a comoUsuario() y esta tabla reciba FORCE ROW
+    // LEVEL SECURITY, agregarle ese bypass crearia recursion real: evaluar
+    // la policy llamaria a la funcion, que vuelve a leer aprobaciones_tenant,
+    // que vuelve a evaluar la policy. Hoy no hay ningun caso que necesite
+    // que el Gateway lea aprobaciones_tenant bajo RLS directamente (solo
+    // consume el booleano derivado) -- si eso cambia, resolverlo distinto,
+    // no extendiendo este patron sin pensarlo.
   ]
 ).enableRLS();
 

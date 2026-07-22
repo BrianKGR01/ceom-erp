@@ -208,6 +208,26 @@
   puntual. **Bug real encontrado y corregido durante esta tarea** — el
   test de revocación lo detectó (una aprobación previa sin revocar hacía
   que la revocación de una aprobación posterior no tuviera efecto).
+- **Etapa 4.b.0 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
+  §16.9.3) agregó una invariante de esquema sobre lo de arriba, sin
+  reemplazarlo:** `aprobaciones_tenant_vigente_unica` (índice único parcial
+  sobre `(institucion_id, tenant_id) WHERE revocado_en IS NULL`) — a lo
+  sumo UNA fila no revocada por par en todo momento.
+  `repository.ts:crearAprobacionTenant()` revoca atómicamente cualquier
+  fila previa del mismo par ANTES de insertar (dentro de una transacción)
+  — sin eso, el `INSERT` violaría la constraint. Esto NO vuelve innecesario
+  el `ORDER BY fecha_aprobacion DESC` de `obtenerAprobacionVigente()` (sigue
+  haciendo falta para encontrar la única fila no-revocada, o la más
+  reciente de las revocadas si nunca hubo una vigente) — lo que sí elimina
+  es la AMBIGÜEDAD que motivaba el comentario original: ya no puede existir
+  una fila vieja no-revocada "tapada" por una nueva revocada, porque la
+  vieja se revoca sola al nacer la nueva. Backstop de RLS que depende de
+  esta invariante: `public.tenant_tiene_consentimiento_vigente()`
+  (`0038_tenant_tiene_consentimiento_vigente_function.sql`) — un simple
+  `EXISTS ... WHERE revocado_en IS NULL`, sin `ORDER BY`, correcto
+  únicamente porque esta invariante garantiza que esa fila (si existe) es
+  la vigente. Ver `docs/security/PLAN-RLS-BACKSTOP.md` §16 para el
+  diagnóstico completo y §16.9.1 para el diseño de la función.
 - **`aprobaciones_tenant.codigo_acceso_id`** (nullable, migración `0018`
   aparte) — vincula una Aprobación con el Código de Acceso que la generó,
   para que `revocarCodigoAcceso()` pueda revocar también "el acceso ya
@@ -272,6 +292,16 @@
   `ceom_admin` de QA en otra pestaña del navegador pisó la cookie (mismo cookie jar) — se
   restauró la contraseña original documentada en `reference_tenant_prueba_owner` (memoria del
   agente) para volver a entrar. Password final: la de siempre, sin cambios netos.
+
+## Última actualización: 2026-07-22 — Etapa 4.b.0 del backstop de RLS: índice único parcial en `aprobaciones_tenant` + `crearAprobacionTenant()` revoca la fila previa
+`aprobaciones_tenant_vigente_unica` (índice único parcial, migración `0037`) — ver la decisión nueva
+arriba. `crearAprobacionTenant()` ahora corre dentro de una transacción propia que revoca cualquier
+fila no-revocada previa del mismo par institución-tenant antes de insertar la nueva — comportamiento
+nuevo, sin cambio de firma. No es parte de este módulo pero lo alcanza: `gatewayVigenciaBypassPolicy()`
+(`src/db/rls.ts`) + `tenant_tiene_consentimiento_vigente()` (función SQL, `0038`) son el backstop de
+RLS del Gateway sobre tablas de OTROS módulos (`compras`/`pagos_compra` de Proveedores, hoy) — leen
+`aprobaciones_tenant` pero no la modifican ni le agregan policy propia (ver la REGLA DURA de
+no-recursión en `schema.ts`). Detalle completo: `docs/security/PLAN-RLS-BACKSTOP.md` §16.
 
 ## Última actualización: 2026-07-18 — magic link de Instituciones (Supabase Auth), cierra el gap de reingreso a `/portal`
 Decisión de arquitectura completa en `CEOM_Arquitectura.md` sección 8.3 (por qué `instituciones.id`

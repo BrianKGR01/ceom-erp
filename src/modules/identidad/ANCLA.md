@@ -84,8 +84,9 @@
       mismo — ahora reforzado en dos capas, no solo en comentario: la rama
       de `tienePermiso()` para este id puntual deniega cualquier `accion`
       distinta de `"ver"`, y a nivel de RLS este id solo tiene bypass
-      (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`, filtra por id
-      puntual, no por rol) donde se aplicó explícitamente
+      (`es_gateway_sistema()`/`gatewayVigenciaBypassPolicy()`, Etapa 4.b.0 —
+      filtra por id puntual, no por rol, Y por vigencia de consentimiento del
+      tenant, no solo identidad) donde se aplicó explícitamente
       (`compras`/`pagos_compra` de Proveedores, hoy). Ver "Decisiones"
       abajo para el porqué del rediseño.
 - [x] `otorgarCapacidadEspecialPorRol`/`otorgarCapacidadEspecialPorUsuario`
@@ -354,8 +355,10 @@
   consistente (diagnóstico completo: docs/security/PLAN-RLS-BACKSTOP.md
   §9.6, §10.4, §13). La Etapa 4.a de ese plan reemplaza el objeto sintético
   por una fila real sembrada, pero con un bypass de RLS **propio y de solo
-  lectura** (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`,
-  §13.2/§13.6 de ese plan) — distinto del de `ceom_admin`, nunca heredado
+  lectura** (`es_gateway_sistema()`/`gatewayVigenciaBypassPolicy()`,
+  §13.2/§13.6/§16.9.1 de ese plan — desde la Etapa 4.b.0, condicionado además
+  a que el tenant tenga consentimiento vigente para el módulo, no solo a la
+  identidad) — distinto del de `ceom_admin`, nunca heredado
   de él — más una rama dedicada en `tienePermiso()` que solo permite
   `"ver"` para ese id puntual (antes era una convención en comentario;
   ahora es una regla que el código hace cumplir, con test negativo

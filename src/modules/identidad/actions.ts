@@ -281,8 +281,8 @@ export async function listarSucursalesPorTenant(
  * (Módulo 11, Monitoreo Institucional): `tienePermiso()` (arriba) tiene una
  * rama dedicada para este id puntual que deniega cualquier `accion`
  * distinta de `"ver"`, y a nivel de RLS este id solo tiene bypass
- * (`es_gateway_sistema()`/`gatewaySistemaBypassPolicy()`) donde se aplicó
- * explícitamente, nunca automático. NUNCA exponer a ningún input externo —
+ * (`es_gateway_sistema()`/`gatewayVigenciaBypassPolicy()`, Etapa 4.b.0) donde
+ * se aplicó explícitamente, nunca automático. NUNCA exponer a ningún input externo —
  * solo el propio código de `monitoreo-institucional/actions.ts` lo invoca,
  * y solo después de que `tieneConsentimiento()` ya devolvió `true`.
  */

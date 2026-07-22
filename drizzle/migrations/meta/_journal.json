@@ -260,6 +260,27 @@
       "when": 1784678996051,
       "tag": "0036_gateway_sistema_bypass_proveedores",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1784724344970,
+      "tag": "0037_aprobaciones_tenant_vigente_unica",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1784725184594,
+      "tag": "0038_tenant_tiene_consentimiento_vigente_function",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784726451033,
+      "tag": "0039_gateway_vigencia_bypass_proveedores",
+      "breakpoints": true
     }
   ]
 }

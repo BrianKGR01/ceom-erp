@@ -8,9 +8,12 @@ a la hipótesis de costo de `es_ceom_admin()` — ver §10.3), y §11 lo que se 
 sobre ese diagnóstico. **§9.6 encontró una regresión real** que cambia una premisa del plan (el
 camino Gateway/Panel Admin CEOM no es independiente de las Etapas 3/4 como se asumía) — **§10/§11 la
 resuelven para Proveedores y dejan el patrón (`ceomAdminBypassPolicy()`, `ContextoRlsNoResueltoError`)
-listo para reusar en cada módulo que migre después.** `logs_acceso_admin_ceom` (sub-etapa 3.d) y la
-Etapa 4 (portal, incluido el rediseño del solicitante sintético del Gateway) siguen pendientes,
-deliberadamente. Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
+listo para reusar en cada módulo que migre después.** `logs_acceso_admin_ceom` (sub-etapa 3.d) sigue
+pendiente, deliberadamente. **Etapa 4.a (identidad real del Gateway, Opción A′) implementada y
+verificada — ver §13/§14/§15.** **Etapa 4.b (policies del portal que re-derivan la vigencia del
+consentimiento) diagnosticada en §16 — conclusión: sí, pero NO en la forma de §2.3 Caso 3 (esa forma
+quedó arquitectónicamente inviable después de 4.a) — ver §16 para el diseño real y la decisión
+pendiente del usuario.** Ver §8.4 de `docs/security/AUDITORIA-AUTORIZACION.md` para el contexto que
 originó este trabajo.
 
 Diagnóstico hecho el 2026-07-21 vía el conector de Supabase (proyecto `ceom-services`,
@@ -2435,3 +2438,728 @@ migración que escriba en `auth`/`storage` (no solo que llame a `auth.uid()`) se
 contenedor limpio antes de declararse terminada, con el procedimiento exacto documentado ahí. "Suite
 completa en verde localmente" no prueba "las migraciones aplican de punta a punta" — son dos
 verificaciones distintas, y de acá en más quedan como dos pasos distintos, no uno.
+
+---
+
+## 16. Etapa 4.b — Policies del portal: diagnóstico y diseño, SIN cambios de código ni de base (2026-07-21)
+
+**Nada de esta sección está aplicado.** Cero cambios de código, cero migraciones, cero escrituras
+persistentes en la base. La única interacción con la base real (`riertvgnjaujstwyqoom`) fue lectura
+de metadatos (`pg_policies`) y una medición con `EXPLAIN ANALYZE` real dentro de una transacción con
+`rollback` al final (misma metodología que §8.1/§10.3/§12.2) — verificado después, no asumido, que no
+quedó ningún objeto residual (§16.5.3).
+
+### 16.0 Resumen ejecutivo
+
+1. **§2.3 Caso 3 (`tenant_autorizado_para_institucion_actual()`, keyed en `auth.uid() =
+   instituciones.auth_user_id`) está muerto — no por elección, por incompatibilidad arquitectónica con
+   lo que 4.a realmente construyó.** Ese diseño asumía que `/portal` leería datos como la propia
+   Institución (`comoInstitucion()`, Caso 3 de `contexto.ts`). Eso nunca pasó: 4.a (Opción A′, §13)
+   decidió explícitamente que el Gateway lee con una **identidad de sistema compartida**
+   (`comoGatewaySistema()`/`GATEWAY_SISTEMA_USUARIO_ID`), no con la sesión de la Institución. Hoy
+   `comoInstitucion()` existe en `contexto.ts` con **cero call-sites** — código muerto para este
+   propósito. Bajo `comoGatewaySistema()`, `auth.uid()` es **siempre** el mismo UUID fijo del sistema,
+   nunca el de la Institución que pregunta — una policy que compare `auth.uid()` contra
+   `instituciones.auth_user_id` nunca podría matchear una fila real. Ver §16.1.1.
+2. **Hallazgo más importante, no anticipado por ningún diagnóstico anterior: `gatewaySistemaBypassPolicy()`
+   ya está en producción (migración `0036`, Etapa 4.a.3) y hoy no tiene NINGUNA restricción de tenant.**
+   Confirmado contra `pg_policies` real: `compras_gateway_sistema_bypass`/`pagos_compra_gateway_sistema_bypass`
+   tienen `qual = (SELECT es_gateway_sistema())` — nada más. El único control de "para qué tenant" es
+   100% de aplicación (`tieneConsentimiento()` en TypeScript + el `WHERE tenant_id = X` explícito que ya
+   trae cada repository). **Esto es un gap real, ya desplegado, más amplio que el que motivó originalmente
+   la Etapa 4.b** — no es "¿vale la pena duplicar la regla de vigencia?", es "hoy, un bug en
+   `tieneConsentimiento()` (o cualquier función futura alcanzada por el Gateway que olvide su propio
+   filtro de tenant) filtra el tenant que sea, sin que RLS oponga resistencia alguna". Ver §16.1.2.
+3. **Con ese hallazgo, la pregunta cambia de forma.** No es "¿agregamos una segunda copia de
+   `tieneConsentimiento()` en SQL?" — es "¿le damos a `gatewaySistemaBypassPolicy()` ALGUNA noción de
+   tenant, aunque sea imprecisa?". Respuesta: **sí, y se puede hacer en dos niveles independientes**, uno
+   barato y sin plumbing nuevo (4.b.0, recomendado ahora) y uno preciso pero que exige nueva
+   infraestructura de sesión (4.b.1, recomendado diferir). Ver §16.9.
+4. **Medido, no asumido: una policy parametrizada por `tenant_id` (a diferencia de `es_ceom_admin()`/
+   `es_gateway_sistema()`, que no toman argumentos) estructuralmente NO puede hoistear a un `InitPlan`
+   con el patrón `(select ...)` de §12** — es una subconsulta correlacionada con la fila, Postgres la
+   ejecuta como `SubPlan` una vez por fila candidata, nunca una vez por consulta. Con el filtro de
+   tenant explícito que la app ya trae siempre, el costo es despreciable (3.7ms a 40k filas de ruido);
+   sin filtro (un agregado de toda la plataforma — hoy no existe ningún caso real así en el camino del
+   Gateway, mismo hallazgo que §12.5 para `es_ceom_admin()`), 448ms a 40k filas — más caro, pero
+   estructural, no un bug corregible con el mismo truco de §12. Ver §16.5.
+5. **Encontrado en el camino, independiente de RLS: `obtenerAprobacionVigente()` no tiene desempate
+   determinístico** (`ORDER BY fecha_aprobacion DESC LIMIT 1`, sin columna de desempate) y no hay ninguna
+   restricción que impida dos filas no-revocadas simultáneas para el mismo par institución-tenant — la
+   causa raíz de por qué la regla necesita "la más reciente manda" en primer lugar. Un índice único
+   parcial colapsaría esa complejidad a una invariante estructural. Ver §16.3.4 y §16.9.3.
+
+### 16.1 La pregunta que puede cancelar la etapa — respuesta con los dos lados
+
+**A favor (repetido del pedido, confirmado que sigue siendo válido):** hoy, si `tieneConsentimiento()`
+tiene un bug de lógica, no hay nada debajo — cero backstop. Este punto sigue siendo cierto tal cual se
+planteó.
+
+**En contra (repetido del pedido, confirmado que sigue siendo válido, con un matiz nuevo):** dos
+implementaciones de la misma regla divergen con el tiempo. Si el SQL queda más permisivo, el backstop
+no sirve; si queda más estricto, una institución con consentimiento válido deja de ver datos y nadie
+entiende por qué. El filtro por `modulosAprobados` sigue sin poder expresarse en RLS de forma nativa —
+pero, ver 16.2, sí puede expresarse **por tabla** (cada tabla del Gateway pertenece a un único módulo
+veedor fijo), lo cual cierra ese gap más de lo que el diagnóstico original de §2.3 anticipaba.
+
+#### 16.1.1 El hallazgo que cambia el terreno: §2.3 Caso 3 ya no es implementable tal cual está escrito
+
+Leído el código real de `/portal` (`src/app/portal/actions.ts`) y de `monitoreo-institucional/actions.ts`
+línea por línea:
+
+```
+portal/actions.ts:  obtenerInstitucionActual() -- resuelve la Institución desde su PROPIA sesión de
+                     Supabase Auth (auth.uid() real de la Institución) -- pero esto NUNCA se usa para
+                     leer datos de negocio, solo para saber institucion.id (un UUID en memoria de la
+                     app, ya no un auth.uid() de sesión activa).
+monitoreo-institucional/actions.ts, las 4 funciones de detalle:
+  1. tieneConsentimiento(institucionId, tenantId, moduloVeedor)  <- TypeScript, sobre aprobaciones_tenant
+  2. si false -> return autorizado:false, corta ANTES de tocar el módulo de datos
+  3. solicitanteGateway()  <- devuelve la fila REAL sembrada (4.a.1), id = GATEWAY_SISTEMA_USUARIO_ID
+  4. flujoCaja(solicitante, tenantId, periodo)  -> comoUsuario()/comoGatewaySistema() intenta correr,
+     auth.uid() adentro de esa transacción SIEMPRE resuelve a GATEWAY_SISTEMA_USUARIO_ID -- nunca al
+     auth_user_id de la Institución que preguntó en el paso 1.
+```
+
+`comoInstitucion()` (`src/db/contexto.ts:213-221`) — el mecanismo que §2.3 Caso 3 necesitaba para que
+`auth.uid()` resolviera al `auth_user_id` real de la Institución — existe en el código, pero **grep
+confirma cero call-sites reales**. Nunca se conectó, y no por descuido: 4.a (§13.2) evaluó
+explícitamente "Opción B: tratar como Caso 3 extendido" y la descartó, no porque no funcionara
+técnicamente sino porque el resto de la arquitectura (`tienePermiso()`, que nunca reconoce
+`Institución` — `CEOM_Arquitectura.md` §8.3, decisión de arquitectura explícita, no un vacío) no tiene
+forma de autorizar una lectura de Ventas/Financiero/Operativo bajo la identidad de una Institución sin
+inventar un segundo motor de autorización paralelo a `tienePermiso()`. La Opción A′ que sí se implementó
+resuelve eso — pero al precio de que la sesión de base de datos bajo la que corre cada lectura real
+**nunca es la Institución**, siempre es el Gateway.
+
+**Consecuencia directa:** una policy `using (i.auth_user_id = auth.uid() and ...)` sobre
+`instituciones`/`aprobaciones_tenant`, tal como la propuso §2.3, evaluada bajo `comoGatewaySistema()`,
+comparía `auth.uid()` (= `GATEWAY_SISTEMA_USUARIO_ID`, siempre) contra `instituciones.auth_user_id` (el
+de una Institución real) — **nunca puede ser verdadero**, para ninguna Institución, nunca. No es un bug
+a corregir; es que la pregunta que esa policy intenta responder ("¿qué institución está preguntando?")
+ya no tiene una respuesta disponible en el `auth.uid()` de la sesión, porque la sesión dejó de ser la de
+la Institución en el momento en que 4.a se implementó como A′.
+
+#### 16.1.2 El hallazgo más grave: el bypass real que existe HOY no tiene ninguna noción de tenant
+
+Verificado contra `pg_policies` de la base real, no releído del código solamente:
+
+```sql
+select tablename, policyname, cmd, qual from pg_policies
+where tablename in ('compras','pagos_compra');
+-- compras_gateway_sistema_bypass       | SELECT | (SELECT es_gateway_sistema())
+-- pagos_compra_gateway_sistema_bypass  | SELECT | (SELECT es_gateway_sistema())
+```
+
+Comparar con `ceomAdminBypassPolicy()` (misma forma sintáctica, `using: (select es_ceom_admin())`) es
+tentador pero es la comparación equivocada: el modelo de autorización de `ceom_admin` es legítimamente
+"todos los tenants, siempre" (es un operador interno de CEOM, Módulo_01 §6.5) — que la policy no
+restrinja por tenant es correcto ahí, por diseño. El modelo de autorización del Gateway es exactamente
+lo opuesto: "solo el tenant con consentimiento vigente, nunca los demás" — es la razón de ser de todo
+Módulo 11. Copiar la FORMA de `ceomAdminBypassPolicy()` para `gatewaySistemaBypassPolicy()` (mismo
+patrón `for: select, using: (select <es-quien-dice-ser>())`, sin ningún término de tenant) trasladó
+correctamente el mecanismo de "quién puede saltarse RLS" pero no el mecanismo de "para qué fila" — y
+para el Gateway, a diferencia de `ceom_admin`, el "para qué fila" es exactamente lo que hace falta
+restringir.
+
+**Blast radius de este hallazgo, hoy:** `consultarPagosCompraEnPeriodo()` es la única función real
+alcanzable por el Gateway sobre una tabla ya migrada (`compras`/`pagos_compra`, Proveedores). Si
+`tieneConsentimiento()` tuviera un bug de lógica (el escenario "a favor" del pedido) — o si mañana
+cualquier función nueva alcanzada por el Gateway sobre una tabla migrada olvidara su propio
+`WHERE tenant_id = X` explícito (un bug de aplicación distinto, pero con la misma superficie) — el
+resultado sería una fuga real de `compras`/`pagos_compra` de **cualquier tenant**, no limitada a
+tenants con alguna relación de consentimiento. Es exactamente la clase de fuga que el resto de este
+plan (Patrimonio, Proveedores) ya demostró que RLS SÍ previene para el caso "tenant propio" — pero para
+el Gateway, tal como quedó cableado en 4.a.3, esa protección no existe todavía.
+
+#### 16.1.3 La tercera vía (fuente de verdad compartida) — evaluada, y por qué no alcanza sola
+
+La pregunta pedía evaluar si la policy y la aplicación pueden consultar la MISMA fuente de verdad (una
+vista o función SQL que `tieneConsentimiento()` también use) en vez de duplicar la regla en dos
+lenguajes. Es viable técnicamente — `tieneConsentimiento()` podría llamar a la misma función SQL vía
+`db.execute(sql\`select ...\`)` en vez de recalcular en TypeScript. **Pero elimina exactamente lo que el
+backstop existe para proteger**: si TypeScript y RLS invocan la misma función, un bug en esa función es
+un punto único de fallo para las dos capas a la vez — es el mismo argumento que ya usó §7 decisión 3
+original para descartar "extender `crudPolicy()` confiando en un GUC que la propia app calculó". No es
+una vía intermedia entre "duplicar" y "no hacer nada": es funcionalmente equivalente a "no hacer nada",
+con más pasos.
+
+**Variante de la tercera vía que sí tiene valor real, pero no es RLS — mover la invariante al esquema.**
+`obtenerAprobacionVigente()` (`consentimiento/repository.ts:188-209`) necesita "la más reciente manda"
+únicamente porque el esquema permite que existan varias filas no-revocadas para el mismo par
+institución-tenant al mismo tiempo (`aprobarSolicitud()`/`canjearCodigoAcceso()` insertan una fila
+nueva sin revocar ninguna anterior). Un índice único parcial —
+`unique (institucion_id, tenant_id) where revocado_en is null` — haría que "a lo sumo una fila vigente
+por par" sea una garantía de Postgres, no una convención que dos consultas (TS y, eventualmente, SQL)
+tienen que replicar de forma idéntica. Esto no reemplaza la necesidad de una policy (la policy sigue
+haciendo falta para que RLS conozca la regla), pero reduce lo que cualquier réplica SQL necesita
+expresar de "`ORDER BY fecha_aprobacion DESC LIMIT 1` con desempate correcto" a simplemente "existe una
+fila con `revocado_en is null`" — mucho menos superficie para divergir. Ver §16.3.4/§16.9.3: esto es
+código + una migración, fuera del alcance de HOY, pero es la recomendación de mayor apalancamiento de
+todo este diagnóstico.
+
+#### 16.1.4 Conclusión
+
+**Sí, pero no en la forma de §2.3 Caso 3 (arquitectónicamente inviable, §16.1.1) y con un alcance más
+angosto de lo que el pedido original imaginaba.** El backstop real y necesario no es "re-derivar
+`tieneConsentimiento()` completo en SQL" — es, como mínimo, "dejar de tener un bypass de sistema
+completamente ciego al tenant" (§16.1.2), que es un gap más básico y más urgente que el que motivó la
+pregunta original. La versión completa que sí re-deriva la vigencia por institución (lo que §2.3
+imaginaba) sigue siendo válida como diseño, pero depende de infraestructura nueva (identidad de la
+Institución viajando hasta la sesión de base de datos, hoy ausente) que es una decisión de diseño en sí
+misma, del mismo calibre que la que ya se tomó en 4.a — no algo para decidir de pasada dentro de 4.b.
+Ver §16.9 para el diseño en dos niveles.
+
+### 16.2 Qué protege realmente (superficie exacta)
+
+**Tablas que `/portal` alcanza hoy, y su estado real de RLS** (auditado contra el código, no
+supuesto):
+
+| Tabla | Vía | ¿RLS con efecto real hoy? | Notas |
+|---|---|---|---|
+| `instituciones` | `obtenerInstitucionActual()` | No — Consentimiento sin migrar, `db` crudo | Policy `select using(true)` ya declarada, inerte hoy |
+| `cartera_institucional` | `listarCarteraPropia()`/`estaEnCartera()` | No — `db` crudo | `crudPolicy()` ya declarada, inerte hoy |
+| `aprobaciones_tenant` | `tieneConsentimiento()` → `obtenerAprobacionVigente()` | No — `db` crudo | `crudPolicy()` ya declarada, inerte hoy |
+| `tenants` | `obtenerEstadoAccesoTenant()`/`obtenerTenantParaVeedor()` | No — `db` crudo | — |
+| `usuarios`/`roles` | `solicitanteGateway()` | No — `db` crudo | Lectura de la fila real sembrada en 4.a.1 |
+| **`compras`/`pagos_compra`** | `Financiero.flujoCaja()` → `consultarPagosCompraEnPeriodo()` | **Sí — único caso real hoy** | `gatewaySistemaBypassPolicy()` ya activa, sin restricción de tenant (§16.1.2) |
+| Ventas (`ventas`, `detalles_venta`, etc.) | `consultarIngresosPeriodo`, `Financiero.estadoResultados` | No — módulo sin migrar | Latente — mismo patrón que §14.1 ya documentó para Panel Admin CEOM |
+| Gastos | `Financiero.costoFijoTotal`/`estadoResultados` | No — módulo sin migrar | Latente, ídem |
+| Operativo/Nicho-1 (`producciones`, `insumos`) | `listarProducciones`, `consultarMermaPeriodo`, `listarInsumos` | No — módulo sin migrar | Latente, ídem — y ya tiene gap de cobertura de test conocido (§10.6) |
+
+**Consecuencia directa para el diseño:** igual que la Etapa 3 (§10.0.1), el efecto real de cualquier
+policy de 4.b hoy está acotado a `compras`/`pagos_compra`. Todo lo demás es trabajo que se vuelve real
+recién cuando Ventas/Gastos/Operativo-Nicho-1 migren — momento en el que la MISMA disciplina que ya
+exige el checklist 3.e (policy de bypass en el mismo commit que la migración) tiene que incluir además
+"¿esta tabla la alcanza el Gateway? si sí, ¿qué módulo veedor le corresponde?".
+
+**Qué queda fuera del alcance de RLS por definición, confirmado y con un ítem nuevo respecto al
+diagnóstico original:**
+1. **`modulosAprobados` en el sentido fino** (§2.3 ya lo señalaba) — pero es más angosto de lo que
+   parecía: cada tabla que el Gateway alcanza pertenece hoy a un único módulo veedor fijo (`compras`/
+   `pagos_compra` → `financiero`; `producciones`/`insumos` → `operativo`/`inventario_operativo`) — así
+   que una policy PUEDE tomar el módulo como literal fijo por tabla (no como parámetro de sesión) y
+   filtrar por `modulo_veedor = any(modulos_aprobados)` — eso SÍ es expresable en RLS, tabla por tabla.
+   Lo que sigue sin ser expresable es una tabla que se comparta entre múltiples módulos veedor con
+   distinto nivel de aprobación por llamada — no existe ese caso hoy.
+2. **Nuevo, no anticipado por §2.3: distinguir QUÉ institución pregunta.** Bajo la arquitectura real de
+   4.a (identidad de sistema compartida, §16.1.1), RLS no tiene, hoy, ninguna forma de saber cuál de
+   las N instituciones con acceso al Gateway está detrás de una lectura puntual — esa distinción vive
+   100% en `tieneConsentimiento()` (TypeScript), evaluada ANTES de que exista cualquier contexto de
+   base de datos. Un backstop de RLS sin plumbing nuevo (§16.9, nivel 4.b.0) solo puede proteger "este
+   tenant, para este módulo, tiene consentimiento vigente de ALGUNA institución" — no "esta institución
+   puntual".
+3. **`cartera_institucional`** (membresía, no consentimiento) es una regla de autorización distinta
+   (`estaEnCartera()`) que no pasa por `aprobaciones_tenant` en absoluto — fuera del alcance de un
+   backstop de "vigencia de consentimiento" tal como lo pidió la tarea.
+
+### 16.3 La regla de vigencia, con precisión
+
+**Contrato exacto de `tieneConsentimiento()`** (`consentimiento/actions.ts:368-382`):
+
+```
+tieneConsentimiento(institucionId, tenantId, moduloVeedor):
+  1. estado = obtenerEstadoAccesoTenant(tenantId)      -- repo.obtenerTenantPorId, filtra eliminado_en
+  2. si !estado.ok o estado.estadoAcceso == "bloqueado" -> false   (solo_lectura NO bloquea, caso borde 1)
+  3. aprobacion = obtenerAprobacionVigente(tenantId, institucionId)
+     -- SELECT * FROM aprobaciones_tenant
+     --   WHERE tenant_id = tenantId AND institucion_id = institucionId
+     --   ORDER BY fecha_aprobacion DESC LIMIT 1
+     -- (deliberadamente SIN filtrar revocado_en en el WHERE -- el filtro es posterior, ver paso 4)
+  4. si !aprobacion o aprobacion.revocadoEn != null -> false
+  5. return moduloVeedor in aprobacion.modulosAprobados
+```
+
+**Los bordes, uno por uno, con el veredicto de si ya están cerrados o son una brecha real:**
+
+1. **Aprobaciones múltiples para el mismo par institución-tenant.** El caso central de la regla —
+   `ORDER BY fecha_aprobacion DESC LIMIT 1` toma la más nueva; si esa está revocada, se deniega, aunque
+   una fila más vieja siga sin revocar. **Confirmado con `EXPLAIN ANALYZE` real (§16.5.2) que una
+   réplica SQL de esta regla exacta se comporta igual** (visible → 0 tras revocar la más reciente).
+2. **Revocaciones.** `revocarConsentimiento()` marca `revocadoEn` en una fila puntual por `aprobacionId`
+   — nunca revoca las demás filas del mismo par. Ya cubierto por el punto 1.
+3. **Empates de fecha — brecha real, encontrada en este diagnóstico, independiente de RLS.**
+   `ORDER BY fecha_aprobacion DESC LIMIT 1` no tiene columna de desempate. `fechaAprobacion` usa
+   `defaultNow()` (timestamp con precisión de microsegundos) — un empate exacto es raro en tráfico
+   humano normal, pero no está estructuralmen protegido: un backfill, un reintento de red que dispara
+   dos inserciones con el mismo timestamp redondeado, o simplemente dos llamadas casi simultáneas
+   podrían dejar la elección de "cuál es la vigente" a la fila que Postgres devuelva primero para claves
+   de orden iguales — **no determinístico** entre dos ejecuciones de la misma consulta, y potencialmente
+   **distinto entre la implementación TS y cualquier réplica SQL** si cada una no aplica el mismo
+   desempate explícito. Esto ya es un bug latente de `obtenerAprobacionVigente()` en TypeScript, previo
+   a cualquier decisión sobre RLS — vale corregirlo (agregar `id` como desempate secundario) sea cual
+   sea el resultado de esta etapa.
+4. **Aprobaciones futuras.** No hay ningún código que fije `fechaAprobacion` a un valor distinto de
+   `defaultNow()` — no es un caso alcanzable hoy. Documentado, no defendido con código extra.
+5. **Filas huérfanas.** Las FK (`institucionId`→`instituciones.id`, `tenantId`→`tenants.id`) no tienen
+   `onDelete` explícito, pero el proyecto nunca hace `DELETE` físico (regla 5 de AGENTS.md) — no hay
+   forma de que una fila de `aprobaciones_tenant` quede sin su padre. **Lo que sí es una brecha real,
+   distinta de "huérfana": una Institución o un Tenant soft-eliminado con una aprobación técnicamente
+   vigente.** Verificado en el código, no asumido:
+   - **Tenant soft-eliminado:** ya cerrado — `obtenerEstadoAccesoTenant()` → `repo.obtenerTenantPorId()`
+     filtra `isNull(tenants.eliminadoEn)`; si el tenant no aparece, `tieneConsentimiento()` corta en el
+     paso 2 (`!estado.ok`). Un tenant borrado nunca llega a evaluarse la vigencia.
+   - **Institución soft-eliminada:** también cerrado, pero por una capa distinta — `obtenerInstitucionActual()`
+     usa `obtenerInstitucionPorAuthUserId()`, que filtra `isNull(instituciones.eliminadoEn)`. Una
+     Institución borrada no puede ni autenticarse en `/portal` (`portal/actions.ts` devuelve "Tu sesión
+     expiró" antes de llegar a `tieneConsentimiento()`), así que nunca se prueba su vigencia. Ninguna de
+     las dos brechas es real hoy — quedan documentadas como ya cerradas, no como pendientes.
+
+### 16.4 El test dorado
+
+**Objetivo:** un conjunto de escenarios sintéticos que corre contra `tieneConsentimiento()` (TS) Y
+contra la función SQL candidata en la MISMA corrida, y falla si difieren — pedido explícito de §7
+decisión 3, nunca diseñado hasta ahora.
+
+**Diseño propuesto — `src/modules/consentimiento/vigencia-dorado.test.ts`:**
+
+```ts
+// Tabla de escenarios -- cada fila es un estado completo de aprobaciones_tenant
+// para un par (institucion, tenant) mas el resultado esperado. Se siembra UNA VEZ
+// por escenario, se pregunta a TS (tieneConsentimiento) Y a SQL (la funcion
+// candidata, invocada via db.execute) contra los MISMOS datos, y se comparan.
+const ESCENARIOS: Array<{
+  nombre: string;
+  filas: Array<{ offsetMinutos: number; revocada: boolean; modulos: ModuloVeedor[] }>;
+  moduloConsultado: ModuloVeedor;
+  esperado: boolean;
+}> = [
+  { nombre: "una aprobacion vigente, modulo incluido",
+    filas: [{ offsetMinutos: 0, revocada: false, modulos: ["financiero"] }],
+    moduloConsultado: "financiero", esperado: true },
+  { nombre: "una aprobacion vigente, modulo NO incluido",
+    filas: [{ offsetMinutos: 0, revocada: false, modulos: ["operativo"] }],
+    moduloConsultado: "financiero", esperado: false },
+  { nombre: "unica aprobacion revocada",
+    filas: [{ offsetMinutos: 0, revocada: true, modulos: ["financiero"] }],
+    moduloConsultado: "financiero", esperado: false },
+  { nombre: "mas reciente vigente sobre una vieja revocada",
+    filas: [
+      { offsetMinutos: -60, revocada: true, modulos: ["financiero"] },
+      { offsetMinutos: 0, revocada: false, modulos: ["financiero"] },
+    ], moduloConsultado: "financiero", esperado: true },
+  { nombre: "REGLA CENTRAL: mas reciente revocada mata una vieja vigente",
+    filas: [
+      { offsetMinutos: -60, revocada: false, modulos: ["financiero"] },
+      { offsetMinutos: 0, revocada: true, modulos: ["financiero"] },
+    ], moduloConsultado: "financiero", esperado: false },
+  { nombre: "empate de fecha exacto -- desempate por id, ambas implementaciones deben coincidir",
+    filas: [
+      { offsetMinutos: 0, revocada: false, modulos: ["financiero"] },
+      { offsetMinutos: 0, revocada: true, modulos: ["financiero"] },
+    ], moduloConsultado: "financiero", esperado: /* depende del desempate elegido -- ver 16.3.3 */ false },
+  { nombre: "ninguna aprobacion existe",
+    filas: [], moduloConsultado: "financiero", esperado: false },
+  { nombre: "tenant bloqueado ignora aprobacion vigente",
+    filas: [{ offsetMinutos: 0, revocada: false, modulos: ["financiero"] }],
+    moduloConsultado: "financiero", esperado: false /* requiere ademas estadoAcceso=bloqueado en el seed */ },
+];
+
+describe.skipIf(!hasCredenciales)("Vigencia de consentimiento -- TS vs SQL, mismo dato", () => {
+  it.each(ESCENARIOS)("$nombre", async (escenario) => {
+    const { institucionId, tenantId } = await sembrarEscenario(escenario);
+    const resultadoTs = await tieneConsentimiento(institucionId, tenantId, escenario.moduloConsultado);
+    const resultadoSql = await consultarFuncionSqlDirecto(institucionId, tenantId, escenario.moduloConsultado);
+    expect(resultadoTs).toBe(escenario.esperado);
+    expect(resultadoSql).toBe(escenario.esperado);
+    expect(resultadoSql).toBe(resultadoTs); // la aserción que realmente importa: coinciden entre si
+  });
+});
+```
+
+**Cómo se garantiza que un caso nuevo de la regla se agregue acá (el punto que el pedido marcó como
+"lo importante"):** el mismo mecanismo AST que ya usa el proyecto para `access-manifest.test.ts`
+(§8.3 de la auditoría) y para el allowlist de `contexto.test.ts` — un test dedicado que falla si
+`obtenerAprobacionVigente()`/`tieneConsentimiento()` cambian de forma (nueva rama `if`, nuevo campo de
+`aprobacionesTenant` referenciado) sin que el número de entradas en `ESCENARIOS` también cambie. Más
+barato y más robusto que un comentario ("actualizar este test si cambia la regla"): un comentario se
+ignora, un test que falla en CI no. Alternativa más simple si el costo del AST no se justifica todavía
+(pocas líneas de superficie): un comentario **en la propia función** `tieneConsentimiento()` que apunte
+al archivo del test dorado por nombre exacto, más una revisión obligatoria del archivo dorado agregada
+al checklist de "Definición de terminado" de AGENTS.md específicamente para cambios a este módulo —
+más débil que un AST-test pero mucho más barato, y el AST-test se puede agregar después si el
+comentario resulta insuficiente en la práctica.
+
+**Con el índice único parcial de §16.1.3/§16.9.3 aplicado**, el escenario de "empate de fecha" deja de
+ser posible por construcción (a lo sumo una fila `revocado_en is null` por par) — el test dorado se
+simplifica pero la regla "empate correcto" pasa a probarse como una restricción de base de datos
+(intentar insertar una segunda fila vigente para el mismo par debe fallar con violación de constraint),
+no como un caso de la función de vigencia.
+
+### 16.5 El costo, medido con `EXPLAIN ANALYZE` real
+
+**Metodología:** una única transacción con `rollback` al final (§8.1/§12.2 — cada llamada del conector
+abre una sesión nueva, así que todo el seed+medición+verificación+rollback va en una sola llamada),
+contra `riertvgnjaujstwyqoom`. Función candidata (nivel 4.b.0, §16.9.1):
+
+```sql
+create function public.tenant_tiene_consentimiento_vigente(tenant_objetivo uuid, modulo public.modulo_veedor)
+returns boolean language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1 from public.aprobaciones_tenant a
+    where a.tenant_id = tenant_objetivo and a.revocado_en is null and modulo = any(a.modulos_aprobados)
+  )
+$$;
+```
+
+Aplicada como `using ( (select es_gateway_sistema()) and (select tenant_tiene_consentimiento_vigente(tenant_id, 'financiero')) )`
+sobre una tabla desechable con la misma forma mínima que una tabla real (`tenant_id` + RLS), sembrada
+con 40.003 filas (40.000 de un tenant sin ninguna aprobación, 3 de un tenant con aprobación vigente) —
+mismo volumen sintético que §12.2.
+
+#### 16.5.1 Corrección — verificada en vivo, no solo diseñada
+
+| Escenario | Resultado |
+|---|---|
+| Tenant con aprobación vigente | 3/3 filas visibles |
+| Tenant sin ninguna fila en `aprobaciones_tenant` (40.000 filas) | 0/40.000 visibles — el bypass de `es_gateway_sistema()` por sí solo NO alcanza, la condición de tenant lo bloquea |
+| Mismo tenant, tras revocar la única aprobación | 0/3 visibles — "revocada mata" se sostiene bajo la policy real |
+
+#### 16.5.2 Costo — el patrón `(select ...)` de §12 NO hoistea acá, por una razón estructural distinta
+
+**Hallazgo nuevo respecto a §12: esta función toma `tenant_id` como argumento — varía por fila. A
+diferencia de `es_ceom_admin()`/`es_gateway_sistema()` (sin argumentos, constantes para toda la
+consulta), envolverla en `(select ...)` no la hoistea a un `InitPlan` — Postgres la ejecuta como un
+`SubPlan` correlacionado, una vez por cada fila candidata.** Confirmado en el plan real:
+
+```
+-- CON filtro explicito de tenant (el patron que ya usa toda la app hoy):
+Seq Scan  (actual time=3.678..3.706 rows=3 loops=1)
+  Filter: ((InitPlan 1).col1 AND (tenant_id = '888...') AND (SubPlan 2))
+  Rows Removed by Filter: 40000
+  SubPlan 2 -> Result (actual time=0.069..0.069 rows=1 loops=3)   -- 3 evaluaciones, no 40003
+Execution Time: 3.726 ms
+
+-- SIN filtro (agregado de toda la plataforma -- hoy no existe ningun caso real asi en el
+-- camino del Gateway, mismo hallazgo que 12.5 confirmo para es_ceom_admin()):
+Aggregate  (actual time=447.064..447.066 rows=1 loops=1)
+  Seq Scan -> Filter: ((InitPlan 1).col1 AND (SubPlan 2))
+    SubPlan 2 -> Result (actual time=0.011..0.011 rows=1 loops=40003)   -- 40003 evaluaciones
+Execution Time: 448.080 ms
+```
+
+`InitPlan 1` (`es_gateway_sistema()`) sí hoistea, exactamente como predice §12 — es la parte
+zero-argumento de la condición. El `SubPlan 2` (la función parametrizada por tenant) es
+estructuralmente distinto: **nunca puede convertirse en un `InitPlan`, sin importar cómo se escriba**,
+porque su resultado depende de la fila, no solo de la sesión. Esto no es un bug corregible con el
+truco de §12 — es una propiedad del mecanismo, a documentar como tal en el helper (`gatewayVigenciaBypassPolicy()`,
+§16.9.1) para que nadie intente "arreglarlo" más adelante persiguiendo un hoisting que no existe para
+este caso.
+
+**Conclusión práctica:** el mismo invariante que ya sostiene el costo de `es_ceom_admin()`/
+`es_gateway_sistema()` — que la app siempre trae un filtro de tenant explícito — es aquí **la única
+razón por la que el costo es aceptable** (3.7ms), no una capa adicional de seguridad como en el caso de
+`InitPlan`. A diferencia de §12 (donde el hoisting hizo que ESE invariante dejara de ser necesario), acá
+sigue siendo necesario — si el filtro de tenant explícito de la query desaparece, el costo escala
+linealmente con el tamaño de la tabla (448ms a 40k filas; en una tabla de producción más grande, peor).
+Vale como ítem nuevo del checklist 3.e/§11.2: "si esta tabla recibe una policy de vigencia del Gateway,
+¿la query de aplicación sigue trayendo su filtro de tenant explícito?" — mismo criterio que ya existe
+para `es_ceom_admin()`, pero acá SIN el respaldo del hoisting.
+
+#### 16.5.3 Verificación de que no quedó nada persistente
+
+`select count(*) from pg_proc where proname = 'tenant_tiene_consentimiento_vigente'` → `0`.
+`information_schema.tables` para la tabla desechable → `0`. Tenants/institución sintéticos → `0`.
+Confirmado después del `rollback`, no asumido.
+
+### 16.6 Recursión y `SECURITY DEFINER`
+
+**La función candidata lee `aprobaciones_tenant`** (no `instituciones` en la versión de nivel 4.b.0,
+§16.9.1 — solo necesita `tenant_id`/`modulos_aprobados`/`revocado_en`, no necesita unirse contra
+`instituciones` para el chequeo grueso). Misma forma `STABLE SECURITY DEFINER` que `es_ceom_admin()`/
+`es_gateway_sistema()` — corre como dueño (`postgres`), ignora RLS de las tablas que lee mientras esas
+tablas no tengan `FORCE`.
+
+**Estado real, verificado:** `aprobaciones_tenant` tiene `crudPolicy()` declarada pero Consentimiento
+no está migrado — sin `FORCE` hoy (mismo patrón que todo módulo no migrado, §1.1). `instituciones`
+tiene una policy `select using(true)`, también sin `FORCE`. **No hay recursión posible hoy**, por la
+misma razón que `es_ceom_admin()` no recursiona hoy (§10.3): ninguna de las dos tablas tiene `FORCE`
+todavía.
+
+**Regla dura nueva, misma forma que la ya escrita para `usuarios`/`roles`/`permisos*`
+(`identidad/schema.ts:182-195`) — hace falta ANTES de que Consentimiento migre, no después:**
+`aprobaciones_tenant` NUNCA debería recibir una policy que llame a
+`tenant_tiene_consentimiento_vigente()`/una futura función de vigencia por institución sobre **sí
+misma** — el día que Consentimiento migre y esa tabla reciba `FORCE ROW LEVEL SECURITY` (parte natural
+del checklist 3.e), agregarle ese bypass crearía exactamente la recursión que la regla de
+`identidad/schema.ts` ya previene para el caso de `ceom_admin`: evaluar la policy de `aprobaciones_tenant`
+llamaría a la función, que vuelve a leer `aprobaciones_tenant`, que vuelve a evaluar la policy. Lo
+mismo aplica a `instituciones` si una futura versión (nivel 4.b.1, §16.9.2) necesita unirse contra
+ella. **Esta regla se escribe como comentario en `consentimiento/schema.ts` como parte del mismo
+commit que declare `tenant_tiene_consentimiento_vigente()`, no cuando Consentimiento migre** — mismo
+criterio que ya estableció §11.1 punto 3 para Identidad, aplicado con la misma disciplina acá.
+
+**¿`aprobaciones_tenant`/`instituciones` necesitan alguna vez que el Gateway las lea bajo RLS
+directamente (no a través de la función `SECURITY DEFINER`)?** No hay ningún caso conocido hoy — `/portal`
+nunca devuelve filas crudas de `aprobaciones_tenant` al cliente, solo el booleano derivado. Mientras
+eso siga siendo cierto, ninguna de las dos tablas necesita `gatewaySistemaBypassPolicy()` propia — y no
+debería recibirla "por consistencia" con el resto del checklist 3.e sin una necesidad real, justamente
+para no abrir la puerta a la recursión de arriba sin beneficio a cambio.
+
+### 16.7 La clase de defecto `coalesce`/assert débil
+
+**Para la única superficie real hoy (`compras`/`pagos_compra` vía `consultarPagosCompraEnPeriodo`):
+ya cerrado.** `sumarPagosCompraPeriodo` usa `coalesce(sum(...), 0)` (mismo patrón de riesgo, §14.1),
+pero el assert de valor exacto (`flujoCaja = -100`) y el test negativo del camino Gateway ya se
+reforzaron en 4.a.3/§13.11/§15.3 — específicamente para esta función, antes de que el bypass existiera.
+**No hace falta trabajo nuevo acá para lo que 4.b tocaría en su alcance real de hoy.**
+
+**Para la superficie latente (Ventas, Gastos, Operativo/Nicho-1) — sin cambios respecto a §14.3, se
+repite acá por completitud:** los mismos `coalesce(sum(...),0)` identificados en §14.1, con el mismo
+assert débil (`typeof === "number"` o ausencia total de test para `consultarOperativoTenant`/
+`consultarInventarioOperativoTenant`, §10.6) siguen sin corregir. **Antes de aplicar CUALQUIER policy
+de vigencia del Gateway a una tabla de estos tres módulos** (cuando migren), el checklist 3.e ya
+exige — desde §14.3 — reforzar el assert a valor exacto primero. Esta etapa no agrega un ítem nuevo
+acá: confirma que el ítem que ya existía sigue siendo el gate correcto, y que hoy no hay ninguna tabla
+nueva que lo dispare.
+
+### 16.8 Blast radius y detección
+
+**Si la policy de vigencia (nivel 4.b.0) queda MÁS ESTRICTA de lo debido** (ej. un bug en
+`tenant_tiene_consentimiento_vigente()` — el `modulo = any(...)` mal escrito, o el `and` con
+`es_gateway_sistema()` invertido a `or` por error):
+- **Qué se rompe:** una institución con consentimiento vigente real ve `autorizado: true` desde
+  `tieneConsentimiento()` (TypeScript, sin tocar) pero la consulta de datos real devuelve 0 filas/un
+  agregado en `coalesce(...,0)`.
+- **¿Visible o silencioso?** **Silencioso**, mismo patrón ya confirmado dos veces en este plan (§9.6,
+  §10.6): el flujo entero de `monitoreo-institucional/actions.ts` no distingue "autorizado pero sin
+  datos" de "autorizado con RLS bloqueando" — ambos casos devuelven `{autorizado: true, detalle: {...
+  0 o vacío ...}}`. Ninguna excepción, ningún log de error.
+- **Quién se entera:** hoy, nadie automáticamente. Recomendación (mismo patrón que §5, canario
+  post-deploy): un test de humo post-deploy contra una institución/tenant de prueba sembrados con
+  consentimiento vigente conocido, que falle si el valor esperado (no solo el tipo) no aparece.
+
+**Si la policy queda MÁS PERMISIVA de lo debido** (ej. se omite el `and tenant_tiene_consentimiento_vigente(...)`
+por error de copy-paste al aplicar el helper a una tabla nueva, volviendo a la forma actual sin
+restricción de tenant):
+- **Qué se filtra:** el Gateway (bajo su identidad de sistema) vuelve a poder leer cualquier tenant de
+  esa tabla, sin relación de consentimiento — exactamente el estado actual de `compras`/`pagos_compra`
+  hoy (§16.1.2), extendido a una tabla más.
+- **¿Visible o silencioso?** **También silencioso** — ninguna excepción, la query simplemente devuelve
+  más filas de las que debería, y el código de aplicación (`consultarPagosCompraEnPeriodo`, o su
+  equivalente futuro) no tiene ninguna verificación de "¿estas filas realmente pertenecen al tenant que
+  pregunté?" porque hoy confía en que RLS ya filtró — la misma confianza que, si la policy falla en este
+  sentido, deja de estar justificada.
+- **Cuál es peor:** el caso "más permisivo" es estrictamente peor — es una fuga de datos activa, no una
+  degradación de servicio. Y es el más difícil de notar de los dos porque el sistema "funciona" (no hay
+  error, no hay ceros sospechosos) — la única forma de detectarlo es un test negativo explícito
+  (institución SIN consentimiento vigente para un tenant con datos reales, verificar 0 filas), no una
+  observación pasiva de producción. Ítem obligatorio de §16.10 (tests previos), no opcional.
+
+### 16.9 Diseño propuesto — dos niveles independientes
+
+#### 16.9.1 Nivel 4.b.0 — backstop grueso por tenant+módulo (recomendado, sin plumbing nuevo)
+
+```sql
+-- drizzle/migrations/00XX_tenant_vigencia_consentimiento_function.sql
+create function public.tenant_tiene_consentimiento_vigente(
+  tenant_objetivo uuid, modulo public.modulo_veedor
+) returns boolean
+language sql stable security definer
+set search_path = public, pg_temp
+as $$
+  select exists (
+    select 1 from public.aprobaciones_tenant a
+    where a.tenant_id = tenant_objetivo
+      and a.revocado_en is null
+      and modulo = any(a.modulos_aprobados)
+  )
+$$;
+revoke all on function public.tenant_tiene_consentimiento_vigente(uuid, public.modulo_veedor) from public, anon;
+grant execute on function public.tenant_tiene_consentimiento_vigente(uuid, public.modulo_veedor) to authenticated;
+```
+
+```ts
+// src/db/rls.ts — junto a gatewaySistemaBypassPolicy(), NO la reemplaza: se usa
+// en su lugar para tablas donde el Gateway necesita ademas la restriccion de
+// vigencia (deberia ser TODAS las tablas que gatewaySistemaBypassPolicy() toca
+// hoy o toque en el futuro -- ver nota mas abajo).
+export function gatewayVigenciaBypassPolicy(tableName: string, moduloVeedor: string) {
+  return pgPolicy(`${tableName}_gateway_vigencia_bypass`, {
+    for: "select",
+    to: authenticatedRole,
+    using: sql`(select es_gateway_sistema())
+                and (select public.tenant_tiene_consentimiento_vigente(tenant_id, ${sql.raw(`'${moduloVeedor}'`)}))`,
+  });
+}
+```
+
+**Qué protege:** que el Gateway lea un tenant que no tiene NINGUNA relación de consentimiento vigente
+para el módulo de esa tabla — cierra el gap real de §16.1.2/§16.5, ya en producción.
+**Qué NO protege:** que sea la institución CORRECTA la que pregunta (cualquier institución con
+consentimiento vigente para ese tenant "cubre" a las demás, desde el punto de vista de esta policy) —
+ver §16.9.2 para lo que sí lo distingue.
+**Costo:** medido en §16.5 — despreciable con el filtro de tenant explícito que la app ya trae siempre;
+no hoistea (razón estructural, no un bug) — documentar en el propio helper para que nadie lo persiga.
+
+**Recomendación de alcance: reemplazar `gatewaySistemaBypassPolicy()` por `gatewayVigenciaBypassPolicy()`
+en las 2 tablas donde ya está aplicada (`compras`, `pagos_compra`), en vez de agregar una policy nueva
+al lado de la vieja.** Mantener las dos generaría una policy permisiva adicional que un futuro
+mantenedor podría no darse cuenta que anula a la otra (semántica `OR` de policies permisivas múltiples
+— si CUALQUIERA de las dos autoriza, la fila es visible; conservar la vieja sin restricción de tenant
+haría inútil a la nueva). Esto es una migración que TOCA una policy ya en producción — no es
+"agregar", es "corregir" — vale tratarla con la misma seriedad que cualquier cambio a una policy activa
+(rollback probado antes de aplicar, ver §16.10).
+
+#### 16.9.2 Nivel 4.b.1 — backstop fino por institución+tenant+módulo (la duplicación completa que pedía §2.3 Caso 3 — diferir)
+
+Requiere, como prerequisito, resolver algo que hoy no existe: que la identidad de QUÉ institución está
+detrás de una lectura viaje hasta la sesión de base de datos bajo `comoGatewaySistema()`. Diseño mínimo
+si se decide hacer:
+
+```ts
+// src/db/contexto.ts -- cambio de firma, no aditivo
+export async function comoGatewaySistema<T>(
+  institucionId: string,   // NUEVO -- nunca opcional: sin institucionId no hay nada que re-derivar
+  fn: (tx: Tx) => Promise<T>
+): Promise<T> {
+  return dbInterno.transaction(async (tx) => {
+    await fijarContextoYExigirTenant(tx, GATEWAY_SISTEMA_USUARIO_ID);
+    await tx.execute(sql`select set_config('request.gateway.institucion_id', ${institucionId}, true)`);
+    return fn(tx);
+  });
+}
+```
+
+```sql
+create function public.institucion_tiene_consentimiento_vigente(tenant_objetivo uuid, modulo public.modulo_veedor)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from public.aprobaciones_tenant a
+    where a.institucion_id = nullif(current_setting('request.gateway.institucion_id', true), '')::uuid
+      and a.tenant_id = tenant_objetivo
+      and a.revocado_en is null
+      and modulo = any(a.modulos_aprobados)
+      and a.fecha_aprobacion = (
+        select max(a2.fecha_aprobacion) from public.aprobaciones_tenant a2
+        where a2.institucion_id = a.institucion_id and a2.tenant_id = a.tenant_id
+      )
+  )
+$$;
+```
+
+**Por qué diferir, con honestidad sobre el costo/beneficio real:**
+1. `request.gateway.institucion_id` es un GUC que la propia aplicación asigna — a diferencia de
+   `auth.uid()` (que Supabase deriva de un JWT firmado, verificado criptográficamente), este valor
+   viaja como un parámetro más de `comoGatewaySistema(institucionId, ...)`, con el MISMO nivel de
+   confianza que `tenantId` ya tiene hoy. **Sí protege contra un bug en la lógica de vigencia de
+   `tieneConsentimiento()`** (la regla "más reciente manda, revocada mata" mal escrita en TS) — la
+   réplica SQL, si se escribe independientemente, tiene una oportunidad real de no repetir el mismo
+   error. **No protege contra un bug de "institución equivocada"** — si el código que llama a
+   `comoGatewaySistema()` pasa el `institucionId` incorrecto, ambas capas (TS y SQL) recibirían el
+   mismo dato incorrecto y coincidirían en el resultado incorrecto.
+2. Requiere replicar el `ORDER BY fecha_aprobacion DESC LIMIT 1` (con el mismo desempate que se elija
+   para el borde de §16.3.3) en SQL — es exactamente la superficie que más puede divergir entre TS y
+   SQL con el tiempo. El índice único parcial de §16.9.3 elimina esta superficie casi por completo, así
+   que **implementar 4.b.1 sin haber hecho antes 16.9.3 es hacer el trabajo más difícil y más frágil de
+   lo necesario**.
+3. El nivel 4.b.0 ya cierra el gap más grave y explotable (§16.1.2) sin este costo. El valor
+   incremental de 4.b.1 es real pero acotado — protege contra un escenario más específico ("otra
+   institución con consentimiento vigente para el mismo tenant filtra datos hacia una institución sin
+   consentimiento", un caso de dos instituciones activas simultáneas sobre el mismo tenant, plausible
+   pero no el caso central que motivó la pregunta) mientras que 4.b.0 protege contra el caso central
+   ("cualquier lectura sin ninguna relación de consentimiento").
+
+**Recomendación: hacer 4.b.0 ahora, diferir 4.b.1 hasta después de 16.9.3 (índice único parcial),
+igual que 4.a se separó en A′ tras un análisis de qué bypass hereda qué.**
+
+#### 16.9.3 Recomendación independiente de RLS: colapsar "más reciente manda" a una invariante de esquema
+
+```sql
+-- drizzle/migrations/00XX_aprobaciones_tenant_una_vigente_por_par.sql
+create unique index aprobaciones_tenant_vigente_unica
+  on aprobaciones_tenant (institucion_id, tenant_id)
+  where revocado_en is null;
+```
+
+Requiere que `aprobarSolicitud()`/`canjearCodigoAcceso()` revoquen atómicamente cualquier aprobación
+previa no revocada del mismo par antes de insertar la nueva (hoy no lo hacen — es el motivo real por el
+que `obtenerAprobacionVigente()` necesita el `ORDER BY`). Es código de aplicación + una migración,
+fuera del alcance de HOY (diagnóstico de solo lectura), pero es la recomendación de mayor apalancamiento
+de todo este documento: simplifica el test dorado (§16.4), simplifica cualquier función SQL de 4.b.1 a
+un `EXISTS` sin `ORDER BY`, y cierra el borde de empate de fecha (§16.3.3) por construcción en vez de
+por disciplina de dos implementaciones coincidiendo.
+
+### 16.10 Sub-etapas verificables y reversibles, tests previos, rollback
+
+**4.b.0.a — `tenant_tiene_consentimiento_vigente()` sola, sin ninguna policy todavía.** Mismo criterio
+que 3.a (§10.8): crear la función, revocar `EXECUTE` de `anon`/`public` en la misma migración, agregar
+la regla dura de no-recursión a `consentimiento/schema.ts` (§16.6) en el mismo commit. Verificar con
+`EXPLAIN ANALYZE` real (§16.5, ya adelantado en este diagnóstico). Reversible: `DROP FUNCTION` sin
+dependientes.
+
+**4.b.0.b — Test dorado (§16.4) ANTES de tocar la policy real**, corrido contra la función ya creada en
+4.b.0.a pero SIN policy activa todavía (invocada directo vía `db.execute`) — mismo orden que ya siguió
+la Etapa 3 (§11.1 punto 4: tests antes que la policy, para que el "antes" quede documentado como
+verificado, no supuesto).
+
+**4.b.0.c — Reemplazar `gatewaySistemaBypassPolicy("compras"/"pagos_compra")` por
+`gatewayVigenciaBypassPolicy(...)` en `proveedores/schema.ts`.** Es una migración que ALTERA dos
+policies ya en producción — probar antes en un branch/entorno de desarrollo, con el mismo test de
+`tenant-aislamiento.test.ts` extendido (caso nuevo: institución con consentimiento SÍ ve la fila,
+institución sin consentimiento NO la ve, aunque `es_gateway_sistema()` sea `true` para ambos casos —
+misma identidad de sistema, dato distinto de `aprobaciones_tenant`). Reversible: `DROP POLICY` de la
+nueva + recrear la vieja (`gatewaySistemaBypassPolicy` sigue existiendo como función, no se borra en
+esta sub-etapa).
+
+**4.b.0.d — Checklist nuevo para cuando Ventas/Gastos/Operativo-Nicho-1 migren**, mismo formato que
+3.e/§11.2, con los ítems específicos de esta etapa agregados: (1) ¿esta tabla la alcanza el Gateway?
+si sí, ¿qué módulo veedor fijo le corresponde?; (2) aplicar `gatewayVigenciaBypassPolicy()`, nunca
+`gatewaySistemaBypassPolicy()` sola, en el mismo commit que la migración a `comoUsuario()` (mismo
+criterio que §9.6 ya estableció para `ceomAdminBypassPolicy()`); (3) confirmar que la query de
+aplicación sigue trayendo su filtro de tenant explícito (§16.5.2 — acá SIN el respaldo del hoisting,
+más importante que para `es_ceom_admin()`); (4) reforzar el assert a valor exacto antes de migrar
+(§16.7, ya cubierto por el ítem existente de §14.3).
+
+**4.b.1 (diferida) y 16.9.3 (índice único parcial)** quedan como decisiones abiertas, no sub-etapas con
+fecha — ver §16.11.
+
+**Tests a escribir/reforzar ANTES de tocar código, en orden:**
+1. Test dorado completo (§16.4), incluido el caso "más permisiva" explícito: sembrar una institución
+   SIN consentimiento vigente + datos reales del tenant, confirmar 0 filas — es el test que detecta el
+   blast radius "silencioso, más permisivo" de §16.8 si algún día se rompe.
+2. Extensión de `tenant-aislamiento.test.ts` (Proveedores): caso nuevo de "consentimiento vigente"
+   (institución ve la fila) y "sin consentimiento" (no la ve), ambos bajo la MISMA identidad
+   `GATEWAY_SISTEMA_USUARIO_ID` — para que quede claro que lo que cambia el resultado es
+   `aprobaciones_tenant`, no la identidad.
+3. Test negativo del borde de empate de fecha (§16.3.3) — antes de decidir el desempate, escribir el
+   test que lo exige.
+
+**Plan de rollback:** mismo patrón que el resto del plan (§5, §10.10) — DDL reversible sin tocar datos,
+en el orden inverso al de aplicación (4.b.0.c → 4.b.0.b no tiene DDL que revertir → 4.b.0.a). El único
+paso con riesgo real de "estado a medio camino" es 4.b.0.c (altera policies ya en producción) — revertir
+significa recrear `gatewaySistemaBypassPolicy()` tal cual estaba, volviendo al estado (peor, pero
+conocido) de §16.1.2, nunca a un estado intermedio sin ninguna policy (eso dejaría `compras`/
+`pagos_compra` completamente inaccesibles para el Gateway, rompiendo `Financiero.flujoCaja()` en
+producción para toda institución).
+
+### 16.11 Decisiones abiertas — recomendación en cada una
+
+1. **¿4.b.0 (backstop grueso, sin plumbing nuevo) ahora?** Recomiendo sí — cierra un gap real, ya
+   desplegado (§16.1.2), con costo medido y aceptable (§16.5), sin necesitar ninguna decisión de diseño
+   nueva del calibre de 4.a.
+2. **¿4.b.1 (backstop fino por institución, requiere el GUC `request.gateway.institucion_id`) ahora,
+   después, o nunca?** Recomiendo diferir hasta después de la decisión 3 — implementarlo antes hace el
+   trabajo más frágil de lo necesario, y su valor incremental sobre 4.b.0 es real pero menor que el
+   gap que 4.b.0 ya cierra.
+3. **¿Índice único parcial sobre `aprobaciones_tenant` (§16.9.3), que colapsa "más reciente manda" a
+   una invariante de esquema?** Recomiendo sí, como trabajo previo a 4.b.1 si se decide hacerlo, e
+   independientemente valioso ya que cierra el borde real de empate de fecha (§16.3.3) — pero es
+   código de aplicación (`aprobarSolicitud()`/`canjearCodigoAcceso()`) + migración, fuera del alcance
+   de solo-lectura de hoy.
+4. **Desempate del borde de empate de fecha (§16.3.3), si 16.9.3 NO se hace**: recomiendo `id` como
+   columna de desempate secundaria (`ORDER BY fecha_aprobacion DESC, id DESC`) — arbitrario pero
+   determinístico y fácil de replicar idéntico en TS y SQL, aplicado en el mismo commit a ambos lados.
+5. **¿4.b.0.c reemplaza `gatewaySistemaBypassPolicy()` en `compras`/`pagos_compra` (recomendado, §16.9.1)
+   o convive con una policy nueva al lado?** Recomiendo reemplazar — convivir deja la vieja policy sin
+   restricción de tenant activa, anulando el propósito de la nueva por la semántica `OR` de policies
+   permisivas múltiples.
+6. **¿El helper se llama `gatewayVigenciaBypassPolicy()` (propuesto acá) o se extiende
+   `gatewaySistemaBypassPolicy()` con un parámetro opcional de módulo veedor?** Recomiendo un helper
+   nuevo, no extender el existente — `gatewaySistemaBypassPolicy()` sin restricción de tenant deja de
+   tener ningún uso legítimo una vez que existe la versión con vigencia (ninguna tabla debería usar la
+   vieja forma a propósito), así que lo más limpio es que el nombre nuevo deje obsoleto al viejo de
+   forma explícita, no que un parámetro opcional permita seguir generando la forma insegura por
+   omisión.
