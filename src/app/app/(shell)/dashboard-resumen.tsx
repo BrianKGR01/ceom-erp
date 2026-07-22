@@ -356,7 +356,7 @@ export function DashboardResumen({
           {capacidadAlmacenamiento && (
             <Card>
               <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle>Capacidad de Almacenamiento Usada</CardTitle>
+                <CardTitle>Cuánto depósito estás usando</CardTitle>
                 <span className="flex size-8 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                   <Archive className="size-4" />
                 </span>

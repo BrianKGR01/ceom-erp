@@ -24,17 +24,17 @@ export const MODULOS_VEEDOR_INFO: Record<
   { label: string; descripcion: string; icon: typeof Wallet }
 > = {
   financiero: {
-    label: "Módulo Financiero",
+    label: "Ventas y finanzas",
     descripcion: "Acceso a ventas, flujo de caja y estado de resultados.",
     icon: Wallet,
   },
   operativo: {
-    label: "Módulo Operativo",
+    label: "Producción",
     descripcion: "Acceso a producciones y control de merma.",
     icon: Wrench,
   },
   inventario_operativo: {
-    label: "Inventario Operativo",
+    label: "Insumos y stock",
     descripcion: "Acceso al catálogo de insumos y su costo vigente.",
     icon: Package,
   },

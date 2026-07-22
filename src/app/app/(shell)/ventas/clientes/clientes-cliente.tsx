@@ -107,7 +107,7 @@ function ClienteFormDialog({
             <Input id="telefono" placeholder="+54 9 11 ..." {...form.register("telefono")} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email (opcional)</Label>
+            <Label htmlFor="email">Correo electrónico (opcional)</Label>
             <Input id="email" type="email" placeholder="cliente@ejemplo.com" {...form.register("email")} />
             {form.formState.errors.email && (
               <p className="text-xs text-error-text">{form.formState.errors.email.message}</p>

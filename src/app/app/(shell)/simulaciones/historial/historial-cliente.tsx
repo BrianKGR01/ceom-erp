@@ -50,7 +50,7 @@ function formatoPeriodo(periodo: string): string {
 function NavSimulaciones({ activo }: { activo: "simulador" | "comparativo" | "historial" | "margen" }) {
   const items = [
     { href: "/app/simulaciones", key: "simulador", label: "Simulador", icon: Calculator },
-    { href: "/app/simulaciones/comparativo", key: "comparativo", label: "Comparativo Multi-SKU", icon: Scale },
+    { href: "/app/simulaciones/comparativo", key: "comparativo", label: "Comparar productos", icon: Scale },
     { href: "/app/simulaciones/historial", key: "historial", label: "Historial", icon: History },
     { href: "/app/simulaciones/margen-producto", key: "margen", label: "Margen por Producto", icon: Percent },
   ] as const;

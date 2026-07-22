@@ -64,7 +64,7 @@ export function SolicitudesCliente({ filas }: { filas: FilaSolicitud[] }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Solicitudes de Seguimiento entrantes"
+        title="Solicitudes de acceso"
         description="Instituciones que pidieron seguimiento de tu negocio — vos decidís qué módulos aprobar."
       />
       <NavConsentimiento activo="solicitudes" />

@@ -17,9 +17,9 @@ export default async function CapacidadPage() {
   return (
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="mx-auto max-w-3xl space-y-4 py-6">
-        <Breadcrumb items={[{ label: "Producción", href: "/app/produccion" }, { label: "Capacidad Operativa" }]} />
+        <Breadcrumb items={[{ label: "Producción", href: "/app/produccion" }, { label: "Capacidad de producción" }]} />
         <PageHeader
-          title="Capacidad Operativa"
+          title="Capacidad de producción"
           description="Producción y almacenamiento reales frente a la capacidad de tu equipo — solo lectura."
         />
         <CapacidadCliente activos={activos.map((a) => ({ id: a.id, nombre: a.nombre }))} />

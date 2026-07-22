@@ -162,7 +162,7 @@ export function MargenCanalProductoCliente({
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Cruce Canal × Producto × Margen" description="Análisis de rentabilidad por canal de venta." />
+      <PageHeader title="Margen por canal y producto" description="Análisis de rentabilidad por canal de venta." />
       <NavReportes activo="margen" />
 
       <div className="flex justify-end">

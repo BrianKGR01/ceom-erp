@@ -29,12 +29,12 @@ export default async function RefinanciarPasivoPage({
       <div className="mx-auto max-w-4xl space-y-4 py-6">
         <Breadcrumb
           items={[
-            { label: "Patrimonio", href: "/app/patrimonio" },
-            { label: "Pasivos", href: "/app/patrimonio/pasivos" },
+            { label: "Bienes y deudas", href: "/app/patrimonio" },
+            { label: "Deudas", href: "/app/patrimonio/pasivos" },
             { label: "Refinanciar" },
           ]}
         />
-        <PageHeader title="Refinanciar pasivo" description="Se crea un pasivo nuevo con estos términos." />
+        <PageHeader title="Refinanciar deuda" description="Se crea una deuda nueva con estos términos." />
 
         <RefinanciarPasivoCliente
           pasivoAnteriorId={id}

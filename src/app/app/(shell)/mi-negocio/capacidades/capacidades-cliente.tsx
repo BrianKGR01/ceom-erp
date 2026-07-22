@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { nombreRolVisible } from "@/lib/vocabulario";
 import type { Capacidad } from "@/modules/identidad/actions";
 import {
   otorgarCapacidadEspecialPorRolAction,
@@ -72,7 +73,7 @@ function SubnavMiNegocio() {
       <Link href="/app/mi-negocio/roles" className="text-primary hover:underline">
         Roles
       </Link>
-      <span className="text-navy">Capacidades Especiales</span>
+      <span className="text-navy">Permisos especiales</span>
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
       </Link>
@@ -119,7 +120,7 @@ function AgregarOverrideDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Agregar override por colaborador</DialogTitle>
+          <DialogTitle>Agregar una excepción</DialogTitle>
           <DialogDescription>Excepción puntual — anula el permiso del rol solo para esta persona.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -136,7 +137,7 @@ function AgregarOverrideDialog({
               <SelectContent>
                 {colaboradoresSinOverride.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.nombreCompleto} ({c.rol.nombre})
+                    {c.nombreCompleto} ({nombreRolVisible(c.rol.nombre)})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -235,16 +236,16 @@ export function CapacidadesCliente({
   return (
     <div className="min-h-screen bg-gray-bg p-6">
       <SubnavMiNegocio />
-      <PageHeader title="Capacidades Especiales" description="Configura los permisos globales por cada rol de tu negocio." />
+      <PageHeader title="Permisos especiales" description="Configura los permisos globales por cada rol de tu negocio." />
 
       <div className="mt-6 rounded-2xl bg-card shadow-card">
         <div className="border-b border-gray-border p-4">
-          <h2 className="font-heading text-base font-semibold text-navy">Capacidades por Rol</h2>
+          <h2 className="font-heading text-base font-semibold text-navy">Permisos por rol</h2>
         </div>
         {roles.length === 0 ? (
           <p className="p-6 text-center text-sm text-text-muted">
-            Todavía no creaste ningún rol personalizado — Owner y CEOM Admin siempre tienen acceso
-            total y no pasan por esta matriz.
+            Todavía no creaste ningún rol personalizado — el dueño y el equipo CEOM siempre tienen
+            acceso total y no pasan por esta tabla.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -262,7 +263,7 @@ export function CapacidadesCliente({
               <tbody className="divide-y divide-gray-border">
                 {roles.map((rol) => (
                   <tr key={rol.id}>
-                    <td className="px-4 py-3 font-medium text-navy">{rol.nombre}</td>
+                    <td className="px-4 py-3 font-medium text-navy">{nombreRolVisible(rol.nombre)}</td>
                     {CAPACIDADES.map((c) => {
                       const actual = mapaPorRol.get(`${rol.id}:${c.id}`) ?? false;
                       return (
@@ -285,7 +286,7 @@ export function CapacidadesCliente({
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-heading text-base font-semibold text-navy">Overrides por Usuario</h2>
+          <h2 className="font-heading text-base font-semibold text-navy">Excepciones por colaborador</h2>
           <p className="text-sm text-text-muted">Excepciones específicas asignadas a colaboradores individuales.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -313,7 +314,7 @@ export function CapacidadesCliente({
       {filtrados.length === 0 ? (
         <p className="mt-6 text-center text-sm text-text-muted">
           {usuariosConOverride.length === 0
-            ? "Todavía no hay overrides por usuario cargados."
+            ? "Todavía no hay excepciones cargadas."
             : "Ningún colaborador coincide con esta búsqueda."}
         </p>
       ) : (
@@ -326,7 +327,7 @@ export function CapacidadesCliente({
                 </span>
                 <div>
                   <p className="font-medium text-navy">{c.nombreCompleto}</p>
-                  <p className="text-xs text-text-muted">{c.rol.nombre}</p>
+                  <p className="text-xs text-text-muted">{nombreRolVisible(c.rol.nombre)}</p>
                 </div>
               </div>
               <div className="mt-4 space-y-2 border-t border-gray-border pt-3">

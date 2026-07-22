@@ -19,13 +19,13 @@ export default async function NuevoPasivoPage() {
       <div className="mx-auto max-w-4xl space-y-4 py-6">
         <Breadcrumb
           items={[
-            { label: "Patrimonio", href: "/app/patrimonio" },
-            { label: "Pasivos", href: "/app/patrimonio/pasivos" },
-            { label: "Nuevo pasivo" },
+            { label: "Bienes y deudas", href: "/app/patrimonio" },
+            { label: "Deudas", href: "/app/patrimonio/pasivos" },
+            { label: "Nueva deuda" },
           ]}
         />
         <PageHeader
-          title="Nuevo pasivo"
+          title="Nueva deuda"
           description="Ingresá los detalles para registrar la obligación."
         />
 

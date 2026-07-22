@@ -50,7 +50,7 @@ export function AprobacionesCliente({ filas: filasIniciales }: { filas: FilaApro
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Aprobaciones/Consentimientos vigentes"
+        title="Permisos vigentes"
         description="Quién tiene acceso hoy a datos de tu negocio, y el historial de accesos anteriores."
       />
       <NavConsentimiento activo="aprobaciones" />

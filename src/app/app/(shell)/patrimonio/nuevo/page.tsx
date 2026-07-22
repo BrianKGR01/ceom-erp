@@ -21,8 +21,8 @@ export default async function NuevoActivoPage() {
       {/* max-w-2xl: formulario de 1 columna — ActivoForm ya se auto-limita a max-w-2xl,
           este wrapper solo evita el doble contenedor. Ver docs/design-system.md §7.2 */}
       <div className="mx-auto max-w-2xl space-y-4 py-6">
-        <Breadcrumb items={[{ label: "Patrimonio", href: "/app/patrimonio" }, { label: "Nuevo activo" }]} />
-        <PageHeader title="Nuevo activo" description="Registrá la información de un nuevo activo en el inventario." />
+        <Breadcrumb items={[{ label: "Bienes y deudas", href: "/app/patrimonio" }, { label: "Nuevo bien" }]} />
+        <PageHeader title="Nuevo bien" description="Registrá la información de un nuevo bien en el inventario." />
 
         <NuevoActivoCliente
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
