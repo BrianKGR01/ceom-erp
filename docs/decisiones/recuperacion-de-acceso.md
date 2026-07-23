@@ -574,6 +574,9 @@ debería ejecutarse ni una vez.
 
 ## 10. Estado
 
+> **⚠️ Superado en parte por §11 (2026-07-23).** La Opción C está implementada y verificada, y en el
+> camino aparecieron cuatro correcciones a este documento. Leé §11 antes de actuar sobre lo de abajo.
+
 Diagnóstico cerrado y verificado — en código, contra la base real del proyecto
 `riertvgnjaujstwyqoom`, y contra la documentación de Supabase. **Sin cambios aplicados**: ni a
 `identidad/actions.ts`, ni a `seed-admin.ts`, ni al login, ni a la base de datos. Ninguna de las
@@ -590,3 +593,132 @@ Orden sugerido, sujeto a tu decisión:
    enlace de invitación.
 4. **Segundo contacto en el onboarding** (§9, D.4).
 5. Recién después, el camino acotado de reasignación de titularidad (§5-B).
+
+---
+
+## 11. Lo construido — Opción C aplicada (2026-07-23)
+
+> Alcance de esta tanda: **sólo el tramo de autenticación**. El modelo de permisos y el camino
+> acotado de reasignación de titularidad (§5-B) siguen sin tocarse.
+
+### 11.1 Cuatro correcciones a este documento
+
+Aparecieron verificando antes de escribir código. Las cuatro están comprobadas, no inferidas.
+
+**1. Sí hay middleware.** §3 dice *"no hay `middleware.ts` en ningún lado"*. Es literalmente cierto
+y engañoso: existe [`src/proxy.ts`](../../src/proxy.ts) —convención de Next 16, que reemplaza a
+`middleware.ts`— y refresca la cookie de sesión en cada request con un matcher que cubre todo.
+
+**2. El correo ya funciona.** §7.3 documenta dos restricciones (destinatarios limitados al equipo de
+Supabase, y cupo horario) que **ya no aplican**: hay SMTP propio con Resend y el dominio `ceom.lat`
+verificado. Comprobado en los logs de Auth del proyecto: invitación a una dirección de Gmail a las
+`15:33:20` del 2026-07-23, clic a las `15:34:27` — 67 segundos.
+
+**3. Copiar el patrón de `/portal/auth/callback` no habría funcionado.** Es la corrección que más
+pesó en el diseño. Ese route handler usa `exchangeCodeForSession(code)`, que espera el formato PKCE
+(`?code=`). Los correos de `/app` **no son PKCE**: salen de `inviteUserByEmail()` (cliente
+service-role) y de `resetPasswordForEmail()`, y GoTrue los resuelve por **flujo implícito**, con los
+tokens en el fragmento `#access_token=…` — que nunca llega al servidor. Dos pruebas independientes:
+
+- Los logs de Auth del clic real del 2026-07-23 registran `"login_method": "implicit"`.
+- `generateLink({type:'recovery'})` devuelve un token **sin** el prefijo `pkce_`.
+
+Es exactamente la distinción que ya estaba anotada en
+[`consentimiento/ANCLA.md`](../../src/modules/consentimiento/ANCLA.md) a propósito de
+`generateLink()` — pero nadie la había conectado con la invitación.
+
+**4. §7.2 saca una conclusión errónea sobre las contraseñas.** Dice que la de `runinkgr` *"salió
+necesariamente del dashboard, porque la app no sabe fijar contraseñas"*. **No es así: el propio canje
+de la invitación deja un hash bcrypt en la fila.** Observado en un usuario de prueba creado en esta
+tanda, que fue invitado, canjeó el enlace y nunca pasó por ninguna pantalla de contraseña: terminó
+con `encrypted_password` de 60 caracteres, prefijo `$2a$10$`. Consecuencia práctica: **la columna
+`encrypted_password` no sirve para saber si alguien fijó su contraseña** — y la tabla de §7.2 usa
+justamente ese criterio para su columna "Contraseña".
+
+### 11.2 Qué se construyó
+
+| Pieza | Dónde |
+|---|---|
+| Callback de Auth de `/app` | [`src/app/app/auth/callback/route.ts`](../../src/app/app/auth/callback/route.ts) |
+| Pantalla de fijar contraseña | [`src/app/app/definir-contrasena/`](../../src/app/app/definir-contrasena/page.tsx) |
+| Recuperación de contraseña (H-05) | [`src/app/(auth)/recuperar-contrasena/`](<../../src/app/(auth)/recuperar-contrasena/page.tsx>) |
+| Mi Cuenta (cambio desde la sesión) | [`src/app/app/(shell)/mi-cuenta/`](<../../src/app/app/(shell)/mi-cuenta/page.tsx>) |
+| `/` sin boilerplate | [`src/app/page.tsx`](../../src/app/page.tsx) |
+| `redirectTo` explícito | `crearTenant()` / `invitarUsuario()` — cambio de contrato, ver ANCLA de Identidad |
+
+**El callback canjea con `verifyOtp({token_hash, type})`**, no con `exchangeCodeForSession` (§11.1-3).
+Sólo acepta los tipos que el proyecto emite (`invite`, `recovery`); cualquier otro se rechaza sin
+llamar a `verifyOtp`. Distingue enlace vencido de inválido.
+
+**Una sola pantalla de contraseña, no dos.** Invitación y recuperación son mecánicamente idénticas
+—sesión abierta por el token + `updateUser`— y cambia sólo el copy, así que comparten
+`/app/definir-contrasena?motivo=…`. Vive **fuera** del route group `(shell)`, al lado de
+`onboarding/`: el layout de `(shell)` manda al Owner con onboarding pendiente a `/app/onboarding`, y
+el dueño recién invitado es exactamente ese caso — habría quedado rebotado a configurar el negocio
+antes de poder tener contraseña.
+
+### 11.3 El tercer caso terminó siendo el mismo camino — y por qué
+
+La primera versión de `/app/mi-cuenta` era un formulario clásico de *contraseña actual + nueva*,
+partiendo de que sin token de correo la sesión abierta sola no alcanza como prueba. **Se cayó en la
+verificación contra el dev server**: expulsaba a la persona al login sin cambiar nada.
+
+La causa no era el formulario. Pedir la contraseña actual obliga a re-autenticar, y la única forma de
+re-autenticar con Supabase es `signInWithPassword()`, que abre una sesión nueva. Comprobado contra la
+base real, con dos sesiones simultáneas:
+
+```
+sesion A creada: true          sesion B creada: true
+A viva tras login de B: true   <- un login NO revoca las otras sesiones
+updateUser desde A: OK
+A viva tras el cambio: true    <- el cambio conserva la sesión que lo hizo
+B viva tras el cambio: false   <- y revoca todas las demás
+```
+
+Así que el cambio de contraseña pasa por el correo, igual que los otros dos casos. No es un rodeo:
+**prueba más que la contraseña actual** —control de la casilla, no de un navegador que quedó
+abierto— y reusa el único camino verificado end-to-end. Los tres casos del alcance terminan en una
+sola pieza.
+
+### 11.4 Cómo se verificó sin bandeja de entrada
+
+`consentimiento/ANCLA.md` dice que para probar el flujo real *"no hay atajo conocido: hace falta un
+email real"*. **Era cierto sólo para el diseño PKCE.** Con el diseño de `token_hash`,
+`admin.generateLink()` devuelve el mismo `hashed_token` que la plantilla pondría en el correo —y no
+envía nada—, así que se puede golpear el callback con un token real y ejercitar exactamente el mismo
+código que un clic.
+
+Verificado así, en el navegador contra `pnpm dev`, con un usuario descartable creado y borrado en la
+misma tanda:
+
+- Invitación → callback → `/app/definir-contrasena?motivo=invitacion` con el copy correcto.
+- Contraseñas distintas → *"Las dos contraseñas no coinciden."*, sin tocar nada.
+- Contraseñas iguales → redirect a `/app`, sesión abierta, sidebar con el nombre y rol correctos.
+- Login con esa contraseña recién fijada → entra. **Es la cadena completa que antes no existía.**
+- Token reusado → `/login?error=enlace_vencido` con el mensaje correcto (uso único, comprobado).
+- `/app/mi-cuenta` renderiza nombre, correo y rol del usuario logueado.
+
+### 11.5 Lo que falta, y no lo puedo hacer yo
+
+**1. Las dos plantillas de correo.** Es el único paso bloqueante. Con las plantillas por defecto el
+token viaja en el fragmento y no hay servidor que lo lea (§11.1-3). Hay que reemplazar el enlace en
+**Authentication → Emails**:
+
+- *Invite user*: `{{ .SiteURL }}/app/auth/callback?token_hash={{ .TokenHash }}&type=invite`
+- *Reset password*: `{{ .SiteURL }}/app/auth/callback?token_hash={{ .TokenHash }}&type=recovery`
+
+**2. El clic real desde una bandeja de entrada.** Lo verificado arriba ejercita el mismo código
+server-side, pero no prueba que la plantilla renderice la URL esperada ni que el correo se entregue.
+Eso necesita una corrida con un correo real después del paso 1.
+
+**3. El caso viejo pendiente.** `andresromero112@gmail.com` sigue invitado desde el 2026-07-22 sin
+confirmar y sin contraseña, y `ceom.qa.alta.…@gmail.com` sigue siendo el Owner congelado de "QA Alta
+Tenant". Con las plantillas puestas, a los dos les alcanza con un enlace nuevo — ya no hace falta el
+procedimiento manual de §8.
+
+### 11.6 Lo que sigue sin resolverse
+
+Nada de esta tanda toca §5 ni §9. El tenant de un solo usuario con el correo muerto sigue sin salida,
+y la reasignación de titularidad sigue sin construirse. Lo que sí cambió es la premisa de §6: ahora
+que C existe, el negocio congelado deja de ser el escenario normal — que era la condición para
+diseñar B con calma.

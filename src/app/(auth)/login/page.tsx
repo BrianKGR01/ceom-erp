@@ -20,7 +20,25 @@ const bullets = [
   },
 ];
 
-export default function LoginPage() {
+// Mensajes de los enlaces de correo que no pudieron canjearse
+// (/app/auth/callback redirige acá con el motivo) — mismo patron que
+// /portal/page.tsx para el magic link de Instituciones.
+const MENSAJE_ERROR: Record<string, string> = {
+  enlace_vencido:
+    "Ese enlace ya no sirve — vencen al rato y son de un solo uso. Pedí uno nuevo abajo.",
+  enlace_invalido: "Ese enlace no es válido. Revisá que lo hayas copiado completo.",
+  cuenta_incompleta:
+    "Tu contraseña quedó guardada, pero tu cuenta todavía no está configurada del todo. Contactá a soporte.",
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const aviso = error ? (MENSAJE_ERROR[error] ?? "Algo salió mal — intentá de nuevo.") : null;
+
   return (
     <div className="flex min-h-screen">
       <div className="relative hidden w-1/2 flex-col overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white lg:flex">
@@ -86,7 +104,7 @@ export default function LoginPage() {
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-background p-6">
-        <LoginForm />
+        <LoginForm aviso={aviso} />
       </div>
     </div>
   );

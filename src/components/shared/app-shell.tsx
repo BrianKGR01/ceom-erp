@@ -442,7 +442,17 @@ export function AppShell({
         </nav>
 
         <div className="space-y-3 border-t border-white/10 px-3 py-4">
-          <div className={cn("flex items-center gap-2.5", !mostrarExpandido && "justify-center")}>
+          {/* El bloque de usuario es la entrada a Mi Cuenta — es donde la
+              gente busca sus propios datos, y evita sumar un nav item mas
+              para una pantalla que se visita una vez cada tanto. */}
+          <Link
+            href="/app/mi-cuenta"
+            title={mostrarExpandido ? undefined : "Mi cuenta"}
+            className={cn(
+              "flex items-center gap-2.5 rounded-lg py-1 hover:bg-white/5",
+              !mostrarExpandido && "justify-center"
+            )}
+          >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
               {nombreCompleto.charAt(0).toUpperCase()}
             </span>
@@ -457,7 +467,7 @@ export function AppShell({
                 {rolNombre} · {tenantNombre}
               </p>
             </div>
-          </div>
+          </Link>
           <form action={cerrarSesion}>
             <button
               type="submit"

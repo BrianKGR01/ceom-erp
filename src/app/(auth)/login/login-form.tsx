@@ -2,13 +2,14 @@
 
 import { useActionState, useState } from "react";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { iniciarSesion } from "./actions";
 
-export function LoginForm() {
+export function LoginForm({ aviso }: { aviso?: string | null }) {
   const [estado, formAction, pending] = useActionState(iniciarSesion, null);
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
@@ -24,6 +25,17 @@ export function LoginForm() {
       <p className="mt-1 text-center text-sm text-text-muted">
         Ingresá tus datos para acceder a tu cuenta
       </p>
+
+      {/* Viene del callback de Auth cuando el enlace de un correo no pudo
+          canjearse — es info de la pagina, no del submit del formulario. */}
+      {aviso && (
+        <p
+          role="alert"
+          className="mt-4 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning-text"
+        >
+          {aviso}
+        </p>
+      )}
 
       <form action={formAction} className="mt-6 space-y-4">
         <div className="space-y-1.5">
@@ -51,9 +63,12 @@ export function LoginForm() {
             >
               Contraseña
             </Label>
-            <a href="#" className="text-xs font-medium text-primary hover:underline">
+            <Link
+              href="/recuperar-contrasena"
+              className="text-xs font-medium text-primary hover:underline"
+            >
               ¿Olvidaste tu contraseña?
-            </a>
+            </Link>
           </div>
           <div className="relative">
             <Input
