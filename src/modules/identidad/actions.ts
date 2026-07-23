@@ -295,6 +295,30 @@ export async function solicitanteGateway(): Promise<UsuarioConRol> {
         "(0034_gateway_sistema_seed.sql)."
     );
   }
+
+  // Falla ruidosa si la fila quedó degradada. `es_gateway_sistema()` (0035)
+  // exige `activo`, pero `current_tenant_id()` (0003) NO lo mira — así que un
+  // Gateway inactivo resuelve contexto igual, las policies simplemente no
+  // matchean, y el portal institucional devolvería números incompletos sin
+  // que nada falle. Preferimos cortar acá.
+  //
+  // Es defensa en profundidad, no la barrera principal: la fila está
+  // protegida por el CHECK `usuarios_gateway_sistema_inmutable` (migración
+  // 0040) y por la guarda de las funciones que la podrían mutar. Si esto
+  // llega a dispararse, alguien soltó el CHECK.
+  //
+  // `Error` común a propósito, NUNCA `ContextoRlsNoResueltoError`: ese tipo
+  // tiene un único catch legítimo declarado en src/db/contexto.ts, y usarlo
+  // acá haría que ese catch se tragara justamente esta señal.
+  if (!usuario.activo || usuario.rolId !== ROL_GATEWAY_SISTEMA_ID) {
+    throw new Error(
+      "La identidad de sistema del Gateway está degradada (activo=" +
+        `${usuario.activo}, rolId=${usuario.rolId}). No se sirve una lectura ` +
+        "institucional en este estado: daría números incompletos sin fallar. " +
+        "Revisar la fila de 0034_gateway_sistema_seed.sql."
+    );
+  }
+
   return usuario;
 }
 
@@ -635,6 +659,42 @@ export async function invitarUsuario(
   return { ok: true, data: { usuarioId: usuario.id } };
 }
 
+/**
+ * El usuario del Gateway de Consentimiento no se administra desde la
+ * aplicación — ver OBS-10 en docs/ui/observaciones-de-uso.md.
+ *
+ * Es la identidad interna del backstop de RLS (Etapa 4.a). Su fila vive en
+ * el tenant CEOM Ops, así que un Owner de ese tenant la ve en Colaboradores
+ * como si fuera una persona más; y `recursoPerteneceAlTenant()` devuelve
+ * `true` incondicionalmente para un ceom_admin, así que un ceom_admin con
+ * `esOwner = true` la alcanzaría desde cualquier tenant.
+ *
+ * Qué rompe tocarla:
+ * - `activo = false` o `eliminado_en` apagan `es_gateway_sistema()` (la
+ *   función SQL exige las dos, ver 0035), y con eso el portal institucional
+ *   pierde el bypass de RLS **sin fallar**: `current_tenant_id()` no mira
+ *   `activo`, así que el contexto resuelve igual y los reportes salen mal en
+ *   silencio.
+ * - cambiarle el rol destruye la separación que la migración 0034 declara no
+ *   negociable (rol propio, nunca `ROL_CEOM_ADMIN_ID`, para que el Gateway no
+ *   herede el bypass de un ceom_admin humano).
+ *
+ * Hoy esto no es alcanzable de casualidad: no existe ningún usuario con
+ * `es_owner = true` en CEOM Ops (0005 no siembra usuarios y seed-admin.ts
+ * crea al ceom_admin con `esOwner: false`). O sea que la protección actual es
+ * un accidente del estado de la base, no una regla — por eso esta guarda.
+ *
+ * Se bloquean las dos direcciones, también reactivar: la fila no se
+ * administra desde acá en ningún sentido. Si alguna vez quedara degradada,
+ * se repara con SQL deliberado, no con un botón.
+ */
+const ERROR_USUARIO_DE_SISTEMA =
+  "Ese usuario es una identidad interna del sistema y no se puede modificar desde acá.";
+
+function esUsuarioDeSistema(usuarioId: string): boolean {
+  return usuarioId === GATEWAY_SISTEMA_USUARIO_ID;
+}
+
 export async function cambiarRolUsuario(
   solicitante: UsuarioConRol,
   usuarioId: string,
@@ -642,6 +702,9 @@ export async function cambiarRolUsuario(
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
     return { ok: false, error: "Solo el dueño del negocio puede cambiar roles." };
+  }
+  if (esUsuarioDeSistema(usuarioId)) {
+    return { ok: false, error: ERROR_USUARIO_DE_SISTEMA };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -673,6 +736,9 @@ export async function suspenderUsuario(
   if (!solicitante.esOwner) {
     return { ok: false, error: "Solo el dueño del negocio puede suspender usuarios." };
   }
+  if (esUsuarioDeSistema(usuarioId)) {
+    return { ok: false, error: ERROR_USUARIO_DE_SISTEMA };
+  }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
 
@@ -702,6 +768,9 @@ export async function reactivarUsuario(
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
     return { ok: false, error: "Solo el dueño del negocio puede reactivar usuarios." };
+  }
+  if (esUsuarioDeSistema(usuarioId)) {
+    return { ok: false, error: ERROR_USUARIO_DE_SISTEMA };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;
@@ -735,6 +804,11 @@ export async function transferirOwner(
 ): Promise<Resultado<true>> {
   if (!solicitante.esOwner) {
     return { ok: false, error: "Solo el dueño del negocio puede transferir su condición." };
+  }
+  // El destino no puede ser el usuario del Gateway: transferirOwner le
+  // pondria rolId = ROL_OWNER_ID y esOwner = true.
+  if (esUsuarioDeSistema(nuevoOwnerUsuarioId)) {
+    return { ok: false, error: ERROR_USUARIO_DE_SISTEMA };
   }
   const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
   if (!escritura.ok) return escritura;

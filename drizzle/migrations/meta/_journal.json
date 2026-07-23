@@ -281,6 +281,13 @@
       "when": 1784726451033,
       "tag": "0039_gateway_vigencia_bypass_proveedores",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784845368793,
+      "tag": "0040_small_miek",
+      "breakpoints": true
     }
   ]
 }

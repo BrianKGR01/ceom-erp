@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   pgEnum,
   pgSchema,
@@ -13,6 +14,9 @@ import {
 // Import relativo (no "@/*"): drizzle-kit carga este archivo con su propio
 // resolvedor esbuild, que no resuelve el alias de tsconfig.
 import { crudPolicy } from "../../db/rls";
+// Relativo por el mismo motivo que la linea de arriba. constants.ts no
+// importa nada, asi que no arrastra nada al resolvedor de drizzle-kit.
+import { GATEWAY_SISTEMA_USUARIO_ID, ROL_GATEWAY_SISTEMA_ID } from "./constants";
 // Unica excepcion documentada al principio de "modulo = caja negra": se
 // importa la tabla de otro modulo (no su repository ni actions) solo para
 // declarar la FK real de plan_id. Ver ANCLA.md de Identidad y de
@@ -238,6 +242,36 @@ export const usuarios = pgTable(
     uniqueIndex("usuarios_tenant_email_unique")
       .on(table.tenantId, table.email)
       .where(sql`${table.eliminadoEn} is null`),
+    // La fila del Gateway de Consentimiento es inmutable en las tres
+    // columnas de las que depende su bypass de RLS. Ver OBS-10 en
+    // docs/ui/observaciones-de-uso.md.
+    //
+    // Por qué un CHECK y no solo la guarda de identidad/actions.ts: este
+    // módulo escribe con `db` crudo, con el rol `postgres` dueño de la tabla
+    // (ver el comentario de recursoPerteneceAlTenant), así que RLS está
+    // bypasseada y ninguna policy puede frenar un UPDATE. El vector real no
+    // es la interfaz —que ya tiene su guarda— sino un UPDATE a mano, Supabase
+    // Studio, o una pantalla de administración futura que nazca sin acordarse
+    // de esto. Un CHECK es la única capa que evalúan TODOS los roles de
+    // Postgres, incluido el dueño de la tabla.
+    //
+    // Qué protege exactamente: `es_gateway_sistema()` (migración 0035) exige
+    // `activo` y `eliminado_en is null`. Si alguno de los dos se rompiera, el
+    // portal institucional perdería el bypass **sin fallar** —
+    // `current_tenant_id()` no mira `activo`, así que el contexto resuelve
+    // igual y los números salen mal en silencio. El `rol_id` va también
+    // porque la separación de rol es lo que impide que el Gateway herede el
+    // bypass de un ceom_admin (migración 0034).
+    //
+    // Si alguna vez hay que dar de baja al Gateway de verdad, se hace con un
+    // DROP CONSTRAINT explícito. Que cueste una decisión deliberada es el
+    // punto.
+    // sql.raw para los dos UUID: interpolarlos como valores los emitiria
+    // como parametros ($1), y un CHECK es DDL — no admite parametros.
+    check(
+      "usuarios_gateway_sistema_inmutable",
+      sql`${table.id} <> ${sql.raw(`'${GATEWAY_SISTEMA_USUARIO_ID}'::uuid`)} or (${table.activo} and ${table.eliminadoEn} is null and ${table.rolId} = ${sql.raw(`'${ROL_GATEWAY_SISTEMA_ID}'::uuid`)})`
+    ),
     // REGLA DURA — nunca "OR es_ceom_admin()" acá, mismo motivo que en la
     // policy de "roles" arriba (riesgo de recursión real una vez que esta
     // tabla tenga FORCE ROW LEVEL SECURITY — hoy no la tiene).

@@ -115,6 +115,23 @@ export class ContextoRlsNoResueltoError extends Error {
  * cero es indistinguible de uno legítimamente vacío. Un usuario eliminado
  * (soft delete — current_tenant_id() filtra `eliminado_en is null`) o un id
  * que no existe deben romper acá, no devolver cero filas mas abajo.
+ *
+ * INVARIANTE que esta función NO cubre, a propósito: `current_tenant_id()`
+ * filtra `eliminado_en` pero **no** `activo`. Un usuario suspendido resuelve
+ * contexto igual, y eso es deliberado — la migración 0031 lo deja escrito
+ * ("un usuario inactivo en su propio tenant sigue viendo su propio tenant
+ * igual, ese no es el problema"), hay un test verde que lo fija
+ * (proveedores/tenant-aislamiento.test.ts, el ceom_admin desactivado espera
+ * 0 filas, no una excepción), y hoy ninguna capa de la app corta por `activo`.
+ * Agregarlo acá sería introducir de golpe una semántica de suspensión que no
+ * existe en ningún lado, sobre las ~92 policies que llaman a esa función.
+ *
+ * Donde SÍ importa `activo` es en el Gateway de Consentimiento:
+ * `es_gateway_sistema()` (0035) lo exige, así que un Gateway inactivo pierde
+ * el bypass sin que esta sonda se entere. Ese caso se cubre en su propio
+ * nivel, no acá — CHECK `usuarios_gateway_sistema_inmutable` (0040), guarda
+ * en las funciones que podrían mutar la fila, y chequeo explícito en
+ * `solicitanteGateway()`. Ver OBS-10 en docs/ui/observaciones-de-uso.md.
  */
 async function fijarContextoYExigirTenant(tx: Tx, authUserId: string): Promise<string> {
   const id = exigirUuid(authUserId, "authUserId");
