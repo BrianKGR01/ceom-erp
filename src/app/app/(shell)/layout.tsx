@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shared/app-shell";
+import { nombreRolVisible } from "@/lib/vocabulario";
 import { calcularEstadoAcceso, obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
 
 // Shell real de /app (design-system.md seccion 5.1): sidebar navy +
@@ -31,7 +32,7 @@ export default async function ShellLayout({
   return (
     <AppShell
       nombreCompleto={usuario.nombreCompleto}
-      rolNombre={usuario.rol.nombre}
+      rolNombre={nombreRolVisible(usuario.rol.nombre)}
       tenantNombre={tenant?.nombreNegocio ?? ""}
       esOwner={usuario.esOwner}
       estadoAcceso={estadoAcceso}

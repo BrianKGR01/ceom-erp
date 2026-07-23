@@ -1406,7 +1406,13 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
   `/portal`, que decía "Mi Cartera de Tenants" a una institución externa); **"módulos veedor" → los
   3 nombres llanos** de la sección 4 del glosario, propagando la redacción que el producto ya tenía
   en `generar-cliente.tsx`; y **"Owner" → "Dueño"**, resuelto con `nombreRolVisible()`
-  (`src/lib/vocabulario.ts`) porque el nombre del rol vive en la base, no en el JSX. De paso se
+  (`src/lib/vocabulario.ts`) porque el nombre del rol vive en la base, no en el JSX.
+  **Corrección del 2026-07-23:** ese último punto se dio por cerrado y **no lo estaba**. El helper se
+  aplicó en las pantallas de Mi Negocio pero se saltearon los dos lugares donde más se lee el rol: el
+  bloque de usuario del sidebar (`app-shell.tsx:492`, alimentado con `usuario.rol.nombre` crudo desde
+  `(shell)/layout.tsx:34` — o sea, en **todas** las pantallas) y Mi Cuenta
+  (`mi-cuenta/page.tsx:35`). Todo dueño siguió leyendo "Owner". Detectado al verificar OBS-09/OBS-10
+  de `docs/ui/observaciones-de-uso.md` y corregido en esa misma tanda. De paso se
   borró la fuga de documentación interna ("(Módulo 1, sección 6.3)") y se aplicaron las decisiones
   de `override → excepción` y `Nicho → Rubro`. **Ningún identificador de código se renombró.**
   Detalle de lo que quedó fuera (el UUID del Registro de accesos, que necesita backend) en la

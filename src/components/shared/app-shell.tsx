@@ -332,28 +332,47 @@ export function AppShell({
           if (!e.currentTarget.contains(e.relatedTarget)) setHovering(false);
         }}
         className={cn(
-          "app-sidebar flex shrink-0 flex-col bg-gradient-to-b from-sidebar-from to-sidebar-to transition-[transform,width] duration-200",
+          "app-sidebar flex shrink-0 flex-col overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to transition-[transform,width] duration-200",
           abierto && "app-sidebar--abierto",
           colapsado && "app-sidebar--colapsado",
           colapsado && hovering && "app-sidebar--hover"
         )}
       >
-        <div className="relative">
+        {/* Mismos círculos difuminados que el panel izquierdo de /login
+            (src/app/(auth)/login/page.tsx): el degradado navy ya era el
+            mismo, lo que le faltaba al sidebar para tener esa identidad era
+            la profundidad. Tokens existentes (pastel-blue, primary), sin
+            colores nuevos. Tamaños ajustados a una columna de 16rem en vez
+            de a media pantalla. El `overflow-hidden` del aside los recorta. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-16 size-48 rounded-full bg-pastel-blue/20 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1/3 -left-12 size-40 rounded-full bg-primary/25 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute right-0 -bottom-20 size-56 rounded-full bg-pastel-blue/10 blur-3xl"
+        />
+
+        <div className="relative z-10">
           <button
             type="button"
             onClick={() => setColapsado((v) => !v)}
             aria-label={colapsado ? "Expandir menú" : "Contraer menú"}
-            className="relative flex h-20 w-full shrink-0 items-center justify-center overflow-hidden"
+            className="relative flex h-24 w-full shrink-0 items-center justify-center overflow-hidden"
           >
             <Logo
               className={cn(
-                "h-9 w-auto brightness-0 invert transition-all duration-300",
+                "h-14 w-auto brightness-0 invert transition-all duration-300",
                 mostrarExpandido ? "scale-100 opacity-100" : "scale-75 opacity-0"
               )}
             />
             <Icono
               className={cn(
-                "absolute h-10 w-auto transition-all duration-300",
+                "absolute h-11 w-auto transition-all duration-300",
                 mostrarExpandido ? "scale-75 opacity-0" : "scale-100 opacity-100"
               )}
             />
@@ -368,7 +387,13 @@ export function AppShell({
           </button>
         </div>
 
-        <nav className="mt-2 flex-1 space-y-1 px-3">
+        {/* `min-h-0` es lo que hace scrollear a un hijo `flex-1` dentro de
+            una columna flex: sin eso el min-height:auto por defecto lo deja
+            crecer y el bloque de usuario se va abajo del viewport, que era
+            justamente el bug — con un submenú expandido no se llegaba a
+            "Cerrar sesión". El scroll vive acá y no en el <aside> para que
+            el bloque de usuario quede fijo. */}
+        <nav className="app-sidebar-scroll relative z-10 mt-2 min-h-0 flex-1 space-y-1 px-3">
           {items.map((item) => {
             const activo = grupoActivo(item);
             const tieneSubitems = !!item.subitems && item.subitems.length > 0;
@@ -382,7 +407,7 @@ export function AppShell({
                     onClick={() => setAbierto(false)}
                     title={mostrarExpandido ? undefined : item.label}
                     className={cn(
-                      "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
+                      "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/90 transition-colors hover:bg-sidebar-accent hover:text-white",
                       activo && "bg-sidebar-accent text-white",
                       !mostrarExpandido && "justify-center px-0"
                     )}
@@ -410,7 +435,7 @@ export function AppShell({
                       aria-expanded={expandido}
                       aria-controls={idSubmenu}
                       aria-label={expandido ? `Contraer ${item.label}` : `Expandir ${item.label}`}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-sidebar-accent hover:text-white"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-sidebar-accent hover:text-white"
                     >
                       <ChevronDown
                         className={cn("size-4 transition-transform duration-200", expandido && "rotate-180")}
@@ -420,14 +445,14 @@ export function AppShell({
                 </div>
 
                 {expandido && (
-                  <div id={idSubmenu} className="mt-1 ml-4 space-y-0.5 border-l border-white/10 pl-3">
+                  <div id={idSubmenu} className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
                     {item.subitems!.map((sub) => (
                       <Link
                         key={sub.href}
                         href={sub.href}
                         onClick={() => setAbierto(false)}
                         className={cn(
-                          "block rounded-lg px-3 py-1.5 text-sm text-white/70 transition-colors hover:bg-sidebar-accent hover:text-white",
+                          "block rounded-lg px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
                           subitemActivo(sub) && "bg-sidebar-accent text-white"
                         )}
                       >
@@ -441,7 +466,7 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="space-y-3 border-t border-white/10 px-3 py-4">
+        <div className="relative z-10 shrink-0 space-y-3 border-t border-white/10 px-3 py-4">
           {/* El bloque de usuario es la entrada a Mi Cuenta — es donde la
               gente busca sus propios datos, y evita sumar un nav item mas
               para una pantalla que se visita una vez cada tanto. */}
@@ -463,7 +488,7 @@ export function AppShell({
               )}
             >
               <p className="truncate text-xs font-medium text-white">{nombreCompleto}</p>
-              <p className="truncate text-[11px] text-white/60">
+              <p className="truncate text-[11px] text-white/70">
                 {rolNombre} · {tenantNombre}
               </p>
             </div>
@@ -472,7 +497,7 @@ export function AppShell({
             <button
               type="submit"
               title={mostrarExpandido ? undefined : "Cerrar sesión"}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 py-1.5 text-xs font-medium text-white/80 hover:bg-white/5 hover:text-white"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/25 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 hover:text-white"
             >
               <LogOut className="size-3.5 shrink-0" />
               <span
