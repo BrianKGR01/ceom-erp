@@ -1,7 +1,7 @@
 "use server";
 
-import { contrasenaNuevaSchema, mensajeErrorContrasena } from "@/lib/contrasena";
-import { crearClienteServidor } from "@/lib/supabase/server";
+import { urlCallbackApp } from "@/lib/site-url";
+import { crearClienteServidor, crearClienteSinSesion } from "@/lib/supabase/server";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 
 export type ResultadoCambioContrasena =
@@ -9,38 +9,30 @@ export type ResultadoCambioContrasena =
   | { ok: false; error: string };
 
 /**
- * Cambia la contraseña de quien ya esta trabajando dentro de la app.
+ * Manda a la persona logueada un enlace para cambiar su propia contraseña.
  *
- * A diferencia de definirContrasena() —donde la prueba de identidad es el
- * token del correo— acá no hubo ningun token: la unica prueba es una sesion
- * abierta. Por eso se re-autentica con la contraseña actual antes de cambiar
- * nada. Sin ese paso, un navegador que quedo abierto en un negocio ajeno
- * alcanza para quedarse con la cuenta.
+ * **Por que un enlace y no un formulario de "contraseña actual + nueva".**
+ * Esa version se construyo primero y se cayo en la verificacion contra el
+ * dev server: pedir la contraseña actual obliga a re-autenticar, y la unica
+ * forma de re-autenticar con Supabase es signInWithPassword(), que abre una
+ * sesion nueva. Verificado en la base real: al cambiar la contraseña, GoTrue
+ * conserva la sesion que hizo el cambio y **revoca todas las demas** — asi
+ * que el formulario terminaba expulsando a la persona al login sin haber
+ * cambiado nada. Ver docs/decisiones/recuperacion-de-acceso.md.
+ *
+ * El enlace por correo no es un rodeo: prueba mas que la contraseña actual
+ * (control de la casilla, no de un navegador que quedo abierto) y reusa el
+ * unico camino que ya esta verificado end-to-end — el mismo callback y la
+ * misma pantalla que usan la invitacion y la recuperacion.
  */
-export async function cambiarContrasena(
-  _prevState: ResultadoCambioContrasena | null,
-  formData: FormData
-): Promise<ResultadoCambioContrasena> {
-  const actual = String(formData.get("actual") ?? "");
-  const parseo = contrasenaNuevaSchema.safeParse({
-    contrasena: String(formData.get("contrasena") ?? ""),
-    confirmacion: String(formData.get("confirmacion") ?? ""),
-  });
-  if (!actual) {
-    return { ok: false, error: "Escribí tu contraseña actual." };
-  }
-  if (!parseo.success) {
-    return { ok: false, error: parseo.error.issues[0].message };
-  }
-
-  // El gate de la app es obtenerUsuarioActual(): no alcanza con tener sesion
-  // de Auth, tiene que existir la fila de usuarios detras (mismo criterio que
-  // el resto de las Server Actions del proyecto).
+export async function solicitarCambioDeContrasena(): Promise<ResultadoCambioContrasena> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) {
     return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   }
 
+  // El correo sale de Auth y NO de usuarios.email: si alguna vez divergieran,
+  // mandar el enlace al de la tabla se lo estaria mandando a otra identidad.
   const supabase = await crearClienteServidor();
   const {
     data: { user },
@@ -49,24 +41,25 @@ export async function cambiarContrasena(
     return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   }
 
-  // El correo sale de Auth y NO de usuarios.email, aunque en la practica sean
-  // el mismo: si alguna vez divergieran, re-autenticar contra el de la tabla
-  // podria validar la contraseña de otra identidad de Auth.
-  const { error: errorReauth } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: actual,
+  // Cliente sin cookies, mismo motivo que en recuperar-contrasena: el cliente
+  // SSR fuerza PKCE y el token quedaria en un formato que el callback no
+  // canjea.
+  const { error } = await crearClienteSinSesion().auth.resetPasswordForEmail(user.email, {
+    redirectTo: urlCallbackApp(),
   });
-  if (errorReauth) {
-    // Mismo texto que el login para el mismo hecho, pero acotado a la
-    // contraseña: el correo no lo escribio la persona, sale de la sesion.
-    return { ok: false, error: "Esa no es tu contraseña actual." };
-  }
 
-  const { error } = await supabase.auth.updateUser({ password: parseo.data.contrasena });
+  if (error?.code === "over_email_send_rate_limit") {
+    return {
+      ok: false,
+      error: "Pediste varios enlaces seguidos. Esperá un minuto y volvé a intentar.",
+    };
+  }
   if (error) {
-    return { ok: false, error: mensajeErrorContrasena(error) };
+    return { ok: false, error: "No pudimos enviarte el enlace — intentá de nuevo." };
   }
 
-  // Sin redirect: la persona estaba haciendo otra cosa y vuelve a lo suyo.
-  return { ok: true, mensaje: "Listo, tu contraseña quedó cambiada." };
+  return {
+    ok: true,
+    mensaje: `Te mandamos un enlace a ${user.email}. Abrilo para elegir tu contraseña nueva.`,
+  };
 }

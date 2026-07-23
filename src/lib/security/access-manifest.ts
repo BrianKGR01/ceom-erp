@@ -67,10 +67,10 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // --- app/app/(shell)/mi-cuenta/actions.ts -------------------------------
-  "app/app/(shell)/mi-cuenta/actions.ts::cambiarContrasena": {
+  "app/app/(shell)/mi-cuenta/actions.ts::solicitarCambioDeContrasena": {
     nivel: "autenticado",
     verificacion: "estatica",
-    nota: "Opera solo sobre el auth.user de la propia sesion. Ademas re-autentica con la contraseña actual antes de cambiarla: sin token de correo de por medio, la sesion abierta sola no alcanza como prueba.",
+    nota: "No recibe ningun input: manda el enlace al correo del auth.user de la propia sesion, nunca a uno que elija el cliente.",
   },
 
   // --- app/app/definir-contrasena/actions.ts ------------------------------
