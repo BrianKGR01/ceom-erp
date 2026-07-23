@@ -66,6 +66,13 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     nota: "Pre-auth por definicion — quien la llama no puede entrar. Responde lo mismo exista o no el correo, para no permitir enumerar cuentas.",
   },
 
+  // --- app/app/(shell)/mi-cuenta/actions.ts -------------------------------
+  "app/app/(shell)/mi-cuenta/actions.ts::cambiarContrasena": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota: "Opera solo sobre el auth.user de la propia sesion. Ademas re-autentica con la contraseña actual antes de cambiarla: sin token de correo de por medio, la sesion abierta sola no alcanza como prueba.",
+  },
+
   // --- app/app/definir-contrasena/actions.ts ------------------------------
   "app/app/definir-contrasena/actions.ts::definirContrasena": {
     nivel: "autenticado",
