@@ -808,8 +808,14 @@ UI día uno"), sin registrar que dejaba una pantalla entera inservible.
 <a id="h-35"></a>
 ## H-35 🟠 No hay roles predefinidos: la grilla de permisos arranca en blanco
 
-**Qué pasa.** Un negocio nuevo tiene dos roles, ambos de sistema y no editables (Dueño y CEOM Admin).
-Cualquier otro rol se construye desde cero marcando una grilla de **10 secciones × 4 acciones**.
+**Qué pasa.** Un negocio nuevo tiene dos roles asignables, ambos de sistema y no editables (Dueño y
+CEOM Admin). Cualquier otro rol se construye desde cero marcando una grilla de **10 secciones × 4
+acciones**.
+
+> Precisión (2026-07-23): en la tabla `roles` hay **tres** filas de sistema, no dos — la tercera es
+> la identidad interna del Gateway de Consentimiento, sembrada en la migración `0034`. No es un rol
+> del negocio, no es asignable y desde OBS-10 tampoco se muestra en pantalla. Para lo que este
+> hallazgo describe, los roles que el dueño puede usar siguen siendo dos.
 
 **Por qué importa.** La consecuencia previsible no es que el dueño se equivoque en el detalle: es que
 **le dé todo a todos**, porque es lo único que con seguridad funciona. Un sistema de permisos que

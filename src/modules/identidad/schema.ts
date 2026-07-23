@@ -176,8 +176,16 @@ export const roles = pgTable(
     uniqueIndex("roles_sistema_nombre_unique")
       .on(table.nombre)
       .where(sql`${table.tenantId} is null and ${table.eliminadoEn} is null`),
-    // Los roles de sistema (tenant_id null: Owner, CEOM Admin) son datos de
-    // referencia compartidos — visibles para cualquier tenant autenticado.
+    // Los roles de sistema (tenant_id null) son datos de referencia
+    // compartidos — visibles para cualquier tenant autenticado. Hoy son
+    // TRES: Owner y CEOM Admin (sembrados en 0005) y el rol del Gateway de
+    // Consentimiento (0034, Etapa 4.a del backstop de RLS).
+    //
+    // Ese tercero NO es un rol del negocio y no se muestra en la pantalla de
+    // Roles: listarRoles() (identidad/actions.ts) lo excluye por UUID, del
+    // lado de la presentación. La policy sigue trayéndolo a propósito — el
+    // Gateway necesita resolver su propia fila. Si mañana se agrega un cuarto
+    // rol de sistema interno, acordarse de excluirlo también ahí.
     //
     // REGLA DURA — nunca agregar "OR es_ceom_admin()" a esta policy (ni a la
     // de usuarios/permisos/permisos_especiales_por_rol/
