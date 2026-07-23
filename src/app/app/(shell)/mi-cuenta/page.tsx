@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
+import { nombreRolVisible } from "@/lib/vocabulario";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { CambiarContrasenaForm } from "./cambiar-contrasena-form";
 
@@ -32,7 +33,7 @@ export default async function MiCuentaPage() {
           </div>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Rol</p>
-            <p className="mt-0.5 text-sm text-navy">{usuario.rol.nombre}</p>
+            <p className="mt-0.5 text-sm text-navy">{nombreRolVisible(usuario.rol.nombre)}</p>
           </div>
         </CardContent>
       </Card>
