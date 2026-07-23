@@ -280,7 +280,42 @@ Tenant (4 tabs) ya están construidos sobre él** (Módulo 11, 2026-07-18).
 - Rol: público (no autenticado).
 - Acción: `iniciarSesion()` → `supabase.auth.signInWithPassword`, con redirect por rol ya
   resuelto (ver sección 0).
-- Nota: los enlaces "¿Olvidaste tu contraseña?" y "Crear cuenta gratis" del componente actual son placeholders sin flujo detrás — no hay alta de cuenta autoservicio (`crearTenant` está gateado a `ceom_admin` únicamente, ver pantalla 16).
+- Nota: "Crear cuenta gratis" sigue siendo un placeholder sin flujo detrás — no hay alta de cuenta
+  autoservicio (`crearTenant` está gateado a `ceom_admin` únicamente, ver pantalla 16).
+  **"¿Olvidaste tu contraseña?" ya no lo es** (2026-07-23): lleva a `/recuperar-contrasena`.
+- El login además muestra el motivo cuando un enlace de correo no pudo canjearse
+  (`?error=enlace_vencido|enlace_invalido|cuenta_incompleta`), que es a donde redirige el callback
+  de Auth.
+
+### `/app` — Recuperar contraseña (H-05)
+**Pedir el enlace** `[x]` — `/recuperar-contrasena`, pública. Un solo campo (correo).
+- Rol: público (no autenticado).
+- Acción: `solicitarRecuperacion()` → `resetPasswordForEmail` con `redirectTo` al callback.
+- Responde lo mismo exista o no el correo (anti-enumeración); el acuse reemplaza al formulario para
+  no invitar a reintentar contra el cupo de envíos.
+
+**Fijar contraseña** `[x]` — `/app/definir-contrasena?motivo=invitacion|recuperacion`.
+- **Una sola pantalla para los tres casos** del alcance: dueño recién invitado, quien recupera, y
+  quien la cambia desde adentro. Cambia el copy, no el formulario. Justificación completa en
+  `docs/decisiones/recuperacion-de-acceso.md` §11.2/§11.3.
+- Vive **fuera** del route group `(shell)`, al lado de `onboarding/`: adentro, el layout rebotaría al
+  Owner con onboarding pendiente antes de que pueda tener contraseña.
+- Acción: `definirContrasena()` → `updateUser({password})`, redirect por rol.
+
+**Callback de Auth** — `/app/auth/callback` (route handler, no pantalla).
+- Canjea con `verifyOtp({token_hash, type})`, **no** con `exchangeCodeForSession` como
+  `/portal/auth/callback`: los correos de `/app` no son PKCE. Ver §11.1 del documento de decisiones.
+- Requiere que las plantillas de correo de Supabase apunten acá con `{{ .TokenHash }}`.
+
+### `/app` — Mi Cuenta
+**Mi cuenta** `[x]` — `/app/mi-cuenta`. Nombre, correo y rol del usuario logueado + cambio de
+contraseña.
+- Rol: cualquier usuario del tenant (no sólo Owner — por eso no vive dentro de `/app/mi-negocio`).
+- Se entra desde el bloque de usuario del sidebar.
+- Acción: `solicitarCambioDeContrasena()` → manda el enlace al propio correo. **No** es un formulario
+  de "contraseña actual + nueva": esa versión se construyó y se cayó en la verificación — cambiar la
+  contraseña revoca todas las sesiones menos la que hace el cambio, y re-autenticar abre una sesión
+  nueva. Ver §11.3 del documento de decisiones.
 
 ### `/app` — Onboarding del Owner (primer ingreso)
 **Configurar negocio** `[x]` — nombre, ciudad, moneda, logo (dropzone, preview local sin conectar a Storage todavía), canales de venta.
