@@ -26,7 +26,12 @@ import {
   transferirOwner,
   suspenderUsuario,
 } from "./actions";
-import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "./constants";
+import {
+  CEOM_OPS_TENANT_ID,
+  ROL_CEOM_ADMIN_ID,
+  ROL_GATEWAY_SISTEMA_ID,
+  ROL_OWNER_ID,
+} from "./constants";
 import { crearPlan, PLAN_BASICO_ID } from "@/modules/suscripcion/actions";
 import { planes } from "@/modules/suscripcion/schema";
 import * as repo from "./repository";
@@ -441,6 +446,16 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     const colaboradorActual = await repo.obtenerUsuarioConRolPorId(colaboradorId);
     const filaRolColaborador = resultado.data.find((r) => r.id === colaboradorActual!.rolId);
     expect(filaRolColaborador!.tenantId).toBe(tenantId);
+
+    // OBS-10: el rol del Gateway de Consentimiento tambien tiene
+    // tenant_id null, asi que la query del repositorio lo trae junto a
+    // Owner/CEOM Admin. Es una identidad interna del backstop de RLS y no
+    // tiene que llegar nunca a la pantalla de Roles del negocio.
+    expect(resultado.data.find((r) => r.id === ROL_GATEWAY_SISTEMA_ID)).toBeUndefined();
+    // Y el repositorio SI lo sigue trayendo: el filtro es de presentacion,
+    // no un cambio en la consulta ni en la policy de RLS.
+    const crudos = await repo.listarRolesPorTenant(tenantId);
+    expect(crudos.find((r) => r.id === ROL_GATEWAY_SISTEMA_ID)).toBeDefined();
   });
 
   it("listarPermisosPorRol: devuelve la matriz de un rol personalizado, vacio para Owner (sin filas, seccion 6.2)", async () => {

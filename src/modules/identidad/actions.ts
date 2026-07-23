@@ -8,6 +8,7 @@ import {
   DURACION_ETAPA_SOLO_LECTURA_DIAS,
   GATEWAY_SISTEMA_USUARIO_ID,
   ROL_CEOM_ADMIN_ID,
+  ROL_GATEWAY_SISTEMA_ID,
   ROL_OWNER_ID,
 } from "./constants";
 import * as repo from "./repository";
@@ -768,6 +769,27 @@ export async function transferirOwner(
  * Roles visibles para el tenant (propios + de sistema, mismo criterio que
  * la policy de RLS de `roles`), con conteo de colaboradores activos por
  * rol para las cards de "Gestión de Roles".
+ *
+ * Excluye el rol del Gateway de Consentimiento: es una identidad interna
+ * del backstop de RLS (Etapa 4.a), no un rol del negocio, y se colaba en
+ * esta lista porque comparte con Owner/CEOM Admin el `tenant_id is null`
+ * que el repositorio usa para traer los roles de sistema — ver OBS-10 en
+ * docs/ui/observaciones-de-uso.md.
+ *
+ * El filtro va acá, en la capa de presentación, y **por UUID**. A propósito
+ * NO se toca ninguna de estas tres cosas:
+ * - la rama `tenant_id is null` del repositorio, que también trae Owner y
+ *   CEOM Admin y tiene que seguir trayéndolos;
+ * - el flag `es_rol_sistema` de la fila, que es lo que impide asignarlo y
+ *   editarlo;
+ * - la policy de RLS de `roles`.
+ * Filtrar por nombre en vez de por UUID sería frágil: el nombre es texto
+ * editable, el UUID está fijado por la migración 0034.
+ *
+ * Es seguro para el portal institucional: la autorización del Gateway se
+ * ancla siempre en el **id del usuario** (`GATEWAY_SISTEMA_USUARIO_ID` en
+ * tienePermiso(), en solicitanteGateway() y en es_gateway_sistema()),
+ * nunca en esta lista.
  */
 export async function listarRoles(
   solicitante: UsuarioConRol
@@ -775,7 +797,8 @@ export async function listarRoles(
   if (!solicitante.esOwner) {
     return { ok: false, error: "Solo el dueño del negocio puede ver la lista de roles." };
   }
-  return { ok: true, data: await repo.listarRolesPorTenant(solicitante.tenantId) };
+  const todos = await repo.listarRolesPorTenant(solicitante.tenantId);
+  return { ok: true, data: todos.filter((rol) => rol.id !== ROL_GATEWAY_SISTEMA_ID) };
 }
 
 /** Precarga la Matriz de Permisos al editar un rol — vacío para Owner/CEOM Admin (no tienen filas, sección 6.2/6.5). */
