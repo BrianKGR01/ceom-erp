@@ -59,6 +59,13 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     nota: "Pre-auth por definición — valida email/password contra Supabase Auth.",
   },
 
+  // --- app/app/definir-contrasena/actions.ts ------------------------------
+  "app/app/definir-contrasena/actions.ts::definirContrasena": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota: "Opera solo sobre el auth.user de la propia sesion (updateUser); no recibe ningun id de recurso. La prueba de identidad es el token de correo que ya canjeo /app/auth/callback.",
+  },
+
   // --- lib/supabase/actions.ts --------------------------------------------
   "lib/supabase/actions.ts::cerrarSesion": {
     nivel: "publico",
