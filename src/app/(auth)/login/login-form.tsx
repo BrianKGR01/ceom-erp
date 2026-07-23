@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,9 +63,12 @@ export function LoginForm({ aviso }: { aviso?: string | null }) {
             >
               Contraseña
             </Label>
-            <a href="#" className="text-xs font-medium text-primary hover:underline">
+            <Link
+              href="/recuperar-contrasena"
+              className="text-xs font-medium text-primary hover:underline"
+            >
               ¿Olvidaste tu contraseña?
-            </a>
+            </Link>
           </div>
           <div className="relative">
             <Input

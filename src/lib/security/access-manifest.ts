@@ -59,6 +59,13 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     nota: "Pre-auth por definición — valida email/password contra Supabase Auth.",
   },
 
+  // --- app/(auth)/recuperar-contrasena/actions.ts -------------------------
+  "app/(auth)/recuperar-contrasena/actions.ts::solicitarRecuperacion": {
+    nivel: "publico",
+    verificacion: "estatica",
+    nota: "Pre-auth por definicion — quien la llama no puede entrar. Responde lo mismo exista o no el correo, para no permitir enumerar cuentas.",
+  },
+
   // --- app/app/definir-contrasena/actions.ts ------------------------------
   "app/app/definir-contrasena/actions.ts::definirContrasena": {
     nivel: "autenticado",
