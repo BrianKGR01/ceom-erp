@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, Boxes, Target, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 
@@ -14,9 +14,14 @@ const bullets = [
     detalle: "Monitoreá tu negocio en todo momento.",
   },
   {
-    icon: Bot,
-    texto: "Tuki IA te asesora 24/7 con tus datos",
-    detalle: "Tu asistente inteligente siempre disponible.",
+    // Este bullet anunciaba "Tuki IA te asesora 24/7 con tus datos"
+    // (hallazgos.md H-06). No existe ninguna funcionalidad de asistente en
+    // el producto: la unica otra mencion de Tuki en el repo es una idea a
+    // futuro en simulaciones/ANCLA.md. Se reemplaza por Produccion, que si
+    // existe y ya esta nombrada en el subtitulo de al lado.
+    icon: Boxes,
+    texto: "Seguí tu producción y el stock de tus insumos",
+    detalle: "De la receta al producto terminado, en un solo flujo.",
   },
 ];
 
