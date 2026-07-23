@@ -61,7 +61,7 @@ negocio desde `/admin` → correo de invitación → crear contraseña → onboa
 | [OBS-07](#obs-07) | El sidebar no tiene la identidad visual del login | ✅ Confirmada | 🟢 Resuelta |
 | [OBS-08](#obs-08) | Invitar colaborador con el selector de rol vacío y sin salida | ✅ Confirmada | 🔵 Registrada |
 | [OBS-09](#obs-09) | Un negocio nuevo no tiene ningún rol | ✅ Confirmada | ⏸️ H-35 |
-| [OBS-10](#obs-10) | El rol interno del Gateway es visible para el dueño | ✅ Confirmada | 🔵 Registrada |
+| [OBS-10](#obs-10) | El rol interno del Gateway es visible para el dueño | ✅ Confirmada | 🟢 Resuelta |
 
 ---
 
@@ -324,8 +324,24 @@ cuáles y cuántos roles.
 (sistema)". Es la identidad interna del backstop de RLS y no debería ser visible. Además la tarjeta
 dice a la vez "Rol predefinido" y "Rol personalizado de tu negocio".
 
-**Verificación: confirmada en sus dos partes.** El diagnóstico completo está abajo; **no se corrigió
-nada todavía**, a pedido.
+**Verificación: confirmada en sus dos partes.**
+
+> 🟢 **Resuelta el 2026-07-23.** El diagnóstico de abajo se mantiene como quedó escrito —
+> sigue siendo la explicación de por qué pasaba. Lo que se hizo:
+> - `listarRoles()` excluye el rol por UUID, sin tocar la rama `tenant_id is null`, el flag
+>   `es_rol_sistema` ni la policy de RLS.
+> - La contradicción de la tarjeta se cerró derivando la descripción de la misma columna que el
+>   badge (`descripcionDeRol()`), así que ya no puede volver a aparecer con otro rol de sistema.
+> - La fila del **usuario** quedó blindada en tres capas: guarda en las 4 funciones que podían
+>   mutarla, CHECK `usuarios_gateway_sistema_inmutable` (migración `0040`) y falla ruidosa en
+>   `solicitanteGateway()`.
+> - La asimetría de `activo` se resolvió **documentándola como invariante** en
+>   `fijarContextoYExigirTenant()` y cubriendo el caso del Gateway en su propio nivel. No se tocó
+>   `current_tenant_id()`.
+>
+> El hallazgo que salió del diagnóstico (el usuario del Gateway era suspendible) quedó cerrado en el
+> mismo lote. El **conteo de "dos roles de sistema"** también se corrigió, en `hallazgos.md` H-35 y
+> en `identidad/schema.ts`.
 
 #### Por qué existe el rol
 

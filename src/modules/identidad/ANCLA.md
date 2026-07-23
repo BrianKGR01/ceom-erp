@@ -540,6 +540,27 @@
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
 
+## Última actualización: 2026-07-23 — la identidad del Gateway deja de ser administrable desde la app
+(OBS-10 de `docs/ui/observaciones-de-uso.md`). **Sin cambio de contrato**: ninguna firma cambia, no
+hay impacto en la matriz de dependencias de `CEOM_Arquitectura.md` §7.
+
+- `listarRoles()` excluye `ROL_GATEWAY_SISTEMA_ID`. El repositorio lo sigue devolviendo y la policy de
+  RLS de `roles` sigue trayéndolo — el filtro es de presentación, porque el Gateway necesita resolver
+  su propia fila. Si mañana se siembra un cuarto rol de sistema interno, acordarse de excluirlo ahí.
+- `suspenderUsuario()`, `reactivarUsuario()`, `cambiarRolUsuario()` y `transferirOwner()` (como
+  destino) rechazan `GATEWAY_SISTEMA_USUARIO_ID`. Son las 4 únicas vías: en todo el código de
+  producción la tabla `usuarios` solo se escribe desde este repository, y no existe soft-delete de
+  usuarios. **Si algún día se agrega uno, nace sin esta guarda** — acordarse.
+- CHECK `usuarios_gateway_sistema_inmutable` (migración `0040`): la capa que realmente cierra el
+  agujero, porque este módulo escribe con `db` crudo (RLS bypasseada) y el vector real es SQL a mano
+  o Supabase Studio, no la interfaz.
+- `solicitanteGateway()` corta con `Error` común si la fila quedó degradada. **Nunca**
+  `ContextoRlsNoResueltoError`: ese tipo tiene un único catch legítimo declarado en `db/contexto.ts`.
+- **Decisión registrada, no reabrir sin leer esto:** NO se agrega `activo` a `current_tenant_id()`.
+  La llaman ~92 policies sobre 45 tablas, la migración `0031` deja escrito que un usuario inactivo
+  siga viendo su propio tenant, hay un test verde que lo fija, y hoy ninguna capa de la app corta por
+  `activo`. Introducir esa semántica es una tarea de producto propia.
+
 ## Última actualización: 2026-07-23 — **cambio de contrato**: `crearTenant()` e `invitarUsuario()`
 reciben `redirectTo` como tercer parámetro obligatorio, para que el enlace de la invitación aterrice
 en el callback de Auth de `/app` (`/app/auth/callback`, nuevo) y no en el Site URL del dashboard.
