@@ -47,6 +47,12 @@ const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
 );
 
+// crearTenant()/invitarUsuario() exigen el destino del enlace del correo. En
+// los tests de abajo nunca se llega a enviarlo (cortan antes, a proposito),
+// pero el parametro es obligatorio justamente para que nadie invite sin
+// decidir a donde aterriza la persona.
+const CALLBACK_DE_PRUEBA = "http://localhost:3000/app/auth/callback";
+
 describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
   let admin: ReturnType<typeof crearClienteAdmin>;
   const sufijo = Date.now();
@@ -266,11 +272,15 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
     const cambioACeomAdmin = await cambiarRolUsuario(owner!, colaboradorId, ROL_CEOM_ADMIN_ID);
     expect(cambioACeomAdmin.ok).toBe(false);
 
-    const invitacionComoOwner = await invitarUsuario(owner!, {
-      email: `no-deberia-invitarse-${Date.now()}@ceom-erp.test`,
-      nombreCompleto: "No deberia invitarse",
-      rolId: ROL_CEOM_ADMIN_ID,
-    });
+    const invitacionComoOwner = await invitarUsuario(
+      owner!,
+      {
+        email: `no-deberia-invitarse-${Date.now()}@ceom-erp.test`,
+        nombreCompleto: "No deberia invitarse",
+        rolId: ROL_CEOM_ADMIN_ID,
+      },
+      CALLBACK_DE_PRUEBA
+    );
     expect(invitacionComoOwner.ok).toBe(false);
   });
 
@@ -491,14 +501,18 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
 
     // planId inexistente hace que crearTenant() devuelva error ANTES de
     // llamar a inviteUserByEmail — no dispara ningun email real.
-    const resultado = await crearTenant(fakeCeomAdmin, {
-      nombreNegocio: "No deberia crearse",
-      monedaPrincipal: "BOB",
-      fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
-      ownerEmail: `no-deberia-enviarse-${Date.now()}@ceom-erp.test`,
-      ownerNombreCompleto: "No Crear",
-      planId: "00000000-0000-0000-0000-000000000000",
-    });
+    const resultado = await crearTenant(
+      fakeCeomAdmin,
+      {
+        nombreNegocio: "No deberia crearse",
+        monedaPrincipal: "BOB",
+        fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
+        ownerEmail: `no-deberia-enviarse-${Date.now()}@ceom-erp.test`,
+        ownerNombreCompleto: "No Crear",
+        planId: "00000000-0000-0000-0000-000000000000",
+      },
+      CALLBACK_DE_PRUEBA
+    );
     expect(resultado.ok).toBe(false);
   });
 

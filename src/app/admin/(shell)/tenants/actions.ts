@@ -1,5 +1,6 @@
 "use server";
 
+import { urlCallbackApp } from "@/lib/site-url";
 import {
   cambiarEstadoSuscripcion,
   cambiarPlanTenant,
@@ -92,14 +93,20 @@ export async function crearTenantAction(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
-  const resultado = await crearTenant(usuario, {
-    nombreNegocio: parsed.data.nombreNegocio,
-    monedaPrincipal: parsed.data.monedaPrincipal,
-    planId: parsed.data.planId,
-    fechaInicioSuscripcion: parsed.data.fechaInicioSuscripcion,
-    ownerEmail: parsed.data.ownerEmail,
-    ownerNombreCompleto: parsed.data.ownerNombreCompleto,
-  });
+  const resultado = await crearTenant(
+    usuario,
+    {
+      nombreNegocio: parsed.data.nombreNegocio,
+      monedaPrincipal: parsed.data.monedaPrincipal,
+      planId: parsed.data.planId,
+      fechaInicioSuscripcion: parsed.data.fechaInicioSuscripcion,
+      ownerEmail: parsed.data.ownerEmail,
+      ownerNombreCompleto: parsed.data.ownerNombreCompleto,
+    },
+    // La URL del enlace se resuelve acá y no dentro del modulo — mismo
+    // criterio que solicitarMagicLinkInstitucionAction (portal/actions.ts).
+    urlCallbackApp()
+  );
   if (!resultado.ok) return resultado;
 
   // DA-01: el negocio nuevo arranca con su set de categorías de gasto en vez
