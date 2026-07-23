@@ -76,6 +76,27 @@ const DESCRIPCION_SISTEMA: Record<string, string> = {
   "CEOM Admin": "Gestión administrativa y soporte a cargo del equipo CEOM.",
 };
 
+/**
+ * El badge sale de la columna `esRolSistema` y el texto salía de un mapa
+ * indexado por nombre, así que un rol de sistema cuyo nombre no estuviera en
+ * el mapa mostraba "Rol predefinido" y "Rol personalizado de tu negocio" a la
+ * vez. Le pasó al rol del Gateway de Consentimiento (OBS-10 en
+ * docs/ui/observaciones-de-uso.md).
+ *
+ * Ese rol ya no se lista, pero el fallback **sigue siendo alcanzable**: basta
+ * con que una migración futura siembre otro rol con `tenant_id is null` y un
+ * nombre que nadie agregue acá. Así que la descripción pasa a derivarse de la
+ * misma columna que el badge — es imposible que se contradigan, sepamos o no
+ * el nombre del rol.
+ */
+function descripcionDeRol(rol: { nombre: string; esRolSistema: boolean }): string {
+  const conocida = DESCRIPCION_SISTEMA[rol.nombre];
+  if (conocida) return conocida;
+  return rol.esRolSistema
+    ? "Rol predefinido del sistema — no se puede editar ni eliminar."
+    : "Rol personalizado de tu negocio.";
+}
+
 type Matriz = Record<Modulo, Record<Accion, boolean>>;
 
 function matrizVacia(): Matriz {
@@ -378,7 +399,7 @@ export function RolesCliente({ roles, colaboradores }: { roles: Rol[]; colaborad
               )}
             </div>
             <p className="mt-2 text-sm text-text-muted">
-              {DESCRIPCION_SISTEMA[rol.nombre] ?? `Rol personalizado de tu negocio.`}
+              {descripcionDeRol(rol)}
             </p>
             <p className="mt-3 text-xs text-text-muted">
               {rol.colaboradores} Colaborador{rol.colaboradores === 1 ? "" : "es"}

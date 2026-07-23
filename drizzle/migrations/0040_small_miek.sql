@@ -1,0 +1,1 @@
+ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_gateway_sistema_inmutable" CHECK ("usuarios"."id" <> 'b4e2d0a3-9c58-4f7b-8d4e-2a3b4c5d6e7f'::uuid or ("usuarios"."activo" and "usuarios"."eliminado_en" is null and "usuarios"."rol_id" = 'a3f1c9d2-8b47-4e6a-9c3d-1f2e3a4b5c6d'::uuid));
