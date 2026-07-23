@@ -292,6 +292,19 @@
   (sección 8.1 dice "cualquier usuario con permiso crear en este módulo",
   pero ese módulo no está en el enum) — si se decide resolver distinto, hay
   que tocar tanto el enum en `schema.ts` como cada gate en `actions.ts`.
+- **`crearTenant`/`invitarUsuario` reciben `redirectTo` como tercer parámetro
+  obligatorio** (cambio de contrato, 2026-07-23). Es la URL a la que aterriza
+  el enlace del correo de invitación, y la resuelve la Server Action delgada
+  (`urlCallbackApp()`, `src/lib/site-url.ts`) — mismo criterio que
+  `solicitarMagicLinkInstitucion(email, emailRedirectTo)` en Consentimiento:
+  el módulo no lee variables de entorno de infra. Antes se llamaba a
+  `inviteUserByEmail(email)` a secas, y entonces GoTrue mandaba el enlace al
+  **Site URL del dashboard de Supabase**, que este módulo no controla ni puede
+  verificar. La URL tiene que estar en la lista de Redirect URLs del proyecto;
+  si no está, Supabase la ignora y usa el Site URL igual. Es obligatorio y no
+  opcional a propósito: invitar sin decidir dónde aterriza la persona es
+  exactamente el bug que dejó un tenant congelado desde el alta (ver
+  `docs/decisiones/recuperacion-de-acceso.md` §7).
 - `crearTenant`/`invitarUsuario` crean el usuario de Supabase Auth **antes**
   de la transacción de Postgres (necesitan el `id` real para la FK
   `usuarios.id -> auth.users.id`). Si la transacción de Postgres falla
@@ -526,6 +539,14 @@
   (`listarPlanes()` sin `soloActivos`), porque un tenant puede seguir en un
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
+
+## Última actualización: 2026-07-23 — **cambio de contrato**: `crearTenant()` e `invitarUsuario()`
+reciben `redirectTo` como tercer parámetro obligatorio, para que el enlace de la invitación aterrice
+en el callback de Auth de `/app` (`/app/auth/callback`, nuevo) y no en el Site URL del dashboard.
+Callers actualizados: `admin/(shell)/tenants/actions.ts`, `app/(shell)/mi-negocio/actions.ts`,
+`scripts/seed-tenant.ts`. Sin impacto en la matriz de dependencias de `CEOM_Arquitectura.md` §7: no
+cambia qué módulos se llaman entre sí, solo agrega un dato de infra que ahora resuelve la capa de
+aplicación en vez de Supabase. Contexto completo en `docs/decisiones/recuperacion-de-acceso.md`.
 
 ## Última actualización: 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
 rediseñada de objeto sintético a fila real y acotada (`GATEWAY_SISTEMA_USUARIO_ID`, rol propio,

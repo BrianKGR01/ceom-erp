@@ -344,10 +344,17 @@ export interface CrearTenantInput {
  * DB falla despues de creado el usuario de Auth, ese usuario queda
  * huerfano (Supabase Auth y Postgres no comparten una transaccion) — se
  * limpia manualmente via el admin API si llega a pasar.
+ *
+ * `redirectTo` es obligatorio y lo resuelve la Server Action delgada (mismo
+ * criterio que solicitarMagicLinkInstitucion): sin el, GoTrue manda el
+ * enlace al Site URL configurado en el dashboard de Supabase, que este
+ * modulo no controla ni puede verificar. Tiene que apuntar al callback de
+ * /app y estar en la lista de Redirect URLs del proyecto.
  */
 export async function crearTenant(
   solicitante: UsuarioConRol,
-  input: CrearTenantInput
+  input: CrearTenantInput,
+  redirectTo: string
 ): Promise<
   Resultado<{ tenantId: string; sucursalId: string; usuarioOwnerId: string }>
 > {
@@ -366,7 +373,7 @@ export async function crearTenant(
 
   const admin = crearClienteAdmin();
   const { data: authData, error: authError } =
-    await admin.auth.admin.inviteUserByEmail(input.ownerEmail);
+    await admin.auth.admin.inviteUserByEmail(input.ownerEmail, { redirectTo });
   if (authError || !authData.user) {
     return {
       ok: false,
@@ -577,9 +584,12 @@ export async function listarUsuarios(
   return { ok: true, data: await repo.listarUsuariosPorTenant(solicitante.tenantId) };
 }
 
+/** `redirectTo`: mismo contrato que crearTenant() — obligatorio, resuelto por
+ * la Server Action delgada, apunta al callback de /app. */
 export async function invitarUsuario(
   solicitante: UsuarioConRol,
-  input: { email: string; nombreCompleto: string; rolId: string }
+  input: { email: string; nombreCompleto: string; rolId: string },
+  redirectTo: string
 ): Promise<Resultado<{ usuarioId: string }>> {
   // "cualquier usuario con permiso crear en este modulo" (Modulo_01 seccion
   // 8.1) no es representable con la matriz generica (identidad no es un
@@ -602,7 +612,7 @@ export async function invitarUsuario(
 
   const admin = crearClienteAdmin();
   const { data: authData, error: authError } =
-    await admin.auth.admin.inviteUserByEmail(input.email);
+    await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
   if (authError || !authData.user) {
     return {
       ok: false,

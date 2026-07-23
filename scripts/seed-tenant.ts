@@ -18,6 +18,7 @@
 
 import { eq } from "drizzle-orm";
 import { client as pgClient, db } from "@/db/client";
+import { urlCallbackApp } from "@/lib/site-url";
 import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
 import { crearTenant } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
@@ -75,7 +76,11 @@ async function main() {
       fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
       ownerEmail: emailOwner,
       ownerNombreCompleto: nombreOwner,
-    }
+    },
+    // Este script invita de verdad: el Owner sembrado recibe el correo y
+    // tiene que aterrizar en el callback de /app para poder fijar su
+    // contraseña. Sale de NEXT_PUBLIC_SITE_URL (--env-file=.env.local).
+    urlCallbackApp()
   );
 
   if (!resultado.ok) {

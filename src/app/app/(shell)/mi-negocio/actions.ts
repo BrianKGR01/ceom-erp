@@ -1,5 +1,6 @@
 "use server";
 
+import { urlCallbackApp } from "@/lib/site-url";
 import {
   actualizarPermisosRol,
   calcularEstadoAcceso,
@@ -45,7 +46,7 @@ export async function invitarColaboradorAction(input: unknown) {
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
-  return invitarUsuario(usuario, parsed.data);
+  return invitarUsuario(usuario, parsed.data, urlCallbackApp());
 }
 
 export async function editarColaboradorAction(usuarioId: string, input: unknown) {
