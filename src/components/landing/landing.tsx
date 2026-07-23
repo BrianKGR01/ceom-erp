@@ -90,8 +90,11 @@ const MODULOS = [
   {
     icono: ChefHat,
     nombre: "Producción",
+    // Producción es del rubro de alimentos y bebidas por lotes (nicho-1).
+    // Un comercio minorista no produce, asi que la tarjeta lo condiciona en
+    // vez de dar por hecho que todo negocio fabrica algo.
     detalle:
-      "Insumos y recetas. Cada lote descuenta la materia prima, acredita el producto terminado y calcula el costo real por unidad.",
+      "Si producís por lotes: insumos y recetas. Cada lote descuenta la materia prima, acredita el producto terminado y calcula el costo real por unidad.",
   },
   {
     icono: BarChart3,
@@ -102,8 +105,12 @@ const MODULOS = [
   {
     icono: Calculator,
     nombre: "Simulador",
+    // El simulador va del margen al precio, no al reves:
+    // `simularPrecio` toma `margenDeseadoPct` y devuelve `precioSugerido`
+    // (= costo / (1 - margen/100), simulaciones/actions.ts:23-28). Decir
+    // "probas un precio y te muestra el margen" es invertir la herramienta.
     detalle:
-      "Probás un precio nuevo sin tocar nada real: qué margen te deja ese producto y cuántas unidades necesitás para cubrir tus gastos fijos.",
+      "Decís qué margen querés ganar y te dice a qué precio vender ese producto, con su costo real. Nada de esto toca el precio que tenés cargado.",
   },
   {
     icono: KeyRound,
@@ -134,9 +141,9 @@ const CONTRASTES = [
   },
   {
     hoy: "Ponés precio por intuición",
-    con: "Probás el precio antes de aplicarlo",
+    con: "Ponés el margen y sale el precio",
     detalle:
-      "Simulás el cambio y mirás cómo queda tu margen. La simulación no toca el precio real del producto.",
+      "Decís cuánto querés ganar y el simulador te dice a cuánto vender, partiendo del costo real del producto. No toca el precio que ya tenés cargado.",
   },
   {
     hoy: "Cerrás el mes sin saber cómo venías",
@@ -336,9 +343,10 @@ export function Landing() {
               </h1>
 
               <p className="mt-5 max-w-xl text-base text-white/80">
-                CEOM ordena las ventas, los costos y la producción de tu negocio, y con
-                eso te arma el resultado del mes: cuánto entró, cuánto costó y cuánto
-                quedó. Sin planillas sueltas y sin ser contador.
+                CEOM ordena las ventas, los costos y —si producís— también la
+                producción de tu negocio, y con eso te arma el resultado del mes:
+                cuánto entró, cuánto costó y cuánto quedó. Sin planillas sueltas y sin
+                ser contador.
               </p>
 
               <div className="mt-8">
