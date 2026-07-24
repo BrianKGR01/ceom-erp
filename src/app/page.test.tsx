@@ -17,41 +17,61 @@ vi.mock("@/modules/identidad/actions", () => ({
   ROL_CEOM_ADMIN_ID: "rol-ceom-admin",
 }));
 
+// La landing se stubea: lo que se prueba aca es el reparto por rol, no su
+// markup. Sin el stub el test arrastraria lucide-react, next/image y base-ui
+// sin necesidad.
+vi.mock("@/components/landing/landing", () => ({
+  Landing: () => null,
+}));
+
+import { Landing } from "@/components/landing/landing";
 import Home from "./page";
 
-/** Falla si la pagina devuelve markup en vez de redirigir. */
-async function destinoDe(): Promise<string> {
+/** Corre la pagina y distingue los dos desenlaces posibles: redirigir (con
+ *  sesion) o devolver markup (sin sesion). */
+async function correr(): Promise<{ destino: string | null; markup: unknown }> {
   try {
-    await Home();
+    return { destino: null, markup: await Home() };
   } catch (error) {
-    return (error as Error).message.replace("REDIRECT:", "");
+    return { destino: (error as Error).message.replace("REDIRECT:", ""), markup: null };
   }
-  throw new Error("Home() no redirigio — volvio a renderizar contenido");
 }
 
-describe("/ (destino por defecto de los enlaces de Auth)", () => {
+describe("/ (landing publica + destino por defecto de los enlaces de Auth)", () => {
   beforeEach(() => {
     redirect.mockClear();
   });
 
-  it("manda al login cuando no hay sesion", async () => {
+  it("sin sesion muestra la landing y no redirige a ningun lado", async () => {
     obtenerUsuarioActual.mockResolvedValue(null);
-    expect(await destinoDe()).toBe("/login");
+
+    const { destino, markup } = await correr();
+
+    expect(destino).toBeNull();
+    expect(redirect).not.toHaveBeenCalled();
+    // Es la landing lo que se renderiza, no cualquier markup.
+    expect((markup as { type: unknown }).type).toBe(Landing);
   });
 
   it("manda a /app a un usuario de un tenant", async () => {
     obtenerUsuarioActual.mockResolvedValue({ rolId: "rol-cualquiera" });
-    expect(await destinoDe()).toBe("/app");
+    expect((await correr()).destino).toBe("/app");
   });
 
   it("manda a /admin a un ceom_admin", async () => {
     obtenerUsuarioActual.mockResolvedValue({ rolId: "rol-ceom-admin" });
-    expect(await destinoDe()).toBe("/admin");
+    expect((await correr()).destino).toBe("/admin");
   });
 
-  it("siempre redirige — nunca renderiza el boilerplate de create-next-app", async () => {
-    obtenerUsuarioActual.mockResolvedValue(null);
-    await destinoDe();
-    expect(redirect).toHaveBeenCalledTimes(1);
+  it("con sesion nunca renderiza la landing — el desvio por rol sigue mandando", async () => {
+    for (const rolId of ["rol-cualquiera", "rol-ceom-admin"]) {
+      redirect.mockClear();
+      obtenerUsuarioActual.mockResolvedValue({ rolId });
+
+      const { markup } = await correr();
+
+      expect(markup).toBeNull();
+      expect(redirect).toHaveBeenCalledTimes(1);
+    }
   });
 });
