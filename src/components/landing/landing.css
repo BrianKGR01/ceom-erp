@@ -876,6 +876,14 @@
   animation: l-crecer-x var(--l-ciclo, 5200ms) linear;
 }
 
+/* Con el mouse encima o el foco adentro el panel deja de avanzar solo, asi que
+   la barra tiene que frenar con el: si siguiera llenandose estaria anunciando
+   un cambio que no va a pasar. */
+.l-panel-cambio:hover .l-item-cambio__progreso i,
+.l-panel-cambio:focus-within .l-item-cambio__progreso i {
+  animation-play-state: paused;
+}
+
 .l-panel-cambio__pantalla {
   padding: 22px;
 }
