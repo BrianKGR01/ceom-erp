@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   BarChart3,
   Building2,
   Calculator,
@@ -12,49 +11,68 @@ import {
   ShoppingCart,
   Truck,
 } from "lucide-react";
+import { Caveat } from "next/font/google";
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
-import { Button } from "@/components/ui/button";
 import { CONTACTO } from "@/lib/contacto";
+import "./landing.css";
+import { LibretaCierre } from "./libreta";
+import { NavMovil } from "./nav-movil";
+import { PanelAntesDespues } from "./panel-antes-despues";
+import { PanelCambio } from "./panel-cambio";
+import { Revelaciones } from "./revelaciones";
+import { VentanaPlataforma } from "./ventana-plataforma";
 
 // Landing publica de CEOM.
 //
-// Se reimplemento a partir de docs/ui/landing-referencia.html, que es
-// referencia de estructura y de copy, no codigo a copiar. Lo que se saco de
-// esa referencia y por que esta anotado en cada seccion: la regla es que la
-// landing solo puede prometer lo que el sistema hace hoy, verificado contra
-// docs/manual/hallazgos.md.
+// **La capa visual de esta pagina no se construye con la libreria del ERP.**
+// El sistema prioriza densidad y consistencia; una landing prioriza impacto y
+// narrativa. Comparten la marca —logo, azules, Poppins— y nada mas: la escala
+// tipografica, las sombras, los radios y las animaciones viven en landing.css,
+// bajo `.ceom-landing`, y no se filtran a /app ni a /admin.
 //
-// Composicion visual: secciones alternando claro y azul, con el mismo
-// degradado navy + circulos difuminados del sidebar y del login
-// (docs/design-system.md 5.8) — es el unico degradado permitido.
+// El copy y el reparto de secciones vienen del PR #25 y estan verificados
+// contra el codigo (docs/manual/hallazgos.md): **no se reescriben acá**. Lo que
+// cambia en esta pasada es solo como se ve. Lo que la referencia proponia y no
+// entra sigue afuera por la misma razon de siempre — la landing solo puede
+// prometer lo que el sistema hace hoy:
+//   - Tuki (asistente IA) y CEOM EDU: no existen (H-06; Modulo_11:180).
+//   - Alertas, avisos y "EN VIVO": no hay una sola notificacion (H-10, H-28,
+//     H-37, H-45).
+//   - "Mas elegido": prueba social inventada, no hay negocios con estos planes.
+//   - Precios: no hay cobro ni facturacion (H-45).
+//   - "Abrir mi cuenta" / demo: no hay alta autoservicio (`crearTenant` esta
+//     gateado a `ceom_admin`).
 //
-// Sin interactividad: es un Server Component entero, sin JS de cliente.
+// Al caer Tuki y CEOM EDU la pagina quedo dos secciones mas corta que la
+// referencia, asi que el ritmo se rebalanceo: la plataforma pasa a ser la
+// seccion protagonista (ventana + las nueve tarjetas) y el contraste
+// hoy/con-CEOM se cuenta en un panel en vez de en cuatro tarjetas quietas.
+// Las secciones siguen alternando claro y oscuro:
+//   hero claro → cambio oscuro → antes/después claro → plataforma oscura →
+//   planes claro → cierre oscuro → pie.
 
-/** Circulos difuminados de las secciones azules — misma composicion que el
- *  panel del login (login/page.tsx:48-59) y el sidebar (app-shell.tsx:355). */
-function BrilloAzul() {
-  return (
-    <>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-pastel-blue/20 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/3 -left-24 size-80 rounded-full bg-primary/25 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-32 right-1/4 size-96 rounded-full bg-pastel-blue/10 blur-3xl"
-      />
-    </>
-  );
-}
+// Unica fuente que se suma a las del sistema, y solo en esta pagina: la letra
+// de la libreta. No hay forma de escribir "a mano" con Poppins, y la libreta
+// manuscrita es la pieza central del hero. Es una sola familia, un solo peso,
+// subset latino, y se carga aca (no en el layout raiz) para que ni /app ni
+// /admin la descarguen.
+const caveat = Caveat({
+  variable: "--l-fuente-mano",
+  subsets: ["latin"],
+  weight: ["600"],
+  display: "swap",
+});
+
+const ENLACES = [
+  { href: "#plataforma", texto: "La plataforma" },
+  { href: "#planes", texto: "Planes" },
+  { href: "#contacto", texto: "Contacto" },
+] as const;
 
 // Los nueve modulos reales, con los nombres exactos del nav
-// (app-shell.tsx:180-255) y del glosario. Cada descripcion dice solo lo que
-// el modulo hace hoy — ver el detalle de que NO promete cada uno en
+// (app-shell.tsx:180-255) y del glosario. Cada descripcion dice solo lo que el
+// modulo hace hoy — ver el detalle de que NO promete cada uno en
 // docs/manual/hallazgos.md.
 const MODULOS = [
   {
@@ -105,8 +123,8 @@ const MODULOS = [
   {
     icono: Calculator,
     nombre: "Simulador",
-    // El simulador va del margen al precio, no al reves:
-    // `simularPrecio` toma `margenDeseadoPct` y devuelve `precioSugerido`
+    // El simulador va del margen al precio, no al reves: `simularPrecio` toma
+    // `margenDeseadoPct` y devuelve `precioSugerido`
     // (= costo / (1 - margen/100), simulaciones/actions.ts:23-28). Decir
     // "probas un precio y te muestra el margen" es invertir la herramienta.
     detalle:
@@ -120,70 +138,23 @@ const MODULOS = [
   },
 ] as const;
 
-// El contraste "de como trabajas hoy" -> "con CEOM".
-//
-// De los cuatro pares de la referencia se reescribio el tercero: decia
-// "Te enteras tarde" -> "El sistema te avisa", y **no existe ningun aviso
-// automatico** en el producto (H-10 gastos recurrentes, H-28 stock minimo,
-// H-37 sobreventa, H-45 vencimiento). Lo que si es cierto es que el dato
-// esta disponible cuando lo mires, no que algo te empuje una alerta.
-const CONTRASTES = [
-  {
-    // La referencia decia "Ves el resultado completo". **Completo es justo lo
-    // que no es**: la comision del canal (H-24), la cuota de una deuda
-    // (H-27), el ajuste de una compra (H-31) y un producto sin costo (H-15)
-    // no llegan al resultado, y los cuatro huecos van en la direccion
-    // optimista. Se promete lo que si hace: juntar venta y costo.
-    hoy: "Confundís venta con ganancia",
-    con: "Ves la venta y su costo juntos",
-    detalle:
-      "Cada venta se guarda con el precio y el costo que tenía el producto en ese momento, y el margen sale de ahí.",
-  },
-  {
-    hoy: "Ponés precio por intuición",
-    con: "Ponés el margen y sale el precio",
-    detalle:
-      "Decís cuánto querés ganar y el simulador te dice a cuánto vender, partiendo del costo real del producto. No toca el precio que ya tenés cargado.",
-  },
-  {
-    hoy: "Cerrás el mes sin saber cómo venías",
-    con: "Mirás cómo venís cuando quieras",
-    detalle:
-      "El resultado del período está armado en todo momento; no hay que esperar a fin de mes para verlo.",
-  },
-  {
-    hoy: "Aprendés a los golpes",
-    con: "Aprendés con tus números",
-    detalle:
-      "Margen, punto de equilibrio y flujo de caja dejan de ser palabras: son tus datos, en tu pantalla.",
-  },
-] as const;
-
 // Los tres planes.
 //
-// Un plan solo puede prometer lo que el sistema aplica. De los siete
-// atributos de un plan **hay exactamente uno con efecto real**: que
-// informacion se puede compartir con una institucion, validado del lado del
-// servidor en consentimiento/actions.ts:406-415. Por eso los tres planes
-// escalan por eso y solo por eso.
+// Un plan solo puede prometer lo que el sistema aplica. De los siete atributos
+// de un plan **hay exactamente uno con efecto real**: que informacion se puede
+// compartir con una institucion, validado del lado del servidor en
+// consentimiento/actions.ts:406-415. Por eso los tres planes escalan por eso y
+// solo por eso, y por eso no se muestran precios (no hay cobro ni facturacion,
+// H-45).
 //
-// ⚠️ Ojo, esto corrige a docs/manual/equipo-ceom/02-planes.md, que dice que
-// son dos los atributos con efecto. **Los dias de gracia tambien son letra
+// ⚠️ Ojo, esto corrige a docs/manual/equipo-ceom/02-planes.md, que dice que son
+// dos los atributos con efecto. **Los dias de gracia tambien son letra
 // muerta.** `calcularEstadoAcceso()` (identidad/actions.ts:53-72) recibe
-// `duracionEtapaSoloLecturaDias` como tercer parametro, pero **ningun
-// llamador de produccion se lo pasa** — los nueve call sites reales lo
-// invocan con un solo argumento, asi que la gracia sale siempre de la
-// constante DURACION_ETAPA_SOLO_LECTURA_DIAS = 3 (identidad/constants.ts:22),
-// igual para todos los negocios. `planes.duracionEtapaSoloLecturaDias` se
-// escribe y se edita en /admin/planes, y no lo lee nadie. Solo el archivo de
-// tests pasa el tercer argumento, que es lo que hace que el atributo
-// "parezca" andar si se mira la funcion aislada.
-//
-// Los otros cinco quedaron afuera por lo mismo: sucursales (H-02, no existe
-// forma de crear una segunda), mas de un dueño (H-17), bajar de plan por
-// autogestion (no hay pantalla), precio mensual (no hay cobro ni
-// facturacion, H-45) y duracion de la invitacion (DURACION_INVITACION_DIAS
-// tiene cero usos: las invitaciones no caducan).
+// `duracionEtapaSoloLecturaDias` como tercer parametro, pero **ningun llamador
+// de produccion se lo pasa** — los nueve call sites reales lo invocan con un
+// solo argumento, asi que la gracia sale siempre de la constante
+// DURACION_ETAPA_SOLO_LECTURA_DIAS = 3 (identidad/constants.ts:22), igual para
+// todos los negocios.
 const PLANES = [
   {
     nombre: "Básico",
@@ -221,552 +192,407 @@ const PLANES = [
   },
 ] as const;
 
-/** Par de botones de contacto. Es la unica accion de la landing: no hay alta
- *  de cuenta autoservicio, el negocio lo da de alta el equipo desde /admin.
- *
- *  Desviacion declarada: el `size="lg"` del sistema es h-9 (36px), pensado
- *  para pantallas de gestion densas. Aca se sube a h-11 (44px) por className
- *  — es el area tactil minima comoda en celular y son los dos unicos botones
- *  que la landing realmente quiere que se toquen. No se cambia el componente. */
-function AccionesContacto({ tono }: { tono: "claro" | "oscuro" }) {
+/** Par de botones de contacto. Es la unica accion de la landing: no hay alta de
+ *  cuenta autoservicio, el negocio lo da de alta el equipo desde /admin. */
+function AccionesContacto({ tono = "claro" }: { tono?: "claro" | "oscuro" }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-      <Button
-        size="lg"
-        className="h-11 px-5 text-sm"
-        render={<a href={CONTACTO.whatsappHref} target="_blank" rel="noopener noreferrer" />}
-        nativeButton={false}
+    <div className="l-acciones">
+      <a
+        className="l-boton l-boton--primario"
+        href={CONTACTO.whatsappHref}
+        target="_blank"
+        rel="noopener noreferrer"
       >
         <MessageCircle aria-hidden />
         Escribinos por WhatsApp
-      </Button>
-      <Button
-        size="lg"
-        variant="outline"
-        className={
-          tono === "oscuro"
-            ? "h-11 border-white/30 bg-transparent px-5 text-sm text-white hover:bg-white/10 hover:text-white"
-            : "h-11 px-5 text-sm"
-        }
-        render={<a href={CONTACTO.correoHref} />}
-        nativeButton={false}
+      </a>
+      <a
+        className={`l-boton ${tono === "oscuro" ? "l-boton--linea-clara" : "l-boton--linea"}`}
+        href={CONTACTO.correoHref}
       >
         <Mail aria-hidden />
         Escribinos por correo
-      </Button>
+      </a>
     </div>
+  );
+}
+
+/** Tilde de las listas de plan. */
+function Tilde({ className }: { className: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   );
 }
 
 export function Landing() {
   return (
-    <div className="relative flex min-h-screen flex-col bg-background">
-      {/* Enlace de salto.
-          El relleno va en el <span>, no en el <a>, a proposito: `not-sr-only`
-          fuerza `padding: 0`, asi que un px-4/py-2 puesto sobre el ancla se
-          pierde y el enlace aparece sin area de clic. Sobre el hijo no lo
-          toca. Tampoco sirve mover el ancla con `-translate-y-*` +
-          `focus:translate-y-0`: las dos escriben la misma custom property y
-          gana la primera. Las dos variantes se comprobaron en el DOM real. */}
-      <a
-        href="#contenido"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"
-      >
-        <span className="block rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground">
-          Saltar al contenido
-        </span>
+    <div className={`ceom-landing ${caveat.variable}`}>
+      {/* Entrada por seccion y sombra del encabezado. No oculta nada del HTML
+          que llega del servidor: ver revelaciones.tsx. */}
+      <Revelaciones />
+
+      <a href="#contenido" className="l-saltar">
+        Saltar al contenido
       </a>
 
-      {/* ---------------------------------------------------------------
-          Encabezado — claro. Anclas ocultas en celular: la accion util en
-          pantalla chica es entrar o escribir, no navegar la propia landing.
-          --------------------------------------------------------------- */}
-      <header className="sticky top-0 z-40 border-b border-gray-border/70 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3">
-          <Link href="/" aria-label="CEOM, inicio" className="shrink-0 rounded-lg">
-            <Logo className="h-8 w-auto" />
+      {/* -----------------------------------------------------------------
+          Encabezado — claro, pegado arriba, con la sombra que aparece al
+          scrollear (la pone Revelaciones sobre [data-cabecera]).
+          ----------------------------------------------------------------- */}
+      <header className="l-header" data-cabecera>
+        <div className="l-header__barra">
+          <Link href="/" aria-label="CEOM, inicio" className="l-header__logo">
+            <Logo />
           </Link>
 
-          <nav aria-label="Secciones" className="ml-auto hidden items-center gap-1 md:flex">
-            {[
-              { href: "#modulos", label: "La plataforma" },
-              { href: "#planes", label: "Planes" },
-              { href: "#contacto", label: "Contacto" },
-            ].map(({ href, label }) => (
-              <a
-                key={href}
-                href={href}
-                className="rounded-lg px-3 py-2 text-sm text-text-body transition-colors hover:bg-muted hover:text-navy focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
-
-          <Button
-            variant="outline"
-            className="ml-auto h-9 px-4 md:ml-0"
-            render={<Link href="/login" />}
-            nativeButton={false}
-          >
-            Entrar
-          </Button>
+          <NavMovil enlaces={ENLACES}>
+            <Link className="l-boton l-boton--linea l-boton--chico" href="/login">
+              Entrar
+            </Link>
+          </NavMovil>
         </div>
       </header>
 
-      <main id="contenido" className="flex-1">
-        {/* -------------------------------------------------------------
-            1. Hero — AZUL.
-            El H1 y la bajada vienen de la referencia. Se sacaron sus dos
-            botones: "Ver planes desde Bs 150" (no se muestran precios: el
-            sistema no cobra ni factura, H-45) y "Recorrer la plataforma"
-            (no hay demo detras). La accion es contacto, porque el alta la
-            hace el equipo CEOM desde /admin.
-            ------------------------------------------------------------- */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white">
-          <BrilloAzul />
+      <main id="contenido">
+        {/* ---------------------------------------------------------------
+            1. Hero — CLARO. El H1 pregunta y la libreta contesta a mano.
+            Se sacaron los dos botones de la referencia ("Ver planes desde
+            Bs 150" y "Recorrer la plataforma"): no se muestran precios y no
+            hay demo detras. La accion es contacto.
+            --------------------------------------------------------------- */}
+        <section className="l-seccion l-claro--suave l-hero">
+          <div
+            className="l-mancha l-mancha--pastel"
+            aria-hidden
+            style={{ top: "-18%", right: "-12%", width: "620px", height: "620px" }}
+          />
+          <div
+            className="l-mancha l-mancha--azul"
+            aria-hidden
+            style={{ bottom: "-30%", left: "-14%", width: "460px", height: "460px", opacity: 0.35 }}
+          />
 
-          <div className="relative z-10 mx-auto grid max-w-6xl gap-12 px-5 py-16 md:py-24 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+          <div className="l-contenedor l-hero__grid">
             <div>
-              <p className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/80">
+              <p className="l-rotulo" data-revelar>
                 Gestión para emprendimientos
               </p>
 
-              <h1 className="mt-5 font-heading text-3xl leading-tight font-semibold sm:text-4xl xl:text-5xl">
-                Vendiste todo el mes.
-                <br />
-                ¿Sabés{" "}
-                <span className="bg-gradient-to-r from-pastel-blue to-white bg-clip-text text-transparent">
-                  cuánto te quedó
-                </span>
-                ?
+              <h1 className="l-titulo l-titulo--h1" data-revelar style={{ "--l-retraso": "80ms" } as React.CSSProperties}>
+                Vendiste todo el mes. ¿Sabés <em>cuánto te quedó</em>?
               </h1>
 
-              <p className="mt-5 max-w-xl text-base text-white/80">
+              <p className="l-bajada" data-revelar style={{ "--l-retraso": "150ms" } as React.CSSProperties}>
                 CEOM ordena las ventas, los costos y —si producís— también la
                 producción de tu negocio, y con eso te arma el resultado del mes:
                 cuánto entró, cuánto costó y cuánto quedó. Sin planillas sueltas y sin
                 ser contador.
               </p>
 
-              <div className="mt-8">
-                <AccionesContacto tono="oscuro" />
+              <div className="l-hero__pie" data-revelar style={{ "--l-retraso": "220ms" } as React.CSSProperties}>
+                <AccionesContacto />
+                <p className="l-nota" style={{ marginTop: "22px" }}>
+                  Funciona en el navegador · Sin instalar nada · Vos decidís con quién
+                  compartís tus datos
+                </p>
               </div>
+            </div>
 
-              <p className="mt-6 text-xs text-white/70">
-                Funciona en el navegador · Sin instalar nada · Vos decidís con quién
-                compartís tus datos
+            <div data-revelar style={{ "--l-retraso": "200ms" } as React.CSSProperties}>
+              <LibretaCierre />
+            </div>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------
+            2. El cambio real — OSCURO. Los cuatro contrastes, como panel.
+            --------------------------------------------------------------- */}
+        <section className="l-seccion l-oscuro">
+          <div
+            className="l-mancha l-mancha--azul"
+            aria-hidden
+            style={{ top: "-14%", left: "-8%", width: "540px", height: "540px" }}
+          />
+          <div
+            className="l-mancha l-mancha--realce"
+            aria-hidden
+            style={{ bottom: "-18%", right: "-6%", width: "620px", height: "620px" }}
+          />
+
+          <div className="l-contenedor">
+            <div className="l-encabezado-seccion" data-revelar>
+              <p className="l-rotulo">El cambio real</p>
+              <h2 className="l-titulo l-titulo--h2">
+                El problema no es trabajar poco. <em>Es decidir a ciegas.</em>
+              </h2>
+              <p className="l-bajada">
+                La mayoría de los emprendimientos generan todos los datos que necesitan
+                para decidir bien. El problema es que quedan repartidos entre cuadernos,
+                capturas de WhatsApp y una planilla que solo entiende una persona.
               </p>
             </div>
 
-            {/* Card de cierre de mes. Marcada como ejemplo para que no se
-                lea como dato real. Los numeros cierran entre si con la
-                formula que usa el sistema (financiero/actions.ts:37-44):
-                ingresos - costos - gastos. 24.500 - 12.300 - 6.000 = 6.200,
-                y 6.200 / 24.500 = 25%. */}
-            <div className="rounded-2xl bg-card p-6 shadow-card">
-              <div className="flex items-baseline justify-between gap-3">
-                <div>
-                  <p className="text-xs text-text-muted">Cierre de mes · Mayo</p>
-                  <p className="font-heading text-base font-semibold text-navy">
-                    Panadería La Esquina
-                  </p>
-                </div>
-                <span className="rounded-full bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning-text">
-                  Ejemplo
-                </span>
-              </div>
-
-              <dl className="mt-5 space-y-3 border-t border-gray-border pt-5">
-                {[
-                  ["Ventas del mes", "Bs 24.500"],
-                  ["Costo de lo vendido", "− Bs 12.300"],
-                  ["Gastos", "− Bs 6.000"],
-                ].map(([etiqueta, valor]) => (
-                  <div key={etiqueta} className="flex items-center justify-between gap-4">
-                    <dt className="text-sm text-text-body">{etiqueta}</dt>
-                    <dd className="text-sm font-medium text-text-body">{valor}</dd>
-                  </div>
-                ))}
-
-                <div className="flex items-center justify-between gap-4 border-t border-gray-border pt-4">
-                  <dt className="text-sm font-medium text-navy">Resultado del mes</dt>
-                  <dd className="font-heading text-2xl font-semibold text-navy">
-                    Bs 6.200
-                  </dd>
-                </div>
-              </dl>
-
-              <div className="mt-5 rounded-xl bg-pastel-blue-bg p-4">
-                <div className="flex items-center justify-between gap-3">
-                  {/* "Margen real" era el rotulo de la referencia. Se evita
-                      "real": el margen no descuenta comisiones (H-24) ni
-                      cuotas de deuda (H-27). Es el margen del periodo. */}
-                  <p className="text-xs text-info-text">Margen del período</p>
-                  <p className="text-xs font-medium text-info-text">25%</p>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-                  <div className="h-full w-1/4 rounded-full bg-primary" />
-                </div>
-              </div>
+            <div data-revelar style={{ "--l-retraso": "120ms" } as React.CSSProperties}>
+              <PanelCambio />
             </div>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            2. El problema — CLARO.
-            ------------------------------------------------------------- */}
-        <section className="bg-background">
-          <div className="mx-auto max-w-6xl px-5 py-16 md:py-24">
-            <p className="text-xs tracking-wide text-primary uppercase">El cambio real</p>
-            <h2 className="mt-3 max-w-2xl font-heading text-2xl leading-snug font-semibold text-navy sm:text-3xl">
-              El problema no es trabajar poco. Es decidir a ciegas.
-            </h2>
-            <p className="mt-4 max-w-2xl text-base text-text-body">
-              La mayoría de los emprendimientos generan todos los datos que necesitan
-              para decidir bien. El problema es que quedan repartidos entre cuadernos,
-              capturas de WhatsApp y una planilla que solo entiende una persona.
-            </p>
+        {/* ---------------------------------------------------------------
+            3. Antes y después — CLARO. Los numeros son los mismos de la
+            libreta del hero, para que la landing no se contradiga sola.
+            --------------------------------------------------------------- */}
+        <section className="l-seccion l-claro">
+          <div className="l-contenedor l-ad-grid">
+            <div data-revelar>
+              <p className="l-rotulo">Antes y después</p>
+              <h2 className="l-titulo l-titulo--h2">
+                El mismo mes, con y sin la cuenta hecha.
+              </h2>
+              <p className="l-bajada">
+                Un negocio real vende parecido todos los meses. Lo que cambia es si al
+                final sabe qué pasó.
+              </p>
 
-            <ul className="mt-10 grid gap-4 sm:grid-cols-2">
-              {CONTRASTES.map(({ hoy, con, detalle }) => (
-                <li
-                  key={hoy}
-                  className="rounded-2xl bg-card p-6 shadow-card ring-1 ring-gray-border/60"
-                >
-                  <p className="text-sm text-text-muted line-through decoration-error-text/60">
-                    {hoy}
-                  </p>
-                  <p className="mt-2 flex items-start gap-2 font-heading text-base font-semibold text-navy">
-                    <ArrowRight aria-hidden className="mt-1 size-4 shrink-0 text-primary" />
-                    {con}
-                  </p>
-                  <p className="mt-2 text-sm text-text-body">{detalle}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* -------------------------------------------------------------
-            3. Antes y despues — AZUL. Los numeros son los mismos de la
-            card del hero, para que la landing no se contradiga sola.
-            ------------------------------------------------------------- */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white">
-          <BrilloAzul />
-
-          <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 md:py-24">
-            {/* Sobre navy el rotulo va en blanco atenuado, no en azul pastel:
-                el pastel es color de fondo de apoyo y nunca de texto
-                (docs/design-system.md seccion 2, reglas de aplicacion). */}
-            <p className="text-xs tracking-wide text-white/70 uppercase">
-              Antes y después
-            </p>
-            <h2 className="mt-3 max-w-2xl font-heading text-2xl leading-snug font-semibold sm:text-3xl">
-              El mismo mes, con y sin la cuenta hecha.
-            </h2>
-            <p className="mt-4 max-w-2xl text-base text-white/80">
-              Un negocio real vende parecido todos los meses. Lo que cambia es si al
-              final sabe qué pasó.
-            </p>
-
-            <div className="mt-10 grid gap-5 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/15 bg-white/5 p-6">
-                <p className="text-xs tracking-wide text-white/60 uppercase">
-                  Antes · el cuaderno
-                </p>
-                <p className="mt-4 font-heading text-2xl font-semibold">Bs 24.500</p>
-                <p className="text-sm text-white/70">vendidos este mes</p>
-
-                <ul className="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm text-white/80">
-                  {[
-                    "¿Cuánto ganaste? No sabés.",
-                    "El precio lo pusiste a ojo.",
-                    "Los gastos fijos están en tu cabeza.",
-                    "El costo de cada producto, tampoco.",
-                  ].map((linea) => (
-                    <li key={linea} className="flex items-start gap-2">
-                      <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-error-text" />
-                      {linea}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="rounded-2xl bg-card p-6 text-text-body shadow-card">
-                <p className="text-xs tracking-wide text-primary uppercase">
-                  Después · con CEOM
-                </p>
-
-                <dl className="mt-4 space-y-3">
-                  {[
-                    ["Ventas del mes", "Bs 24.500"],
-                    ["Costo de lo vendido", "− Bs 12.300"],
-                    ["Gastos", "− Bs 6.000"],
-                  ].map(([etiqueta, valor]) => (
-                    <div key={etiqueta} className="flex items-center justify-between gap-4">
-                      <dt className="text-sm">{etiqueta}</dt>
-                      <dd className="text-sm font-medium">{valor}</dd>
-                    </div>
-                  ))}
-                </dl>
-
-                <div className="mt-4 flex items-baseline justify-between gap-4 border-t border-gray-border pt-4">
-                  <p className="text-sm font-medium text-navy">Resultado del mes</p>
-                  <p className="font-heading text-2xl font-semibold text-navy">Bs 6.200</p>
-                </div>
-
-                <ul className="mt-5 space-y-2 border-t border-gray-border pt-4 text-sm">
-                  {[
-                    "Margen del período: 25%.",
-                    "Cada producto con su costo y su margen.",
-                    "Y el mes que viene, la misma cuenta sola.",
-                  ].map((linea) => (
-                    <li key={linea} className="flex items-start gap-2">
-                      <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-success-text" />
-                      {linea}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* La cuenta vale lo que valga lo que se cargo. Decirlo aca es lo
+                  que separa esta seccion de una promesa: un producto sin costo
+                  se vende igual y no avisa nada (H-15), y eso mueve el
+                  resultado para arriba sin ninguna señal. */}
+              <p className="l-nota" style={{ marginTop: "28px", fontSize: "0.9rem" }}>
+                La cuenta sale de lo que cargues. Si un producto no tiene su costo
+                cargado, esa venta va a contar como si no te hubiera costado nada — por
+                eso el costo de cada producto es lo primero que conviene completar.
+              </p>
             </div>
 
-            {/* La cuenta vale lo que valga lo que se cargo. Decirlo aca es
-                lo que separa esta seccion de una promesa: un producto sin
-                costo se vende igual y no avisa nada (H-15), y eso mueve el
-                resultado para arriba sin ninguna señal. */}
-            <p className="mt-6 max-w-2xl text-sm text-white/70">
-              La cuenta sale de lo que cargues. Si un producto no tiene su costo
-              cargado, esa venta va a contar como si no te hubiera costado nada — por
-              eso el costo de cada producto es lo primero que conviene completar.
-            </p>
+            <div data-revelar style={{ "--l-retraso": "100ms" } as React.CSSProperties}>
+              <PanelAntesDespues />
+            </div>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            4. Los modulos — CLARO.
+        {/* ---------------------------------------------------------------
+            4. La plataforma — OSCURO. La seccion protagonista: la ventana
+            hace tangible el producto y las nueve tarjetas dicen qué hace
+            cada modulo.
             La referencia cerraba este bloque con "Las funciones disponibles
-            varian segun el plan". Se saco: **ningun plan restringe modulos**
-            — los dos atributos con efecto real son que se puede compartir y
-            los dias de gracia (02-planes.md).
-            ------------------------------------------------------------- */}
-        <section id="modulos" className="scroll-mt-16 bg-gray-bg">
-          <div className="mx-auto max-w-6xl px-5 py-16 md:py-24">
-            <p className="text-xs tracking-wide text-primary uppercase">La plataforma</p>
-            <h2 className="mt-3 max-w-2xl font-heading text-2xl leading-snug font-semibold text-navy sm:text-3xl">
-              Nueve módulos que trabajan conectados entre sí.
-            </h2>
-            <p className="mt-4 max-w-2xl text-base text-text-body">
-              No son nueve sistemas separados: lo que cargás en uno cambia el resultado
-              de los demás. Una compra de insumos toca el costo, el stock, la producción
-              y el margen en el mismo movimiento.
-            </p>
-
-            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {MODULOS.map(({ icono: Icono, nombre, detalle }) => (
-                <li key={nombre} className="rounded-2xl bg-card p-6 shadow-card">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-pastel-blue-bg">
-                    <Icono aria-hidden className="size-5 text-primary" />
-                  </span>
-                  <h3 className="mt-4 font-heading text-base font-semibold text-navy">
-                    {nombre}
-                  </h3>
-                  <p className="mt-2 text-sm text-text-body">{detalle}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* -------------------------------------------------------------
-            5. Planes — AZUL. Ver el comentario de PLANES arriba: escalan
-            solo por los dos atributos que el sistema aplica de verdad.
-            ------------------------------------------------------------- */}
+            varian segun el plan". Se saco: **ningun plan restringe modulos**.
+            --------------------------------------------------------------- */}
         <section
-          id="planes"
-          className="relative scroll-mt-16 overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white"
+          id="plataforma"
+          className="l-seccion l-oscuro l-oscuro--der"
+          style={{ scrollMarginTop: "68px" }}
         >
-          <BrilloAzul />
+          <div
+            className="l-mancha l-mancha--azul"
+            aria-hidden
+            style={{ top: "6%", right: "-10%", width: "620px", height: "620px" }}
+          />
+          <div
+            className="l-mancha l-mancha--pastel"
+            aria-hidden
+            style={{ bottom: "-16%", left: "-10%", width: "560px", height: "560px" }}
+          />
 
-          <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 md:py-24">
-            <p className="text-xs tracking-wide text-white/70 uppercase">Planes</p>
-            <h2 className="mt-3 max-w-2xl font-heading text-2xl leading-snug font-semibold sm:text-3xl">
-              Elegí según la etapa en la que está tu negocio hoy.
-            </h2>
-            <p className="mt-4 max-w-2xl text-base text-white/80">
-              Todos los planes te dan la aplicación completa, con todos sus módulos. Lo
-              único que cambia es qué información podés compartir con una institución.
-              Contanos en qué etapa está tu negocio y vemos cuál te sirve.
-            </p>
+          <div className="l-contenedor">
+            <div className="l-encabezado-seccion" data-revelar>
+              <p className="l-rotulo">La plataforma</p>
+              <h2 className="l-titulo l-titulo--h2">
+                Nueve módulos que <em>trabajan conectados</em> entre sí.
+              </h2>
+              <p className="l-bajada">
+                No son nueve sistemas separados: lo que cargás en uno cambia el resultado
+                de los demás. Una compra de insumos toca el costo, el stock, la producción
+                y el margen en el mismo movimiento.
+              </p>
+            </div>
 
-            <ul className="mt-10 grid gap-5 lg:grid-cols-3">
-              {PLANES.map(({ nombre, para, destacado, incluye }) => (
+            <div data-revelar style={{ "--l-retraso": "120ms" } as React.CSSProperties}>
+              <VentanaPlataforma />
+            </div>
+
+            <ul className="l-modulos">
+              {MODULOS.map(({ icono: Icono, nombre, detalle }, i) => (
                 <li
                   key={nombre}
-                  className={
-                    destacado
-                      ? "relative rounded-2xl bg-card p-6 text-text-body shadow-card ring-2 ring-primary"
-                      : "rounded-2xl border border-white/15 bg-white/5 p-6"
-                  }
+                  className="l-modulo"
+                  data-revelar
+                  style={{ "--l-retraso": `${(i % 3) * 70}ms` } as React.CSSProperties}
                 >
+                  <span className="l-modulo__icono" aria-hidden>
+                    <Icono />
+                  </span>
+                  <h3 className="l-modulo__nombre">{nombre}</h3>
+                  <p className="l-modulo__detalle">{detalle}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------
+            5. Planes — CLARO. Sin precios y con contacto como accion.
+            --------------------------------------------------------------- */}
+        <section id="planes" className="l-seccion l-claro" style={{ scrollMarginTop: "68px" }}>
+          <div className="l-contenedor">
+            <div className="l-encabezado-seccion" data-revelar>
+              <p className="l-rotulo">Planes</p>
+              <h2 className="l-titulo l-titulo--h2">
+                Elegí según la etapa en la que está tu negocio hoy.
+              </h2>
+              <p className="l-bajada">
+                Todos los planes te dan la aplicación completa, con todos sus módulos. Lo
+                único que cambia es qué información podés compartir con una institución.
+                Contanos en qué etapa está tu negocio y vemos cuál te sirve.
+              </p>
+            </div>
+
+            <ul className="l-planes">
+              {PLANES.map(({ nombre, para, destacado, incluye }, i) => (
+                <li
+                  key={nombre}
+                  className={`l-plan${destacado ? " l-plan--destacado" : ""}`}
+                  data-revelar
+                  style={{ "--l-retraso": `${i * 90}ms` } as React.CSSProperties}
+                >
+                  <span className="l-plan__filo" aria-hidden />
+
                   {/* La referencia ponia "Mas elegido". Es prueba social
                       inventada: no hay ningun negocio con estos planes
-                      todavia (el unico plan sembrado es un placeholder de la
-                      migracion 0007) ni telemetria de adopcion. "Recomendado"
-                      es una opinion de CEOM, que si se puede sostener. */}
-                  {destacado && (
-                    <span className="absolute -top-3 left-6 rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
-                      Recomendado
-                    </span>
-                  )}
+                      todavia ni telemetria de adopcion. "Recomendado" es una
+                      opinion de CEOM, que si se puede sostener. */}
+                  {destacado && <span className="l-plan__insignia">Recomendado</span>}
 
-                  <h3
-                    className={
-                      destacado
-                        ? "font-heading text-xl font-semibold text-navy"
-                        : "font-heading text-xl font-semibold"
-                    }
-                  >
-                    {nombre}
-                  </h3>
-                  <p className={destacado ? "text-sm text-text-muted" : "text-sm text-white/70"}>
-                    {para}
-                  </p>
+                  <div className="l-plan__cuerpo">
+                    <h3 className="l-plan__nombre">{nombre}</h3>
+                    <p className="l-plan__para">{para}</p>
 
-                  <ul
-                    className={
-                      destacado
-                        ? "mt-5 space-y-3 border-t border-gray-border pt-5 text-sm"
-                        : "mt-5 space-y-3 border-t border-white/10 pt-5 text-sm text-white/80"
-                    }
-                  >
-                    {incluye.map((linea) => (
-                      <li key={linea} className="flex items-start gap-2">
-                        <span
-                          aria-hidden
-                          className={
-                            destacado
-                              ? "mt-2 size-1.5 shrink-0 rounded-full bg-primary"
-                              : "mt-2 size-1.5 shrink-0 rounded-full bg-pastel-blue"
-                          }
-                        />
-                        {linea}
-                      </li>
-                    ))}
-                  </ul>
+                    <ul className="l-plan__incluye">
+                      {incluye.map((linea) => (
+                        <li key={linea}>
+                          <Tilde className="l-plan__tilde" />
+                          {linea}
+                        </li>
+                      ))}
+                    </ul>
 
-                  <Button
-                    className={
-                      destacado
-                        ? "mt-6 h-10 w-full"
-                        : "mt-6 h-10 w-full border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
-                    }
-                    variant={destacado ? "default" : "outline"}
-                    render={
-                      <a href={CONTACTO.whatsappHref} target="_blank" rel="noopener noreferrer" />
-                    }
-                    nativeButton={false}
-                  >
-                    Escribinos por {nombre}
-                  </Button>
+                    <a
+                      className={`l-boton l-boton--ancho l-plan__cta ${
+                        destacado ? "l-boton--primario" : "l-boton--linea"
+                      }`}
+                      href={CONTACTO.whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Escribinos por {nombre}
+                    </a>
+                  </div>
                 </li>
               ))}
             </ul>
 
-            <p className="mt-8 max-w-2xl text-xs text-white/70">
+            <p className="l-nota" data-revelar style={{ marginTop: "30px", maxWidth: "60ch" }}>
               El alta de un negocio la hace el equipo de CEOM: nos escribís, lo damos de
               alta y te llega la invitación por correo.
             </p>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            6. Contacto — CLARO. Accion principal de toda la landing.
-            ------------------------------------------------------------- */}
-        <section id="contacto" className="scroll-mt-16 bg-background">
-          <div className="mx-auto max-w-6xl px-5 py-16 md:py-24">
-            <div className="rounded-2xl bg-gray-bg p-8 md:p-12">
-              <h2 className="max-w-2xl font-heading text-2xl leading-snug font-semibold text-navy sm:text-3xl">
-                Entender tu negocio cambia la forma en que decidís.
-              </h2>
-              <p className="mt-4 max-w-2xl text-base text-text-body">
-                Escribinos y vemos juntos si CEOM le sirve a tu negocio. Si va, lo damos
-                de alta nosotros y te llega la invitación por correo.
-              </p>
+        {/* ---------------------------------------------------------------
+            6. Cierre — OSCURO. Accion principal de toda la landing.
+            --------------------------------------------------------------- */}
+        <section
+          id="contacto"
+          className="l-seccion l-oscuro l-oscuro--centro l-cierre"
+          style={{ scrollMarginTop: "68px" }}
+        >
+          <div
+            className="l-mancha l-mancha--azul"
+            aria-hidden
+            style={{ bottom: "-34%", left: "50%", transform: "translateX(-50%)", width: "820px", height: "620px" }}
+          />
 
-              <div className="mt-8">
-                <AccionesContacto tono="claro" />
-              </div>
+          <div className="l-contenedor" data-revelar>
+            <p className="l-rotulo">Empezá hoy</p>
+            <h2 className="l-titulo l-titulo--h2">
+              Entender tu negocio cambia la forma en que decidís.
+            </h2>
+            <p className="l-bajada">
+              Escribinos y vemos juntos si CEOM le sirve a tu negocio. Si va, lo damos de
+              alta nosotros y te llega la invitación por correo.
+            </p>
 
-              <p className="mt-6 text-sm text-text-body">
-                {CONTACTO.whatsappVisible} · {CONTACTO.correo}
-              </p>
-            </div>
+            <AccionesContacto tono="oscuro" />
+
+            <p className="l-nota" style={{ marginTop: "26px" }}>
+              {CONTACTO.whatsappVisible} · {CONTACTO.correo}
+            </p>
           </div>
         </section>
       </main>
 
-      {/* ---------------------------------------------------------------
-          Footer — AZUL. Rehecho: solo contacto y ubicacion. Se cayeron las
-          columnas "Producto" (apuntaban a Tuki y CEOM EDU), los tres iconos
-          de redes sociales (sin cuenta detras, iban a "#") y el enlace
-          "Terminos y privacidad" (no existe esa pagina).
-          --------------------------------------------------------------- */}
-      <footer className="relative overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white">
-        <div className="relative z-10 mx-auto max-w-6xl px-5 py-12">
-          <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-            <div className="max-w-sm">
-              <Logo className="h-9 w-auto brightness-0 invert" />
-              <p className="mt-4 text-sm text-white/70">
+      {/* -----------------------------------------------------------------
+          Pie. Solo contacto y ubicacion: se cayeron las columnas "Producto"
+          (apuntaban a Tuki y CEOM EDU), los tres iconos de redes sociales
+          (sin cuenta detras, iban a "#") y el enlace "Terminos y privacidad"
+          (no existe esa pagina).
+          ----------------------------------------------------------------- */}
+      <footer className="l-pie">
+        <div className="l-contenedor">
+          <div className="l-pie__grid">
+            <div>
+              <span className="l-pie__logo">
+                <Logo />
+              </span>
+              <p style={{ margin: "20px 0 0", maxWidth: "34ch", fontSize: "0.94rem" }}>
                 Convertimos la información de tu negocio en decisiones que generan
                 crecimiento.
               </p>
             </div>
 
             <div>
-              <h2 className="font-heading text-sm font-semibold">Contacto</h2>
-              <ul className="mt-3 space-y-2 text-sm text-white/70">
+              <h2 className="l-pie__titulo">Contacto</h2>
+              <ul className="l-pie__lista">
                 <li>
-                  <a
-                    href={CONTACTO.whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block rounded py-1 transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/50 focus-visible:outline-none"
-                  >
+                  <a href={CONTACTO.whatsappHref} target="_blank" rel="noopener noreferrer">
                     WhatsApp {CONTACTO.whatsappVisible}
                   </a>
                 </li>
                 <li>
-                  <a
-                    href={CONTACTO.correoHref}
-                    className="inline-block rounded py-1 transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/50 focus-visible:outline-none"
-                  >
-                    {CONTACTO.correo}
-                  </a>
+                  <a href={CONTACTO.correoHref}>{CONTACTO.correo}</a>
                 </li>
                 <li>{CONTACTO.ciudad}</li>
               </ul>
             </div>
 
             <div>
-              <h2 className="font-heading text-sm font-semibold">¿Ya tenés cuenta?</h2>
-              <p className="mt-3 text-sm text-white/70">
+              <h2 className="l-pie__titulo">¿Ya tenés cuenta?</h2>
+              <p style={{ margin: "0 0 16px", fontSize: "0.94rem" }}>
                 Entrá con el correo con el que te invitamos.
               </p>
-              <Button
-                variant="outline"
-                className="mt-4 h-9 border-white/30 bg-transparent px-4 text-white hover:bg-white/10 hover:text-white"
-                render={<Link href="/login" />}
-                nativeButton={false}
-              >
+              <Link className="l-boton l-boton--linea-clara l-boton--chico" href="/login">
                 Entrar
-              </Button>
+              </Link>
             </div>
           </div>
 
-          <p className="mt-10 border-t border-white/10 pt-6 text-xs text-white/60">
-            © 2026 CEOM · Hecho para emprendedores que quieren entender sus números.
-          </p>
+          <div className="l-pie__legal">
+            <span>© 2026 CEOM</span>
+            <span>Hecho para emprendedores que quieren entender sus números.</span>
+          </div>
         </div>
       </footer>
     </div>
