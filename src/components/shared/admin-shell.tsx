@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, CreditCard, Landmark, ListChecks, LogOut, Menu, X } from "lucide-react";
+import { BookOpen, Building2, CreditCard, Landmark, ListChecks, LogOut, Menu, X } from "lucide-react";
 import { Icono } from "@/components/brand/icono";
 import { Logo } from "@/components/brand/logo";
 import { cerrarSesion } from "@/lib/supabase/actions";
@@ -34,6 +34,7 @@ export function AdminShell({
     { href: "/admin/planes", label: "Planes", icono: CreditCard },
     { href: "/admin/instituciones", label: "Instituciones", icono: Landmark },
     { href: "/admin/logs", label: "Registro de accesos", icono: ListChecks },
+    { href: "/admin/manual", label: "Manual", icono: BookOpen },
   ];
 
   function esActivo(href: string) {
