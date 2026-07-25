@@ -39,6 +39,11 @@ tanda, sin mockup, todos verificados end-to-end en navegador:
 3. **Selector de Evento en Registrar Venta** — campo opcional en el carrito, filtrado a eventos
    abiertos; cerró además un gap chico de validación (`eventoId` faltaba en `registrarVentaSchema`).
 
+**Agregado 2026-07-25 (fuera del inventario original): 2 pantallas.** El **Manual de usuario** en
+`/admin/manual` (índice + capítulo) — ver sección 11. No sale del backend de Fase 1 como el resto
+del inventario: no tiene módulo ni Server Action detrás, lee archivos del repositorio. Total vivo:
+**119**.
+
 | Módulo | Construidas | Parciales | Pendientes | Total |
 |---|---|---|---|---|
 | 1. Identidad | 20 | 0 | 0 | 20 |
@@ -1067,6 +1072,33 @@ Unidad de concesión = **módulo veedor** (`financiero`/`operativo`/`inventario_
 3. **Inventario Operativo** — `insumos`. Acción: `consultarInventarioOperativoTenant` (loguea también `"operativo"`, no un valor separado — `moduloPermisoEnum` de Identidad no distingue insumos de producción, solo el `moduloVeedorEnum` del Gateway lo hace; importante para no confundir al leer la pantalla de Logs de Acceso).
 
 `ceom_admin` no pasa por `tieneConsentimiento()` en ninguna de estas — su acceso está cubierto por Términos de Servicio, solo queda trazado, nunca bloqueado. Sin candado/"no autorizado" en esta superficie — a propósito, es la diferencia real entre `/portal` (consentimiento explícito) y `/admin` (ToS).
+
+**Manual de usuario.** `[x]` (2026-07-25, `/admin/manual` + `/admin/manual/[guia]/[capitulo]`, sin
+mockup — quinta entrada del sidebar de `/admin`). Documentación interna de consulta para el equipo
+durante las pruebas. **Solo `/admin`**: no va en `/app` ni en `/portal`, ni ahora ni como plan
+futuro, aunque dos de las tres guías describan esas superficies.
+- **No tiene backend.** Es la única pantalla del inventario sin módulo ni Server Action detrás: el
+  contenido son los `.md` de `docs/manual/`, leídos del disco con `fs` en cada request
+  (`src/lib/manual/contenido.ts`). No se importan ni se copian a la base — el archivo es la única
+  fuente, y actualizar el manual es editar el `.md` y desplegar. `next.config.ts` los suma al
+  bundle del servidor con `outputFileTracingIncludes` porque el trazado de Next no ve un `readFile`
+  con la ruta armada a mano.
+- **Descubrimiento dinámico:** guías = subdirectorios de `docs/manual/`; capítulos = `.md` con
+  prefijo numérico dentro de cada uno, ordenados por ese número y titulados con su `# `. Un
+  capítulo nuevo aparece sin tocar código. Esa misma forma es la que deja afuera los documentos
+  internos de desarrollo (`hallazgos.md`, `glosario.md`, `auditoria-por-actor.md`,
+  `propuesta-roles-por-defecto.md`), que no llevan prefijo y viven en la raíz.
+- **Render:** `react-markdown` + `remark-gfm` (tablas), sin `rehype-raw`. Estilado con los tokens de
+  `docs/design-system.md` bajo `.manual-md` en `globals.css`; las cuatro marcas del manual
+  (⚠️/🚧/✅/🔎) se colorean según el emoji con el que abre el blockquote.
+- **Navegación:** índice pegajoso a la izquierda en escritorio; abajo de 1024px colapsa detrás de un
+  botón y empuja el contenido en vez de taparlo. Barra pegajosa con "← Índice" + breadcrumb dentro
+  del capítulo, más anterior/siguiente al pie.
+- **Verificado en vivo** (2026-07-25, 43 comprobaciones a 1440/768/375): las tres guías y los 20
+  capítulos listados, tablas y marcas renderizadas, vuelta al índice, y el gate — un usuario de
+  negocio cae en `/app` en las cuatro rutas, sin sesión cae en `/login`, y ni `/docs/manual/*.md` ni
+  un slug con `../` devuelven contenido.
+- Rol: `ceom_admin` (gate de `src/app/admin/layout.tsx`, sin gate propio). Sin acciones.
 
 ---
 
