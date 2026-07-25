@@ -48,12 +48,11 @@ export default async function CapituloPage({ params }: Params) {
           <ArrowLeft className="size-4 shrink-0" />
           Índice
         </Link>
+        {/* El breadcrumb llega hasta la guía y no repite el nombre del
+            capítulo: está justo abajo como título, y a 375px el título
+            completo hacía tres renglones dentro de una barra pegajosa. */}
         <Breadcrumb
-          items={[
-            { label: "Manual", href: BASE_MANUAL },
-            { label: datosGuia.titulo, href: `${BASE_MANUAL}/${datosGuia.slug}` },
-            { label: `${datosCapitulo.numero}. ${datosCapitulo.titulo}` },
-          ]}
+          items={[{ label: "Manual", href: BASE_MANUAL }, { label: datosGuia.titulo }]}
         />
       </div>
 

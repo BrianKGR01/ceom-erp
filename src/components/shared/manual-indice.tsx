@@ -52,12 +52,10 @@ export function ManualIndice({
         aria-controls="manual-indice"
         className="manual-indice-toggle mb-3 w-full items-center justify-between gap-2 rounded-2xl bg-card px-4 py-3 text-sm font-medium text-navy shadow-card"
       >
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <List className="size-4 shrink-0 text-primary" />
-          Índice del manual
-          <span className="text-xs font-normal text-text-muted">
-            ({guias.length} guías · {total} capítulos)
-          </span>
+          <span className="truncate">Índice del manual</span>
+          <span className="shrink-0 text-xs font-normal text-text-muted">{total} capítulos</span>
         </span>
         <ChevronDown
           className={cn("size-4 shrink-0 transition-transform", abierto && "rotate-180")}

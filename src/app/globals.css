@@ -261,6 +261,11 @@
   /* Poppins no trae emoji: sin este fallback explícito, ⚠️ 🚧 ✅ 🔎 quedan
      a merced de la fuente por defecto del sistema. */
   font-family: var(--font-sans), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  /* NO usar `font-variant-emoji: emoji` acá para forzar el color de ⚠️: se
+     probó y los dígitos sueltos del texto ("3 días", "H-41", "capítulo 9")
+     tienen presentación de emoji propia y salían como teclas azules. ⚠️
+     queda monocromo en Chromium; el color de la nota ya lo da el fondo
+     ámbar del blockquote. */
 }
 .manual-md > :first-child {
   margin-top: 0;
@@ -367,8 +372,12 @@
   padding: 0.1rem 0.35rem;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(33, 118, 189, 0.15);
-  /* Rutas largas (`/app/ventas/canales`) no deben desbordar la card a 375px. */
-  overflow-wrap: anywhere;
+  /* Rutas largas (`/app/ventas/canales`) no deben desbordar la card a 375px.
+     `break-word` y no `anywhere`: con `anywhere` el navegador parte cualquier
+     chip para achicar la celda y a 375px se leia "vencid / a", "pausad / a".
+     Asi solo se parte lo que de verdad no entra solo en un renglon, y una
+     tabla apretada scrollea en su contenedor en vez de romper palabras. */
+  overflow-wrap: break-word;
 }
 .manual-md pre {
   background: var(--sidebar-from);
