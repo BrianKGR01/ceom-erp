@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Package, Search } from "lucide-react";
@@ -73,7 +75,7 @@ export function NuevaProduccionCliente({
   const [productoId, setProductoId] = useState(productos[0]?.id ?? "");
   const [sucursalId, setSucursalId] = useState(sucursales.length === 1 ? sucursales[0].id : "");
   const [activoId, setActivoId] = useState("");
-  const [fechaProduccion, setFechaProduccion] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fechaProduccion, setFechaProduccion] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [cantidadLotesProducidos, setCantidadLotesProducidos] = useState(1);
   const [cantidadRealObtenida, setCantidadRealObtenida] = useState("");
   const [fechaVencimientoLote, setFechaVencimientoLote] = useState("");

@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -42,7 +44,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
       nombreNegocio: "",
       monedaPrincipal: "BOB",
       planId: "",
-      fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
+      fechaInicioSuscripcion: hoyLocal(ZONA_HORARIA_NEGOCIO),
       ownerNombreCompleto: "",
       ownerEmail: "",
     },

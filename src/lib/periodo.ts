@@ -187,6 +187,19 @@ export function rangoInstantes(periodo: Periodo, zona: string): RangoInstantes {
   };
 }
 
+/**
+ * El dia de hoy segun el negocio, listo para un `<input type="date">`.
+ *
+ * Los formularios usaban `new Date().toISOString().slice(0, 10)`, que da el dia
+ * **UTC**: pasadas las 20:00 de Bolivia proponian MANANA como fecha por defecto.
+ * Mientras los reportes tampoco contaban el dia en curso el error pasaba
+ * inadvertido; ahora que cuentan, un pago cargado a la noche con el default sin
+ * corregir cae en el reporte del dia siguiente.
+ */
+export function hoyLocal(zona: string): DiaISO {
+  return diaLocalDe(new Date(), zona);
+}
+
 // --- Presets de periodo ---------------------------------------------------------
 // Viven aca y no en `app/(shell)/periodo-presets.ts`, que es de donde salieron:
 // los consumian tambien /admin y /portal importando cruzado desde la carpeta de

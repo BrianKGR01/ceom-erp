@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -89,7 +91,7 @@ function RegistrarPagoDialog({
   onConfirmado: () => void;
 }) {
   const [monto, setMonto] = useState("");
-  const [fechaPago, setFechaPago] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fechaPago, setFechaPago] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

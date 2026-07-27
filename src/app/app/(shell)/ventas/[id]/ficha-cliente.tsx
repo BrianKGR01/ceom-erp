@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useState } from "react";
 import { Info, Package } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -102,14 +104,14 @@ export function FichaVentaCliente({
   const [pagoAbierto, setPagoAbierto] = useState(false);
   const [pagoMonto, setPagoMonto] = useState("");
   const [pagoMetodoId, setPagoMetodoId] = useState(metodos[0]?.id ?? "");
-  const [pagoFecha, setPagoFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pagoFecha, setPagoFecha] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [pagoError, setPagoError] = useState<string | null>(null);
   const [registrandoPago, setRegistrandoPago] = useState(false);
 
   function abrirPago() {
     setPagoError(null);
     setPagoMonto(saldoPendiente > 0 ? saldoPendiente.toFixed(2) : "");
-    setPagoFecha(new Date().toISOString().slice(0, 10));
+    setPagoFecha(hoyLocal(ZONA_HORARIA_NEGOCIO));
     setPagoAbierto(true);
   }
 

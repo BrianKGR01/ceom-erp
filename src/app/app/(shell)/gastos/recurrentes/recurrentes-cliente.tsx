@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -251,7 +253,7 @@ function GenerarGastoDialog({
   onOpenChange: (open: boolean) => void;
   onGenerado: () => void;
 }) {
-  const [fechaGasto, setFechaGasto] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fechaGasto, setFechaGasto] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
