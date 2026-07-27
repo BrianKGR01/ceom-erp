@@ -60,7 +60,7 @@
 | [H-24](#h-24) | ✅ | ~~La comisión se calcula, se guarda y no llega a ningún lado~~ — **corregido** |
 | [H-25](#h-25) | 🟠 | El costo de un producto se reemplaza por el de la última compra, no se promedia |
 | [H-26](#h-26) | 🟠 | Un ajuste no cambia el total ni el estado de cobro de la venta |
-| [H-27](#h-27) | 🟠 | Los gastos automáticos son inalcanzables: toda su lógica es código muerto |
+| [H-27](#h-27) | ✅ | ~~Los gastos automáticos son inalcanzables: toda su lógica es código muerto~~ — **corregido** |
 | [H-28](#h-28) | 🟡 | "Stock mínimo" se muestra en pantalla y no hay forma de cargarlo |
 | [H-29](#h-29) | 🟠 | Eliminar una categoría de producto no verifica si está en uso |
 | [H-30](#h-30) | 🔴 | El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso |
@@ -618,7 +618,30 @@ append-only, que está bien: alcanza con que la pantalla lo refleje.
 ---
 
 <a id="h-27"></a>
-## H-27 🟠 Los gastos automáticos son inalcanzables: toda su lógica es código muerto
+## H-27 ✅ Los gastos automáticos son inalcanzables: toda su lógica es código muerto — CORREGIDO
+
+> **Corregido el 2026-07-27.** `registrarPagoPasivo` genera el `Gasto` de la cuota al confirmar el
+> pago (`fijo`, `origen = cuota_pasivo_automatica`, ya pagado, atado al Pasivo por `referenciaId`),
+> en una categoría "Cuotas de deuda" que se autoprovisiona por negocio. Desde ahí la cuota resta en
+> el estado de resultados, sale en el flujo de caja y aparece en la distribución por categoría.
+> **La flecha entre Patrimonio y Gastos se invirtió** —ahora va Patrimonio → Gastos, en un solo
+> sentido— igual que se hizo con Ventas al cerrar H-24: el módulo dueño del evento dispara su
+> consecuencia. `generarGastoCuotaPasivo` gatea por `patrimonio:crear` y no por `costos_gastos:crear`,
+> para que un colaborador con permiso de Patrimonio no pierda el gasto en silencio.
+>
+> **Lo que estaba en juego, medido contra la base de desarrollo:** Bs 10.700 en 5 pagos de pasivo, 0
+> gastos generados — en un tenant cuyos ingresos totales de toda su historia son Bs 701,50.
+>
+> **Con esto los tres valores del enum `origen` se escriben de verdad**, así que la marca
+> "Automático" del listado, el aviso de bloqueo de la ficha y los rechazos de edición/eliminación ya
+> no son código muerto para ninguno de los dos casos automáticos.
+>
+> **Lo que sigue abierto de la misma familia:** los **productos sin costo** (H-15) y la falta de un
+> **scheduler** (H-10) — el gasto de la cuota se genera cuando alguien registra el pago, no "cada
+> período" como pide `Modulo_05` §2.
+>
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** El enum de origen de un gasto tiene tres valores: `manual`,
 `comision_venta_automatica` y `cuota_pasivo_automatica`. Pero:

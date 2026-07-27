@@ -14,6 +14,8 @@ import {
   consultarTotalCostosFijos,
 } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
+import { crearPasivo, registrarPagoPasivo } from "@/modules/patrimonio/actions";
+import { pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
 import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
 import {
@@ -165,6 +167,17 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
             await db.delete(stock).where(inArray(stock.productoId, productoIds));
             await db.delete(productos).where(eq(productos.tenantId, tenantId));
             await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+          },
+          async () => {
+            // Rama propia: `gastos.referencia_id` apunta al Pasivo pero NO es
+            // una FK (el mismo campo apunta a una Venta cuando el origen es
+            // una comisión), así que pasivos no depende del orden de gastos.
+            const pasivoIds = db
+              .select({ id: pasivos.id })
+              .from(pasivos)
+              .where(eq(pasivos.tenantId, tenantId));
+            await db.delete(pagosPasivo).where(inArray(pagosPasivo.pasivoId, pasivoIds));
+            await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));
           },
         ]);
 
@@ -570,4 +583,112 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       antes.data.estadoResultados
     );
   });
+
+  it(
+    "H-27: la cuota de un Pasivo llega al estado de resultados y al flujo de caja como Gasto",
+    async () => {
+      // Octubre arranca vacío y ningún otro test de este archivo lo toca —
+      // los números de abajo son absolutos, no deltas.
+      const periodoCuota = { desde: "2026-10-01", hasta: "2026-10-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const productoCuota = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Cuota",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+        costoOperativoVigente: 40,
+      });
+      if (!productoCuota.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: productoCuota.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 20,
+        motivo: "Carga inicial cuota",
+      });
+
+      const antes = await estadoResultados(owner!, tenantId, periodoCuota);
+      expect(antes.ok).toBe(true);
+      if (!antes.ok) return;
+      expect(antes.data.ingresos).toBe(0);
+      expect(antes.data.gastos).toBe(0);
+      expect(antes.data.estadoResultados).toBe(0);
+
+      // Canal "Local" (sin comisión), cobrada al contado el mismo día.
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-10-05",
+        lineas: [{ productoId: productoCuota.data.productoId, cantidad: 10 }],
+        pagoInicial: { monto: 1000, metodoPagoId },
+      });
+      expect(venta.ok).toBe(true);
+      if (!venta.ok) return;
+      expect(venta.data.comisionMontoCalculado).toBeNull();
+
+      const pasivo = await crearPasivo(owner!, tenantId, {
+        montoTotal: 9000,
+        cuotaPeriodica: 1500,
+        frecuenciaCuota: "mensual",
+        plazoCuotas: 6,
+        fechaInicio: "2026-10-01",
+      });
+      if (!pasivo.ok) throw new Error("setup fallo: crearPasivo");
+
+      const pago = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+        monto: 1500,
+        fechaPago: "2026-10-15",
+      });
+      expect(pago.ok).toBe(true);
+      if (!pago.ok) return;
+      expect(pago.data.saldoPendiente).toBe(7500); // 9000 - 1500
+      expect(pago.data.gastoCuota.ok).toBe(true);
+      if (pago.data.gastoCuota.ok) {
+        expect(pago.data.gastoCuota.data.monto).toBe(1500);
+      }
+
+      // Cuentas a mano:
+      //   ingresos  = 10 x 100 = 1000
+      //   costos    = 10 x  40 =  400
+      //   gastos    = la cuota  = 1500  -> Gasto fijo, ya pagado (regla 6)
+      //   resultado = 1000 - 400 - 1500 = -900
+      // Sin la cuota conectada el resultado daría +600: un negocio que
+      // pierde plata mostrándose rentable, que es exactamente el defecto
+      // H-27. Para romperlo a propósito: sacar la llamada a
+      // generarGastoCuotaPasivo de registrarPagoPasivo -> este assert falla
+      // con "expected 600 to be -900".
+      const despues = await estadoResultados(owner!, tenantId, periodoCuota);
+      expect(despues.ok).toBe(true);
+      if (!despues.ok) return;
+      expect(despues.data.ingresos).toBe(1000);
+      expect(despues.data.costos).toBe(400);
+      expect(despues.data.gastos).toBe(1500);
+      expect(despues.data.ajustesVenta).toBe(0);
+      expect(despues.data.estadoResultados).toBe(-900);
+
+      // La venta se cobró entera el mismo día y el gasto de la cuota nace
+      // pagado: 1000 - 0 - 1500 = -500.
+      const caja = await flujoCaja(owner!, tenantId, periodoCuota);
+      expect(caja.ok).toBe(true);
+      if (!caja.ok) return;
+      expect(caja.data.pagosVenta).toBe(1000);
+      expect(caja.data.pagosCompra).toBe(0);
+      expect(caja.data.pagosGasto).toBe(1500);
+      expect(caja.data.flujoCaja).toBe(-500);
+
+      // `pasivos` no tiene sucursal, así que el Gasto de la cuota tampoco
+      // — y `sumarTotalGastosPeriodo` filtra con `eq()`, que excluye los
+      // null. Filtrando por sucursal la cuota NO aparece: 1000 - 400 - 0.
+      // Es una decisión consciente (una deuda es del negocio, no de un
+      // local), afirmada acá para que no sea una sorpresa.
+      const porSucursal = await estadoResultados(owner!, tenantId, periodoCuota, {
+        sucursalId,
+      });
+      expect(porSucursal.ok).toBe(true);
+      if (!porSucursal.ok) return;
+      expect(porSucursal.data.gastos).toBe(0);
+      expect(porSucursal.data.estadoResultados).toBe(600);
+    },
+    20000
+  );
 });

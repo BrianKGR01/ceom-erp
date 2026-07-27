@@ -162,7 +162,15 @@ export async function refinanciarPasivoAction(
 export async function registrarPagoPasivoAction(
   pasivoId: string,
   input: unknown
-): Promise<ResultadoAccion<{ saldoPendiente: number; estadoPasivo: string }>> {
+): Promise<
+  ResultadoAccion<{
+    saldoPendiente: number;
+    estadoPasivo: string;
+    /** null si el Gasto de la cuota se genero bien; el motivo si no (H-27).
+     * El pago ya quedo registrado igual — esto es un aviso, no un error. */
+    avisoGasto: string | null;
+  }>
+> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
@@ -173,5 +181,12 @@ export async function registrarPagoPasivoAction(
 
   const resultado = await registrarPagoPasivo(usuario, pasivoId, parsed.data);
   if (!resultado.ok) return resultado;
-  return { ok: true, data: resultado.data };
+  return {
+    ok: true,
+    data: {
+      saldoPendiente: resultado.data.saldoPendiente,
+      estadoPasivo: resultado.data.estadoPasivo,
+      avisoGasto: resultado.data.gastoCuota.ok ? null : resultado.data.gastoCuota.error,
+    },
+  };
 }

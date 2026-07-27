@@ -5,7 +5,7 @@ import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, CheckCircle2, CreditCard, RefreshCw } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, CreditCard, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,7 @@ function RegistrarPagoDialog({
   saldoActual: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirmado: () => void;
+  onConfirmado: (avisoGasto: string | null) => void;
 }) {
   const [monto, setMonto] = useState("");
   const [fechaPago, setFechaPago] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
@@ -109,7 +109,9 @@ function RegistrarPagoDialog({
     }
     onOpenChange(false);
     setMonto("");
-    onConfirmado();
+    // El pago ya quedo registrado aunque el Gasto de la cuota haya fallado
+    // (H-27) — el aviso se muestra afuera, no bloquea el cierre del dialogo.
+    onConfirmado(resultado.data.avisoGasto);
   }
 
   return (
@@ -117,7 +119,10 @@ function RegistrarPagoDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar pago de Pasivo</DialogTitle>
-          <DialogDescription>Se suma al historial y actualiza el saldo pendiente.</DialogDescription>
+          <DialogDescription>
+            Se suma al historial, actualiza el saldo pendiente y se registra como gasto del período
+            —así la cuota resta en tu resultado.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -180,6 +185,7 @@ export function FichaPasivoCliente({
 }) {
   const router = useRouter();
   const [dialogoPago, setDialogoPago] = useState(false);
+  const [avisoGasto, setAvisoGasto] = useState<string | null>(null);
   const badge = BADGE_ESTADO[pasivo.estado];
   const puedeOperar = pasivo.estado === "activo";
 
@@ -217,6 +223,26 @@ export function FichaPasivoCliente({
           </div>
         }
       />
+
+      {/* El pago quedo registrado igual — lo que fallo es el Gasto de la cuota
+          (H-27). Se avisa para que el dueno sepa que ese egreso no esta en el
+          resultado del periodo y lo pueda cargar a mano. */}
+      {avisoGasto && (
+        <div className="flex items-start gap-3 rounded-2xl bg-warning-bg p-4 shadow-card">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-card text-warning-text">
+            <AlertTriangle className="size-4" />
+          </span>
+          <div className="text-sm">
+            <p className="font-medium text-warning-text">
+              El pago se registró, pero no se pudo crear el gasto de la cuota.
+            </p>
+            <p className="mt-0.5 text-text-muted">
+              {avisoGasto} Esta cuota todavía no resta en tu resultado del período — cargala como
+              gasto a mano desde Egresos y Gastos.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
@@ -280,7 +306,10 @@ export function FichaPasivoCliente({
         saldoActual={pasivo.saldoPendiente}
         open={dialogoPago}
         onOpenChange={setDialogoPago}
-        onConfirmado={() => router.refresh()}
+        onConfirmado={(aviso) => {
+          setAvisoGasto(aviso);
+          router.refresh();
+        }}
       />
     </>
   );

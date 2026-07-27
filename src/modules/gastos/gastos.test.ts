@@ -6,7 +6,12 @@ import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
-import { consultarPasivoDeActivo, crearActivo, crearPasivo } from "@/modules/patrimonio/actions";
+import {
+  consultarPasivoDeActivo,
+  crearActivo,
+  crearPasivo,
+  registrarPagoPasivo,
+} from "@/modules/patrimonio/actions";
 import { activos, pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
 import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
@@ -15,6 +20,7 @@ import { canalesVenta, detallesVenta, ventas } from "@/modules/ventas/schema";
 import {
   actualizarGastoManual,
   CATEGORIA_COMISION_VENTA,
+  CATEGORIA_CUOTA_PASIVO,
   consultarDistribucionPorCategoria,
   consultarTotalCostosFijos,
   crearCategoriaGasto,
@@ -179,7 +185,7 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
   });
 
   it(
-    "regla 2 / caso borde 1: generarGastoCuotaPasivo crea el Gasto ya pagado y decrementa el saldo del Pasivo en Patrimonio",
+    "H-27 / regla 2 / caso borde 1: registrarPagoPasivo genera el Gasto de la cuota (ya pagado, no editable) y decrementa el saldo",
     async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const activo = await crearActivo(owner!, tenantId, {
@@ -204,35 +210,111 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
       expect(saldoAntes.ok).toBe(true);
       if (saldoAntes.ok) expect(saldoAntes.data[0]?.saldoPendiente).toBe(5000);
 
-      const gastoCuota = await generarGastoCuotaPasivo(owner!, tenantId, {
-        pasivoId: pasivo.data.pasivoId,
-        categoriaId: categoriaServiciosId,
+      // La flecha va Patrimonio -> Gastos: el pago del pasivo es el que
+      // dispara el gasto, no al reves (H-27). Antes de esto,
+      // generarGastoCuotaPasivo no la llamaba nadie y la cuota nunca
+      // llegaba al resultado.
+      const pago = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
         monto: 500,
-        fechaGasto: "2026-02-01",
+        fechaPago: "2026-02-01",
       });
-      expect(gastoCuota.ok).toBe(true);
-      if (!gastoCuota.ok) return;
-      expect(gastoCuota.data.pagoPasivo.ok).toBe(true);
+      expect(pago.ok).toBe(true);
+      if (!pago.ok) return;
+      expect(pago.data.saldoPendiente).toBe(4500); // 5000 - 500
+      expect(pago.data.gastoCuota.ok).toBe(true);
+      if (!pago.data.gastoCuota.ok) return;
+      expect(pago.data.gastoCuota.data.monto).toBe(500);
 
-      const ficha = await fichaGasto(owner!, gastoCuota.data.gastoId);
+      const ficha = await fichaGasto(owner!, pago.data.gastoCuota.data.gastoId);
       expect(ficha.ok).toBe(true);
       if (ficha.ok) {
         expect(ficha.data.gasto?.origen).toBe("cuota_pasivo_automatica");
         expect(ficha.data.gasto?.estadoPago).toBe("pagado");
+        expect(ficha.data.gasto?.tipo).toBe("fijo");
+        expect(Number(ficha.data.gasto?.monto)).toBe(500);
+        // Referencia al Pasivo que lo origino — es lo que permite rastrear
+        // el gasto hasta su fuente de verdad en Patrimonio (regla 2).
+        expect(ficha.data.gasto?.referenciaId).toBe(pasivo.data.pasivoId);
       }
 
       const saldoDespues = await consultarPasivoDeActivo(owner!, activo.data.activoId);
       expect(saldoDespues.ok).toBe(true);
-      if (saldoDespues.ok) expect(saldoDespues.data[0]?.saldoPendiente).toBe(4500); // 5000 - 500
+      if (saldoDespues.ok) expect(saldoDespues.data[0]?.saldoPendiente).toBe(4500);
 
       // Regla 2 / caso borde 1: no se edita ni elimina directo.
-      const editar = await actualizarGastoManual(owner!, gastoCuota.data.gastoId, { monto: 999 });
+      const editar = await actualizarGastoManual(owner!, pago.data.gastoCuota.data.gastoId, {
+        monto: 999,
+      });
       expect(editar.ok).toBe(false);
-      const eliminar = await eliminarGastoManual(owner!, gastoCuota.data.gastoId);
+      const eliminar = await eliminarGastoManual(owner!, pago.data.gastoCuota.data.gastoId);
       expect(eliminar.ok).toBe(false);
     },
     20000
   );
+
+  it(
+    "H-27: la categoria 'Cuotas de deuda' se autoprovisiona una sola vez y la reutiliza el segundo pago",
+    async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const pasivo = await crearPasivo(owner!, tenantId, {
+        montoTotal: 3000,
+        cuotaPeriodica: 300,
+        frecuenciaCuota: "mensual",
+        plazoCuotas: 10,
+        fechaInicio: "2025-01-01",
+      });
+      if (!pasivo.ok) throw new Error("setup fallo: crearPasivo");
+
+      const primero = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+        monto: 300,
+        fechaPago: "2026-03-01",
+      });
+      const segundo = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+        monto: 300,
+        fechaPago: "2026-04-01",
+      });
+      expect(primero.ok && segundo.ok).toBe(true);
+      if (!primero.ok || !segundo.ok) return;
+      if (!primero.data.gastoCuota.ok || !segundo.data.gastoCuota.ok) {
+        throw new Error("los dos pagos tenian que generar su gasto");
+      }
+
+      // Misma categoria, no una duplicada por pago (H-32: el disparo
+      // automatico no puede depender de que el Owner haya creado una antes).
+      expect(segundo.data.gastoCuota.data.categoriaId).toBe(
+        primero.data.gastoCuota.data.categoriaId
+      );
+
+      const categorias = await listarCategoriasGasto(owner!, tenantId);
+      expect(categorias.ok).toBe(true);
+      if (categorias.ok) {
+        const cuotas = categorias.data.filter((c) => c.nombre === CATEGORIA_CUOTA_PASIVO);
+        expect(cuotas).toHaveLength(1);
+      }
+    },
+    20000
+  );
+
+  it("H-27: generarGastoCuotaPasivo rechaza montos <= 0 — una cuota solo puede restar (leccion de H-30)", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const pasivo = await crearPasivo(owner!, tenantId, {
+      montoTotal: 1000,
+      cuotaPeriodica: 100,
+      frecuenciaCuota: "mensual",
+      plazoCuotas: 10,
+      fechaInicio: "2025-01-01",
+    });
+    if (!pasivo.ok) throw new Error("setup fallo: crearPasivo");
+
+    for (const monto of [0, -100]) {
+      const resultado = await generarGastoCuotaPasivo(owner!, tenantId, {
+        pasivoId: pasivo.data.pasivoId,
+        monto,
+        fechaGasto: "2026-05-01",
+      });
+      expect(resultado.ok).toBe(false);
+    }
+  });
 
   it(
     "H-24: registrarVenta genera sola la comision como Gasto ya pagado, en su categoria propia",

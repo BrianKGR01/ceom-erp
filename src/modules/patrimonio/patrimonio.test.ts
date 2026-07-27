@@ -6,6 +6,7 @@ import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
 import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
+import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import {
   consultarCapacidad,
   consultarPasivoDeActivo,
@@ -74,6 +75,14 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
   afterAll(async () => {
     await limpiarConAuthGarantizada(
       async () => {
+        // Gastos primero: desde H-27, registrarPagoPasivo genera el Gasto de
+        // la cuota (mas su Pago de Gasto y la categoria autoprovisionada
+        // "Cuotas de deuda"), asi que este tenant ya no es solo Patrimonio.
+        const gastoIds = db.select({ id: gastos.id }).from(gastos).where(eq(gastos.tenantId, tenantId));
+        await db.delete(pagosGasto).where(inArray(pagosGasto.gastoId, gastoIds));
+        await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
+        await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
+
         const pasivoIds = db.select({ id: pasivos.id }).from(pasivos).where(eq(pasivos.tenantId, tenantId));
         await db.delete(pagosPasivo).where(inArray(pagosPasivo.pasivoId, pasivoIds));
         await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));

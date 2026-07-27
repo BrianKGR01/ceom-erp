@@ -7,16 +7,19 @@
 - NO hace: no calcula porcentaje de uso de capacidad ni genera alertas
   (eso es Producción/Capacidad Operativa, en Módulo 6 —
   `src/modules/operativo/nichos/nicho-1/`, que ya consume `consultarCapacidad`
-  de verdad — Patrimonio solo entrega el dato crudo). No genera automáticamente el
-  `Gasto` periódico en Costos y Gastos cuando un Pasivo está activo (el
-  modelo de datos ya lo soporta — `Pago de Pasivo.origen` admite
-  `automatico`/`manual` — pero no hay scheduler ni Módulo 4 todavía; nadie
-  llama `registrarPagoPasivo` con `origen: "automatico"` en este momento).
+  de verdad — Patrimonio solo entrega el dato crudo). **Sí genera el `Gasto`
+  de la cuota** desde `registrarPagoPasivo()` (H-27, ver "Salidas"), pero
+  **no hay scheduler**: el gasto sale cuando alguien registra el pago, no
+  "cada período" como pide `Modulo_05` §2. Un pasivo que el dueño paga por
+  el banco y no registra en CEOM sigue sin aparecer (mismo gap que H-10).
 - Entradas que consume: `tienePermiso()` de `identidad/actions.ts` (gate
   real por `"patrimonio"` × acción — a diferencia de Identidad, este
   módulo sí está en el catálogo `modulo_permiso`, así que no hace falta un
   gate ad-hoc). `tenants`/`sucursales` de `identidad/schema.ts` para las FK
   reales de `tenant_id`/`sucursal_id` (patrón esperado, no una excepción).
+  **`generarGastoCuotaPasivo()` de Gastos (Módulo 4)** — caja negra vía
+  `actions.ts`, invertida en H-27: antes la flecha iba Gastos → Patrimonio
+  y ahora va **Patrimonio → Gastos**, en un solo sentido.
 - Salidas que expone (`actions.ts`): `consultarCapacidad`,
   `consultarValorActual` (+ `calcularValorActual()` pura, exportada),
   `consultarPasivoDeActivo`, `consultarValorPatrimonialTotal`,
@@ -43,12 +46,16 @@
       (migración `0016`) — quedó sin FK durante la construcción de este
       módulo porque Proveedores (Módulo 8) todavía no existía; se cerró
       después, sin tocar la migración original (`0009`).
-- [x] Generación automática de `Gasto`/`Pago de Pasivo` hacia Costos y
-      Gastos — Módulo 4 (`src/modules/gastos/`) ya existe y
-      `generarGastoCuotaPasivo()` llama de verdad a `registrarPagoPasivo(...,
-      origen: "automatico")`. Sigue sin scheduler real que lo dispare
-      periódicamente — hay que invocarlo a mano o desde un futuro
-      scheduler, pero la integración en sí ya funciona.
+- [x] **Generación automática del `Gasto` de la cuota hacia Costos y Gastos
+      — conectada de verdad (H-27, 2026-07-27).** `registrarPagoPasivo()`
+      llama a `generarGastoCuotaPasivo()` de Módulo 4 después de confirmar el
+      pago. Antes la integración existía **al revés** (Gastos llamaba a
+      Patrimonio) y **nadie la disparaba**: el camino real de la UI —el botón
+      "Registrar pago" de la ficha— iba directo a `registrarPagoPasivo` y
+      nunca tocaba Gastos, así que la cuota no llegaba ni al estado de
+      resultados ni al flujo de caja. **Cambio de contrato:**
+      `registrarPagoPasivo` devuelve además `gastoCuota` (el `Resultado` de
+      la generación). Sigue sin scheduler real que lo dispare periódicamente.
 - [x] `frecuencia_cuota` — resuelto al construir Módulo 4: en vez de
       duplicarlo, `gastos_recurrentes.frecuencia` (Módulo 4) **reutiliza este
       mismo enum** (`frecuenciaCuotaEnum`, import directo desde
@@ -66,6 +73,28 @@
   depender, a diferencia de Identidad).
 
 ## Decisiones tomadas que un agente no debe revertir
+- **El Gasto de la cuota se genera FUERA de la transacción de RLS, después
+  del commit** (`registrarPagoPasivo`, H-27). Dos razones, ninguna
+  cosmética: (1) Gastos todavía no está migrado a `comoUsuario()` — su
+  repository usa `db` crudo, o sea otra conexión; llamarlo desde adentro del
+  `comoUsuario` abierto escribiría por un canal distinto al del `tx`, sin
+  ganar atomicidad y arriesgando quedarse sin conexiones del pool. (2) Si el
+  gasto falla, **el pago no se pierde**: vuelve como aviso en `gastoCuota` y
+  la ficha lo muestra. Mismo criterio ya aceptado en `registrarVenta()` para
+  la comisión y el descuento de stock. No "arreglar" esto metiendo la
+  llamada adentro de la transacción.
+- **El Gasto de la cuota nace sin `sucursal_id`** porque `pasivos` no lo
+  tiene (una deuda es del negocio, no de un local). Consecuencia real y
+  afirmada por test en `financiero.test.ts`: la cuota **no** aparece en un
+  estado de resultados filtrado por sucursal, porque
+  `sumarTotalGastosPeriodo` compara con `eq()` y eso excluye los null. Es
+  una decisión, no un olvido.
+- **`pagos_pasivo.origen` no cambió de semántica.** Sigue describiendo quién
+  inició el pago (`manual` = lo registró una persona, `automatico` = lo
+  generó el sistema), no si existe un gasto asociado — el gasto se genera en
+  los dos casos. Lo que marca que el egreso fue automático es
+  `gastos.origen = cuota_pasivo_automatica`, que es además lo que lo vuelve
+  no editable.
 - **Bug real encontrado y corregido durante esta tarea:** `calcularValorActual()`
   usa `getUTCFullYear()`/`getUTCMonth()`, nunca las versiones locales. Un
   `date` de Postgres (`fecha_adquisicion`) se parsea en JS como medianoche

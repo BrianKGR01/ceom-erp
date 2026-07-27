@@ -1,4 +1,5 @@
 import { comoUsuario } from "@/db/contexto";
+import { generarGastoCuotaPasivo } from "@/modules/gastos/actions";
 import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import * as repo from "./repository";
@@ -429,16 +430,46 @@ export async function refinanciarPasivo(
   });
 }
 
+/**
+ * Registra el pago **y genera el Gasto de la cuota** en Costos y Gastos
+ * (Modulo_05 seccion 2, "hacia Costos & Gastos"). Hasta H-27 solo hacia lo
+ * primero: la plata salia del negocio, el saldo de la deuda bajaba, y el
+ * egreso no llegaba ni al estado de resultados ni al flujo de caja — el
+ * negocio se veia mas rentable de lo real, en silencio. El Gasto es el
+ * unico vehiculo por el que un egreso llega al resultado.
+ *
+ * **El gasto se genera FUERA de la transaccion de RLS, despues del commit**,
+ * a proposito y por dos razones:
+ *
+ * 1. Gastos todavia no esta migrado a `comoUsuario()` — su repository usa
+ *    `db` crudo, o sea otra conexion. Llamarlo desde adentro de esta
+ *    transaccion abierta escribiria por un canal distinto al del `tx`, sin
+ *    ganar atomicidad y arriesgando quedarse sin conexiones del pool.
+ * 2. Si el gasto falla, el pago **no se pierde**: se devuelve como aviso en
+ *    `gastoCuota` para que la pantalla lo muestre. Mismo criterio ya
+ *    aceptado en `registrarVenta()` para la comision y el descuento de
+ *    stock (H-24) — el registro que el usuario pidio nunca se anula por su
+ *    consecuencia.
+ *
+ * El gap de atomicidad cruzada que queda es el mismo que Ventas: un gasto
+ * que no se creo se puede cargar a mano; un pago perdido, no.
+ */
 export async function registrarPagoPasivo(
   solicitante: UsuarioConRol,
   pasivoId: string,
   input: { monto: string | number; fechaPago: string; origen?: OrigenPagoPasivo }
-): Promise<Resultado<{ saldoPendiente: number; estadoPasivo: EstadoPasivo }>> {
-  return comoUsuario(solicitante.id, async (tx) => {
+): Promise<
+  Resultado<{
+    saldoPendiente: number;
+    estadoPasivo: EstadoPasivo;
+    gastoCuota: Awaited<ReturnType<typeof generarGastoCuotaPasivo>>;
+  }>
+> {
+  const pago = await comoUsuario(solicitante.id, async (tx) => {
     const pasivo = await repo.obtenerPasivoPorId(tx, pasivoId);
-    if (!pasivo) return { ok: false, error: "Pasivo no encontrado." };
+    if (!pasivo) return { ok: false as const, error: "Pasivo no encontrado." };
     if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "crear"))) {
-      return { ok: false, error: "No tenés permiso para registrar pagos en este pasivo." };
+      return { ok: false as const, error: "No tenés permiso para registrar pagos en este pasivo." };
     }
 
     const { saldoPendiente } = await repo.registrarPagoPasivoTx(tx, {
@@ -450,11 +481,28 @@ export async function registrarPagoPasivo(
     });
 
     return {
-      ok: true,
+      ok: true as const,
       data: {
+        tenantId: pasivo.tenantId,
         saldoPendiente,
-        estadoPasivo: saldoPendiente <= 0 ? "pagado" : "activo",
+        estadoPasivo: (saldoPendiente <= 0 ? "pagado" : "activo") as EstadoPasivo,
       },
     };
   });
+  if (!pago.ok) return pago;
+
+  const gastoCuota = await generarGastoCuotaPasivo(solicitante, pago.data.tenantId, {
+    pasivoId,
+    monto: input.monto,
+    fechaGasto: input.fechaPago,
+  });
+
+  return {
+    ok: true,
+    data: {
+      saldoPendiente: pago.data.saldoPendiente,
+      estadoPasivo: pago.data.estadoPasivo,
+      gastoCuota,
+    },
+  };
 }
