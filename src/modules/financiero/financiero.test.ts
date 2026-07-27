@@ -16,7 +16,12 @@ import {
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { crearPasivo, registrarPagoPasivo } from "@/modules/patrimonio/actions";
 import { pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
-import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
+import {
+  actualizarProducto,
+  consultarCostoOperativo,
+  crearProducto,
+  registrarAjusteManualStock,
+} from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
 import {
   crearProveedor,
@@ -688,6 +693,134 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       if (!porSucursal.ok) return;
       expect(porSucursal.data.gastos).toBe(0);
       expect(porSucursal.data.estadoResultados).toBe(600);
+    },
+    20000
+  );
+
+  // --- H-15: el producto sin costo cargado ---------------------------------
+  //
+  // Estos dos tests fijan el comportamiento ANTES de cambiarlo, a proposito.
+  // Hoy no existe ninguno que mire este caso, y sin una linea de base
+  // cualquier correccion posterior es imposible de medir.
+
+  it(
+    "H-15: una venta de un producto sin costo se congela con costo 0 y se cuenta como ganancia pura",
+    async () => {
+      // Noviembre arranca vacío y ningún otro test de este archivo lo toca.
+      const periodoSinCosto = { desde: "2026-11-01", hasta: "2026-11-30" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      // El caso mas comun del mundo: alguien carga un producto rapido y se
+      // olvida el costo. `costoOperativoVigente` es opcional a proposito
+      // (Modulo_02 §1) — para un producto de produccion lo escribe el Nicho
+      // y para uno de reventa lo escribe la compra, asi que no puede ser
+      // obligatorio. Nada advierte nada.
+      const sinCosto = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Sin Costo",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+      });
+      if (!sinCosto.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: sinCosto.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial sin costo",
+      });
+
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-11-05",
+        lineas: [{ productoId: sinCosto.data.productoId, cantidad: 3 }],
+      });
+      expect(venta.ok).toBe(true);
+      if (!venta.ok) return;
+
+      // El desconocido se convirtio en un cero duro (ventas/actions.ts, el
+      // `?? 0` del snapshot) y la columna es notNull: despues de guardado,
+      // "no sabiamos cuanto costaba" y "no cuesta nada" son indistinguibles.
+      const [linea] = await db
+        .select({ costo: detallesVenta.costoUnitarioSnapshot })
+        .from(detallesVenta)
+        .where(eq(detallesVenta.ventaId, venta.data.ventaId));
+      expect(Number(linea.costo)).toBe(0);
+
+      // Cuentas a mano: ingresos = 3 x 100 = 300, costos = 0.
+      // El 100% de esa venta se presenta como ganancia.
+      const resultado = await estadoResultados(owner!, tenantId, periodoSinCosto);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.ingresos).toBe(300);
+      expect(resultado.data.costos).toBe(0);
+      expect(resultado.data.estadoResultados).toBe(300);
+
+      // Y el margen del producto en el periodo da 100%, no "desconocido".
+      const margen = await margenPorProducto(
+        owner!,
+        tenantId,
+        sinCosto.data.productoId,
+        periodoSinCosto
+      );
+      expect(margen.ok).toBe(true);
+      if (margen.ok) expect(margen.data.margenPorcentaje).toBe(100);
+    },
+    20000
+  );
+
+  it(
+    "H-15: cargar el costo despues NO repara las ventas ya hechas — el snapshot no se recalcula",
+    async () => {
+      // Este es el test mas valioso de los dos: convierte en comportamiento
+      // afirmado lo que hoy es una consecuencia accidental de dos reglas
+      // correctas (snapshot notNull + regla 4 "no recalcular ventas
+      // pasadas"). Si alguien "arregla" H-15 recalculando el pasado, este
+      // test lo frena. Y es la razon por la que en H-15 la prevencion vale
+      // mas que la correccion: lo que se pierde en el instante de la venta
+      // no se recupera nunca.
+      const periodoTardio = { desde: "2026-12-01", hasta: "2026-12-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const tardio = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Costo Tardío",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+      });
+      if (!tardio.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: tardio.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial costo tardío",
+      });
+
+      await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-12-05",
+        lineas: [{ productoId: tardio.data.productoId, cantidad: 3 }],
+      });
+
+      // El dueño se da cuenta y carga el costo real. Tarde.
+      const actualizado = await actualizarProducto(owner!, tardio.data.productoId, {
+        costoOperativoVigente: 60,
+      });
+      expect(actualizado.ok).toBe(true);
+
+      const despues = await estadoResultados(owner!, tenantId, periodoTardio);
+      expect(despues.ok).toBe(true);
+      if (!despues.ok) return;
+      // Sigue en 0. La venta de diciembre quedo mal contada para siempre:
+      // el resultado real era 300 - 180 = 120, y muestra 300.
+      expect(despues.data.costos).toBe(0);
+      expect(despues.data.estadoResultados).toBe(300);
+
+      // El costo vigente si cambio — lo que no cambia es el pasado.
+      const costoVigente = await consultarCostoOperativo(owner!, tardio.data.productoId);
+      expect(costoVigente.ok).toBe(true);
+      if (costoVigente.ok) expect(costoVigente.data.costoOperativoVigente).toBe(60);
     },
     20000
   );
