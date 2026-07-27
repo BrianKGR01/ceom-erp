@@ -302,6 +302,13 @@
       "when": 1785143470070,
       "tag": "0042_compras_ajuste_cantidad_devuelta",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1785203400000,
+      "tag": "0043_h49_reanclar_dia_local",
+      "breakpoints": true
     }
   ]
 }
