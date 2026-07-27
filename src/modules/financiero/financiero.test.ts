@@ -15,8 +15,13 @@ import {
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
-import { crearProveedor, registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
-import { compras, pagosCompra, proveedores } from "@/modules/proveedores/schema";
+import {
+  crearProveedor,
+  registrarCompra,
+  registrarCompraDeAjuste,
+  registrarPagoCompra,
+} from "@/modules/proveedores/actions";
+import { comprasAjuste, compras, pagosCompra, proveedores } from "@/modules/proveedores/schema";
 import {
   crearCanalVenta,
   crearMetodoPago,
@@ -144,6 +149,9 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
             await db.delete(metodosPago).where(eq(metodosPago.tenantId, tenantId));
 
             const compraIds = db.select({ id: compras.id }).from(compras).where(eq(compras.tenantId, tenantId));
+            // compras_ajuste referencia compra_id — sale antes que "compras"
+            // (H-31 sembró ajustes reales acá).
+            await db.delete(comprasAjuste).where(inArray(comprasAjuste.compraId, compraIds));
             await db.delete(pagosCompra).where(inArray(pagosCompra.compraId, compraIds));
             await db.delete(compras).where(eq(compras.tenantId, tenantId));
             await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
@@ -394,5 +402,91 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
     expect(caja.data.pagosCompra).toBe(0);
     expect(caja.data.pagosGasto).toBe(30);
     expect(caja.data.flujoCaja).toBe(-30);
+  });
+
+  // --- H-31: el ajuste de compra llega al resultado ----------------------
+  // `compras_ajuste` no tiene fecha propia — se filtra por `creadoEn`, igual
+  // que `ajustesVenta`. Asi que este test usa el `periodo` general del
+  // archivo (que incluye la fecha real de ejecucion) y mide DELTAS contra la
+  // medicion inmediatamente anterior, en vez de valores absolutos: el resto
+  // del archivo ya sembro ingresos/costos/gastos ahi. El delta es exacto, no
+  // un ">=".
+  //
+  // Verificado rompiendolo a proposito: sin el termino `- ajustesCompra` en
+  // calcularEstadoResultados, el delta del resultado da 0 y este test se
+  // pone rojo.
+  it("H-31: lo que la compra terminó costando de más resta en el estado de resultados", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    const proveedor = await crearProveedor(owner!, tenantId, { nombre: "Mayorista Ajustes" });
+    if (!proveedor.ok) throw new Error("setup fallo: crearProveedor");
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId: proveedor.data.proveedorId,
+      tipo: "reventa",
+      productoId,
+      cantidad: 10,
+      montoTotal: 400,
+      fechaCompra: "2026-06-25",
+    });
+    if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+
+    const antes = await estadoResultados(owner!, tenantId, periodo);
+    expect(antes.ok).toBe(true);
+    if (!antes.ok) return;
+    // Registrar la compra por sí sola no toca el resultado: una compra entra
+    // recién como COGS cuando la mercadería se vende (regla 2 de Módulo 7).
+    expect(antes.data.ajustesCompra).toBe(0);
+
+    // El proveedor factura Bs 70 más de lo cargado. Ese excedente no puede
+    // llegar nunca al COGS —los costo_unitario_snapshot de las ventas ya
+    // hechas están congelados—, así que si no resta acá no aparece en ningún
+    // lado: es exactamente el agujero de H-31.
+    const correccion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: 70,
+      motivo: "La factura vino Bs 70 más alta",
+    });
+    expect(correccion.ok).toBe(true);
+
+    const conCostoExtra = await estadoResultados(owner!, tenantId, periodo);
+    expect(conCostoExtra.ok).toBe(true);
+    if (!conCostoExtra.ok) return;
+    // Nada más se movió: ingresos, costos y gastos idénticos...
+    expect(conCostoExtra.data.ingresos).toBe(antes.data.ingresos);
+    expect(conCostoExtra.data.costos).toBe(antes.data.costos);
+    expect(conCostoExtra.data.gastos).toBe(antes.data.gastos);
+    // ...y el resultado bajó exactamente los 70.
+    expect(conCostoExtra.data.ajustesCompra).toBe(70);
+    expect(conCostoExtra.data.estadoResultados).toBe(antes.data.estadoResultados - 70);
+
+    // Segunda parte, la dirección contraria: una devolución al proveedor de
+    // Bs 100 NO puede subir la utilidad. En CEOM una compra nunca fue un
+    // gasto (entra como costo al venderse), así que deshacerla no es una
+    // ganancia — sumarla inventaría Bs 100 de utilidad que no existen.
+    const devolucion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "devolucion_a_proveedor",
+      montoAjuste: -100,
+      motivo: "Se devolvieron 2 unidades falladas",
+    });
+    expect(devolucion.ok).toBe(true);
+    if (devolucion.ok) {
+      // Sí baja lo que le debés al proveedor: 400 + 70 - 100 = 370.
+      expect(devolucion.data.montoTotalEfectivo).toBe(370);
+    }
+
+    const conDevolucion = await estadoResultados(owner!, tenantId, periodo);
+    expect(conDevolucion.ok).toBe(true);
+    if (!conDevolucion.ok) return;
+    // El neto de la compra pasó a -30 (+70 y -100), que clampea a 0: los 70
+    // de costo extra quedan compensados y NO queda un crédito a favor.
+    expect(conDevolucion.data.ajustesCompra).toBe(0);
+    expect(conDevolucion.data.estadoResultados).toBe(antes.data.estadoResultados);
+    // La red de seguridad, dicha como invariante y no como ejemplo: por más
+    // devoluciones que se carguen, un ajuste de compra nunca sube el
+    // resultado por encima del que había sin ningún ajuste.
+    expect(conDevolucion.data.estadoResultados).toBeLessThanOrEqual(
+      antes.data.estadoResultados
+    );
   });
 });

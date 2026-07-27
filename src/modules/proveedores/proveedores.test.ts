@@ -11,9 +11,11 @@ import { insumos, movimientosInsumo, stockInsumo } from "@/modules/operativo/nic
 import { consultarStock, crearProducto } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import {
+  consultarSaldoCompra,
   fichaProveedor,
   historialPrecio,
   listarCompras,
+  listarComprasConAjustes,
   recibirCompra,
   registrarCompra,
   registrarCompraDeAjuste,
@@ -207,9 +209,161 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     });
     expect(ajuste.ok).toBe(true);
 
-    // La compra original queda intacta.
+    // La compra original queda intacta (regla 3.3, append-only)...
     const compraOriginal = await repo.obtenerCompraPorId(db, compra.data.compraId);
     expect(Number(compraOriginal?.montoTotal)).toBe(100);
+    // ...pero lo que VALE hoy ya no es 100 (H-31): antes el ajuste no
+    // cambiaba nada y la compra seguía figurando por su monto original.
+    if (ajuste.ok) {
+      expect(ajuste.data.montoTotalEfectivo).toBe(110);
+      expect(ajuste.data.saldoPendiente).toBe(110);
+      expect(ajuste.data.estadoPago).toBe("pendiente");
+    }
+  });
+
+  // --- H-31: el ajuste de compra tiene efecto observable -----------------
+
+  it("H-31: el signo del ajuste se deriva del tipo — devolución y anulación solo pueden reducir", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 2,
+      montoTotal: 200,
+      fechaCompra: "2026-02-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo");
+
+    for (const tipo of ["devolucion_a_proveedor", "anulacion_total"] as const) {
+      const enPositivo = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+        tipo,
+        montoAjuste: 50,
+        motivo: "Cargado con el signo al revés",
+      });
+      expect(enPositivo.ok).toBe(false);
+      if (!enPositivo.ok) expect(enPositivo.error).toContain("negativo");
+    }
+
+    const enCero = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: 0,
+      motivo: "Ajuste vacío",
+    });
+    expect(enCero.ok).toBe(false);
+
+    // Y no puede dejar la compra valiendo menos que nada.
+    const excesiva = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "anulacion_total",
+      montoAjuste: -300,
+      motivo: "Más de lo que vale la compra",
+    });
+    expect(excesiva.ok).toBe(false);
+    if (!excesiva.ok) expect(excesiva.error).toContain("negativo");
+  });
+
+  it("H-31: una anulación total deja la compra sin saldo, no pendiente para siempre", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 4,
+      montoTotal: 400,
+      fechaCompra: "2026-03-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo");
+
+    const saldoAntes = await consultarSaldoCompra(owner!, compra.data.compraId);
+    expect(saldoAntes.ok).toBe(true);
+    if (saldoAntes.ok) expect(saldoAntes.data.saldoPendiente).toBe(400);
+
+    const anulacion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "anulacion_total",
+      montoAjuste: -400,
+      motivo: "La compra no existió — se cargó dos veces",
+    });
+    expect(anulacion.ok).toBe(true);
+    if (!anulacion.ok) return;
+    expect(anulacion.data.montoTotalEfectivo).toBe(0);
+    expect(anulacion.data.saldoPendiente).toBe(0);
+    // Antes de H-31 esto quedaba "pendiente": el sistema seguía diciendo que
+    // le debías Bs 400 al proveedor por una compra anulada.
+    expect(anulacion.data.estadoPago).toBe("pagado");
+
+    const saldoDespues = await consultarSaldoCompra(owner!, compra.data.compraId);
+    expect(saldoDespues.ok).toBe(true);
+    if (saldoDespues.ok) {
+      expect(saldoDespues.data.montoTotal).toBe(400);
+      expect(saldoDespues.data.montoTotalEfectivo).toBe(0);
+      expect(saldoDespues.data.saldoPendiente).toBe(0);
+    }
+  });
+
+  it("H-31: una corrección a la baja deja la compra pagada al cubrir el saldo nuevo", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 3,
+      montoTotal: 300,
+      fechaCompra: "2026-04-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo");
+
+    // Se pagan 180 de 300 -> parcial.
+    const pagoParcial = await registrarPagoCompra(owner!, compra.data.compraId, {
+      monto: 180,
+      fechaPago: "2026-04-02",
+    });
+    expect(pagoParcial.ok).toBe(true);
+    if (pagoParcial.ok) expect(pagoParcial.data.estadoPago).toBe("parcial");
+
+    // El proveedor corrige: eran 180, no 300. Con esos 180 ya pagados, la
+    // compra queda cubierta. Antes el estado se derivaba contra montoTotal, así
+    // que se quedaba "parcial" para siempre por una deuda que no existía.
+    const correccion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: -120,
+      motivo: "La factura real era de 180",
+    });
+    expect(correccion.ok).toBe(true);
+    if (!correccion.ok) return;
+    expect(correccion.data.montoTotalEfectivo).toBe(180);
+    expect(correccion.data.saldoPendiente).toBe(0);
+    expect(correccion.data.estadoPago).toBe("pagado");
+  });
+
+  it("H-31: los ajustes viajan en el listado, con el monto efectivo de cada compra", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 5,
+      montoTotal: 500,
+      fechaCompra: "2026-05-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo");
+    await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: 25,
+      motivo: "Flete no cargado",
+    });
+
+    const listado = await listarComprasConAjustes(owner!, tenantId);
+    expect(listado.ok).toBe(true);
+    if (!listado.ok) return;
+    const fila = listado.data.find((c) => c.id === compra.data.compraId);
+    expect(fila).toBeDefined();
+    expect(fila!.montoTotalEfectivo).toBe(525);
+    expect(fila!.ajustes).toHaveLength(1);
+    expect(fila!.ajustes[0].motivo).toBe("Flete no cargado");
   });
 
   it("historialPrecio devuelve las compras de un item ordenadas por fecha", async () => {

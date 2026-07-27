@@ -23,10 +23,18 @@
   aditivo), `historialPrecio`, `listarCompras` (agregada para la UI de
   "Listado de Compras"), `consultarSaldoCompra` (nueva, agregada para la UI
   de "Registrar pago de Compra" — mismo criterio que
-  `consultarPasivoDeActivo` en Patrimonio), `registrarPagoCompra`,
-  `registrarCompraDeAjuste`, `consultarPagosCompraEnPeriodo` (agregado de
-  solo lectura por período, agregado en Módulo 7 para que Financiero
-  consuma Proveedores sin importar `compras`/`pagos_compra` directo).
+  `consultarPasivoDeActivo` en Patrimonio — desde H-31 devuelve también
+  `montoTotal`/`montoTotalEfectivo`/`totalPagado`, cambio aditivo),
+  `registrarPagoCompra`, `registrarCompraDeAjuste` (desde H-31 devuelve
+  `montoTotalEfectivo`/`estadoPago`/`saldoPendiente`, no solo el `ajusteId`),
+  **`listarComprasConAjustes`** (H-31: el listado con los ajustes de cada
+  compra y su monto efectivo, en 2 consultas para todo el tenant y no una por
+  fila), `consultarPagosCompraEnPeriodo` y
+  **`consultarCostoExtraAjustesCompraEnPeriodo`** (agregados de solo lectura
+  por período, para que Financiero consuma Proveedores sin importar
+  `compras`/`pagos_compra`/`compras_ajuste` directo).
+  + `errorSignoAjusteCompra()`/`esTipoAjusteCompraAFavor()` en
+  `validation.ts`, compartidas entre el schema de ruta y el guard del módulo.
 
 ## Estado actual
 - [x] Schema Drizzle (`proveedores`, `compras`, `pagos_compra`,
@@ -43,6 +51,46 @@
       pendiente→parcial→pagado dentro de `registrarPagoCompra`.
 - [x] Tests: `costo-unitario.test.ts` (puro) + `proveedores.test.ts`
       (integración contra Supabase Cloud real).
+- [x] **H-31 cerrado: la Compra de Ajuste tiene efecto observable.** Antes
+      `registrarCompraDeAjuste` escribía una fila en `compras_ajuste` y nada
+      más: no cambiaba el monto ni el estado de pago, no se mostraba en
+      ninguna pantalla (la consulta de lectura existía en `repository.ts` sin
+      exponerse en `actions.ts`) y no llegaba a ningún reporte. Ahora:
+      - **`montoTotalEfectivo` = `montoTotal` + Σ ajustes** es contra lo que
+        se derivan `saldoPendiente` y `estado_pago`
+        (`derivarEstadoPago()`/`recalcularEstadoPagoTx()` en `repository.ts`,
+        única fuente de verdad de esa regla, compartida con
+        `registrarPagoCompraTx`). Una anulación total deja la compra sin
+        saldo en vez de "pendiente" para siempre; una corrección a la baja la
+        deja "pagado" si lo ya pagado cubre el monto nuevo. La `Compra` sigue
+        sin editarse (regla 3.3): el monto original queda intacto y el
+        efectivo se deriva.
+      - **El signo se deriva del tipo** (`errorSignoAjusteCompra()`, misma
+        lección que H-30): `devolucion_a_proveedor` y `anulacion_total` solo
+        pueden ir a favor del negocio (monto negativo); `correccion` es la
+        única bidireccional. Ningún ajuste puede dejar el monto efectivo por
+        debajo de 0. El formulario ni ofrece la dirección imposible: pide un
+        monto positivo y la dirección aparte.
+      - **Llega al estado de resultados, solo en la dirección de costo.**
+        `consultarCostoExtraAjustesCompraEnPeriodo` agrupa por compra, toma
+        el neto del período y descarta lo negativo, así que lo que la compra
+        terminó costando de MÁS resta en el resultado (ese excedente no puede
+        llegar al COGS nunca: los `costo_unitario_snapshot` de las ventas ya
+        están congelados) y lo que costó de MENOS **no suma utilidad** — en
+        CEOM una compra nunca fue un gasto, así que deshacerla no es una
+        ganancia. Decisión de negocio confirmada con el usuario, no un
+        detalle de implementación.
+      - Los ajustes se ven en el listado de compras, con el monto original
+        tachado cuando difiere del efectivo.
+- [x] **`compras_ajuste` recibió `gatewayVigenciaBypassPolicy(..., "financiero")`**
+      (migración `0041_gateway_vigencia_bypass_compras_ajuste`): desde que
+      `financiero.estadoResultados()` la lee, la tabla quedó en el camino del
+      Gateway igual que `compras`/`pagos_compra`. Sin esa policy el camino
+      institucional leería 0 ajustes y devolvería un resultado MAYOR que el
+      real, indistinguible de "no hubo ajustes" — la fuga silenciosa de
+      §13.11 del backstop de RLS. Checklist de costo §16.10: la query real
+      (`sumarCostoExtraAjustesCompraPeriodo`) trae su propio filtro de tenant
+      vía `innerJoin(compras)`.
 - [x] **`item_id` sin FK — cerrado (roadmap ítem #12).** Reemplazado por
       `insumoId`/`productoId` tipados (FK real a `insumos.id`/
       `productos.id`), exactamente uno según `tipo`, reforzado por un CHECK

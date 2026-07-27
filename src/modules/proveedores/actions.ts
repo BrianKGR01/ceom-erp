@@ -14,6 +14,7 @@ import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { registrarEntradaCompraReventa } from "@/modules/productos/actions";
 import * as repo from "./repository";
+import { errorSignoAjusteCompra } from "./validation";
 import type {
   estadoCompraEnum,
   estadoPagoCompraEnum,
@@ -371,17 +372,90 @@ export async function listarCompras(
   }));
 }
 
+/**
+ * Igual que `listarCompras`, mas los ajustes de cada compra y su monto
+ * efectivo (H-31 — antes el listado mostraba el monto original sin importar
+ * cuantos ajustes tuviera, asi que una compra anulada se veia idéntica a una
+ * intacta). Los ajustes vienen en UNA consulta para todo el tenant y se
+ * agrupan en memoria, no una por compra.
+ */
+export async function listarComprasConAjustes(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  opts: { estadoPago?: EstadoPagoCompra; estado?: EstadoCompra } = {}
+): Promise<
+  Resultado<
+    Array<
+      Awaited<ReturnType<typeof repo.listarComprasPorTenant>>[number] & {
+        montoTotalEfectivo: number;
+        ajustes: Array<
+          Omit<Awaited<ReturnType<typeof repo.listarAjustesPorTenant>>[number], "compraId">
+        >;
+      }
+    >
+  >
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver compras." };
+  }
+  return comoUsuario(solicitante.id, async (tx) => {
+    const [comprasDelTenant, ajustes] = await Promise.all([
+      repo.listarComprasPorTenant(tx, tenantId, opts),
+      repo.listarAjustesPorTenant(tx, tenantId),
+    ]);
+
+    const porCompra = new Map<string, typeof ajustes>();
+    for (const ajuste of ajustes) {
+      const acumulado = porCompra.get(ajuste.compraId);
+      if (acumulado) acumulado.push(ajuste);
+      else porCompra.set(ajuste.compraId, [ajuste]);
+    }
+
+    return {
+      ok: true,
+      data: comprasDelTenant.map((compra) => {
+        const suyos = porCompra.get(compra.id) ?? [];
+        const neto = suyos.reduce((acc, a) => acc + Number(a.montoAjuste), 0);
+        return {
+          ...compra,
+          montoTotalEfectivo: Math.max(0, Number(compra.montoTotal) + neto),
+          // Sin `compraId`: ya viene implícito en la compra que los contiene.
+          ajustes: suyos.map((a) => ({
+            id: a.id,
+            tipo: a.tipo,
+            montoAjuste: a.montoAjuste,
+            motivo: a.motivo,
+            creadoEn: a.creadoEn,
+          })),
+        };
+      }),
+    };
+  });
+}
+
 // --- Pagos de Compra ---------------------------------------------------------
 
-/** Saldo pendiente de una Compra (montoTotal - total pagado) — agregada
+/** Saldo pendiente de una Compra (monto efectivo - total pagado) — agregada
  * para la UI de "Registrar pago de Compra" (resumen saldo antes/después en
  * vivo, mismo criterio que consultarPasivoDeActivo en Patrimonio). Antes
  * `obtenerTotalPagado` solo se usaba internamente dentro de
- * `registrarPagoCompraTx`, sin wrapper de lectura propio. */
+ * `registrarPagoCompraTx`, sin wrapper de lectura propio.
+ *
+ * Desde H-31 el saldo se mide contra el monto EFECTIVO (montoTotal + Σ
+ * ajustes), no contra el original: si la compra se anuló, no queda nada por
+ * pagar. Devuelve también los dos montos para que la pantalla pueda explicar
+ * la diferencia en vez de mostrar un saldo que no cierra con el total. */
 export async function consultarSaldoCompra(
   solicitante: UsuarioConRol,
   compraId: string
-): Promise<Resultado<{ saldoPendiente: number }>> {
+): Promise<
+  Resultado<{
+    saldoPendiente: number;
+    montoTotal: number;
+    montoTotalEfectivo: number;
+    totalPagado: number;
+  }>
+> {
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
@@ -389,8 +463,19 @@ export async function consultarSaldoCompra(
       return { ok: false, error: "No tenés permiso para ver esta compra." };
     }
 
-    const totalPagado = await repo.obtenerTotalPagado(tx, compraId);
-    return { ok: true, data: { saldoPendiente: Number(compra.montoTotal) - totalPagado } };
+    const [totalPagado, montoTotalEfectivo] = await Promise.all([
+      repo.obtenerTotalPagado(tx, compraId),
+      repo.obtenerMontoTotalEfectivo(tx, compraId),
+    ]);
+    return {
+      ok: true,
+      data: {
+        saldoPendiente: montoTotalEfectivo - totalPagado,
+        montoTotal: Number(compra.montoTotal),
+        montoTotalEfectivo,
+        totalPagado,
+      },
+    };
   });
 }
 
@@ -425,13 +510,31 @@ export interface DatosCompraAjuste {
   motivo: string;
 }
 
-/** Nunca se edita una Compra directamente (regla 3.3) — se corrige con una
- * Compra de Ajuste que referencia a la original, con motivo obligatorio. */
+/**
+ * Nunca se edita una Compra directamente (regla 3.3) — se corrige con una
+ * Compra de Ajuste que referencia a la original, con motivo obligatorio.
+ *
+ * H-31: hasta acá el ajuste escribía una fila y nada más — no cambiaba el
+ * monto ni el estado de pago de la compra, no se mostraba en ninguna pantalla
+ * y no llegaba a ningún reporte. El usuario escribía un motivo obligatorio,
+ * recibía confirmación y quedaba convencido de haber corregido algo. Ahora el
+ * ajuste **cambia lo que la compra realmente vale**: `montoTotalEfectivo`
+ * (= montoTotal + Σ ajustes) es contra lo que se derivan el saldo pendiente y
+ * `estado_pago`, y lo que la compra terminó costando de MÁS llega al estado de
+ * resultados vía `consultarCostoExtraAjustesCompraEnPeriodo`.
+ */
 export async function registrarCompraDeAjuste(
   solicitante: UsuarioConRol,
   compraId: string,
   input: DatosCompraAjuste
-): Promise<Resultado<{ ajusteId: string }>> {
+): Promise<
+  Resultado<{
+    ajusteId: string;
+    montoTotalEfectivo: number;
+    estadoPago: EstadoPagoCompra;
+    saldoPendiente: number;
+  }>
+> {
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
@@ -443,6 +546,29 @@ export async function registrarCompraDeAjuste(
     if (!input.motivo.trim()) {
       return { ok: false, error: "El motivo del ajuste es obligatorio." };
     }
+    // El signo se deriva del tipo (leccion de H-30): los dos tipos que solo
+    // pueden ir a favor del negocio exigen monto negativo. Se valida aca
+    // ademas de en el schema de la ruta porque esta funcion es la superficie
+    // publica del modulo — la llaman tests, seeds y cualquier otro modulo, no
+    // solo la Server Action.
+    const errorSigno = errorSignoAjusteCompra(input.tipo, Number(input.montoAjuste));
+    if (errorSigno) return { ok: false, error: errorSigno };
+
+    // Una compra no puede terminar valiendo menos que nada: eso seria un
+    // proveedor debiendole plata al negocio por una compra, que no es lo que
+    // esta entidad modela (si el proveedor devuelve mas de lo cobrado, es otra
+    // operacion). Ademas evita que dos anulaciones sobre la misma compra
+    // acumulen un credito irreal.
+    const ajustesPrevios = await repo.obtenerTotalAjustes(tx, compraId);
+    const efectivoResultante =
+      Number(compra.montoTotal) + ajustesPrevios + Number(input.montoAjuste);
+    if (efectivoResultante < 0) {
+      const disponible = Number(compra.montoTotal) + ajustesPrevios;
+      return {
+        ok: false,
+        error: `El ajuste no puede dejar la compra en negativo: hoy vale ${disponible.toFixed(2)}, y este ajuste la bajaría a ${efectivoResultante.toFixed(2)}.`,
+      };
+    }
 
     const ajuste = await repo.crearCompraAjuste(tx, {
       compraId,
@@ -452,7 +578,19 @@ export async function registrarCompraDeAjuste(
       creadoPor: solicitante.id,
     });
 
-    return { ok: true, data: { ajusteId: ajuste.id } };
+    // Lo que le faltaba: el ajuste ahora sí mueve el estado de pago.
+    const { estadoPago, totalPagado, montoTotalEfectivo } =
+      await repo.recalcularEstadoPagoTx(tx, compraId);
+
+    return {
+      ok: true,
+      data: {
+        ajusteId: ajuste.id,
+        montoTotalEfectivo,
+        estadoPago,
+        saldoPendiente: Math.max(0, montoTotalEfectivo - totalPagado),
+      },
+    };
   });
 }
 
@@ -518,5 +656,56 @@ export async function consultarPagosCompraEnPeriodo(
       opts
     );
     return { ok: true, data: { totalPagado } };
+  }
+}
+
+/**
+ * Costo extra que los ajustes de compra del período le agregaron al negocio —
+ * la segunda cosa que Financiero consume de Proveedores, y la que cierra H-31
+ * del lado del estado de resultados. Antes Financiero tomaba de este módulo
+ * únicamente `consultarPagosCompraEnPeriodo`, así que un ajuste de compra no
+ * llegaba a ningún reporte.
+ *
+ * Siempre ≥ 0 por construcción: solo cuenta la dirección en la que la compra
+ * terminó costando MÁS (ver `sumarCostoExtraAjustesCompraPeriodo` para el
+ * porqué de negocio). Un ajuste de compra no puede inflar el resultado.
+ *
+ * Mismo fallback de contexto RLS que `consultarPagosCompraEnPeriodo` y por la
+ * misma razón: la alcanza el camino Gateway/Panel Admin CEOM vía
+ * `financiero.estadoResultados()`. Ver el comentario largo de esa función —
+ * las policies de `compras`/`compras_ajuste` son las que gobiernan qué se ve.
+ */
+export async function consultarCostoExtraAjustesCompraEnPeriodo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<Resultado<{ costoExtraAjustes: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver compras." };
+  }
+  const desde = new Date(periodo.desde);
+  const hasta = new Date(periodo.hasta);
+  try {
+    return await comoUsuario(solicitante.id, async (tx) => {
+      const costoExtraAjustes = await repo.sumarCostoExtraAjustesCompraPeriodo(
+        tx,
+        tenantId,
+        desde,
+        hasta,
+        opts
+      );
+      return { ok: true, data: { costoExtraAjustes } };
+    });
+  } catch (error) {
+    if (!(error instanceof ContextoRlsNoResueltoError)) throw error;
+    const costoExtraAjustes = await repo.sumarCostoExtraAjustesCompraPeriodo(
+      db,
+      tenantId,
+      desde,
+      hasta,
+      opts
+    );
+    return { ok: true, data: { costoExtraAjustes } };
   }
 }

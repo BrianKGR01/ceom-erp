@@ -212,7 +212,7 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Ventas | Productos e Inventario, **Costos y Gastos** (`generarGastoComisionVenta` — la venta dispara su comisión al confirmarse, H-24) | Clientes, Financiero |
 | Clientes | Ventas (evento) | — |
 | Egresos y Gastos | Proveedores (opcional, ficha) | Financiero, **Ventas** (comisión automática — al cerrar H-24 la flecha con Ventas quedó en un solo sentido: Gastos ya no lee la Venta con `fichaVenta()`, la recibe) |
-| Financiero | Ventas, Gastos, Proveedores/Compras | Gateway de Consentimiento |
+| Financiero | Ventas, Gastos, Proveedores/Compras (`consultarPagosCompraEnPeriodo` + `consultarCostoExtraAjustesCompraEnPeriodo` — H-31) | Gateway de Consentimiento |
 | Gateway de Consentimiento | — | Monitoreo Institucional, Panel Admin CEOM |
 | Monitoreo Institucional (`src/modules/monitoreo-institucional/`) | Gateway (`tieneConsentimiento`, `listarCarteraPropia`), Identidad (`obtenerTenantParaVeedor`, `solicitanteGateway`), Financiero, Ventas, Operaciones (mediado por Gateway) | — |
 | Panel Admin CEOM (`src/modules/panel-admin-ceom/`) | Identidad (`listarTenants`, `obtenerTenantPorId`, bypass `ceom_admin` de `tienePermiso`), Gateway (`registrarAccesoAdminCeom`), Suscripción (`listarPlanes`), Financiero, Operaciones (acceso directo, no mediado por Gateway — regla 4.5 del Módulo 11) | — |

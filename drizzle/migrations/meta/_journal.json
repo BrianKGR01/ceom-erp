@@ -288,6 +288,13 @@
       "when": 1784845368793,
       "tag": "0040_small_miek",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785141840078,
+      "tag": "0041_gateway_vigencia_bypass_compras_ajuste",
+      "breakpoints": true
     }
   ]
 }

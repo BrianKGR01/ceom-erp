@@ -6,7 +6,10 @@
 import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { consultarTotalCostosFijos, consultarPagosGastoEnPeriodo, consultarTotalGastosEnPeriodo } from "@/modules/gastos/actions";
-import { consultarPagosCompraEnPeriodo } from "@/modules/proveedores/actions";
+import {
+  consultarCostoExtraAjustesCompraEnPeriodo,
+  consultarPagosCompraEnPeriodo,
+} from "@/modules/proveedores/actions";
 import {
   consultarAjustesVentaEnPeriodo,
   consultarIngresosPeriodo,
@@ -32,15 +35,33 @@ export function calcularFlujoCaja(
   return pagosVenta - pagosCompra - pagosGasto;
 }
 
-/** estado_resultados = ingresos − COGS − gastos ± ajustes de venta, todos
- * por su fecha de ocurrencia economica (base devengado, seccion 1.2). */
+/**
+ * estado_resultados = ingresos − COGS − gastos ± ajustes de venta
+ *                     − costo extra de ajustes de compra
+ * todos por su fecha de ocurrencia economica (base devengado, seccion 1.2).
+ *
+ * `costoExtraAjustesCompra` (H-31) es lo que las compras del periodo
+ * terminaron costando de MAS de lo registrado — un costo que los
+ * `costo_unitario_snapshot` ya congelados no van a recoger nunca, asi que si
+ * no resta aca no aparece en ninguna parte. Llega ya filtrado a una sola
+ * direccion por Proveedores (ver `sumarCostoExtraAjustesCompraPeriodo`), y
+ * **aca se vuelve a clampear a proposito**: el `Math.max(0, ...)` hace
+ * estructuralmente imposible que un ajuste de compra le SUME al resultado,
+ * pase lo que pase aguas arriba. Es la clase de error que ya nos costo H-30 y
+ * H-24 — un costo que termina inflando la utilidad —, y una segunda red
+ * cuesta una linea.
+ *
+ * Parametro opcional con default 0: cualquier llamador viejo sigue dando el
+ * mismo numero que antes.
+ */
 export function calcularEstadoResultados(
   ingresos: number,
   costos: number,
   gastos: number,
-  ajustesVenta: number
+  ajustesVenta: number,
+  costoExtraAjustesCompra: number = 0
 ): number {
-  return ingresos - costos - gastos + ajustesVenta;
+  return ingresos - costos - gastos + ajustesVenta - Math.max(0, costoExtraAjustesCompra);
 }
 
 /** margen % = (ingresos_ajustados − costos) / ingresos_ajustados x 100
@@ -111,33 +132,47 @@ export async function estadoResultados(
     costos: number;
     gastos: number;
     ajustesVenta: number;
+    ajustesCompra: number;
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
 
-  const [ingresosCostosRes, gastosRes, ajustesRes] = await Promise.all([
+  const [ingresosCostosRes, gastosRes, ajustesRes, ajustesCompraRes] = await Promise.all([
     consultarIngresosPeriodo(solicitante, tenantId, periodo, opts),
     consultarTotalGastosEnPeriodo(solicitante, tenantId, periodo, opts),
     consultarAjustesVentaEnPeriodo(solicitante, tenantId, periodo, opts),
+    consultarCostoExtraAjustesCompraEnPeriodo(solicitante, tenantId, periodo, opts),
   ]);
   if (!ingresosCostosRes.ok) return ingresosCostosRes;
   if (!gastosRes.ok) return gastosRes;
   if (!ajustesRes.ok) return ajustesRes;
+  if (!ajustesCompraRes.ok) return ajustesCompraRes;
 
   const { ingresos, costos } = ingresosCostosRes.data;
   const gastos = gastosRes.data.totalGastos;
   const ajustesVenta = ajustesRes.data.totalAjustes;
+  // Siempre >= 0 (Proveedores solo devuelve la direccion de costo) — se
+  // expone tal cual y la pantalla lo muestra restando, para no repetir la
+  // ambiguedad de signo de `ajustesVenta`.
+  const ajustesCompra = ajustesCompraRes.data.costoExtraAjustes;
 
   return {
     ok: true,
     data: {
-      estadoResultados: calcularEstadoResultados(ingresos, costos, gastos, ajustesVenta),
+      estadoResultados: calcularEstadoResultados(
+        ingresos,
+        costos,
+        gastos,
+        ajustesVenta,
+        ajustesCompra
+      ),
       ingresos,
       costos,
       gastos,
       ajustesVenta,
+      ajustesCompra,
     },
   };
 }

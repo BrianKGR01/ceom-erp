@@ -195,5 +195,28 @@ export const comprasAjuste = pgTable(
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
     ceomAdminBypassPolicy("compras_ajuste"),
+    // H-31: desde que el ajuste de compra llega al estado de resultados
+    // (`consultarCostoExtraAjustesCompraEnPeriodo`), esta tabla quedó en el
+    // camino del Gateway igual que `compras`/`pagos_compra` —
+    // `financiero.estadoResultados()` la lee para Monitoreo Institucional.
+    // Sin esta policy el camino Gateway leería 0 ajustes y devolvería un
+    // resultado MAYOR que el real, indistinguible de "este negocio no tuvo
+    // ajustes": exactamente la fuga silenciosa que documenta §13.11 del
+    // backstop de RLS (coalesce(sum(...),0) enmascarando "RLS filtró todo").
+    //
+    // Tercer argumento como en `pagos_compra`: `compras_ajuste` no tiene
+    // `tenant_id` propio, el tenant sale por `compra_id → compras.tenant_id`,
+    // el mismo camino que ya usa `crudPolicy()` arriba.
+    //
+    // Checklist de costo (§16.10): la query real del Gateway sobre esta tabla
+    // (`sumarCostoExtraAjustesCompraPeriodo`) SÍ trae su propio filtro de
+    // tenant explícito — hace `innerJoin(compras)` con
+    // `compras.tenant_id = ?`, así que el SubPlan correlacionado queda
+    // acotado a las filas de ese tenant.
+    gatewayVigenciaBypassPolicy(
+      "compras_ajuste",
+      "financiero",
+      sql`(select compras.tenant_id from compras where compras.id = compras_ajuste.compra_id)`
+    ),
   ]
 ).enableRLS();

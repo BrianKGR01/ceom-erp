@@ -45,10 +45,26 @@ const BADGE_PAGO: Record<EstadoPagoCompra, { variant: "error" | "warning" | "suc
   pagado: { variant: "success", label: "Pagado" },
 };
 
-const TIPOS_AJUSTE: { value: "correccion" | "devolucion_a_proveedor" | "anulacion_total"; label: string }[] = [
+type TipoAjusteCompra = "correccion" | "devolucion_a_proveedor" | "anulacion_total";
+
+const TIPOS_AJUSTE: { value: TipoAjusteCompra; label: string }[] = [
   { value: "correccion", label: "Corrección" },
   { value: "devolucion_a_proveedor", label: "Devolución a proveedor" },
   { value: "anulacion_total", label: "Anulación total" },
+];
+
+const LABEL_TIPO_AJUSTE: Record<TipoAjusteCompra, string> = Object.fromEntries(
+  TIPOS_AJUSTE.map((t) => [t.value, t.label])
+) as Record<TipoAjusteCompra, string>;
+
+// Devolución y anulación solo pueden ir a favor del negocio; corrección es la
+// única de las tres que puede ir en las dos direcciones. Misma regla que
+// esTipoAjusteCompraAFavor() en proveedores/validation.ts — acá sirve para que
+// el formulario ni siquiera ofrezca la dirección imposible, en vez de dejar al
+// usuario elegir el signo y rechazarlo después (lección de H-30).
+const TIPOS_AJUSTE_SOLO_A_FAVOR: TipoAjusteCompra[] = [
+  "devolucion_a_proveedor",
+  "anulacion_total",
 ];
 
 function formatMoneda(valor: number | string): string {
@@ -64,12 +80,22 @@ function formatFecha(fecha: string): string {
   });
 }
 
+export interface AjusteCompraFila {
+  id: string;
+  tipo: TipoAjusteCompra;
+  montoAjuste: string;
+  motivo: string;
+}
+
 export interface CompraListado {
   id: string;
   itemNombre: string;
   proveedorNombre: string | null;
   cantidad: string;
   montoTotal: string;
+  /** montoTotal + Σ ajustes — lo que la compra vale hoy (H-31). */
+  montoTotalEfectivo: number;
+  ajustes: AjusteCompraFila[];
   fechaCompra: string;
   estado: EstadoCompra;
   estadoPago: EstadoPagoCompra;
@@ -237,28 +263,40 @@ function RegistrarPagoDialog({
 }
 
 function AjusteDialog({
-  compraId,
+  compra,
   open,
   onOpenChange,
   onConfirmado,
 }: {
-  compraId: string;
+  compra: CompraListado;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmado: () => void;
 }) {
-  const [tipo, setTipo] = useState<"correccion" | "devolucion_a_proveedor" | "anulacion_total">("correccion");
-  const [montoAjuste, setMontoAjuste] = useState("");
+  const [tipo, setTipo] = useState<TipoAjusteCompra>("correccion");
+  // El usuario carga SIEMPRE un monto positivo y la dirección se elige aparte
+  // (o se deriva del tipo): así el signo no puede entrar mal desde la
+  // pantalla. Antes el campo pedía un número con signo y la única guía era el
+  // placeholder — el mismo diseño que causó H-30 del lado de las ventas.
+  const [monto, setMonto] = useState("");
+  const [direccion, setDireccion] = useState<"a_favor" | "costo_mayor">("a_favor");
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const soloAFavor = TIPOS_AJUSTE_SOLO_A_FAVOR.includes(tipo);
+  const esAFavor = soloAFavor || direccion === "a_favor";
+  const montoAbsoluto = Math.abs(Number(monto) || 0);
+  const montoFirmado = esAFavor ? -montoAbsoluto : montoAbsoluto;
+  const efectivoDespues = Math.max(0, compra.montoTotalEfectivo + montoFirmado);
+  const dejariaEnNegativo = compra.montoTotalEfectivo + montoFirmado < 0;
+
   async function confirmar() {
     setGuardando(true);
     setError(null);
-    const resultado = await registrarCompraDeAjusteAction(compraId, {
+    const resultado = await registrarCompraDeAjusteAction(compra.id, {
       tipo,
-      montoAjuste: Number(montoAjuste) || 0,
+      montoAjuste: montoFirmado,
       motivo,
     });
     setGuardando(false);
@@ -267,7 +305,7 @@ function AjusteDialog({
       return;
     }
     onOpenChange(false);
-    setMontoAjuste("");
+    setMonto("");
     setMotivo("");
     onConfirmado();
   }
@@ -283,7 +321,8 @@ function AjusteDialog({
             <DialogTitle>Ajustar compra</DialogTitle>
           </div>
           <DialogDescription>
-            Nunca edita la compra original — queda registrada como una corrección aparte.
+            Nunca edita la compra original — queda registrada como una corrección aparte, y cambia
+            lo que la compra vale hoy.
           </DialogDescription>
         </DialogHeader>
 
@@ -293,7 +332,7 @@ function AjusteDialog({
             <Select
               items={Object.fromEntries(TIPOS_AJUSTE.map((t) => [t.value, t.label]))}
               value={tipo}
-              onValueChange={(value) => value && setTipo(value as typeof tipo)}
+              onValueChange={(value) => value && setTipo(value as TipoAjusteCompra)}
             >
               <SelectTrigger id="tipo" className="w-full">
                 <SelectValue />
@@ -307,17 +346,49 @@ function AjusteDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {soloAFavor ? (
+            <p className="rounded-xl bg-pastel-blue-bg p-3 text-xs text-text-body">
+              Este tipo de ajuste siempre va <strong>a favor del negocio</strong>: baja lo que le
+              debés al proveedor.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="direccion">¿En qué dirección?</Label>
+              <Select
+                items={{
+                  a_favor: "A favor del negocio (la compra costó menos)",
+                  costo_mayor: "La compra costó más de lo cargado",
+                }}
+                value={direccion}
+                onValueChange={(value) => value && setDireccion(value as typeof direccion)}
+              >
+                <SelectTrigger id="direccion" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="a_favor">
+                    A favor del negocio (la compra costó menos)
+                  </SelectItem>
+                  <SelectItem value="costo_mayor">La compra costó más de lo cargado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label htmlFor="montoAjuste">Monto del ajuste</Label>
+            <Label htmlFor="monto">Monto del ajuste</Label>
             <Input
-              id="montoAjuste"
+              id="monto"
               type="number"
               step="0.01"
-              placeholder="Negativo si es a favor del negocio"
-              value={montoAjuste}
-              onChange={(e) => setMontoAjuste(e.target.value)}
+              min="0"
+              placeholder="0.00"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
             />
           </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="motivo">Motivo</Label>
             <Textarea
@@ -327,15 +398,43 @@ function AjusteDialog({
               onChange={(e) => setMotivo(e.target.value)}
             />
           </div>
+
+          <div className="space-y-1 rounded-xl bg-gray-bg p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-text-muted">La compra vale hoy</span>
+              <span className="text-text-body">{formatMoneda(compra.montoTotalEfectivo)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-text-muted">Después del ajuste</span>
+              <span className={dejariaEnNegativo ? "text-error-text" : "font-semibold text-navy"}>
+                {formatMoneda(efectivoDespues)}
+              </span>
+            </div>
+            {!esAFavor && montoAbsoluto > 0 && (
+              <p className="pt-1 text-xs text-text-muted">
+                Los {formatMoneda(montoAbsoluto)} de más se descuentan del resultado del negocio.
+              </p>
+            )}
+          </div>
         </div>
 
+        {dejariaEnNegativo && (
+          <p className="text-xs text-error-text">
+            El ajuste no puede dejar la compra en negativo — como máximo{" "}
+            {formatMoneda(compra.montoTotalEfectivo)}.
+          </p>
+        )}
         {error && <p className="text-xs text-error-text">{error}</p>}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={confirmar} disabled={guardando || !motivo.trim()}>
+          <Button
+            variant="destructive"
+            onClick={confirmar}
+            disabled={guardando || !motivo.trim() || montoAbsoluto === 0 || dejariaEnNegativo}
+          >
             {guardando ? "Guardando..." : "Confirmar ajuste"}
           </Button>
         </DialogFooter>
@@ -364,7 +463,7 @@ export function ComprasCliente({ compras }: { compras: CompraListado[] }) {
   const [dialogoRecibir, setDialogoRecibir] = useState<string | null>(null);
   const [dialogoPago, setDialogoPago] = useState<CompraListado | null>(null);
   const [saldoPago, setSaldoPago] = useState<number | null>(null);
-  const [dialogoAjuste, setDialogoAjuste] = useState<string | null>(null);
+  const [dialogoAjuste, setDialogoAjuste] = useState<CompraListado | null>(null);
 
   const filtradas = compras.filter((c) => {
     if (filtroEstado !== "todos" && c.estado !== filtroEstado) return false;
@@ -380,7 +479,7 @@ export function ComprasCliente({ compras }: { compras: CompraListado[] }) {
     setDialogoPago(compra);
     setSaldoPago(null);
     const resultado = await consultarSaldoCompraAction(compra.id);
-    setSaldoPago(resultado.ok ? resultado.data.saldoPendiente : Number(compra.montoTotal));
+    setSaldoPago(resultado.ok ? resultado.data.saldoPendiente : compra.montoTotalEfectivo);
   }
 
   return (
@@ -440,9 +539,26 @@ export function ComprasCliente({ compras }: { compras: CompraListado[] }) {
                   {formatFecha(compra.fechaCompra)}
                   {compra.proveedorNombre ? ` · ${compra.proveedorNombre}` : ""}
                 </p>
+                {/* H-31: los ajustes eran invisibles — ni siquiera en la fila
+                    de la compra que ajustaste. */}
+                {compra.ajustes.map((ajuste) => (
+                  <p key={ajuste.id} className="truncate text-xs text-warning-text">
+                    {LABEL_TIPO_AJUSTE[ajuste.tipo]} {Number(ajuste.montoAjuste) >= 0 ? "+" : "−"}
+                    {formatMoneda(Math.abs(Number(ajuste.montoAjuste)))} · {ajuste.motivo}
+                  </p>
+                ))}
               </div>
               <span className="w-28 shrink-0 text-right font-semibold text-navy">
-                {formatMoneda(compra.montoTotal)}
+                {compra.montoTotalEfectivo !== Number(compra.montoTotal) ? (
+                  <>
+                    <span className="block text-xs font-normal text-text-muted line-through">
+                      {formatMoneda(compra.montoTotal)}
+                    </span>
+                    {formatMoneda(compra.montoTotalEfectivo)}
+                  </>
+                ) : (
+                  formatMoneda(compra.montoTotal)
+                )}
               </span>
               <Badge variant={BADGE_ESTADO[compra.estado].variant}>{BADGE_ESTADO[compra.estado].label}</Badge>
               <Badge variant={BADGE_PAGO[compra.estadoPago].variant}>{BADGE_PAGO[compra.estadoPago].label}</Badge>
@@ -464,7 +580,7 @@ export function ComprasCliente({ compras }: { compras: CompraListado[] }) {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setDialogoAjuste(compra.id)}
+                      onClick={() => setDialogoAjuste(compra)}
                       aria-label="Ajustar compra"
                     >
                       <Wrench className="size-4" />
@@ -496,7 +612,7 @@ export function ComprasCliente({ compras }: { compras: CompraListado[] }) {
       )}
       {dialogoAjuste && (
         <AjusteDialog
-          compraId={dialogoAjuste}
+          compra={dialogoAjuste}
           open={Boolean(dialogoAjuste)}
           onOpenChange={(open) => !open && setDialogoAjuste(null)}
           onConfirmado={onConfirmado}
