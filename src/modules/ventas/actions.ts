@@ -16,7 +16,7 @@ import {
   descontarStockVenta,
   registrarAjusteManualStock,
 } from "@/modules/productos/actions";
-import { instanteDeDiaLocal, zonaHorariaTenant } from "@/lib/periodo";
+import { instanteDeDiaLocal, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import * as repo from "./repository";
 import type { estadoPagoVentaEnum, origenRegistroEnum, tipoAjusteVentaEnum } from "./schema";
 import { errorSignoAjuste } from "./validation";
@@ -847,6 +847,12 @@ export async function importarVentaHistorica(
 // estas funciones (caja negra), nunca importando detalles_venta/ventas
 // directo.
 
+/**
+ * Un periodo en DIAS LOCALES del negocio (`YYYY-MM-DD`), tal como los piensa el
+ * usuario. La traduccion a instantes la hace `rangoInstantes()` aca, en la capa
+ * de acciones — que es el unico lugar del modulo que conoce la zona horaria.
+ * Los repositorios reciben ya el intervalo semiabierto `[inicio, fin)`.
+ */
 export interface PeriodoConsulta {
   desde: string;
   hasta: string;
@@ -861,10 +867,11 @@ export async function consultarIngresosPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const { ingresos, costos } = await repo.sumarIngresosCostosPeriodo(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     opts
   );
   return { ok: true, data: { ingresos, costos } };
@@ -882,11 +889,12 @@ export async function consultarUnidadesVendidasPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const unidadesVendidas = await repo.sumarUnidadesVendidasPeriodo(
     tenantId,
     productoId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     opts
   );
   return { ok: true, data: { unidadesVendidas } };
@@ -913,10 +921,11 @@ export async function rankingProductos(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const filas = await repo.listarRankingProductos(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     { canalVentaId: opts.canalVentaId }
   );
 
@@ -941,10 +950,11 @@ export async function historicoVentas(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const filas = await repo.listarHistoricoVentas(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     opts
   );
   return { ok: true, data: filas };
@@ -958,10 +968,11 @@ export async function margenPorCanalYProducto(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const filas = await repo.listarMargenPorCanalYProducto(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta)
+    inicio,
+    fin
   );
   return { ok: true, data: filas };
 }
@@ -975,10 +986,11 @@ export async function consultarPagosVentaEnPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const totalPagado = await repo.sumarPagosVentaPeriodo(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     opts
   );
   return { ok: true, data: { totalPagado } };
@@ -993,10 +1005,11 @@ export async function consultarAjustesVentaEnPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   const totalAjustes = await repo.sumarAjustesVentaPeriodo(
     tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta),
+    inicio,
+    fin,
     opts
   );
   return { ok: true, data: { totalAjustes } };

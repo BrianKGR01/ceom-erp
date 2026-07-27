@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   ajustesVenta,
@@ -310,19 +310,27 @@ export async function registrarPagoVentaTx(data: NuevoPagoVenta) {
 // Financiero no tiene tablas propias — estas funciones son la unica forma
 // de que consuma "solo lectura" a Ventas sin importar sus tablas directo
 // (regla de caja negra).
+//
+// **Todas reciben un intervalo SEMIABIERTO `[inicio, fin)` de instantes, ya
+// traducido desde dias locales por `rangoInstantes()` en la capa de acciones**
+// (H-49). Por eso el borde superior es `lt` y nunca `lte`: sobre un timestamp,
+// `<= fin` deja afuera todo lo que paso DURANTE el ultimo dia — que es
+// literalmente el defecto que hacia que una venta de hoy no apareciera en el
+// reporte de este mes. El repositorio no sabe nada de husos: la traduccion ya
+// vino hecha.
 
 /** Ingresos (subtotal, ya persistido) y costos (cantidad x costo snapshot)
  * de Detalle de Venta, por fecha_venta — base devengado. */
 export async function sumarIngresosCostosPeriodo(
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { sucursalId?: string; productoId?: string } = {}
 ): Promise<{ ingresos: number; costos: number }> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
-    gte(ventas.fechaVenta, desde),
-    lte(ventas.fechaVenta, hasta),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
   ];
   if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
   if (opts.productoId) condiciones.push(eq(detallesVenta.productoId, opts.productoId));
@@ -346,15 +354,15 @@ export async function sumarIngresosCostosPeriodo(
 export async function sumarUnidadesVendidasPeriodo(
   tenantId: string,
   productoId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { sucursalId?: string } = {}
 ): Promise<number> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
     eq(detallesVenta.productoId, productoId),
-    gte(ventas.fechaVenta, desde),
-    lte(ventas.fechaVenta, hasta),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
   ];
   if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
 
@@ -370,14 +378,14 @@ export async function sumarUnidadesVendidasPeriodo(
 /** Suma de Pago de Venta por fecha_pago — base caja. */
 export async function sumarPagosVentaPeriodo(
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { sucursalId?: string } = {}
 ): Promise<number> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
-    gte(pagosVenta.fechaPago, desde),
-    lte(pagosVenta.fechaPago, hasta),
+    gte(pagosVenta.fechaPago, inicio),
+    lt(pagosVenta.fechaPago, fin),
   ];
   if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
 
@@ -394,14 +402,14 @@ export async function sumarPagosVentaPeriodo(
  * no tiene un campo de fecha propio distinto de creado_en. */
 export async function sumarAjustesVentaPeriodo(
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { sucursalId?: string; productoId?: string } = {}
 ): Promise<number> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
-    gte(ajustesVenta.creadoEn, desde),
-    lte(ajustesVenta.creadoEn, hasta),
+    gte(ajustesVenta.creadoEn, inicio),
+    lt(ajustesVenta.creadoEn, fin),
   ];
   if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
   if (opts.productoId) condiciones.push(eq(ajustesVenta.productoId, opts.productoId));
@@ -424,14 +432,14 @@ export async function sumarAjustesVentaPeriodo(
  * unidades e ingresos/costos para que actions.ts calcule el margen%. */
 export async function listarRankingProductos(
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { canalVentaId?: string } = {}
 ): Promise<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
-    gte(ventas.fechaVenta, desde),
-    lte(ventas.fechaVenta, hasta),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
   ];
   if (opts.canalVentaId) condiciones.push(eq(ventas.canalVentaId, opts.canalVentaId));
 
@@ -460,8 +468,8 @@ export async function listarRankingProductos(
  * monto_total propio, mismo criterio que registrarPagoVenta). */
 export async function listarHistoricoVentas(
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { incluirEventos: boolean }
 ): Promise<
   Array<{
@@ -474,8 +482,8 @@ export async function listarHistoricoVentas(
 > {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
-    gte(ventas.fechaVenta, desde),
-    lte(ventas.fechaVenta, hasta),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
   ];
   if (!opts.incluirEventos) condiciones.push(isNull(ventas.eventoId));
 
@@ -499,8 +507,8 @@ export async function listarHistoricoVentas(
 /** margen_por_canal_y_producto(periodo) — tabla cruzada canal x producto. */
 export async function listarMargenPorCanalYProducto(
   tenantId: string,
-  desde: Date,
-  hasta: Date
+  inicio: Date,
+  fin: Date
 ): Promise<
   Array<{ canalVentaId: string; productoId: string; ingresos: number; costos: number }>
 > {
@@ -516,8 +524,8 @@ export async function listarMargenPorCanalYProducto(
     .where(
       and(
         eq(ventas.tenantId, tenantId),
-        gte(ventas.fechaVenta, desde),
-        lte(ventas.fechaVenta, hasta)
+        gte(ventas.fechaVenta, inicio),
+        lt(ventas.fechaVenta, fin)
       )
     )
     .groupBy(ventas.canalVentaId, detallesVenta.productoId);

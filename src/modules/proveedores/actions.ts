@@ -1,3 +1,4 @@
+import { rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import { comoUsuario, ContextoRlsNoResueltoError } from "@/db/contexto";
 // Excepcion deliberada y acotada -- SOLO para el fallback de
 // consultarPagosCompraEnPeriodo cuando comoUsuario() no puede resolver
@@ -863,15 +864,14 @@ export async function consultarCostoExtraAjustesCompraEnPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver compras." };
   }
-  const desde = new Date(periodo.desde);
-  const hasta = new Date(periodo.hasta);
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
   try {
     return await comoUsuario(solicitante.id, async (tx) => {
       const costoExtraAjustes = await repo.sumarCostoExtraAjustesCompraPeriodo(
         tx,
         tenantId,
-        desde,
-        hasta,
+        inicio,
+        fin,
         opts
       );
       return { ok: true, data: { costoExtraAjustes } };
@@ -881,8 +881,8 @@ export async function consultarCostoExtraAjustesCompraEnPeriodo(
     const costoExtraAjustes = await repo.sumarCostoExtraAjustesCompraPeriodo(
       db,
       tenantId,
-      desde,
-      hasta,
+      inicio,
+      fin,
       opts
     );
     return { ok: true, data: { costoExtraAjustes } };

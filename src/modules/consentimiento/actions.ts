@@ -1,3 +1,4 @@
+import { instanteDeDiaLocal, sumarDias, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
 import { randomBytes } from "node:crypto";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { obtenerEstadoAccesoTenant, obtenerTenantPorId } from "@/modules/identidad/actions";
@@ -540,10 +541,18 @@ export async function listarLogsAcceso(
   const bloqueo = requiereCeomAdmin(solicitante);
   if (bloqueo) return bloqueo;
 
+  // Este registro es la auditoria de la PLATAFORMA, no el reporte de un
+  // negocio: el admin puede filtrar sin elegir tenant, asi que el marco es uno
+  // solo y fijo. Cuando `zonaHorariaTenant` pase a ser por negocio, esta
+  // pantalla debe seguir usando una zona unica — si no, dos filas del mismo
+  // listado se cortarian con dias distintos.
+  const zona = ZONA_HORARIA_NEGOCIO;
   const filas = await repo.listarLogsAccesoAdminCeom({
     tenantId: opts.tenantId,
-    desde: opts.desde ? new Date(opts.desde) : undefined,
-    hasta: opts.hasta ? new Date(opts.hasta) : undefined,
+    inicio: opts.desde ? instanteDeDiaLocal(opts.desde, zona) : undefined,
+    // Semiabierto: el comienzo del dia SIGUIENTE a `hasta`, para que el ultimo
+    // dia del rango entre completo.
+    fin: opts.hasta ? instanteDeDiaLocal(sumarDias(opts.hasta, 1), zona) : undefined,
   });
   return { ok: true, data: filas };
 }
