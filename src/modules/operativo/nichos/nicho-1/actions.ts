@@ -7,6 +7,7 @@ import {
   fichaProducto,
   registrarEntradaProduccion,
 } from "@/modules/productos/actions";
+import { instanteDeDiaLocal, zonaHorariaTenant } from "@/lib/periodo";
 import * as repo from "./repository";
 import type { tipoMovimientoInsumoEnum, unidadMedidaInsumoEnum } from "./schema";
 
@@ -687,13 +688,22 @@ export async function registrarProduccion(
     }
   }
 
+  // H-49: `new Date("YYYY-MM-DD")` anclaba a medianoche UTC = 20:00 del día
+  // ANTERIOR en Bolivia, así que toda Producción quedaba guardada un día antes
+  // del que el usuario eligió. Como `fecha_produccion` es `timestamptz` y la
+  // Merma se filtra por ella, arreglar el borde de los reportes sin arreglar
+  // esto movería la merma de día sin ninguna señal.
+  //
+  // `fechaVencimientoLote` de arriba NO usa esto a propósito: es una columna
+  // `date` y su cálculo es aritmética de días pura, sin instante ni huso.
+  const zona = await zonaHorariaTenant(tenantId);
   const produccion = await repo.crearProduccionTx({
     produccion: {
       tenantId,
       sucursalId: input.sucursalId,
       productoId: input.productoId,
       activoId: input.activoId,
-      fechaProduccion: new Date(input.fechaProduccion),
+      fechaProduccion: instanteDeDiaLocal(input.fechaProduccion, zona),
       cantidadLotesProducidos: String(cantidadLotesProducidos),
       cantidadRealObtenida: String(cantidadRealObtenida),
       fechaVencimientoLote,

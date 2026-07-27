@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { diaLocalDe, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
@@ -36,6 +37,7 @@ import {
   registrarPagoVenta,
   registrarVenta,
 } from "./actions";
+import * as repo from "./repository";
 import {
   ajustesVenta,
   canalesVenta,
@@ -469,6 +471,58 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
     });
     expect(pagoFinal.ok).toBe(true);
     if (pagoFinal.ok) expect(pagoFinal.data.estadoPago).toBe("pagado");
+  });
+
+  // H-49 — el lado de ESCRITURA. `new Date("YYYY-MM-DD")` anclaba a medianoche
+  // UTC, que en Bolivia son las 20:00 del día anterior: un pago fechado el 27
+  // quedaba guardado en el 26. Hoy el filtro roto de los reportes lo tapa, así
+  // que este test es lo único que impide que el arreglo de lectura corra el
+  // Flujo de Caja un día entero sin que nadie lo note.
+  //
+  // Determinista por construcción: la fecha se elige explícitamente, no se
+  // toma del reloj, así que da igual a qué hora corra CI y en qué huso.
+  it("H-49: un pago fechado en un día local se guarda dentro de ese día local", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: "Producto Pago Fechado",
+      unidadVenta: "unidad",
+      precioVenta: 100,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId: producto.data.productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 5,
+      motivo: "Carga inicial",
+    });
+    const venta = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      lineas: [{ productoId: producto.data.productoId, cantidad: 1 }],
+    });
+    if (!venta.ok) throw new Error("setup fallo");
+
+    const DIA = "2026-03-17";
+    const pago = await registrarPagoVenta(owner!, venta.data.ventaId, {
+      monto: 100,
+      metodoPagoId,
+      fechaPago: DIA,
+    });
+    expect(pago.ok).toBe(true);
+
+    const pagos = await repo.listarPagosPorVenta(venta.data.ventaId);
+    const guardado = pagos.at(-1)!.fechaPago;
+    const zona = await zonaHorariaTenant(tenantId);
+
+    // Lo que importa no es el instante exacto sino que caiga DENTRO del día
+    // local que el usuario eligió — que es la pregunta que le hace el reporte.
+    expect(diaLocalDe(guardado, zona)).toBe(DIA);
+    const { inicio, fin } = rangoInstantes({ desde: DIA, hasta: DIA }, zona);
+    expect(guardado >= inicio && guardado < fin).toBe(true);
+
+    // Y explícitamente NO en el día anterior, que es donde caía antes.
+    expect(diaLocalDe(guardado, zona)).not.toBe("2026-03-16");
   });
 
   it("caso borde 4: importarVentaHistorica no descuenta stock ni calcula comision", async () => {

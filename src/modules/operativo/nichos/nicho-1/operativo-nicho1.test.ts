@@ -2,6 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
+import { diaLocalDe, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import { crearRolPersonalizado } from "@/modules/identidad/actions";
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
@@ -264,6 +265,20 @@ describe.skipIf(!hasCredenciales)(
           .from(producciones)
           .where(eq(producciones.id, resultado.data.produccionId));
         expect(produccionPersistida.fechaVencimientoLote).toBe("2026-02-11");
+
+        // H-49 — el lado de ESCRITURA. `new Date("2026-02-01")` anclaba a
+        // medianoche UTC, o sea a las 20:00 del 31 de enero en Bolivia: toda
+        // Producción quedaba guardada un día antes del que el usuario eligió.
+        // Como la Merma se filtra por `fecha_produccion`, arreglar el borde de
+        // los reportes sin esto movería la merma de día en silencio.
+        // Determinista: la fecha es explícita, no sale del reloj.
+        const zona = await zonaHorariaTenant(tenantId);
+        expect(diaLocalDe(produccionPersistida.fechaProduccion, zona)).toBe("2026-02-01");
+        const { inicio, fin } = rangoInstantes({ desde: "2026-02-01", hasta: "2026-02-01" }, zona);
+        expect(
+          produccionPersistida.fechaProduccion >= inicio &&
+            produccionPersistida.fechaProduccion < fin
+        ).toBe(true);
 
         // integracion real: Productos e Inventario quedo acreditado
         const stockProducto = await consultarStock(owner!, productoId, sucursalId);

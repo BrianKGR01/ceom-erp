@@ -16,6 +16,7 @@ import {
   descontarStockVenta,
   registrarAjusteManualStock,
 } from "@/modules/productos/actions";
+import { instanteDeDiaLocal, zonaHorariaTenant } from "@/lib/periodo";
 import * as repo from "./repository";
 import type { estadoPagoVentaEnum, origenRegistroEnum, tipoAjusteVentaEnum } from "./schema";
 import { errorSignoAjuste } from "./validation";
@@ -27,17 +28,20 @@ type EstadoPagoVenta = (typeof estadoPagoVentaEnum.enumValues)[number];
 type TipoAjusteVenta = (typeof tipoAjusteVentaEnum.enumValues)[number];
 
 /**
- * Si `valor` es solo fecha (`YYYY-MM-DD`, ej. de un `<input type="date">`),
- * ancla a mediodía UTC en vez de medianoche — `new Date("YYYY-MM-DD")` sola
- * ancla a medianoche UTC, que al mostrarse con `toLocaleDateString` en un
- * huso horario detrás de UTC (Bolivia, UTC-4 — el mercado real del
- * producto) corre un día hacia atrás. Mediodía UTC deja margen para
- * cualquier huso real (UTC-12 a UTC+13) sin cambiar de día calendario. Si
- * `valor` ya trae hora/timezone, se respeta tal cual — no es una fecha
- * "solo día".
+ * Si `valor` es solo fecha (`YYYY-MM-DD`, ej. de un `<input type="date">`), lo
+ * ancla al COMIENZO DE ESE DÍA EN LA ZONA DEL NEGOCIO. Si ya trae hora o
+ * timezone se respeta tal cual — no es una fecha "solo día".
+ *
+ * Antes anclaba a mediodía UTC. Esa versión también caía dentro del día local
+ * correcto en Bolivia, así que las ventas ya cargadas están bien y no hacen
+ * falta migrar; pero apoyaba en que "mediodía UTC no cambia de día calendario
+ * en ningún huso real", lo cual es falso a partir de UTC+13. Ahora usa la
+ * misma función que el borde de los reportes (`instanteDeDiaLocal`), así que
+ * escritura y lectura no pueden volver a discrepar — que es de donde salió
+ * H-49.
  */
-function parsearFechaVentaSoloFecha(valor: string): Date {
-  return /^\d{4}-\d{2}-\d{2}$/.test(valor) ? new Date(`${valor}T12:00:00Z`) : new Date(valor);
+function parsearFechaVentaSoloFecha(valor: string, zona: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor) ? instanteDeDiaLocal(valor, zona) : new Date(valor);
 }
 
 // --- Calculos puros ---------------------------------------------------------
@@ -454,7 +458,10 @@ export async function registrarVenta(
     clienteId = cliente.id;
   }
 
-  const fechaVenta = input.fechaVenta ? parsearFechaVentaSoloFecha(input.fechaVenta) : new Date();
+  const zona = await zonaHorariaTenant(tenantId);
+  const fechaVenta = input.fechaVenta
+    ? parsearFechaVentaSoloFecha(input.fechaVenta, zona)
+    : new Date();
 
   type LineaSnapshot = {
     productoId: string;
@@ -688,11 +695,17 @@ export async function registrarPagoVenta(
     return { ok: false, error: "No tenés permiso para registrar pagos en esta venta." };
   }
 
+  // H-49: `new Date("YYYY-MM-DD")` anclaba a medianoche UTC, o sea a las 20:00
+  // del día ANTERIOR en Bolivia. Un pago que el usuario fechaba el 27 quedaba
+  // guardado en el 26. Hoy no se nota porque el filtro de los reportes está
+  // roto en la misma dirección y los dos errores se tapan — pero arreglar la
+  // lectura sin esto correría el Flujo de Caja un día entero, en silencio.
+  const zona = await zonaHorariaTenant(venta.tenantId);
   const { estadoPago, totalPagado } = await repo.registrarPagoVentaTx({
     ventaId,
     monto: String(input.monto),
     metodoPagoId: input.metodoPagoId,
-    fechaPago: input.fechaPago ? new Date(input.fechaPago) : new Date(),
+    fechaPago: input.fechaPago ? instanteDeDiaLocal(input.fechaPago, zona) : new Date(),
     creadoPor: solicitante.id,
   });
 
@@ -812,12 +825,13 @@ export async function importarVentaHistorica(
   });
   const totalVenta = lineas.reduce((acc, l) => acc + Number(l.subtotal), 0);
 
+  const zona = await zonaHorariaTenant(tenantId);
   const { venta } = await repo.crearVentaConDetalleTx({
     venta: {
       tenantId,
       sucursalId: input.sucursalId,
       clienteId: input.clienteId,
-      fechaVenta: parsearFechaVentaSoloFecha(input.fechaVenta),
+      fechaVenta: parsearFechaVentaSoloFecha(input.fechaVenta, zona),
       canalVentaId: input.canalVentaId,
       origenRegistro: "importacion_historica",
       creadoPor: solicitante.id,
