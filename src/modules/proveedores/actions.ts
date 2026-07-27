@@ -9,12 +9,20 @@ import { comoUsuario, ContextoRlsNoResueltoError } from "@/db/contexto";
 // (ALLOWLIST_IMPORTA_DB_CRUDO). Ningun otro uso de "db" es valido en este
 // archivo -- todo lo demas pasa por comoUsuario().
 import { db } from "@/db/client";
-import { registrarEntradaCompraInsumo } from "@/modules/operativo/nichos/nicho-1/actions";
+import {
+  consultarStockInsumo,
+  registrarAjusteManualInsumo,
+  registrarEntradaCompraInsumo,
+} from "@/modules/operativo/nichos/nicho-1/actions";
 import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
-import { registrarEntradaCompraReventa } from "@/modules/productos/actions";
+import {
+  consultarStock,
+  registrarAjusteManualStock,
+  registrarEntradaCompraReventa,
+} from "@/modules/productos/actions";
 import * as repo from "./repository";
-import { errorSignoAjusteCompra } from "./validation";
+import { errorSignoAjusteCompra, esTipoAjusteCompraAFavor } from "./validation";
 import type {
   estadoCompraEnum,
   estadoPagoCompraEnum,
@@ -212,6 +220,88 @@ export interface DatosEntradaStock {
  * fallar, pero el patrón para las once etapas restantes queda documentado
  * en el plan, no resuelto acá.
  */
+/**
+ * Devuelve al proveedor mercadería que había entrado con una Compra (H-31).
+ * Reversión PARCIAL a propósito, decisión de negocio confirmada: si parte del
+ * stock ya se vendió o se consumió, vuelve solo lo que quedaba y se avisa con
+ * todas las letras.
+ *
+ * Las tres alternativas y por qué esta: **bloquear** la anulación cuando el
+ * stock ya no está deja sin corregir el caso más común y real (mercadería ya
+ * vendida), y acopla la corrección de la plata a una condición del inventario;
+ * **dejar el stock en negativo** convierte un error financiero silencioso en
+ * un error de inventario silencioso —ninguna pantalla renderiza -7 unidades
+ * con sentido y la próxima venta se bloquea con un mensaje incomprensible—, o
+ * sea mueve el error de lugar; **revertir lo que queda y decirlo** deja el
+ * ajuste financiero completo, el stock nunca negativo, y la única
+ * inconsistencia que sobrevive (unidades vendidas que salieron de una compra
+ * anulada) es la verdad de lo que pasó, con su `costo_unitario_snapshot`
+ * congelado, que es lo correcto.
+ *
+ * Usa las primitivas de salida por ajuste manual que ya existen en cada lado
+ * —simétrico a `registrarAjusteVenta`, que devuelve stock con
+ * `entrada_ajuste_manual` y un motivo que cita la venta—. Ninguna de las dos
+ * recalcula el costo: en insumos, `registrarAjusteManualInsumo` deja el costo
+ * promedio ponderado donde está (des-promediar un costo que compras
+ * posteriores ya absorbieron no tiene respuesta correcta sin costeo por lote),
+ * y en reventa el costo del producto no se toca. Los snapshots de las ventas
+ * ya hechas quedan intactos en los dos casos.
+ */
+async function revertirStockDeAjuste(
+  solicitante: UsuarioConRol,
+  compra: NonNullable<Awaited<ReturnType<typeof repo.obtenerCompraPorId>>>,
+  solicitada: number,
+  motivo: string
+): Promise<ReversionStock> {
+  const disponibleRes =
+    compra.tipo === "reventa"
+      ? await consultarStock(solicitante, compra.productoId!, compra.sucursalId)
+      : await consultarStockInsumo(solicitante, compra.insumoId!, compra.sucursalId);
+  if (!disponibleRes.ok) {
+    return { solicitada, devuelta: 0, aviso: null, error: disponibleRes.error };
+  }
+
+  const disponible = disponibleRes.data.cantidadActual;
+  const devuelta = Math.max(0, Math.min(solicitada, disponible));
+
+  if (devuelta === 0) {
+    return {
+      solicitada,
+      devuelta: 0,
+      aviso: `El ajuste quedó registrado, pero no se devolvió stock: de las ${solicitada} unidades que habían entrado con esta compra ya no queda ninguna en esta sucursal (se vendieron o se consumieron).`,
+    };
+  }
+
+  const salida =
+    compra.tipo === "reventa"
+      ? await registrarAjusteManualStock(solicitante, compra.tenantId, {
+          productoId: compra.productoId!,
+          sucursalId: compra.sucursalId,
+          tipo: "salida_ajuste_manual",
+          cantidad: devuelta,
+          motivo,
+        })
+      : await registrarAjusteManualInsumo(solicitante, compra.tenantId, {
+          insumoId: compra.insumoId!,
+          sucursalId: compra.sucursalId,
+          tipo: "salida_ajuste_manual",
+          cantidad: devuelta,
+          motivo,
+        });
+  if (!salida.ok) {
+    return { solicitada, devuelta: 0, aviso: null, error: salida.error };
+  }
+
+  return {
+    solicitada,
+    devuelta,
+    aviso:
+      devuelta < solicitada
+        ? `Se devolvieron ${devuelta} de las ${solicitada} unidades al proveedor; las otras ${solicitada - devuelta} ya no estaban en stock (se vendieron o se consumieron), así que el stock no baja por ellas.`
+        : null,
+  };
+}
+
 async function dispararEntradaStock(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -424,6 +514,7 @@ export async function listarComprasConAjustes(
             id: a.id,
             tipo: a.tipo,
             montoAjuste: a.montoAjuste,
+            cantidadDevuelta: a.cantidadDevuelta,
             motivo: a.motivo,
             creadoEn: a.creadoEn,
           })),
@@ -508,6 +599,26 @@ export interface DatosCompraAjuste {
   tipo: TipoAjusteCompra;
   montoAjuste: string | number;
   motivo: string;
+  /**
+   * Unidades que vuelven del stock (H-31). Solo aplica a los tipos que van a
+   * favor del negocio — la mercadería sale del negocio de verdad. Omitirla
+   * significa "corregí solo la plata, el stock no se movió", igual que
+   * `cantidadProductoAjustada` en `registrarAjusteVenta`.
+   *
+   * `anulacion_total` sin este campo revierte TODO lo que todavía quedaba de
+   * la compra: si la compra no existió, tampoco existieron sus unidades.
+   */
+  cantidadDevuelta?: string | number;
+}
+
+/** Lo que pasó con el stock al revertir un ajuste de compra. `devuelta <
+ * solicitada` no es un error: es mercadería que ya se había vendido o
+ * consumido y por lo tanto no está para devolver. */
+export interface ReversionStock {
+  solicitada: number;
+  devuelta: number;
+  aviso: string | null;
+  error?: string;
 }
 
 /**
@@ -522,6 +633,12 @@ export interface DatosCompraAjuste {
  * (= montoTotal + Σ ajustes) es contra lo que se derivan el saldo pendiente y
  * `estado_pago`, y lo que la compra terminó costando de MÁS llega al estado de
  * resultados vía `consultarCostoExtraAjustesCompraEnPeriodo`.
+ *
+ * Y **revierte el stock** que había entrado, cuando el ajuste va a favor del
+ * negocio (ver `revertirStockDeAjuste`): dejar stock fantasma no acotaba el
+ * problema, lo movía de lugar — ese stock se vende después con el
+ * `costo_unitario` de una compra que ya no existe y vuelve a ensuciar el mismo
+ * resultado financiero.
  */
 export async function registrarCompraDeAjuste(
   solicitante: UsuarioConRol,
@@ -533,6 +650,7 @@ export async function registrarCompraDeAjuste(
     montoTotalEfectivo: number;
     estadoPago: EstadoPagoCompra;
     saldoPendiente: number;
+    reversionStock: ReversionStock | null;
   }>
 > {
   return comoUsuario(solicitante.id, async (tx) => {
@@ -570,6 +688,43 @@ export async function registrarCompraDeAjuste(
       };
     }
 
+    // --- Cuánta mercadería vuelve (H-31) -------------------------------
+    // Solo los tipos a favor del negocio mueven stock: una "correccion" es
+    // plata (se cargó mal el monto), no mercadería que salga del negocio.
+    const aFavor = esTipoAjusteCompraAFavor(input.tipo);
+    if (input.cantidadDevuelta !== undefined && !aFavor) {
+      return {
+        ok: false,
+        error:
+          "Una corrección de monto no devuelve mercadería — si devolviste unidades, el tipo es «devolución a proveedor».",
+      };
+    }
+    // Una compra en estado "pedido" nunca disparó la entrada de stock, así
+    // que no hay nada que revertir.
+    const entroAlStock = compra.estado === "recibido";
+    const yaDevuelta = await repo.obtenerCantidadYaDevuelta(tx, compraId);
+    const pendienteDeDevolver = Math.max(0, Number(compra.cantidad) - yaDevuelta);
+
+    let cantidadADevolver: number | null = null;
+    if (aFavor && entroAlStock) {
+      if (input.cantidadDevuelta !== undefined) {
+        cantidadADevolver = Number(input.cantidadDevuelta);
+        if (!Number.isFinite(cantidadADevolver) || cantidadADevolver <= 0) {
+          return { ok: false, error: "Las unidades devueltas tienen que ser mayores a 0." };
+        }
+        if (cantidadADevolver > pendienteDeDevolver) {
+          return {
+            ok: false,
+            error: `No podés devolver ${cantidadADevolver} unidades: la compra trajo ${Number(compra.cantidad)} y ya se devolvieron ${yaDevuelta}.`,
+          };
+        }
+      } else if (input.tipo === "anulacion_total") {
+        // Si la compra no existió, tampoco existieron sus unidades: vuelve
+        // todo lo que todavía no se había devuelto, sin pedirlo.
+        cantidadADevolver = pendienteDeDevolver > 0 ? pendienteDeDevolver : null;
+      }
+    }
+
     const ajuste = await repo.crearCompraAjuste(tx, {
       compraId,
       tipo: input.tipo,
@@ -582,6 +737,29 @@ export async function registrarCompraDeAjuste(
     const { estadoPago, totalPagado, montoTotalEfectivo } =
       await repo.recalcularEstadoPagoTx(tx, compraId);
 
+    // La reversión de stock va DESPUÉS del ajuste y fuera de su transacción,
+    // igual que la entrada de stock al recibir la compra (`dispararEntradaStock`)
+    // y que el descuento de stock al confirmar una venta: mismo gap de
+    // atomicidad cruzada ya documentado y aceptado en Módulos 3/6/8. Su fallo
+    // NO anula el ajuste — la corrección financiera queda hecha y el problema
+    // de stock viaja en `reversionStock` para que la pantalla lo muestre.
+    let reversionStock: ReversionStock | null = null;
+    if (cantidadADevolver !== null) {
+      reversionStock = await revertirStockDeAjuste(
+        solicitante,
+        compra,
+        cantidadADevolver,
+        `Ajuste de Compra ${compraId}: ${input.motivo}`
+      );
+      if (reversionStock.devuelta > 0) {
+        await repo.actualizarCantidadDevueltaAjuste(
+          tx,
+          ajuste.id,
+          reversionStock.devuelta
+        );
+      }
+    }
+
     return {
       ok: true,
       data: {
@@ -589,6 +767,7 @@ export async function registrarCompraDeAjuste(
         montoTotalEfectivo,
         estadoPago,
         saldoPendiente: Math.max(0, montoTotalEfectivo - totalPagado),
+        reversionStock,
       },
     };
   });

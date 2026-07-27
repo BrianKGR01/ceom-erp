@@ -41,8 +41,8 @@ sistema ya validado).
 
 | # | Qué | Referencia | Tamaño estimado |
 |---|---|---|---|
-| C1 | Conectar la comisión de venta al gasto real (o, mínimo, mostrarla en la ficha y el Estado de Resultados con una nota) | H-24 / DA-03 — la función existe y está probada; falta decidir la categoría default y el trigger | Chico-medio |
-| C2 | Darle efecto observable a la Compra de Ajuste (exponer la lectura + mostrarla en la ficha de compra; decidir si revierte stock) | H-31 | Medio |
+| ~~C1~~ | ~~Conectar la comisión de venta al gasto real~~ | H-24 / DA-03 — ✅ **hecho**: trigger en `registrarVenta`, categoría "Comisiones de venta" autoprovisionada, y la comisión visible en la ficha de la venta | — |
+| ~~C2~~ | ~~Darle efecto observable a la Compra de Ajuste~~ | H-31 — ✅ **hecho**: monto efectivo + estado de pago, lectura expuesta y visible en el listado, reversión de stock parcial con aviso, y llegada al estado de resultados solo en la dirección de costo | — |
 | C3 | Recuperación de negocio por `ceom_admin` (designar Owner con registro de auditoría) | H-33 | Medio |
 | C4 | Leer `entradaStock` al recibir una compra y avisar si falló | DA-24 (Proveedores) | Chico |
 | C5 | Mostrar el efecto de ajustes en ficha/historial de venta y en el estado de cobro | H-26 | Medio |

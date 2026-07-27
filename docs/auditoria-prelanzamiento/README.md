@@ -34,8 +34,9 @@
    producto** que solo el dueño puede decidir (precio, sucursales, roles por defecto, entre otras).
 3. **El riesgo más caro no es un bug: es la promesa central del producto.** "Todo dato operativo
    termina en un número financiero" es el principio rector #2 de la arquitectura — y hoy la comisión
-   de venta se calcula, se guarda **y nunca llega al Estado de Resultados** (H-24), y una compra de
-   ajuste **no tiene ningún efecto observable** (H-31). Un negocio que confíe en esos números los ve
+   de venta se calculaba, se guardaba **y nunca llegaba al Estado de Resultados** (H-24), y una compra
+   de ajuste **no tenía ningún efecto observable** (H-31). **Los dos están corregidos** (ver
+   [01-estado-funcional.md](01-estado-funcional.md) §2). Un negocio que confiara en esos números los veía
    mejores de lo que son. Cerrar eso vale más que cualquier pantalla nueva.
 
 ## Porcentaje de avance, por dimensión
@@ -65,7 +66,7 @@ self-hosted, cobro funcionando), hay que sumarle las Fases 4-6 completas.
 | 3 | `pnpm test` (suite completa, DB real) | ✅ 39 archivos, 263/263 tests pasando |
 | 4 | Tests e2e reales de los 4 flujos de negocio | **0** (el único spec existente falla: quedó del template inicial) |
 | 5 | Proyectos desplegados en Vercel | **0** |
-| 6 | Hallazgos 🔴 del manual aún abiertos | **5 de 6** (H-02, H-24, H-31, H-33, H-42 — H-30 ya corregido) |
+| 6 | Hallazgos 🔴 del manual aún abiertos | **3 de 6** (H-02, H-33, H-42 — H-24, H-30 y H-31 ya corregidos) |
 | 7 | Módulos con RLS de backstop activa | 2 de ~10 (Patrimonio, Proveedores) — plan pausado a propósito |
 | 8 | Advisors de seguridad de Supabase | 4 WARN + 1 INFO (ninguno crítico; detalle en [03-seguridad.md](03-seguridad.md)) |
 | 9 | Decisiones de producto pendientes que bloquean trabajo | ~6 (ver [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md) §2) |
@@ -77,7 +78,7 @@ El detalle por actor está en [01-estado-funcional.md](01-estado-funcional.md); 
 
 | Actor | Lo que ya recibe | Lo que le falta para confiar/operar |
 |---|---|---|
-| **Negocio (Owner)** | El camino dorado completo: catálogo → venta → dashboard con datos reales; producción por recetas (Nicho 1); compras con landed cost (Nicho 4); patrimonio, gastos, simulaciones, reportes | Números financieros en los que pueda confiar (H-24, H-31, H-26, DA-06); sucursales reales o que dejen de prometerse (H-02); roles predefinidos para invitar a su equipo sin armar una matriz de 40 casillas (H-35) |
+| **Negocio (Owner)** | El camino dorado completo: catálogo → venta → dashboard con datos reales; producción por recetas (Nicho 1); compras con landed cost (Nicho 4); patrimonio, gastos, simulaciones, reportes; comisión de canal y ajuste de compra ya descontados del resultado (H-24, H-31) | Que el resto de los costos también llegue al resultado (H-27 cuotas de pasivo, H-15 productos sin costo, H-26, DA-06); sucursales reales o que dejen de prometerse (H-02); roles predefinidos para invitar a su equipo sin armar una matriz de 40 casillas (H-35) |
 | **Colaborador** | Login, permisos por rol funcionando de verdad (server-side), POS | Un menú que se adapte a sus permisos (H-08); que el Owner pueda armarle un rol sin fricción (H-35) |
 | **Institución** | Canje de código, magic link de reingreso, cartera, ficha de negocio con solo lo aprobado | Poder canjear un **segundo** código sin romperse (H-42 — es su caso más probable); correo obligatorio al alta (H-43) |
 | **Equipo CEOM** | Panel completo: tenants, planes, instituciones, logs, manual integrado | Recuperar un negocio cuyo dueño no está (H-33 — hoy la única salida es tocar la base a mano); dar de alta a otro admin (H-14); que la suscripción venza/avise sola (H-45) |

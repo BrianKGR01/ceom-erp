@@ -47,6 +47,7 @@ export default async function ComprasPage() {
               id: a.id,
               tipo: a.tipo,
               montoAjuste: a.montoAjuste,
+              cantidadDevuelta: a.cantidadDevuelta,
               motivo: a.motivo,
             })),
             fechaCompra: c.fechaCompra,

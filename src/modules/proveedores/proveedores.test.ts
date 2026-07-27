@@ -6,7 +6,11 @@ import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from
 import { ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
-import { consultarStockInsumo, crearInsumo } from "@/modules/operativo/nichos/nicho-1/actions";
+import {
+  consultarStockInsumo,
+  crearInsumo,
+  registrarAjusteManualInsumo,
+} from "@/modules/operativo/nichos/nicho-1/actions";
 import { insumos, movimientosInsumo, stockInsumo } from "@/modules/operativo/nichos/nicho-1/schema";
 import { consultarStock, crearProducto } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
@@ -108,16 +112,28 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
         await db.delete(compras).where(eq(compras.tenantId, tenantId));
         await db.delete(proveedores).where(eq(proveedores.tenantId, tenantId));
 
+        // Tenant-wide y no por el id del setup: los tests de reversión de
+        // stock (H-31) crean insumos propios, y sus movimientos referencian
+        // la sucursal — borrar solo el insumo compartido dejaba filas que
+        // rompían el delete de "sucursales" por FK (bug real de esta tanda).
         await limpiarEnParalelo([
           async () => {
-            await db.delete(movimientosInsumo).where(eq(movimientosInsumo.insumoId, insumoId));
-            await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
-            await db.delete(insumos).where(eq(insumos.id, insumoId));
+            const insumoIds = db
+              .select({ id: insumos.id })
+              .from(insumos)
+              .where(eq(insumos.tenantId, tenantId));
+            await db.delete(movimientosInsumo).where(inArray(movimientosInsumo.insumoId, insumoIds));
+            await db.delete(stockInsumo).where(inArray(stockInsumo.insumoId, insumoIds));
+            await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
           },
           async () => {
-            await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoId));
-            await db.delete(stock).where(eq(stock.productoId, productoId));
-            await db.delete(productos).where(eq(productos.id, productoId));
+            const productoIds = db
+              .select({ id: productos.id })
+              .from(productos)
+              .where(eq(productos.tenantId, tenantId));
+            await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+            await db.delete(stock).where(inArray(stock.productoId, productoIds));
+            await db.delete(productos).where(eq(productos.tenantId, tenantId));
           },
         ]);
         await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
@@ -336,6 +352,240 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     expect(correccion.data.montoTotalEfectivo).toBe(180);
     expect(correccion.data.saldoPendiente).toBe(0);
     expect(correccion.data.estadoPago).toBe("pagado");
+  });
+
+  it("H-31: una anulación devuelve el stock que había entrado, y una corrección no lo toca", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const insumoPropio = await crearInsumo(owner!, tenantId, {
+      nombre: `Insumo Reversión ${sufijo}`,
+      unidadMedida: "kg",
+    });
+    if (!insumoPropio.ok) throw new Error("setup fallo: crearInsumo");
+
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId: insumoPropio.data.insumoId,
+      cantidad: 12,
+      montoTotal: 240,
+      fechaCompra: "2026-06-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+
+    const stockTrasCompra = await consultarStockInsumo(
+      owner!,
+      insumoPropio.data.insumoId,
+      sucursalId
+    );
+    expect(stockTrasCompra.ok).toBe(true);
+    if (stockTrasCompra.ok) expect(stockTrasCompra.data.cantidadActual).toBe(12);
+
+    // Una corrección de monto es plata, no mercadería: el stock no se mueve.
+    const correccion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: 15,
+      motivo: "Flete no cargado",
+    });
+    expect(correccion.ok).toBe(true);
+    if (correccion.ok) expect(correccion.data.reversionStock).toBeNull();
+
+    // Y ni siquiera se puede pedir que la mueva.
+    const correccionConUnidades = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "correccion",
+      montoAjuste: -10,
+      motivo: "Intento de devolver con el tipo equivocado",
+      cantidadDevuelta: 2,
+    });
+    expect(correccionConUnidades.ok).toBe(false);
+
+    const stockTrasCorreccion = await consultarStockInsumo(
+      owner!,
+      insumoPropio.data.insumoId,
+      sucursalId
+    );
+    expect(stockTrasCorreccion.ok).toBe(true);
+    if (stockTrasCorreccion.ok) expect(stockTrasCorreccion.data.cantidadActual).toBe(12);
+
+    // La anulación sí: sin pedir cantidad, vuelve todo lo que entró.
+    const anulacion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "anulacion_total",
+      montoAjuste: -255,
+      motivo: "La compra no existió",
+    });
+    expect(anulacion.ok).toBe(true);
+    if (!anulacion.ok) return;
+    expect(anulacion.data.reversionStock?.devuelta).toBe(12);
+    // Reversión completa: no hay nada que avisar.
+    expect(anulacion.data.reversionStock?.aviso).toBeNull();
+
+    const stockFinal = await consultarStockInsumo(
+      owner!,
+      insumoPropio.data.insumoId,
+      sucursalId
+    );
+    expect(stockFinal.ok).toBe(true);
+    if (stockFinal.ok) expect(stockFinal.data.cantidadActual).toBe(0);
+
+    // Un segundo ajuste sobre una compra que ya vale 0 se rechaza antes de
+    // llegar al stock: el guard del monto es el primero que actúa.
+    const segundoAjuste = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "devolucion_a_proveedor",
+      montoAjuste: -1,
+      motivo: "Intento de devolver dos veces",
+    });
+    expect(segundoAjuste.ok).toBe(false);
+    const stockTrasSegundo = await consultarStockInsumo(
+      owner!,
+      insumoPropio.data.insumoId,
+      sucursalId
+    );
+    expect(stockTrasSegundo.ok).toBe(true);
+    if (stockTrasSegundo.ok) expect(stockTrasSegundo.data.cantidadActual).toBe(0);
+  });
+
+  it("H-31: no se puede devolver más unidades de las que trajo la compra, ni acumulando ajustes", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const insumoTope = await crearInsumo(owner!, tenantId, {
+      nombre: `Insumo Tope ${sufijo}`,
+      unidadMedida: "kg",
+    });
+    if (!insumoTope.ok) throw new Error("setup fallo: crearInsumo");
+
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId: insumoTope.data.insumoId,
+      cantidad: 12,
+      montoTotal: 240, // costo unitario 20
+      fechaCompra: "2026-06-10",
+    });
+    if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+
+    // Más unidades de las que trajo, de una: rechazado.
+    const excesiva = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "devolucion_a_proveedor",
+      montoAjuste: -100,
+      motivo: "Devolución inflada",
+      cantidadDevuelta: 15,
+    });
+    expect(excesiva.ok).toBe(false);
+    if (!excesiva.ok) expect(excesiva.error).toContain("12");
+
+    // Primera devolución legítima: 5 de 12.
+    const primera = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "devolucion_a_proveedor",
+      montoAjuste: -100,
+      motivo: "Devolví 5 kg",
+      cantidadDevuelta: 5,
+    });
+    expect(primera.ok).toBe(true);
+    if (primera.ok) expect(primera.data.reversionStock?.devuelta).toBe(5);
+
+    // La segunda no puede pasarse del resto (12 - 5 = 7), acumulando.
+    const segundaExcesiva = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "devolucion_a_proveedor",
+      montoAjuste: -100,
+      motivo: "Devolví 8 kg más",
+      cantidadDevuelta: 8,
+    });
+    expect(segundaExcesiva.ok).toBe(false);
+    if (!segundaExcesiva.ok) expect(segundaExcesiva.error).toContain("ya se devolvieron 5");
+
+    const stockFinal = await consultarStockInsumo(
+      owner!,
+      insumoTope.data.insumoId,
+      sucursalId
+    );
+    expect(stockFinal.ok).toBe(true);
+    if (stockFinal.ok) expect(stockFinal.data.cantidadActual).toBe(7);
+  });
+
+  it("H-31, el caso difícil: si parte del stock ya se consumió, vuelve solo lo que queda y se avisa", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const insumoParcial = await crearInsumo(owner!, tenantId, {
+      nombre: `Insumo Parcial ${sufijo}`,
+      unidadMedida: "kg",
+    });
+    if (!insumoParcial.ok) throw new Error("setup fallo: crearInsumo");
+
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId: insumoParcial.data.insumoId,
+      cantidad: 10,
+      montoTotal: 500,
+      fechaCompra: "2026-07-01",
+    });
+    if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+
+    // Se consumen 7 de las 10 (equivalente a "ya se vendió" del lado reventa).
+    const consumo = await registrarAjusteManualInsumo(owner!, tenantId, {
+      insumoId: insumoParcial.data.insumoId,
+      sucursalId,
+      tipo: "salida_ajuste_manual",
+      cantidad: 7,
+      motivo: "Consumido en producción",
+    });
+    expect(consumo.ok).toBe(true);
+
+    const anulacion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "anulacion_total",
+      montoAjuste: -500,
+      motivo: "La compra estaba cargada dos veces",
+    });
+    expect(anulacion.ok).toBe(true);
+    if (!anulacion.ok) return;
+
+    // El ajuste financiero entra COMPLETO: la compra vale 0 y no se debe nada.
+    expect(anulacion.data.montoTotalEfectivo).toBe(0);
+    expect(anulacion.data.estadoPago).toBe("pagado");
+
+    // La reversión de stock entra por lo que quedaba: 3, no 10.
+    expect(anulacion.data.reversionStock?.solicitada).toBe(10);
+    expect(anulacion.data.reversionStock?.devuelta).toBe(3);
+    expect(anulacion.data.reversionStock?.aviso).toContain("3 de las 10");
+    expect(anulacion.data.reversionStock?.error).toBeUndefined();
+
+    // Y el stock queda en 0, NUNCA en -7: dejarlo negativo movía el error de
+    // lugar (ninguna pantalla lo muestra con sentido y la próxima salida se
+    // bloquea con un mensaje incomprensible).
+    const stockFinal = await consultarStockInsumo(
+      owner!,
+      insumoParcial.data.insumoId,
+      sucursalId
+    );
+    expect(stockFinal.ok).toBe(true);
+    if (stockFinal.ok) expect(stockFinal.data.cantidadActual).toBe(0);
+  });
+
+  it("H-31: una compra en estado «pedido» no tiene stock que devolver", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const compra = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      proveedorId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 6,
+      montoTotal: 180,
+      fechaCompra: "2026-08-01",
+      estado: "pedido",
+    });
+    if (!compra.ok) throw new Error("setup fallo: registrarCompra");
+
+    const anulacion = await registrarCompraDeAjuste(owner!, compra.data.compraId, {
+      tipo: "anulacion_total",
+      montoAjuste: -180,
+      motivo: "Se canceló el pedido antes de que llegara",
+    });
+    expect(anulacion.ok).toBe(true);
+    if (anulacion.ok) {
+      expect(anulacion.data.montoTotalEfectivo).toBe(0);
+      // Nunca entró al inventario, así que no hay nada que revertir.
+      expect(anulacion.data.reversionStock).toBeNull();
+    }
   });
 
   it("H-31: los ajustes viajan en el listado, con el monto efectivo de cada compra", async () => {

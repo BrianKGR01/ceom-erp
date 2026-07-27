@@ -122,7 +122,7 @@ entrada en el registro de accesos con tu identidad, el negocio y la fecha.
 > ⚠️ **Los números de estas pestañas arrastran los mismos huecos que ve el negocio.** El estado de
 > resultados no descuenta comisiones de canal ni cuotas de deuda, y suma ingresos de productos sin
 > costo cargado. Si vas a evaluar la salud de un negocio con estos datos, leé primero la advertencia
-> del capítulo 8 del manual del negocio. (ver H-24, H-27, H-15)
+> del capítulo 8 del manual del negocio. (ver H-27, H-15 — H-24 y H-31 ya corregidos)
 
 ---
 

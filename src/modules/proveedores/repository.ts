@@ -159,6 +159,20 @@ export async function obtenerTotalAjustes(tx: Ejecutor, compraId: string): Promi
   return Number(totalAjustes);
 }
 
+/** Unidades ya devueltas al proveedor por ajustes anteriores de esta Compra —
+ * el tope de cuanto mas se puede devolver (H-31: sin esto un segundo ajuste
+ * devolveria stock de nuevo sobre mercaderia que ya salio). */
+export async function obtenerCantidadYaDevuelta(
+  tx: Ejecutor,
+  compraId: string
+): Promise<number> {
+  const [{ total }] = await tx
+    .select({ total: sql<string>`coalesce(sum(${comprasAjuste.cantidadDevuelta}), 0)` })
+    .from(comprasAjuste)
+    .where(eq(comprasAjuste.compraId, compraId));
+  return Number(total);
+}
+
 /**
  * Lo que realmente vale la Compra hoy: su monto original mas la suma de sus
  * ajustes (H-31 — antes los ajustes se escribian y no cambiaban nada, asi que
@@ -239,6 +253,23 @@ export async function crearCompraAjuste(tx: Ejecutor, data: NuevaCompraAjuste) {
   return ajuste;
 }
 
+/** Registra cuantas unidades volvieron de verdad por este ajuste — se escribe
+ * DESPUES de la reversion porque puede ser menos de lo pedido (parte del stock
+ * ya vendido). Es el unico UPDATE sobre compras_ajuste, y no edita un valor de
+ * negocio ya publicado: completa el dato de lo que acabo de pasar. */
+export async function actualizarCantidadDevueltaAjuste(
+  tx: Ejecutor,
+  ajusteId: string,
+  cantidadDevuelta: number
+) {
+  const [ajuste] = await tx
+    .update(comprasAjuste)
+    .set({ cantidadDevuelta: String(cantidadDevuelta) })
+    .where(eq(comprasAjuste.id, ajusteId))
+    .returning();
+  return ajuste;
+}
+
 export async function listarAjustesPorCompra(tx: Ejecutor, compraId: string) {
   return tx
     .select()
@@ -258,6 +289,7 @@ export async function listarAjustesPorTenant(tx: Ejecutor, tenantId: string) {
       compraId: comprasAjuste.compraId,
       tipo: comprasAjuste.tipo,
       montoAjuste: comprasAjuste.montoAjuste,
+      cantidadDevuelta: comprasAjuste.cantidadDevuelta,
       motivo: comprasAjuste.motivo,
       creadoEn: comprasAjuste.creadoEn,
     })

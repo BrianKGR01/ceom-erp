@@ -48,25 +48,27 @@ abiertos (H-XX) donde el producto se queda corto, con las circunvalaciones manua
 
 ## 2. Los defectos críticos abiertos — re-verificados hoy
 
-De los 6 hallazgos 🔴 de `docs/manual/hallazgos.md`, **1 está corregido y 5 siguen abiertos.**
+De los 6 hallazgos 🔴 de `docs/manual/hallazgos.md`, **3 están corregidos y 3 siguen abiertos.**
 Estado verificado contra `src/` el 2026-07-27:
 
 | ID | Hallazgo | Estado hoy | Evidencia de la re-verificación |
 |---|---|---|---|
 | H-30 | Signo del ajuste de venta sin validar | ✅ **Corregido** (PR #19) | `errorSignoAjuste()` + `.refine()` en `src/modules/ventas/validation.ts:102-126` — los tipos reductores exigen monto negativo |
-| H-24 | La comisión se calcula, se guarda y no llega a ningún lado | 🔴 **Abierto** | `generarGastoComisionVenta` sigue sin ningún caller fuera de `gastos.test.ts` (grep sobre todo `src/`) |
-| H-31 | Una compra de ajuste no tiene ningún efecto observable | 🔴 **Abierto** | `listarAjustesPorCompra` existe solo en `proveedores/repository.ts:188`; no está expuesta en `actions.ts` ni la consume ninguna UI |
+| H-24 | La comisión se calcula, se guarda y no llega a ningún lado | ✅ **Corregido** | `registrarVenta` llama a `generarGastoComisionVenta` al confirmar la venta (`ventas/actions.ts`); el gasto resta en `estadoResultados` y sale en `flujoCaja`. Verificado con valores exactos en `financiero.test.ts` |
+| H-31 | Una compra de ajuste no tiene ningún efecto observable | ✅ **Corregido** | El ajuste mueve `montoTotalEfectivo`/`estado_pago`, revierte stock (parcial + aviso si ya se vendió), se ve en el listado de compras y llega al estado de resultados en la dirección de costo |
 | H-33 | Si el dueño no está disponible, el negocio no se puede recuperar | 🔴 **Abierto** (mitigado en parte) | No existe ninguna acción `designar/reasignar Owner` para `ceom_admin`. La recuperación de contraseña (H-05, ya construida) resuelve el caso "perdió la clave", pero no "el dueño se fue" |
 | H-42 | Una institución no puede canjear un segundo código | 🔴 **Abierto** | `src/app/portal/actions.ts:23` sigue exigiendo `institucionNueva` obligatoria; no hay camino con `institucionId` de una sesión existente |
 | H-02 | No existe forma de crear una sucursal (y hay funciones que asumen varias) | 🔴 **Abierto** | Cero ocurrencias de `crearSucursal` en `src/`; las únicas inserciones a `sucursales` siguen en el alta de tenant y en tests |
 
-**Por qué estos 5 pesan más que el resto del backlog:**
+**Por qué estos pesan más que el resto del backlog:**
 
-- **H-24 y H-31 rompen la promesa central del producto** (principio rector #2: "todo dato operativo
+- **H-24 y H-31 rompían la promesa central del producto** (principio rector #2: "todo dato operativo
   termina en un número financiero, sin doble transcripción"). Un negocio con canal de 20% de
-  comisión ve una ganancia 20% mayor que la real, sin ninguna señal. Una compra anulada deja stock y
-  costo intactos tras confirmarle al usuario que se corrigió. Son defectos **silenciosos y en la
-  dirección optimista** — la clase que destruye la confianza cuando se descubre.
+  comisión veía una ganancia 20% mayor que la real, sin ninguna señal. Una compra anulada dejaba
+  stock y costo intactos tras confirmarle al usuario que se corrigió. Eran defectos **silenciosos y
+  en la dirección optimista** — la clase que destruye la confianza cuando se descubre. **Ya están
+  corregidos.** De la misma familia siguen abiertos H-27 (cuotas de pasivo sin gasto) y H-15
+  (productos sin costo cargado), los dos en la misma dirección optimista.
 - **H-33 es el único agujero operativo sin salida**: la única recuperación es escribir la base a
   mano. Con clientes reales, esto es un incidente de soporte garantizado.
 - **H-42 bloquea el caso más probable del actor institucional** (una incubadora con 10 códigos), y

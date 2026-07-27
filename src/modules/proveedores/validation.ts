@@ -93,6 +93,9 @@ export const compraAjusteSchema = z
     tipo: z.enum(["correccion", "devolucion_a_proveedor", "anulacion_total"]),
     montoAjuste: z.number(),
     motivo: z.string().trim().min(1, "Describí el motivo del ajuste."),
+    // Unidades que vuelven del stock. Solo tiene sentido en los tipos que van
+    // a favor del negocio: una corrección de monto no mueve mercadería.
+    cantidadDevuelta: z.number().positive().optional(),
   })
   .refine((d) => d.montoAjuste !== 0, {
     path: ["montoAjuste"],
@@ -102,4 +105,9 @@ export const compraAjusteSchema = z
     path: ["montoAjuste"],
     message:
       "Este tipo de ajuste solo puede reducir la compra: el monto tiene que ser negativo.",
+  })
+  .refine((d) => d.cantidadDevuelta === undefined || esTipoAjusteCompraAFavor(d.tipo), {
+    path: ["cantidadDevuelta"],
+    message:
+      "Una corrección de monto no devuelve mercadería — si devolviste unidades, el tipo es «devolución a proveedor».",
   });

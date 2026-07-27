@@ -176,9 +176,10 @@ deuda, el gasto correspondiente aparece solo y solo se corrige corrigiendo su or
 > En la práctica: la marca "Automático" nunca se va a mostrar, el aviso de bloqueo nunca va a
 > aparecer, y **todos tus gastos son editables y eliminables**.
 >
-> Lo que esto significa para vos: **las comisiones de tus canales y las cuotas de tus deudas no
-> llegan solas a tus gastos.** Si querés que impacten en tu resultado, cargalas como gastos manuales.
-> (ver H-24, H-27)
+> Lo que esto significa para vos: **las comisiones de tus canales sí llegan solas** a tus gastos
+> desde que se corrigió H-24 —aparecen en la categoría "Comisiones de venta", marcadas como
+> automáticas y no editables—, pero **las cuotas de tus deudas todavía no.** Si querés que la cuota
+> de una deuda impacte en tu resultado, cargala como gasto manual. (ver H-27)
 
 ---
 

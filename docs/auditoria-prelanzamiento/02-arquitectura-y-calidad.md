@@ -84,7 +84,7 @@ y es de buena calidad. Lo que esta auditoría agrega:
   H-01 (señalización del canal), H-30 (signo del ajuste). El mecanismo "lo que tiene ítem visible se
   cierra, lo que vive solo en un ANCLA duerme" sigue vigente — esta carpeta existe en parte para
   darles ítem visible a los que quedan.
-- **Los que siguen abiertos con mejor relación costo/impacto:** DA-03 (=H-24, comisión), DA-24
+- **DA-03 (=H-24, comisión) ya está cerrado.** Los que siguen abiertos con mejor relación costo/impacto: DA-24
   Proveedores (`entradaStock` sin lector), DA-08/09 (quitar logo/imagen), DA-17 (comisión de evento,
   falta solo el `.tsx`), DA-10 (índice único parcial en vinculaciones producto-receta — riesgo
   latente de corrupción de costos, el patrón ya está resuelto en Consentimiento).

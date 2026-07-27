@@ -175,8 +175,9 @@ Dos cosas condicionan capítulos ya escritos y habría que revisarlos si cambian
    una propuesta. `negocio/09-tu-equipo.md` hoy enseña a construir la matriz desde cero; si se
    aprueban roles predefinidos, esa sección se reescribe (ver H-35).
 2. **Los hallazgos que el manual enseña a esquivar.** Varios capítulos dedican espacio a convivir con
-   defectos: el paso 6 del capítulo 01 (H-01), las correcciones manuales del capítulo 8 (H-24, H-27,
-   H-30, H-31) y las alternativas del capítulo 5 (H-31). **Si esos se corrigen, esas secciones se
+   defectos: el paso 6 del capítulo 01 (H-01) y las correcciones manuales del capítulo 8 (H-27,
+   H-15). Los rodeos de H-24, H-30 y H-31 ya se retiraron al corregirse esos defectos. **Si el resto
+   se corrige, esas secciones se
    acortan bastante** — están escritas para poder sacarlas de un bloque, no entreveradas con el
    resto.
 

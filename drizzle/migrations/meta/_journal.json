@@ -295,6 +295,13 @@
       "when": 1785141840078,
       "tag": "0041_gateway_vigencia_bypass_compras_ajuste",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1785143470070,
+      "tag": "0042_compras_ajuste_cantidad_devuelta",
+      "breakpoints": true
     }
   ]
 }

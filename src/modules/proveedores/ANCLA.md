@@ -14,7 +14,13 @@
   reales de `insumoId`/`productoId` (roadmap ítem #12, ver abajo).
   `registrarEntradaCompraReventa()` (Módulo 2) y
   `registrarEntradaCompraInsumo()` (Operativo Nicho 1) — caja negra vía
-  `actions.ts`, disparadas al recibir una Compra.
+  `actions.ts`, disparadas al recibir una Compra. Y la misma flecha en el
+  otro sentido al cerrar H-31: `consultarStock()` /
+  `registrarAjusteManualStock()` (Módulo 2) y `consultarStockInsumo()` /
+  `registrarAjusteManualInsumo()` (Nicho 1), para devolverle al proveedor la
+  mercadería de un ajuste — ninguna de las cuatro recalcula costo, así que los
+  snapshots de las ventas ya hechas y el costo promedio ponderado del insumo
+  quedan intactos.
 - Salidas que expone (`actions.ts`): `crearProveedor`, `actualizarProveedor`,
   `eliminarProveedor`, `listarProveedores`, `fichaProveedor`,
   `registrarCompra` (+ `calcularCostoUnitario()` pura, exportada),
@@ -80,8 +86,34 @@
         CEOM una compra nunca fue un gasto, así que deshacerla no es una
         ganancia. Decisión de negocio confirmada con el usuario, no un
         detalle de implementación.
+      - **Revierte el stock** que había entrado, cuando el ajuste va a favor
+        del negocio (`revertirStockDeAjuste`). `correccion` nunca mueve stock
+        (es plata, no mercadería) y lo rechaza si se lo piden; una compra en
+        `pedido` no tiene nada que revertir; `anulacion_total` sin cantidad
+        explícita devuelve todo lo que quedaba por devolver.
+        **Reversión PARCIAL, decisión de negocio confirmada:** si parte del
+        stock ya se vendió o se consumió, vuelve solo lo que quedaba y el
+        resultado trae un `aviso` con las dos cifras. Nunca deja el stock
+        negativo — nada más en el sistema lo impide (no hay CHECK en `stock`,
+        y `registrarAjusteManualStock` no mira disponibilidad: el único guard
+        vive en `descontarStockVenta` y protege la venta, no el ajuste), así
+        que si no se acotaba acá el error financiero silencioso se convertía
+        en un error de inventario silencioso. Se descartaron **bloquear la
+        anulación** (deja sin corregir el caso más común —mercadería ya
+        vendida— y acopla la corrección de la plata a una condición del
+        inventario) y **dejarlo en negativo** (ninguna pantalla muestra -7
+        unidades con sentido y la próxima venta se bloquea con un mensaje
+        incomprensible).
+        `compras_ajuste.cantidad_devuelta` (migración
+        `0042_compras_ajuste_cantidad_devuelta`) guarda cuánto volvió de
+        verdad — sin eso un segundo ajuste devolvía stock de nuevo. Mismo
+        patrón y misma razón que `ajustes_venta.cantidad_producto_ajustada`.
+        Va fuera de la transacción del ajuste y su fallo NO lo anula (mismo
+        gap de atomicidad cruzada aceptado que la entrada de stock al recibir
+        la compra): viaja en `reversionStock` para que la pantalla lo muestre.
       - Los ajustes se ven en el listado de compras, con el monto original
-        tachado cuando difiere del efectivo.
+        tachado cuando difiere del efectivo y las unidades devueltas por
+        ajuste.
 - [x] **`compras_ajuste` recibió `gatewayVigenciaBypassPolicy(..., "financiero")`**
       (migración `0041_gateway_vigencia_bypass_compras_ajuste`): desde que
       `financiero.estadoResultados()` la lee, la tabla quedó en el camino del

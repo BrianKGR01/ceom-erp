@@ -1,0 +1,1 @@
+ALTER TABLE "compras_ajuste" ADD COLUMN "cantidad_devuelta" numeric(12, 2);

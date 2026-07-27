@@ -185,6 +185,18 @@ export const comprasAjuste = pgTable(
       .references(() => compras.id),
     tipo: tipoAjusteCompraEnum("tipo").notNull(),
     montoAjuste: numeric("monto_ajuste", { precision: 12, scale: 2 }).notNull(),
+    // Cuantas unidades volvieron del stock por este ajuste (H-31). Nullable:
+    // un ajuste puede corregir solo la plata sin mover mercaderia (una
+    // "correccion" nunca la mueve). Adenda de este cambio, mismo patron y
+    // misma razon que `ajustes_venta.cantidad_producto_ajustada`: sin
+    // persistirla no hay forma de saber cuanto ya se devolvio de una compra,
+    // y un segundo ajuste devolveria stock de nuevo.
+    //
+    // Puede ser MENOR que las unidades que el ajuste cubre en plata: si parte
+    // de la mercaderia ya se habia vendido, solo vuelve lo que quedaba (la
+    // alternativa era dejar el stock en negativo, que mueve el error de lugar
+    // en vez de resolverlo).
+    cantidadDevuelta: numeric("cantidad_devuelta", { precision: 12, scale: 2 }),
     motivo: text("motivo").notNull(),
     creadoPor: uuid("creado_por"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),

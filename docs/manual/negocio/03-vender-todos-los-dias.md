@@ -94,13 +94,14 @@ reportes históricos no se mueven cuando cambiás una etiqueta.
 
 **Queda un estado de cobro**: pagada, parcial o pendiente.
 
-**Se calcula la comisión**, si el canal o el evento tenían un porcentaje configurado.
+**Se calcula la comisión y se convierte en gasto**, si el canal o el evento tenían un porcentaje
+configurado. El sistema la carga solo, en una categoría "Comisiones de venta" que crea la primera vez
+que hace falta, y queda ya pagada. Desde ahí se descuenta de tu resultado y sale en tu flujo de caja,
+sin que tengas que hacer nada. La ficha de la venta te muestra el monto con la aclaración de que ya
+está descontado.
 
-> ⚠️ **La comisión se calcula, se guarda y ahí se queda.** No se convierte en un gasto, no se
-> muestra en ninguna pantalla —ni en la ficha de la venta— y no se descuenta de tu resultado. Si
-> cargaste un porcentaje de comisión en un canal esperando verlo reflejado en tus números, hoy no
-> pasa. Mientras tanto, si querés que la comisión impacte en tu resultado, cargala como un gasto
-> manual ([capítulo 4](04-gastos.md)). (ver H-24)
+**Un gasto de comisión no se edita ni se borra a mano**: depende de la venta que lo originó. Si la
+venta estuvo mal, se corrige con un ajuste de venta.
 
 ---
 
@@ -190,8 +191,8 @@ ese canal. El interruptor **activo** lo saca de la pantalla de venta sin borrarl
 valen más que ocho que después no vas a poder comparar. Un buen criterio: creá un canal por cada vía
 sobre la que podrías tomar una decisión distinta.
 
-> ⚠️ La comisión por defecto se calcula al vender pero **no impacta en ningún número visible**
-> todavía. (ver H-24)
+La comisión por defecto se calcula al vender y **se descuenta sola de tu resultado**: cargar un
+porcentaje acá alcanza para que el número de ganancia sea el real.
 
 ---
 

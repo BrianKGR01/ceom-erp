@@ -147,20 +147,32 @@ la fila de la compra, botón **Ajustar**.
 
 El **motivo es obligatorio**.
 
-> ⚠️ **Un ajuste de compra hoy no tiene ningún efecto observable.** Queda guardado, pero: no cambia
-> el monto ni el estado de pago de la compra, **no revierte el stock que entró**, no aparece en
-> ninguna pantalla —ni siquiera en la fila de la compra que ajustaste— y no llega a ningún reporte.
-> Es un registro que se escribe y que nadie lee. (ver H-31)
->
-> **Qué hacer mientras tanto**, según el caso:
-> - **Entró stock que no correspondía** → corregilo con un ajuste manual de stock desde la ficha del
->   producto ([capítulo 2](02-catalogo.md)), que sí funciona.
-> - **El costo quedó mal** → corregilo a mano en la ficha del producto.
-> - **Pagaste de más o de menos** → el saldo se corrige registrando el pago real; no hay forma de
->   quitar un pago ya cargado.
->
-> Cargá igual el ajuste, con su motivo: es el registro de qué pasó, y va a valer cuando la pantalla
-> lo muestre.
+**Qué hace un ajuste.** No edita la compra original —ese monto queda como registro histórico—, pero
+sí cambia **cuánto vale esa compra hoy**, y eso es lo que manda:
+
+- **El saldo y el estado de pago se recalculan.** Si anulás una compra, deja de figurar como plata
+  que le debés al proveedor. Si corregís el monto a la baja y ya habías pagado esa cifra nueva, pasa
+  a **pagada** sola.
+- **El stock vuelve**, cuando el ajuste va a favor del negocio (devolución o anulación). Si parte de
+  la mercadería ya se vendió o se consumió, **vuelve solo lo que quedaba** y el sistema te lo dice
+  con todas las letras: *"se devolvieron 3 de las 10 unidades; las otras 7 ya no estaban en stock"*.
+  Nunca deja tu stock en negativo. Podés destildar "la mercadería vuelve al proveedor" si lo que
+  corregís es solo la plata.
+- **La compra se ve ajustada en el listado**: el monto original tachado, el nuevo al lado, y cada
+  ajuste con su motivo y las unidades que devolvió.
+
+**El monto lo cargás siempre en positivo** y la dirección se elige aparte, así no hay forma de
+equivocarse de signo. En una devolución o una anulación la dirección es fija (a favor del negocio);
+solo la **corrección** te deja elegir, porque un error de carga pudo ser de más o de menos.
+
+**Cómo pega en tu resultado.** Si la compra terminó costando **más** de lo que habías cargado, esa
+diferencia se descuenta de tu ganancia del período: es plata que salió y que de otro modo no
+aparecería en ningún lado. Si terminó costando **menos** (devolución, anulación), tu ganancia no
+sube: una compra no era un gasto —se vuelve costo recién cuando vendés esa mercadería—, así que
+deshacerla no te hace ganar plata. Lo que baja es lo que le debés al proveedor.
+
+> ⚠️ Lo que un ajuste **no** hace: no cambia el costo unitario que la compra ya le fijó al producto.
+> Si el costo quedó mal, corregilo a mano en la ficha del producto. (ver H-25)
 
 ---
 
