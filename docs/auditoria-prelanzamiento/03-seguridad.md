@@ -69,6 +69,30 @@ semana, empezando por Identidad y Ventas (los de mayor valor de dato).
 | Leaked password protection deshabilitada | WARN | El chequeo contra HaveIBeenPwned está apagado. Activarlo es un toggle en el dashboard de Auth. [Referencia](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) |
 | `logs_acceso_admin_ceom` con RLS habilitada y cero policies | INFO | Conocido y diferido a propósito (plan RLS, etapa 3.d) — la tabla es inaccesible para `authenticated`, que es el estado seguro |
 
+**Corrección post-verificación (2026-07-27, tanda de higiene):** la recomendación de este documento
+("`REVOKE EXECUTE ... FROM authenticated, anon` es un fix de una línea por función") es incorrecta
+para el rol `authenticated`. Verificado en vivo (advisors + `pg_proc`) y contra el código:
+
+- `es_ceom_admin()`, `es_gateway_sistema()` y `tenant_tiene_consentimiento_vigente()` ya nacieron en
+  sus propias migraciones de creación (`0031`, `0035`, `0038`) con `revoke all ... from public, anon;
+  grant execute ... to authenticated;` — el mismo criterio que `current_tenant_id()` adoptó
+  retroactivamente en `0028`. No queda ningún `EXECUTE` de `public`/`anon` pendiente de revocar en
+  ninguna de las 4 funciones.
+- El `EXECUTE` de `authenticated` que el advisor sigue marcando **no es un descuido, es el mecanismo
+  activo del backstop de RLS**: `src/db/contexto.ts` (`fijarContextoYExigirTenant`) hace
+  `set local role authenticated` y llama a estas funciones para que las policies de `crudPolicy()`/
+  `ceomAdminBypassPolicy()`/`gatewayVigenciaBypassPolicy()` (`src/db/rls.ts`) puedan evaluarse — es el
+  camino real que usan hoy los módulos Patrimonio y Proveedores. Revocarle `EXECUTE` a `authenticated`
+  rompería el aislamiento de tenant en producción, no lo cierra.
+- Por eso `current_tenant_id()` sigue apareciendo en el advisor en vivo pese a que `0028` ya se aplicó
+  hace tiempo: ese WARN específico (ejecutable por `authenticated` vía RPC) es un riesgo aceptado a
+  conciencia, no algo resoluble con un `REVOKE` sin romper RLS.
+- La única forma de cerrarlo de verdad sería sacar las 4 funciones del schema `public` (el que
+  PostgREST expone como `/rest/v1/rpc/`) a un schema no expuesto, conservando el `EXECUTE` de
+  `authenticated` ahí. Es un cambio estructural — schema nuevo, re-apuntar las ~92 policies que las
+  llaman, `src/db/rls.ts`, verificación completa — **diferido a propósito, no parte de esta tanda de
+  higiene.**
+
 ### 3.2 Performance — no bloquea, conviene saberlo
 
 - **79 foreign keys sin índice** (INFO) — irrelevante con volumen de piloto; entra en juego con
@@ -89,9 +113,11 @@ semana, empezando por Identidad y Ventas (los de mayor valor de dato).
 
 ## 5. Recomendaciones concretas, en orden
 
-1. **Antes de cualquier despliegue**: activar leaked password protection; `REVOKE EXECUTE` de las 4
-   funciones SECURITY DEFINER para `authenticated`/`anon`; configurar los rate limits de Supabase
-   Auth; agregar un rate limit propio al canje de código del portal.
+1. **Antes de cualquier despliegue**: activar leaked password protection; configurar los rate limits
+   de Supabase Auth; agregar un rate limit propio al canje de código del portal. ~~`REVOKE EXECUTE`
+   de las 4 funciones SECURITY DEFINER para `authenticated`/`anon`~~ — corregido en la nota de la
+   §3.1: la parte de `anon`/`public` ya estaba resuelta desde la creación de cada función, y la de
+   `authenticated` no se puede revocar sin romper el backstop de RLS activo (Patrimonio/Proveedores).
 2. **Antes del piloto**: cerrar M1-M6 (mecánicos, el guard ya existe); captura de errores (Sentry o
    equivalente); confirmar backups del plan de Supabase Cloud con una restauración de prueba.
 3. **Durante el piloto**: retomar la migración RLS módulo por módulo (Identidad primero), con su
