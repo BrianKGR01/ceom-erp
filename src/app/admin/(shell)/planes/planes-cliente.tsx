@@ -39,7 +39,9 @@ export interface Plan {
   nombre: string;
   precioMensual: string;
   moneda: string;
-  incluyeSucursales: boolean;
+  // Tope de sucursales (H-02): null = ilimitadas, 1 = ninguna adicional a la
+  // Principal, N>1 = hasta N.
+  maxSucursales: number | null;
   permiteMultiplesOwners: boolean;
   permiteDowngradeAutogestionado: boolean;
   duracionInvitacionDias: number;
@@ -53,8 +55,7 @@ const MONEDAS = [
   { value: "USD", label: "Dólar estadounidense (USD)" },
 ];
 
-const CAMPOS_BOOLEANOS: { key: keyof Plan & ("incluyeSucursales" | "permiteMultiplesOwners" | "permiteDowngradeAutogestionado"); label: string; descripcion: string }[] = [
-  { key: "incluyeSucursales", label: "Incluye sucursales", descripcion: "El negocio puede tener más de una sucursal." },
+const CAMPOS_BOOLEANOS: { key: keyof Plan & ("permiteMultiplesOwners" | "permiteDowngradeAutogestionado"); label: string; descripcion: string }[] = [
   { key: "permiteMultiplesOwners", label: "Más de un dueño", descripcion: "El negocio puede tener más de un dueño." },
   { key: "permiteDowngradeAutogestionado", label: "Puede bajar de plan por su cuenta", descripcion: "El negocio puede bajar de plan sin pasar por el equipo CEOM." },
 ];
@@ -63,7 +64,10 @@ interface FormState {
   nombre: string;
   precioMensual: string;
   moneda: string;
-  incluyeSucursales: boolean;
+  // "" en el input numérico + sucursalesIlimitadas=true → maxSucursales: null.
+  // "" + sucursalesIlimitadas=false se trata como 1 al guardar (mínimo real).
+  maxSucursales: string;
+  sucursalesIlimitadas: boolean;
   permiteMultiplesOwners: boolean;
   permiteDowngradeAutogestionado: boolean;
   duracionInvitacionDias: string;
@@ -75,7 +79,8 @@ const FORM_VACIO: FormState = {
   nombre: "",
   precioMensual: "",
   moneda: "BOB",
-  incluyeSucursales: false,
+  maxSucursales: "1",
+  sucursalesIlimitadas: false,
   permiteMultiplesOwners: false,
   permiteDowngradeAutogestionado: false,
   duracionInvitacionDias: "7",
@@ -107,7 +112,8 @@ function PlanFormDialog({
               nombre: plan.nombre,
               precioMensual: plan.precioMensual,
               moneda: plan.moneda,
-              incluyeSucursales: plan.incluyeSucursales,
+              maxSucursales: plan.maxSucursales === null ? "1" : String(plan.maxSucursales),
+              sucursalesIlimitadas: plan.maxSucursales === null,
               permiteMultiplesOwners: plan.permiteMultiplesOwners,
               permiteDowngradeAutogestionado: plan.permiteDowngradeAutogestionado,
               duracionInvitacionDias: String(plan.duracionInvitacionDias),
@@ -145,7 +151,7 @@ function PlanFormDialog({
       nombre: form.nombre.trim(),
       precioMensual: form.precioMensual,
       moneda: form.moneda,
-      incluyeSucursales: form.incluyeSucursales,
+      maxSucursales: form.sucursalesIlimitadas ? null : Math.max(1, Number(form.maxSucursales) || 1),
       permiteMultiplesOwners: form.permiteMultiplesOwners,
       permiteDowngradeAutogestionado: form.permiteDowngradeAutogestionado,
       duracionInvitacionDias: Number(form.duracionInvitacionDias) || 7,
@@ -243,6 +249,32 @@ function PlanFormDialog({
           </div>
 
           <div className="space-y-3 rounded-xl border border-gray-border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-navy">Sucursales</p>
+                <p className="text-xs text-text-muted">Cuántas sucursales puede tener un negocio con este plan.</p>
+              </div>
+              <Switch
+                checked={form.sucursalesIlimitadas}
+                onCheckedChange={(checked) => setForm((f) => ({ ...f, sucursalesIlimitadas: checked }))}
+              />
+              <span className="text-xs text-text-muted">Ilimitadas</span>
+            </div>
+            {!form.sucursalesIlimitadas && (
+              <div className="space-y-1.5 pl-1">
+                <Label htmlFor="max-sucursales">Tope de sucursales</Label>
+                <Input
+                  id="max-sucursales"
+                  type="number"
+                  min="1"
+                  value={form.maxSucursales}
+                  onChange={(e) => setForm((f) => ({ ...f, maxSucursales: e.target.value }))}
+                />
+                <p className="text-[11px] text-text-muted">
+                  1 = el negocio no puede crear sucursales además de la Principal.
+                </p>
+              </div>
+            )}
             {CAMPOS_BOOLEANOS.map((campo) => (
               <div key={campo.key} className="flex items-center justify-between gap-3">
                 <div>

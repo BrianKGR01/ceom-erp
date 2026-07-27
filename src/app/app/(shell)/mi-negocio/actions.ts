@@ -3,14 +3,17 @@
 import { urlCallbackApp } from "@/lib/site-url";
 import {
   actualizarPermisosRol,
+  actualizarSucursal,
   calcularEstadoAcceso,
   cambiarRolUsuario,
   crearRolPersonalizado,
+  crearSucursal,
   eliminarRol,
   invitarUsuario,
   listarCapacidadesEspeciales,
   listarPermisosPorRol,
   listarRoles,
+  listarSucursalesPorTenant,
   listarUsuarios,
   obtenerTenantPorId,
   obtenerUsuarioActual,
@@ -24,6 +27,8 @@ import {
   type Modulo,
 } from "@/modules/identidad/actions";
 import {
+  actualizarSucursalSchema,
+  crearSucursalSchema,
   editarColaboradorSchema,
   invitarColaboradorSchema,
   crearRolFormSchema,
@@ -141,6 +146,53 @@ export async function otorgarCapacidadEspecialPorUsuarioAction(
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   return otorgarCapacidadEspecialPorUsuario(usuario, usuarioId, capacidad, habilitado);
+}
+
+// --- Sucursales (H-02) ---------------------------------------------------
+
+export async function listarSucursalesAction() {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return listarSucursalesPorTenant(usuario, usuario.tenantId);
+}
+
+export async function crearSucursalAction(input: unknown) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = crearSucursalSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  return crearSucursal(usuario, usuario.tenantId, parsed.data);
+}
+
+export async function actualizarSucursalAction(sucursalId: string, input: unknown) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = actualizarSucursalSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  return actualizarSucursal(usuario, sucursalId, parsed.data);
+}
+
+/**
+ * Solo el número que necesita el sub-nav de Mi Negocio para decidir si
+ * muestra el link "Sucursales" — H-02: si el plan no incluye sucursales, el
+ * link tiene que estar AUSENTE, no deshabilitado. Se resuelve server-side en
+ * cada page.tsx (Server Component) para no parpadear ni exponer el link un
+ * instante antes de ocultarlo.
+ */
+export async function obtenerTopeSucursalesAction(): Promise<
+  { ok: true; data: { maxSucursales: number | null } } | { ok: false; error: string }
+> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const tenantRes = await obtenerTenantPorId(usuario, usuario.tenantId);
+  if (!tenantRes.ok) return tenantRes;
+  if (!tenantRes.data.planId) return { ok: true, data: { maxSucursales: 1 } };
+  const plan = await obtenerPlanPorId(tenantRes.data.planId);
+  return { ok: true, data: { maxSucursales: plan?.maxSucursales ?? 1 } };
 }
 
 export async function obtenerMiPlanAction() {

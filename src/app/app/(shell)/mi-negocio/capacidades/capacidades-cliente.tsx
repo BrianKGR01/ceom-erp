@@ -61,7 +61,8 @@ const CAPACIDADES: { id: Capacidad; label: string }[] = [
   { id: "producir_sin_stock_insumo", label: "Producir sin stock" },
 ];
 
-function SubnavMiNegocio() {
+// H-02: ver la nota gemela en colaboradores-cliente.tsx.
+function SubnavMiNegocio({ mostrarSucursales }: { mostrarSucursales: boolean }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
       <Link href="/app/onboarding" className="text-primary hover:underline">
@@ -74,6 +75,11 @@ function SubnavMiNegocio() {
         Roles
       </Link>
       <span className="text-navy">Permisos especiales</span>
+      {mostrarSucursales && (
+        <Link href="/app/mi-negocio/sucursales" className="text-primary hover:underline">
+          Sucursales
+        </Link>
+      )}
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
       </Link>
@@ -182,11 +188,13 @@ export function CapacidadesCliente({
   capacidadesPorUsuario,
   roles,
   colaboradores,
+  mostrarSucursales,
 }: {
   capacidadesPorRol: FilaRol[];
   capacidadesPorUsuario: FilaUsuario[];
   roles: Rol[];
   colaboradores: Colaborador[];
+  mostrarSucursales: boolean;
 }) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
@@ -235,7 +243,7 @@ export function CapacidadesCliente({
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <SubnavMiNegocio />
+      <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader title="Permisos especiales" description="Configura los permisos globales por cada rol de tu negocio." />
 
       <div className="mt-6 rounded-2xl bg-card shadow-card">

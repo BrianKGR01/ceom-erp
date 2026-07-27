@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { zonaHorariaTenant } from "@/lib/periodo";
 import { listarPlanes } from "@/modules/suscripcion/actions";
-import { consultarTenantDetalleAction } from "../actions";
+import { consultarTenantDetalleAction, listarSucursalesTenantAction } from "../actions";
 import { FichaTenantAdminCliente } from "./ficha-cliente";
 
 export default async function FichaTenantAdminPage({
@@ -10,9 +10,10 @@ export default async function FichaTenantAdminPage({
   params: Promise<{ tenantId: string }>;
 }) {
   const { tenantId } = await params;
-  const [res, planes] = await Promise.all([
+  const [res, planes, sucursalesRes] = await Promise.all([
     consultarTenantDetalleAction(tenantId),
     listarPlanes(),
+    listarSucursalesTenantAction(tenantId),
   ]);
   if (!res.ok) redirect("/admin/tenants");
 
@@ -24,6 +25,7 @@ export default async function FichaTenantAdminPage({
       tenantId={tenantId}
       tenant={res.data}
       planes={planes.map((p) => ({ id: p.id, nombre: p.nombre, activo: p.activo }))}
+      sucursales={sucursalesRes.ok ? sucursalesRes.data : []}
       zona={zona}
     />
   );

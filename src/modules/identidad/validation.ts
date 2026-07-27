@@ -46,6 +46,20 @@ export const crearRolFormSchema = z.object({
 
 export type CrearRolFormInput = z.infer<typeof crearRolFormSchema>;
 
+export const crearSucursalSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre a la sucursal."),
+  direccion: z.string().trim().optional(),
+});
+
+export type CrearSucursalInput = z.infer<typeof crearSucursalSchema>;
+
+export const actualizarSucursalSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre a la sucursal."),
+  direccion: z.string().trim().optional(),
+});
+
+export type ActualizarSucursalInput = z.infer<typeof actualizarSucursalSchema>;
+
 export const crearTenantFormSchema = z.object({
   nombreNegocio: z.string().trim().min(1, "Contanos cómo se llama el negocio."),
   monedaPrincipal: z

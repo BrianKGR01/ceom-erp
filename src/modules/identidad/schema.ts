@@ -148,6 +148,23 @@ export const sucursales = pgTable(
     direccion: text("direccion"),
     esPrincipal: boolean("es_principal").notNull().default(false),
     activa: boolean("activa").notNull().default(true),
+    // Congelamiento por downgrade de plan (H-02, docs/auditoria-
+    // prelanzamiento/07-sucursales-multiples.md seccion 6): distinto de
+    // "activa" (que hoy nadie togglea — apagado voluntario del dueño, todavia
+    // sin UI). Una sucursal congelada sigue siendo 100% consultable (lectura),
+    // pero requireSucursalOperable() (Productos) y el chequeo de
+    // registrarVenta (Ventas) rechazan escribir contra ella. Nunca se pisa
+    // con un UPDATE suelto — se pone/saca via cambiarPlanTenant() (congela) y
+    // desbloquearSucursal()/consolidarSucursal() (Panel Admin CEOM), mismo
+    // espiritu que eliminado_en. La sucursal Principal nunca entra en la
+    // lista candidata a congelar (tope minimo posible ya es 1, lo cubre ella
+    // sola) — ver cambiarPlanTenant().
+    congeladaEn: timestamp("congelada_en", { withTimezone: true }),
+    congeladaMotivo: text("congelada_motivo"),
+    creadoPor: uuid("creado_por"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    modificadoPor: uuid("modificado_por"),
+    modificadoEn: timestamp("modificado_en", { withTimezone: true }),
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (table) => [
@@ -228,6 +245,18 @@ export const usuarios = pgTable(
     rolId: uuid("rol_id")
       .notNull()
       .references(() => roles.id),
+    // Estructura preparada para H-02, TODAVIA SIN USO real (ver
+    // docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 4,
+    // Track B): a que sucursal pertenece este colaborador. null = sin
+    // restringir (comportamiento de hoy: ve/opera sobre todas las sucursales
+    // de su tenant). NINGUN modulo filtra por esta columna todavia —
+    // tienePermiso()/recursoPerteneceAlTenant() no la miran. El filtrado real
+    // por sucursal es una segunda dimension de autorizacion que se activa
+    // recien en la Etapa 5 (roles por defecto, H-35/D3 de
+    // docs/auditoria-prelanzamiento/04-camino-al-lanzamiento.md), junto con
+    // el modelo de roles — no antes, y no en esta tarea. Ver la anotacion
+    // gemela en la seccion 8 de 07-sucursales-multiples.md.
+    sucursalId: uuid("sucursal_id").references(() => sucursales.id),
     esOwner: boolean("es_owner").notNull().default(false),
     activo: boolean("activo").notNull().default(true),
     ultimoAccesoEn: timestamp("ultimo_acceso_en", { withTimezone: true }),

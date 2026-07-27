@@ -440,6 +440,17 @@ export async function crearTenant(
  * el plan tiene que existir y estar activo, validado contra Suscripcion
  * (nunca contra su repository directo — regla de caja negra).
  *
+ * **Cambio de contrato (H-02):** ya no devuelve `Resultado<true>` — devuelve
+ * `Resultado<{ sucursalesCongeladas: string[] }>`. Si el plan nuevo tiene un
+ * tope de sucursales menor al numero de sucursales activas del tenant, el
+ * excedente se congela automaticamente en la MISMA transaccion que el cambio
+ * de plan (repo.actualizarPlanTenantConCongelamiento — atomico a proposito,
+ * ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 6.3
+ * hueco 1). `sucursalesCongeladas` devuelve los ids para que la UI de
+ * /admin pueda avisar explicitamente cuales quedaron congeladas — nunca un
+ * cambio de plan silencioso. Callers existentes que solo miraban `.ok` (el
+ * unico patron usado hasta ahora, `admin/tenants/actions.ts`) no se rompen.
+ *
  * Pendiente documentado, no silencioso: la seccion 6.2 exige forzar un solo
  * Owner antes de completar un downgrade a un plan sin
  * permite_multiples_owners si el tenant tiene cofundadores — no se chequea
@@ -452,7 +463,7 @@ export async function cambiarPlanTenant(
   solicitante: UsuarioConRol,
   tenantId: string,
   nuevoPlanId: string
-): Promise<Resultado<true>> {
+): Promise<Resultado<{ sucursalesCongeladas: string[] }>> {
   if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
     return { ok: false, error: "Solo el equipo CEOM puede cambiar el plan de un negocio." };
   }
@@ -465,7 +476,133 @@ export async function cambiarPlanTenant(
     return { ok: false, error: "El plan indicado no existe o no está activo." };
   }
 
-  await repo.actualizarPlanTenant(tenantId, nuevoPlanId, solicitante.id);
+  const { sucursalesCongeladas } = await repo.actualizarPlanTenantConCongelamiento({
+    tenantId,
+    nuevoPlanId,
+    maxSucursalesNuevoPlan: plan.maxSucursales,
+    modificadoPor: solicitante.id,
+  });
+  return { ok: true, data: { sucursalesCongeladas: sucursalesCongeladas.map((s) => s.id) } };
+}
+
+// --- Sucursales (Modulo_01 seccion 1.2, H-02) ---------------------------------------------------------
+
+/**
+ * Crea una sucursal nueva. Gate: `esOwner` directo, mismo criterio que el
+ * resto de gestion de Identidad ("sucursales" no esta en moduloPermisoEnum —
+ * ver decision en ANCLA.md) + tope de plan, validado ACA, server-side (no
+ * solo oculto en la interfaz — Modulo_01 seccion 9.6, requisito explicito
+ * del propio diseño, no una adicion). Sin esto, cualquier llamado directo a
+ * la Server Action (no solo a traves de la UI) podria saltarse el limite del
+ * plan.
+ */
+export async function crearSucursal(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: { nombre: string; direccion?: string }
+): Promise<Resultado<{ sucursalId: string }>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el dueño del negocio puede crear sucursales." };
+  }
+  const escritura = await requireEscrituraHabilitada(tenantId);
+  if (!escritura.ok) return escritura;
+
+  const tenant = await repo.obtenerTenantPorId(tenantId);
+  if (!tenant) return { ok: false, error: "No encontramos el negocio." };
+  if (!tenant.planId) {
+    return { ok: false, error: "Este negocio no tiene un plan asignado." };
+  }
+  const plan = await obtenerPlanPorId(tenant.planId);
+  if (!plan) return { ok: false, error: "No encontramos el plan de este negocio." };
+
+  const activas = await repo.contarSucursalesOperables(tenantId);
+  if (plan.maxSucursales !== null && activas >= plan.maxSucursales) {
+    return {
+      ok: false,
+      error:
+        plan.maxSucursales === 1
+          ? "Tu plan no incluye sucursales adicionales — contactá a soporte para subir de plan."
+          : `Tu plan permite hasta ${plan.maxSucursales} sucursales — contactá a soporte para subir de plan.`,
+    };
+  }
+
+  const sucursal = await repo.crearSucursal({
+    tenantId,
+    nombre: input.nombre,
+    direccion: input.direccion,
+    creadoPor: solicitante.id,
+  });
+  return { ok: true, data: { sucursalId: sucursal.id } };
+}
+
+export async function actualizarSucursal(
+  solicitante: UsuarioConRol,
+  sucursalId: string,
+  input: { nombre?: string; direccion?: string }
+): Promise<Resultado<true>> {
+  if (!solicitante.esOwner) {
+    return { ok: false, error: "Solo el dueño del negocio puede editar sucursales." };
+  }
+  const escritura = await requireEscrituraHabilitada(solicitante.tenantId);
+  if (!escritura.ok) return escritura;
+
+  const sucursal = await repo.obtenerSucursalPorId(sucursalId);
+  if (!sucursal || !recursoPerteneceAlTenant(solicitante, sucursal.tenantId)) {
+    return { ok: false, error: "Sucursal no encontrada." };
+  }
+
+  await repo.actualizarSucursal(sucursalId, input, solicitante.id);
+  return { ok: true, data: true };
+}
+
+/**
+ * Panel Admin CEOM — "Desbloquear" (H-02): excepcion manual puntual, saca a
+ * una sucursal congelada de ese estado sin pasar por un upgrade de plan
+ * real. Deliberadamente no valida el tope del plan vigente — es una
+ * excepcion, el propio Owner del pedido de esta funcion la definio así.
+ */
+export async function desbloquearSucursal(
+  solicitante: UsuarioConRol,
+  sucursalId: string
+): Promise<Resultado<true>> {
+  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+    return { ok: false, error: "Solo el equipo CEOM puede desbloquear una sucursal." };
+  }
+  const sucursal = await repo.obtenerSucursalPorId(sucursalId);
+  if (!sucursal) return { ok: false, error: "Sucursal no encontrada." };
+
+  await repo.desbloquearSucursal(sucursalId, solicitante.id);
+  return { ok: true, data: true };
+}
+
+/**
+ * Panel Admin CEOM — "Eliminar" (H-02): soft-delete, nunca DELETE fisico (el
+ * historico de otros modulos sigue resolviendo su FK contra esta fila).
+ *
+ * **La precondicion "sin stock" NO se valida aca** — Identidad no puede
+ * consultar el stock de Productos sin cruzar a otro modulo (regla de caja
+ * negra, mismo criterio que crearTenantAction componiendo Identidad+Gastos
+ * en la capa de `/admin`, no dentro de un modulo). El caller
+ * (`admin/tenants/actions.ts`, capa de composicion) es responsable de
+ * confirmar `consultarStockTotalPorSucursal(...) === 0` antes de llamar a
+ * esta funcion — tanto para "Eliminar" directo como para "Consolidar"
+ * (que primero mueve el stock a la Principal via Productos y recien
+ * despues llama a esta funcion).
+ */
+export async function eliminarSucursal(
+  solicitante: UsuarioConRol,
+  sucursalId: string
+): Promise<Resultado<true>> {
+  if (solicitante.rolId !== ROL_CEOM_ADMIN_ID) {
+    return { ok: false, error: "Solo el equipo CEOM puede eliminar una sucursal." };
+  }
+  const sucursal = await repo.obtenerSucursalPorId(sucursalId);
+  if (!sucursal) return { ok: false, error: "Sucursal no encontrada." };
+  if (sucursal.esPrincipal) {
+    return { ok: false, error: "No se puede eliminar la sucursal Principal." };
+  }
+
+  await repo.eliminarSucursalSoft(sucursalId, solicitante.id);
   return { ok: true, data: true };
 }
 
@@ -610,10 +747,15 @@ export async function listarUsuarios(
 }
 
 /** `redirectTo`: mismo contrato que crearTenant() — obligatorio, resuelto por
- * la Server Action delgada, apunta al callback de /app. */
+ * la Server Action delgada, apunta al callback de /app.
+ *
+ * `input.sucursalId` (H-02, estructura para la Etapa 5 — ver
+ * usuarios.sucursalId en schema.ts): opcional, a que sucursal pertenece este
+ * colaborador. Se valida que pertenezca al tenant si viene, pero HOY no
+ * restringe nada — ningun modulo filtra por esta columna todavia. */
 export async function invitarUsuario(
   solicitante: UsuarioConRol,
-  input: { email: string; nombreCompleto: string; rolId: string },
+  input: { email: string; nombreCompleto: string; rolId: string; sucursalId?: string },
   redirectTo: string
 ): Promise<Resultado<{ usuarioId: string }>> {
   // "cualquier usuario con permiso crear en este modulo" (Modulo_01 seccion
@@ -635,6 +777,13 @@ export async function invitarUsuario(
     return { ok: false, error: "Ese rol no se puede asignar." };
   }
 
+  if (input.sucursalId) {
+    const sucursal = await repo.obtenerSucursalPorId(input.sucursalId);
+    if (!sucursal || sucursal.tenantId !== solicitante.tenantId) {
+      return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+    }
+  }
+
   const admin = crearClienteAdmin();
   const { data: authData, error: authError } =
     await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo });
@@ -651,6 +800,7 @@ export async function invitarUsuario(
     nombreCompleto: input.nombreCompleto,
     email: input.email,
     rolId: input.rolId,
+    sucursalId: input.sucursalId,
     esOwner: false,
     activo: true,
     creadoPor: solicitante.id,

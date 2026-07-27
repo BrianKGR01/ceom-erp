@@ -107,7 +107,8 @@ function matrizVacia(): Matriz {
   return m;
 }
 
-function SubnavMiNegocio() {
+// H-02: ver la nota gemela en colaboradores-cliente.tsx.
+function SubnavMiNegocio({ mostrarSucursales }: { mostrarSucursales: boolean }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
       <Link href="/app/onboarding" className="text-primary hover:underline">
@@ -120,6 +121,11 @@ function SubnavMiNegocio() {
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
         Permisos especiales
       </Link>
+      {mostrarSucursales && (
+        <Link href="/app/mi-negocio/sucursales" className="text-primary hover:underline">
+          Sucursales
+        </Link>
+      )}
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
       </Link>
@@ -233,7 +239,15 @@ function ReasignarYEliminarDialog({
   );
 }
 
-export function RolesCliente({ roles, colaboradores }: { roles: Rol[]; colaboradores: Colaborador[] }) {
+export function RolesCliente({
+  roles,
+  colaboradores,
+  mostrarSucursales,
+}: {
+  roles: Rol[];
+  colaboradores: Colaborador[];
+  mostrarSucursales: boolean;
+}) {
   const router = useRouter();
   const [seleccionId, setSeleccionId] = useState<string | "nuevo" | null>(null);
   const [nombre, setNombre] = useState("");
@@ -342,7 +356,7 @@ export function RolesCliente({ roles, colaboradores }: { roles: Rol[]; colaborad
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <SubnavMiNegocio />
+      <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader
         title="Gestión de Roles"
         description="Administra los accesos y permisos de tu equipo."

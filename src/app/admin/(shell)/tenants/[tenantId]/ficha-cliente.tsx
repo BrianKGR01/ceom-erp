@@ -3,7 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Banknote, Boxes, CreditCard, Factory, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  Banknote,
+  Boxes,
+  Building2,
+  CreditCard,
+  Factory,
+  Lock,
+  RefreshCw,
+  Trash2,
+  Unlock,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,9 +41,12 @@ import { cn } from "@/lib/utils";
 import {
   cambiarEstadoSuscripcionAction,
   cambiarPlanTenantAction,
+  consolidarSucursalAction,
   consultarFinancieroTenantAction,
   consultarInventarioOperativoTenantAction,
   consultarOperativoTenantAction,
+  desbloquearSucursalAction,
+  eliminarSucursalAction,
 } from "../actions";
 
 interface Produccion {
@@ -45,6 +60,14 @@ interface Insumo {
   nombre: string;
   unidadMedida: string;
   costoUnitarioVigente: string | null;
+}
+
+interface Sucursal {
+  id: string;
+  nombre: string;
+  esPrincipal: boolean;
+  congeladaEn: string | Date | null;
+  congeladaMotivo: string | null;
 }
 
 interface TenantDetalle {
@@ -322,15 +345,250 @@ function CambiarEstadoSuscripcionDialog({
   );
 }
 
+/**
+ * "Consolidar" (H-02): mueve el stock de la sucursal congelada a otra (por
+ * defecto la Principal, si hay más de una candidata se puede elegir) y la
+ * cierra en el mismo paso — ver consolidarSucursalAction, que compone
+ * Productos (mueve el stock) + Identidad (cierra la sucursal).
+ */
+function ConsolidarSucursalDialog({
+  open,
+  onOpenChange,
+  tenantId,
+  sucursal,
+  candidatasDestino,
+  onConsolidada,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenantId: string;
+  sucursal: Sucursal | null;
+  candidatasDestino: Sucursal[];
+  onConsolidada: () => void;
+}) {
+  const principal = candidatasDestino.find((s) => s.esPrincipal);
+  // Sin useEffect: el padre remonta este componente con key={sucursal?.id}
+  // (ver SucursalesSection más abajo), así que el estado ya nace correcto
+  // por sucursal sin necesitar sincronizarlo después del montaje.
+  const [destinoId, setDestinoId] = useState(principal?.id ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmar() {
+    if (!sucursal || !destinoId) return;
+    setGuardando(true);
+    setError(null);
+    const resultado = await consolidarSucursalAction(tenantId, sucursal.id, destinoId);
+    setGuardando(false);
+    if (!resultado.ok) {
+      setError(resultado.error);
+      return;
+    }
+    onOpenChange(false);
+    onConsolidada();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
+              <ArrowRightLeft className="size-4" />
+            </span>
+            <DialogTitle>Consolidar {sucursal?.nombre}</DialogTitle>
+          </div>
+          <DialogDescription>
+            Mueve todo el stock de esta sucursal al destino elegido y la cierra. No se puede deshacer.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="destino-consolidar">Mover el stock a</Label>
+          <Select
+            items={Object.fromEntries(candidatasDestino.map((s) => [s.id, s.nombre]))}
+            value={destinoId}
+            onValueChange={(v) => v && setDestinoId(v)}
+          >
+            <SelectTrigger id="destino-consolidar" className="w-full">
+              <SelectValue placeholder="Elegí una sucursal destino" />
+            </SelectTrigger>
+            <SelectContent>
+              {candidatasDestino.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.nombre}
+                  {s.esPrincipal ? " (Principal)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {error && <p className="text-xs text-error-text">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={guardando || !destinoId}>
+            {guardando ? "Consolidando..." : "Consolidar y cerrar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EliminarSucursalDialog({
+  open,
+  onOpenChange,
+  tenantId,
+  sucursal,
+  onEliminada,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tenantId: string;
+  sucursal: Sucursal | null;
+  onEliminada: () => void;
+}) {
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmar() {
+    if (!sucursal) return;
+    setGuardando(true);
+    setError(null);
+    const resultado = await eliminarSucursalAction(tenantId, sucursal.id);
+    setGuardando(false);
+    if (!resultado.ok) {
+      setError(resultado.error);
+      return;
+    }
+    onOpenChange(false);
+    onEliminada();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar {sucursal?.nombre}</DialogTitle>
+          <DialogDescription>
+            Solo funciona si la sucursal no tiene stock — si todavía tiene, consolidala primero.
+          </DialogDescription>
+        </DialogHeader>
+
+        {error && <p className="text-xs text-error-text">{error}</p>}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" onClick={confirmar} disabled={guardando}>
+            {guardando ? "Eliminando..." : "Eliminar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SucursalesSection({ tenantId, sucursales }: { tenantId: string; sucursales: Sucursal[] }) {
+  const router = useRouter();
+  const [desbloqueando, setDesbloqueando] = useState<string | null>(null);
+  const [consolidando, setConsolidando] = useState<Sucursal | null>(null);
+  const [eliminando, setEliminando] = useState<Sucursal | null>(null);
+
+  async function desbloquear(sucursal: Sucursal) {
+    setDesbloqueando(sucursal.id);
+    const resultado = await desbloquearSucursalAction(sucursal.id);
+    setDesbloqueando(null);
+    if (resultado.ok) router.refresh();
+  }
+
+  if (sucursales.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-2xl bg-card p-4 shadow-card">
+      <div className="flex items-center gap-2">
+        <Building2 className="size-4 text-primary" />
+        <h2 className="font-heading text-sm font-semibold text-navy">Sucursales</h2>
+      </div>
+      <div className="mt-3 divide-y divide-gray-border">
+        {sucursales.map((s) => (
+          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+            <div>
+              <p className="text-sm text-navy">
+                {s.nombre}
+                {s.esPrincipal && <Badge variant="info" className="ml-2">Principal</Badge>}
+                {s.congeladaEn && (
+                  <Badge variant="warning" className="ml-2">
+                    <Lock className="size-3" />
+                    Congelada
+                  </Badge>
+                )}
+              </p>
+              {s.congeladaEn && s.congeladaMotivo && (
+                <p className="text-xs text-text-muted">{s.congeladaMotivo}</p>
+              )}
+            </div>
+            {s.congeladaEn && (
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => desbloquear(s)}
+                  disabled={desbloqueando === s.id}
+                >
+                  <Unlock className="size-3.5" />
+                  Desbloquear
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setConsolidando(s)}>
+                  <ArrowRightLeft className="size-3.5" />
+                  Consolidar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setEliminando(s)}>
+                  <Trash2 className="size-3.5" />
+                  Eliminar
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <ConsolidarSucursalDialog
+        key={consolidando?.id ?? "sin-seleccion"}
+        open={consolidando !== null}
+        onOpenChange={(open) => !open && setConsolidando(null)}
+        tenantId={tenantId}
+        sucursal={consolidando}
+        candidatasDestino={sucursales.filter((s) => !s.congeladaEn && s.id !== consolidando?.id)}
+        onConsolidada={() => router.refresh()}
+      />
+      <EliminarSucursalDialog
+        open={eliminando !== null}
+        onOpenChange={(open) => !open && setEliminando(null)}
+        tenantId={tenantId}
+        sucursal={eliminando}
+        onEliminada={() => router.refresh()}
+      />
+    </div>
+  );
+}
+
 export function FichaTenantAdminCliente({
   tenantId,
   tenant,
   planes,
+  sucursales,
   zona,
 }: {
   tenantId: string;
   tenant: TenantDetalle;
   planes: Plan[];
+  sucursales: Sucursal[];
   /** Zona horaria del negocio OBSERVADO, no la del admin que mira. */
   zona: string;
 }) {
@@ -428,6 +686,8 @@ export function FichaTenantAdminCliente({
           </p>
         </div>
       </div>
+
+      <SucursalesSection tenantId={tenantId} sucursales={sucursales} />
 
       <div className="mt-6 rounded-2xl bg-card shadow-card">
         <div className="flex items-center gap-1 overflow-x-auto border-b border-gray-border px-4">

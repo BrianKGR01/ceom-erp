@@ -1,5 +1,9 @@
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
-import { tieneCapacidadEspecial, tienePermiso } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  tieneCapacidadEspecial,
+  tienePermiso,
+} from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import * as repo from "./repository";
 import type {
@@ -451,6 +455,45 @@ async function requireProductoDelTenant(
   return null;
 }
 
+/**
+ * Hermano de requireProductoDelTenant, mismo motivo (auditoría de
+ * autorización, H-02): ata el sucursal_id controlado por el cliente al
+ * tenant ya autorizado, y ADEMAS rechaza si esa sucursal esta congelada por
+ * el plan (docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección
+ * 3.1/6.1). Antes de esta tarea, ninguna de las 5 funciones que escriben al
+ * ledger de stock validaba que sucursal_id perteneciera al tenant — mismo
+ * tipo de hueco que ya se había cerrado en ventas/registrarVenta
+ * (actions.ts:449-452), nunca acá. Con RLS bypasseada a nivel app (rol
+ * postgres), este chequeo es hoy la única defensa real.
+ *
+ * En registrarTransferenciaStock se llama sobre AMBOS extremos (origen y
+ * destino) — bloquea el traspaso completo si cualquiera de los dos está
+ * congelado, a propósito: es la vía de escritura de uso general (cualquier
+ * colaborador con permiso), no la de liquidación administrativa. La única
+ * forma real de sacar stock de una sucursal congelada es
+ * consolidarStockDeSucursal() (más abajo), que es un camino aparte, gateado
+ * a ceom_admin, que llama al repository directo sin pasar por este chequeo.
+ */
+async function requireSucursalOperable(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string
+): Promise<{ ok: false; error: string } | null> {
+  const res = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!res.ok) return { ok: false, error: res.error };
+  const sucursal = res.data.find((s) => s.id === sucursalId);
+  if (!sucursal) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  if (sucursal.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede operar en ella.",
+    };
+  }
+  return null;
+}
+
 export async function registrarEntradaProduccion(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -467,6 +510,8 @@ export async function registrarEntradaProduccion(
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const { movimiento, cantidadActual } = await repo.crearEntradaProduccionTx({
     productoId: input.productoId,
@@ -496,6 +541,8 @@ export async function registrarEntradaCompraReventa(
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const { movimiento, cantidadActual } = await repo.crearEntradaCompraReventaTx({
     productoId: input.productoId,
@@ -527,6 +574,8 @@ export async function registrarAjusteManualStock(
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
   if (!input.motivo.trim()) {
     return { ok: false, error: "El motivo del ajuste es obligatorio." };
   }
@@ -561,6 +610,8 @@ export async function descontarStockVenta(
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const cantidadPedida = Number(input.cantidad);
   const filaStock = await repo.obtenerStock(input.productoId, input.sucursalId);
@@ -614,6 +665,13 @@ export async function registrarTransferenciaStock(
   }
   const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
   if (pertenece) return pertenece;
+  // Se valida AMBOS extremos — un traspaso mal validado podria vaciar stock
+  // hacia una sucursal ajena, y bloquea el traspaso completo si cualquiera
+  // de los dos esta congelada (ver comentario de requireSucursalOperable).
+  const origenOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalOrigenId);
+  if (origenOperable) return origenOperable;
+  const destinoOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalDestinoId);
+  if (destinoOperable) return destinoOperable;
 
   const cantidadPedida = Number(input.cantidad);
   const filaStock = await repo.obtenerStock(input.productoId, input.sucursalOrigenId);
@@ -635,6 +693,53 @@ export async function registrarTransferenciaStock(
     });
 
   return { ok: true, data: { cantidadActualOrigen, cantidadActualDestino } };
+}
+
+/**
+ * Panel Admin CEOM — "Consolidar" (H-02): mueve TODO el stock de una
+ * sucursal (tipicamente congelada por downgrade de plan) hacia otra
+ * (tipicamente la Principal), producto por producto, para poder cerrarla
+ * despues. Gateada a ceom_admin directo (no `tienePermiso()` — es una
+ * operacion de soporte/cobranza, no una accion de negocio del tenant).
+ *
+ * A proposito NO pasa por requireSucursalOperable(): es exactamente el
+ * mecanismo para vaciar una sucursal congelada, así que tiene que poder
+ * escribir contra ella. Reutiliza repo.crearTransferenciaStockTx() — mismo
+ * par de movimientos ligados (salida_transferencia/entrada_transferencia)
+ * que ya usa el traspaso de uso general, ledger append-only real, sin tabla
+ * ni lógica nueva. El costo_operativo_vigente de cada producto es
+ * tenant-wide (no por sucursal, ver docs/auditoria-prelanzamiento/
+ * 07-sucursales-multiples.md sección 3.3) — no hay nada que ponderar al
+ * mover cantidad de una sucursal a otra.
+ *
+ * No cierra la sucursal — eso lo hace el caller (capa de composición de
+ * `/admin`) llamando a `eliminarSucursal()` de Identidad recién después de
+ * confirmar que esta función devolvió `ok:true`.
+ */
+export async function consolidarStockDeSucursal(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: { sucursalOrigenId: string; sucursalDestinoId: string }
+): Promise<Resultado<{ productosTransferidos: number }>> {
+  if (!(solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
+    return { ok: false, error: "Solo el equipo CEOM puede consolidar el stock de una sucursal." };
+  }
+  if (input.sucursalOrigenId === input.sucursalDestinoId) {
+    return { ok: false, error: "La sucursal de origen y destino no pueden ser la misma." };
+  }
+
+  const filas = await repo.listarStockConSaldoPorSucursal(tenantId, input.sucursalOrigenId);
+  for (const fila of filas) {
+    await repo.crearTransferenciaStockTx({
+      productoId: fila.productoId,
+      sucursalOrigenId: input.sucursalOrigenId,
+      sucursalDestinoId: input.sucursalDestinoId,
+      cantidad: fila.cantidadActual,
+      creadoPor: solicitante.id,
+    });
+  }
+
+  return { ok: true, data: { productosTransferidos: filas.length } };
 }
 
 export { signoMovimiento } from "./repository";

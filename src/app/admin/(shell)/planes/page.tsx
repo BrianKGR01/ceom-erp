@@ -11,7 +11,7 @@ export default async function PlanesPage() {
         nombre: p.nombre,
         precioMensual: p.precioMensual,
         moneda: p.moneda,
-        incluyeSucursales: p.incluyeSucursales,
+        maxSucursales: p.maxSucursales,
         permiteMultiplesOwners: p.permiteMultiplesOwners,
         permiteDowngradeAutogestionado: p.permiteDowngradeAutogestionado,
         duracionInvitacionDias: p.duracionInvitacionDias,

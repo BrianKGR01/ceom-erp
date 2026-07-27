@@ -401,6 +401,24 @@ export async function listarStockPorProducto(productoId: string) {
   return db.select().from(stock).where(eq(stock.productoId, productoId));
 }
 
+/** Filas de stock con saldo positivo en una sucursal del tenant — insumo de
+ * consolidarStockDeSucursal() (H-02): que hay que transferir a la Principal
+ * antes de poder cerrar una sucursal congelada. */
+export async function listarStockConSaldoPorSucursal(tenantId: string, sucursalId: string) {
+  return db
+    .select({ productoId: stock.productoId, cantidadActual: stock.cantidadActual })
+    .from(stock)
+    .innerJoin(productos, eq(stock.productoId, productos.id))
+    .where(
+      and(
+        eq(productos.tenantId, tenantId),
+        eq(stock.sucursalId, sucursalId),
+        isNull(productos.eliminadoEn),
+        sql`${stock.cantidadActual} > 0`
+      )
+    );
+}
+
 export async function listarMovimientosStock(productoId: string, sucursalId: string) {
   return db
     .select()

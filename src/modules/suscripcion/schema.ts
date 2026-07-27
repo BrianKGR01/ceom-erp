@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   integer,
   numeric,
   pgEnum,
@@ -30,7 +31,15 @@ export const planes = pgTable(
     // Sin FK: el modulo de Nicho no existe todavia (mismo criterio que
     // tenants.nicho_id en Identidad).
     nichoId: uuid("nicho_id"),
-    incluyeSucursales: boolean("incluye_sucursales").notNull().default(false),
+    // Tope estructurado de sucursales (H-02): reemplaza al viejo booleano
+    // incluye_sucursales. 1 = el plan no incluye sucursales adicionales (toda
+    // cuenta ya tiene la Principal, asi que "no incluye multi-sucursal" es
+    // matematicamente "tope = 1", igual semantica que incluye_sucursales=false
+    // tenia antes). N>1 = "hasta N sucursales". NULL = ilimitadas. Nunca 0 (la
+    // Principal siempre existe) — ver CHECK en la migracion. Ver
+    // identidad/ANCLA.md y docs/auditoria-prelanzamiento/07-sucursales-
+    // multiples.md seccion 5 para el diseño completo.
+    maxSucursales: integer("max_sucursales"),
     permiteMultiplesOwners: boolean("permite_multiples_owners")
       .notNull()
       .default(false),
@@ -53,7 +62,7 @@ export const planes = pgTable(
     // lleva eliminado_en, la baja ES este booleano (Modulo_01 seccion 1.6).
     activo: boolean("activo").notNull().default(true),
   },
-  () => [
+  (table) => [
     // planes es catalogo global, no tenant-scoped: no usa el helper
     // crudPolicy() (asume tenantScope). Cualquier usuario autenticado puede
     // leer el catalogo; sin policy de insert/update/delete (deniega por
@@ -64,5 +73,6 @@ export const planes = pgTable(
       to: authenticatedRole,
       using: sql`true`,
     }),
+    check("planes_max_sucursales_check", sql`${table.maxSucursales} is null or ${table.maxSucursales} >= 1`),
   ]
 ).enableRLS();

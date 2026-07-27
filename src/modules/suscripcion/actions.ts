@@ -24,7 +24,9 @@ interface Solicitante {
 export interface DatosPlan {
   nombre: string;
   nichoId?: string;
-  incluyeSucursales?: boolean;
+  // Tope de sucursales (H-02). 1 = no incluye sucursales adicionales, N>1 =
+  // hasta N, null/undefined = ilimitadas. Ver planes/schema.ts.
+  maxSucursales?: number | null;
   permiteMultiplesOwners?: boolean;
   permiteDowngradeAutogestionado?: boolean;
   duracionInvitacionDias?: number;
@@ -32,6 +34,13 @@ export interface DatosPlan {
   modulosVeedorPermitidos?: ModuloVeedor[];
   precioMensual: string | number;
   moneda: string;
+}
+
+/** true si el plan permite crear al menos una sucursal ademas de la
+ * Principal — helper para los call-sites que solo necesitan si/no (ej. "Mi
+ * Plan"), sin tener que repetir la comparacion contra null/1 en cada uno. */
+export function incluyeMultiplesSucursales(plan: { maxSucursales: number | null }): boolean {
+  return plan.maxSucursales === null || plan.maxSucursales > 1;
 }
 
 function requiereCeomAdmin(
@@ -65,7 +74,7 @@ export async function crearPlan(
   const plan = await repo.crearPlan({
     nombre: input.nombre,
     nichoId: input.nichoId,
-    incluyeSucursales: input.incluyeSucursales ?? false,
+    maxSucursales: input.maxSucursales ?? 1,
     permiteMultiplesOwners: input.permiteMultiplesOwners ?? false,
     permiteDowngradeAutogestionado: input.permiteDowngradeAutogestionado ?? false,
     duracionInvitacionDias: input.duracionInvitacionDias ?? 7,
