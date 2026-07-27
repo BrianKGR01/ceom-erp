@@ -27,6 +27,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # H-49: fijado a proposito, y a UTC a proposito. Las maquinas de
+      # desarrollo del equipo estan en America/La_Paz, que es la zona del
+      # negocio — eso HACIA PASAR tests que en produccion fallaban, porque
+      # Vercel corre en UTC. Con el huso fijo y distinto al del negocio, un
+      # calculo de fecha que se apoye en el reloj del proceso en vez de en la
+      # zona del tenant se cae aca en vez de en el reporte de un cliente.
+      TZ: UTC
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4 # version se lee de "packageManager" en package.json, no hardcodeada aca (evita el conflicto "multiple versions of pnpm specified")
