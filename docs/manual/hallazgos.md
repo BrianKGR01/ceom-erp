@@ -43,7 +43,7 @@
 | [H-12](#h-12) | 🟠 | "Tenant" en 105 mensajes de error |
 | [H-13](#h-13) | 🟡 | Dos cosas que el registro de accesos no distingue |
 | [H-14](#h-14) | 🟠 | No hay pantalla para dar de alta a otra persona del equipo CEOM |
-| [H-15](#h-15) | 🟡 | Un producto sin costo degrada seis pantallas en silencio |
+| [H-15](#h-15) | ✅ | ~~Un producto sin costo degrada seis pantallas en silencio~~ — **corregido** |
 | [H-16](#h-16) | 🟡 | El filtro de sucursal del panel solo afecta a dos de cinco tarjetas |
 | [H-17](#h-17) | ⚪ | Funciones que existen en el backend y no tienen botón |
 | [H-18](#h-18) | 🟡 | Documentación interna filtrada a la pantalla |
@@ -405,7 +405,40 @@ esto, y es raro que la única instrucción para un usuario sea "pedile a alguien
 ---
 
 <a id="h-15"></a>
-## H-15 🟡 Un producto sin costo degrada seis pantallas en silencio
+## H-15 ✅ Un producto sin costo degrada seis pantallas en silencio — CORREGIDO
+
+> **Corregido el 2026-07-27.** El hallazgo pedía "un aviso en la ficha y una marca en el catálogo".
+> El diagnóstico encontró algo más grave: **el daño es irreversible**. `costo_unitario_snapshot` es
+> `notNull`, así que un producto sin costo congelaba un `0` duro, y el snapshot no se recalcula
+> (regla 4) — cargar el costo mañana **no repara** las ventas de hoy. Por eso la corrección es sobre
+> todo prevención, no aviso.
+>
+> **El costo sigue siendo opcional** (es correcto: para un producto de producción lo calcula el Nicho
+> y para uno de reventa lo escribe la compra). Lo que cambió:
+>
+> - **Se registra la incógnita.** `detalles_venta.costo_desconocido` (migración `0044`, aditiva)
+>   separa "no cuesta nada" de "no sabíamos cuánto costaba" — dos cosas que antes se guardaban igual
+>   y que **no se pueden separar después**. Lo escriben los dos caminos: la venta normal y la
+>   importación de historial.
+> - **El punto de venta avisa y no bloquea.** La venta siempre se tiene que poder registrar; el dueño
+>   cobrando con el cliente enfrente no puede quedar trabado por un dato contable. Pero es el último
+>   momento en que el costo se puede capturar, y el aviso trae el enlace para cargarlo.
+> - **Margen desconocido dejó de ser margen 100%.** El síntoma más feo no era el resultado inflado:
+>   era que el ranking por margen ponía **primero** al producto que el negocio no mide. Ahora va al
+>   fondo, marcado "Sin costo". Ventas, Financiero y Reportes adoptaron el criterio que Simulaciones
+>   ya aplicaba bien.
+> - **El resultado del período se marca, no se estima.** El número no cambia —no hay costo que
+>   restar—, pero el estado de resultados dice cuánto del ingreso no tiene costo detrás. Inventar un
+>   costo plausible habría sido el mismo modo de falla que esta familia de hallazgos viene cerrando.
+> - **El catálogo y el inicio lo dicen.** La card muestra "Sin costo" en vez de callarse, y un
+>   negocio con productos sin costo ve cuántos son.
+>
+> **Y `seed:demo` ahora carga un producto sin costo a propósito** — hasta esta tanda todos tenían
+> costo, así que este escenario no se reproducía nunca en datos de prueba y toda la QA visual de
+> reportes se había hecho sobre un catálogo perfecto.
+>
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** `costoOperativoVigente` es opcional (`modules/productos/validation.ts:15`). Se puede
 guardar un producto sin costo y venderlo con normalidad. Nada advierte nada.

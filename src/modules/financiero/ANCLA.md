@@ -57,6 +57,17 @@
       ingresos_ajustados × 100, con `AjusteVenta.monto_ajuste` sumado a los
       ingresos antes de calcular el porcentaje (decisión del plan — el doc
       no daba la fórmula exacta de cómo entra el ajuste).
+- [x] **`estadoResultados` y `margenPorProducto` devuelven
+      `ingresosSinCostoConocido`** (H-15, 2026-07-27). **El resultado del
+      período no cambia** por esto: si un producto no tiene costo cargado no
+      hay costo que restar, y estimarlo sería inventar un número para tapar un
+      hueco. Lo que cambia es que el número **deja de presentarse como
+      completo** — la pantalla dice cuánto del ingreso no tiene costo detrás.
+      `margenPorProducto.margenPorcentaje` pasa a `null` en ese caso (antes
+      devolvía **100%**, que es una afirmación falsa, no un dato faltante); el
+      llamador distingue "no hubo ventas" de "hubo, sin costo cargado" mirando
+      `ingresosSinCostoConocido`. Es el mismo criterio que Simulaciones ya
+      aplicaba.
 - [x] `costoFijoTotal` **reutiliza directamente**
       `consultarTotalCostosFijos()` de Módulo 4 — no duplica la lógica,
       solo cambia el gate (`"financiero"` en vez de `"costos_gastos"`).

@@ -513,3 +513,107 @@ hasta que elijas.
 *No se escribió ni una línea de código de producción para este diagnóstico. Las únicas consultas
 ejecutadas contra la base fueron de solo lectura (`select`), y el script quedó en el scratchpad, no
 en el repo.*
+
+---
+
+# Anexo — qué se implementó y qué cambió de verdad (2026-07-27)
+
+> Las decisiones se aprobaron el 2026-07-27: **las cuatro piezas de H-15**, el aviso del POS **avisa
+> pero no bloquea**, **sí** a la migración aditiva, y el idioma de "costo desconocido" unificado
+> tomando a Simulaciones como referencia (no al revés). Esta sección registra el resultado medido, no
+> el plan.
+
+## A.1 Lo que se hizo, por commit
+
+| Commit | Qué entró |
+|---|---|
+| `d1c818b` | **H-27 completo.** Flecha invertida Patrimonio → Gastos, categoría "Cuotas de deuda" autoprovisionada, gate por `patrimonio:crear`, tests de valor exacto + guard anti-código-muerto |
+| `105fd72` | **H-15 pieza 1.** Los tests que fijan el comportamiento actual, antes de tocar nada |
+| `d68510a` | **H-15 pieza 2.** Migración `0044` (`costo_desconocido`) + guard del journal de migraciones |
+| `5c7b1e5` | **H-15 piezas 3 y 4.** Prevención (POS, catálogo, inicio, seed) e idioma unificado en Ventas/Financiero/Reportes |
+
+## A.2 H-27 — el camino elegido y por qué
+
+Se implementó la **opción B** del §2.4 (invertir la flecha), no la A. `registrarPagoPasivo` llama a
+`generarGastoCuotaPasivo` **después de que la transacción de RLS commitea**, por dos razones que no
+son cosméticas: Gastos no está migrado a `comoUsuario()` y escribiría por otra conexión, y si el
+gasto falla el pago **no se pierde** — vuelve como aviso y la ficha lo muestra. Es el mismo criterio
+ya aceptado en `registrarVenta` para la comisión.
+
+Los cinco puntos del §2.3 quedaron resueltos: categoría autoprovisionada, gate por `patrimonio:crear`
+(la trampa de H-24), el gasto sin sucursal **afirmado por test** en vez de sorpresa, orden de
+transacciones invertido, y `pagos_pasivo.origen` sin cambio de semántica.
+
+## A.3 H-15 — lo que cambió y lo que deliberadamente no
+
+**No cambió el resultado del período, y era la decisión correcta.** Si un producto no tiene costo
+cargado, no hay costo que restar. Lo que cambió es que el número **dejó de presentarse como
+completo**: `estadoResultados` devuelve `ingresosSinCostoConocido` y la pantalla lo dice con el monto
+exacto. Estimar un costo habría sido el mismo modo de falla que esta familia de hallazgos viene
+cerrando.
+
+**Sí cambió el margen, en cuatro lugares.** `margenPct` pasa a `null` —no a 100%— cuando hay ingresos
+sin costo conocido, y el ranking por margen manda esas filas **al fondo** en vez de al tope. El
+síntoma más feo de H-15 no era el resultado inflado: era que el reporte que existe para decir qué
+conviene vender ponía primero al producto que el negocio no mide.
+
+**Un hallazgo que el diagnóstico no tenía: hay dos caminos de escritura, no uno.**
+`importarVentaHistorica` también congela un costo, y **el compilador nunca lo habría avisado** —
+`costo_desconocido` tiene default en la base, así que es opcional en `$inferInsert`. Todo el historial
+importado habría quedado marcado como "costo medido". Se cerró haciendo `costoUnitarioSnapshot`
+opcional en la importación (ausente = desconocido, `0` = costo real de cero) y con un guard por AST.
+
+## A.4 Tres guards nuevos, uno por causa raíz
+
+| Guard | Qué convierte en build roto |
+|---|---|
+| `src/lib/auto-generacion-conectada.test.ts` | Una función `generarGasto*` que solo llamen los tests. Es la causa raíz **literal** de H-24, H-27 y H-10 — las tres veces hubo test verde con el número mal. |
+| `src/modules/ventas/snapshot-costo.test.ts` | Un camino de escritura que congele un costo sin decir si era conocido. El compilador no puede: la columna tiene default. |
+| `src/lib/journal-migraciones.test.ts` | Un `when` no monotónico en el journal de drizzle-kit — ver §A.5. |
+
+## A.5 La trampa que apareció al aplicar la migración
+
+`drizzle-kit migrate` **no compara qué migraciones están aplicadas**: mira el `created_at` más alto de
+`drizzle.__drizzle_migrations` y saltea toda entrada del journal con un `when` menor o igual. La
+`0043` (H-49) se selló a mano con un timestamp por delante del reloj real, así que la `0044` recién
+generada nació con un `when` **menor** que la anterior.
+
+Resultado: contra la base de desarrollo, el comando imprimió **`migrations applied successfully`** y
+no aplicó nada. El único síntoma fue un test de integración fallando con
+`column "costo_desconocido" ... does not exist`, bastante lejos de la causa.
+
+**Lo importante para la próxima vez:** contra un Postgres vacío la migración **sí** se aplicaba, así
+que la verificación contra contenedor limpio de `dev-practices §7.2` **no lo detecta** — es el caso
+exactamente inverso al incidente que motivó esa regla. Por eso el guard es un test del journal, no un
+paso más del checklist manual.
+
+## A.6 Cómo se verificó
+
+- **Contenedor limpio** (`dev-practices §7.2`): `postgres:16` vacío + `apply-stub.mjs` +
+  `drizzle-kit migrate` con las 45 migraciones desde cero, dos veces (antes y después de corregir el
+  journal). La columna queda `boolean not null default false`.
+- **Se rompió cada arreglo a propósito**, no solo se confirmó que pasa:
+  - H-27, quitando la llamada → `expected false to be true` en `gastoCuota.ok`.
+  - H-27, dejándola devolver éxito **sin escribir nada** —el caso peligroso, un no-op silencioso—
+    → `expected +0 to be 1500` sobre los gastos del período.
+  - El guard de código muerto, desconectando `generarGastoCuotaPasivo` → señala la función por nombre.
+  - El guard de escritura, quitando `costoDesconocido` de la importación → señala el objeto.
+  - El guard del journal, restaurando el `when` original → señala `0044` por nombre.
+- **Gateway (§13.11):** el test dorado de vigencia sigue verde (13/13) y el camino institucional
+  conserva sus números exactos. Canary nuevo en `monitoreo-institucional.test.ts`: la cuota de pasivo
+  mueve el `estadoResultados` que ve una institución en **−350 exactos**, con un assert previo de que
+  el valor de base **no era 0** — sin eso, un camino que devolviera 0 por RLS pasaría el delta igual.
+
+## A.7 Lo que quedó afuera, a propósito
+
+- **No hay scheduler.** El gasto de la cuota se genera cuando alguien registra el pago, no "cada
+  período" como pide `Modulo_05` §2. Es H-10, no H-27.
+- **No se regeneraron los 5 pagos de pasivo ya registrados** (los Bs 10.700 del §2.2). Cambiaría el
+  resultado de meses ya cerrados y no estaba aprobado. Si se quiere, es un script acotado y medible,
+  mismo criterio que la migración `0043` de H-49.
+- **Las ventas viejas siguen con `costo_desconocido = false`.** El default de la migración lo asume, y
+  es lo único posible: el dato no existe y no se puede inferir. Solo las ventas nuevas distinguen.
+- **La institución no ve el marcador de costo desconocido.** `tendenciaVentas` expone solo `ingresos`
+  y `detalleFinanciero` solo los totales — agregar el campo ahí **ampliaría lo que una institución ve
+  del negocio**, que es una decisión de consentimiento y no una de implementación. Queda anotado: hoy
+  una institución puede estar viendo un `estadoResultados` optimista sin ninguna señal.
