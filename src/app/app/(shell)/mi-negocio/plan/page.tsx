@@ -105,7 +105,11 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Plan</p>
             <p className="font-heading text-xl font-semibold text-navy">{plan.nombre}</p>
-            <p className="text-xs text-text-muted">{formatMoneda(plan.precioMensual, plan.moneda)} / mes</p>
+            <p className="text-xs text-text-muted">
+              {Number(plan.precioMensual) === 0
+                ? "Precio a convenir"
+                : `${formatMoneda(plan.precioMensual, plan.moneda)} / mes`}
+            </p>
           </div>
         </div>
 
