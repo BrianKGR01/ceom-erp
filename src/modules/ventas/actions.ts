@@ -468,6 +468,7 @@ export async function registrarVenta(
     cantidad: string;
     precioVentaSnapshot: string;
     costoUnitarioSnapshot: string;
+    costoDesconocido: boolean;
     subtotal: string;
   };
 
@@ -489,7 +490,14 @@ export async function registrarVenta(
           productoId: linea.productoId,
           cantidad: String(cantidad),
           precioVentaSnapshot: String(precio.data.precioVenta),
+          // El `?? 0` se queda: la columna es notNull y no hay costo que
+          // poner. Lo que cambia (H-15) es que ese 0 ya no se guarda mudo —
+          // al lado queda registrado si era un costo real de 0 o una
+          // incognita. Es la unica forma de saberlo: inferirlo despues es
+          // imposible, porque el producto puede ganar un costo mañana y la
+          // venta de hoy no se recalcula (regla 4).
           costoUnitarioSnapshot: String(costo.data.costoOperativoVigente ?? 0),
+          costoDesconocido: costo.data.costoOperativoVigente === null,
           subtotal: String(subtotal),
         },
       };

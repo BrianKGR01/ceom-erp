@@ -780,4 +780,74 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
     expect(fila?.ingresos).toBe(100);
     expect(fila?.costos).toBe(60);
   });
+
+  it(
+    "H-15: la linea de venta distingue 'no sabiamos el costo' de 'el costo es 0'",
+    async () => {
+      // El unico test que prueba que la ambiguedad quedo resuelta. Un 0
+      // guardado, por si solo, no dice cual de los dos casos fue — y no se
+      // puede inferir despues, porque el producto puede ganar un costo mañana
+      // y esta venta no se recalcula (regla 4). Por eso se registra al
+      // escribir, no se deduce al leer.
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const sinCosto = await crearProducto(owner!, tenantId, {
+        nombre: "Sin costo cargado",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+      });
+      // Un costo de 0 REAL y deliberado: una muestra gratis, un regalo de
+      // promocion. Es un dato valido, no una incognita, y no se debe marcar.
+      const costoCeroReal = await crearProducto(owner!, tenantId, {
+        nombre: "Muestra gratis",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+        costoOperativoVigente: 0,
+      });
+      if (!sinCosto.ok || !costoCeroReal.ok) throw new Error("setup fallo: crearProducto");
+
+      for (const productoId of [sinCosto.data.productoId, costoCeroReal.data.productoId]) {
+        await registrarAjusteManualStock(owner!, tenantId, {
+          productoId,
+          sucursalId,
+          tipo: "entrada_ajuste_manual",
+          cantidad: 10,
+          motivo: "Carga inicial H-15",
+        });
+      }
+
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-07-22",
+        lineas: [
+          { productoId: sinCosto.data.productoId, cantidad: 1 },
+          { productoId: costoCeroReal.data.productoId, cantidad: 1 },
+        ],
+      });
+      expect(venta.ok).toBe(true);
+      if (!venta.ok) return;
+
+      const lineas = await db
+        .select({
+          productoId: detallesVenta.productoId,
+          costo: detallesVenta.costoUnitarioSnapshot,
+          desconocido: detallesVenta.costoDesconocido,
+        })
+        .from(detallesVenta)
+        .where(eq(detallesVenta.ventaId, venta.data.ventaId));
+
+      const lineaSinCosto = lineas.find((l) => l.productoId === sinCosto.data.productoId);
+      const lineaCeroReal = lineas.find((l) => l.productoId === costoCeroReal.data.productoId);
+
+      // Las dos congelan 0 — el numero no cambia, y no tiene que cambiar:
+      // no hay costo que poner. Lo que cambia es que ahora se sabe cual era
+      // una incognita.
+      expect(Number(lineaSinCosto?.costo)).toBe(0);
+      expect(Number(lineaCeroReal?.costo)).toBe(0);
+      expect(lineaSinCosto?.desconocido).toBe(true);
+      expect(lineaCeroReal?.desconocido).toBe(false);
+    },
+    20000
+  );
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "detalles_venta" ADD COLUMN "costo_desconocido" boolean DEFAULT false NOT NULL;

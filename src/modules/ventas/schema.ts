@@ -201,6 +201,20 @@ export const detallesVenta = pgTable(
       precision: 12,
       scale: 4,
     }).notNull(),
+    // H-15. `costo_unitario_snapshot` es notNull y el snapshot nunca se
+    // recalcula (regla 4), asi que cuando el producto no tenia costo cargado
+    // se congela un 0 — y un 0 guardado es ambiguo: puede ser "no cuesta
+    // nada" o "no sabiamos cuanto costaba". Los dos casos se veian igual y
+    // los dos se contaban como ganancia pura.
+    //
+    // Esta columna registra cual de los dos fue, **en el momento de
+    // escribir**: inferirlo despues es imposible (el producto puede haber
+    // ganado un costo desde entonces). Es aditiva a proposito — no cambia
+    // ninguna fila existente y ninguna agregacion de `sum(cantidad x
+    // snapshot)` cambia de valor. Lo que habilita es que el reporte pueda
+    // decir "margen desconocido" en vez de "margen 100%", que es el criterio
+    // que Simulaciones ya aplicaba y el resto del sistema no.
+    costoDesconocido: boolean("costo_desconocido").notNull().default(false),
     subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
   },
   (table) => [
