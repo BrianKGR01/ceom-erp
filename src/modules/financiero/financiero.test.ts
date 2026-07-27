@@ -460,6 +460,20 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
     expect(conCostoExtra.data.ajustesCompra).toBe(70);
     expect(conCostoExtra.data.estadoResultados).toBe(antes.data.estadoResultados - 70);
 
+    // Y con un período que TERMINA HOY — que es lo que manda todo preset de la
+    // UI ("Hoy", "Este mes", "Este año": los tres usan hasta = hoy). El ajuste
+    // se acaba de crear, así que su `creado_en` cae dentro del día `hasta`: si
+    // el borde superior truncara a medianoche, este número sería 0 y el ajuste
+    // no se vería en pantalla el día que se carga — el mismo defecto silencioso
+    // que H-31 viene a cerrar, reintroducido por el borde del rango.
+    const hoy = new Date().toISOString().slice(0, 10);
+    const terminaHoy = await estadoResultados(owner!, tenantId, {
+      desde: "2026-01-01",
+      hasta: hoy,
+    });
+    expect(terminaHoy.ok).toBe(true);
+    if (terminaHoy.ok) expect(terminaHoy.data.ajustesCompra).toBe(70);
+
     // Segunda parte, la dirección contraria: una devolución al proveedor de
     // Bs 100 NO puede subir la utilidad. En CEOM una compra nunca fue un
     // gasto (entra como costo al venderse), así que deshacerla no es una

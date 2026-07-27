@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db/contexto";
 import { comprasAjuste, compras, pagosCompra, proveedores } from "./schema";
 
@@ -351,8 +351,22 @@ export async function sumarPagosCompraPeriodo(
  * dejar un costo fantasma de 50.
  *
  * Se filtra por `creado_en` porque `compras_ajuste` no tiene fecha propia —
- * misma limitacion (y mismo criterio) que `sumarAjustesVentaPeriodo` en
- * Ventas.
+ * misma limitacion que `sumarAjustesVentaPeriodo` en Ventas.
+ *
+ * **Pero el borde superior NO se copia de ahi, a proposito.** `creado_en` es
+ * un timestamp y el `hasta` del periodo llega como fecha sola, que
+ * `new Date()` ancla a medianoche UTC: con `<= hasta` (lo que hacen hoy
+ * `sumarAjustesVentaPeriodo` y `sumarIngresosCostosPeriodo`) queda FUERA todo
+ * lo que pasó durante el dia `hasta`. Como todos los presets de la UI mandan
+ * `hasta = hoy`, un ajuste cargado hoy no habria aparecido nunca en el estado
+ * de resultados — o sea el mismo defecto silencioso que H-31 viene a cerrar,
+ * reintroducido por el borde del rango. Aca se cubre el dia completo
+ * (`< hasta + 1 dia`).
+ *
+ * Los agregados de Ventas siguen truncando: es un defecto preexistente que
+ * afecta ingresos/costos/ajustes de venta (todo lo filtrado por timestamp) y
+ * corregirlo toca seis funciones y sus expectativas de test, asi que se
+ * reporta aparte en vez de arrastrarlo a este cambio.
  */
 export async function sumarCostoExtraAjustesCompraPeriodo(
   tx: Ejecutor,
@@ -361,11 +375,14 @@ export async function sumarCostoExtraAjustesCompraPeriodo(
   hasta: Date,
   opts: { sucursalId?: string } = {}
 ): Promise<number> {
+  const finDelDiaHasta = new Date(hasta);
+  finDelDiaHasta.setUTCDate(finDelDiaHasta.getUTCDate() + 1);
+
   const condiciones = [
     eq(compras.tenantId, tenantId),
     isNull(compras.eliminadoEn),
     gte(comprasAjuste.creadoEn, desde),
-    lte(comprasAjuste.creadoEn, hasta),
+    lt(comprasAjuste.creadoEn, finDelDiaHasta),
   ];
   if (opts.sucursalId) condiciones.push(eq(compras.sucursalId, opts.sucursalId));
 
