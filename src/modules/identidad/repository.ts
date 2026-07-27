@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   permisos,
@@ -63,6 +63,35 @@ export async function listarSucursalesPorTenant(tenantId: string) {
     .select()
     .from(sucursales)
     .where(and(eq(sucursales.tenantId, tenantId), isNull(sucursales.eliminadoEn)));
+}
+
+export async function obtenerSucursalPorId(sucursalId: string) {
+  const filas = await db
+    .select()
+    .from(sucursales)
+    .where(and(eq(sucursales.id, sucursalId), isNull(sucursales.eliminadoEn)))
+    .limit(1);
+  return filas[0] ?? null;
+}
+
+/**
+ * Cuenta sucursales activas y NO congeladas de un tenant (H-02) — el numero
+ * que se compara contra planes.maxSucursales, tanto para gatear
+ * crearSucursal() como para decidir cuantas hay que congelar en un downgrade.
+ * Una sucursal ya congelada no cuenta (ya esta "fuera" del cupo operable).
+ */
+export async function contarSucursalesOperables(tenantId: string): Promise<number> {
+  const filas = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(sucursales)
+    .where(
+      and(
+        eq(sucursales.tenantId, tenantId),
+        isNull(sucursales.eliminadoEn),
+        isNull(sucursales.congeladaEn)
+      )
+    );
+  return filas[0]?.total ?? 0;
 }
 
 export async function obtenerRolPorId(rolId: string) {
@@ -246,17 +275,129 @@ export interface DatosActualizarTenant {
   logoUrl?: string;
 }
 
-export async function actualizarPlanTenant(
-  tenantId: string,
-  planId: string,
+/**
+ * Cambia el plan de un tenant y, si el plan nuevo tiene un tope de sucursales
+ * menor al numero de sucursales activas no congeladas, congela el excedente
+ * en la MISMA transaccion (H-02) — evita reproducir el patron de H-47
+ * ("downgrade que no reconcilia nada") un nivel mas abajo, ver
+ * docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 6.3,
+ * hueco (1) encontrado en la revision adversarial.
+ *
+ * Criterio de congelamiento: mas nuevas primero por creado_en. La sucursal
+ * Principal NUNCA entra en la lista candidata — el tope minimo posible ya es
+ * 1 y ella sola lo cubre, y es el ancla de la que cuelgan el resto de los
+ * modulos operativos cuando el tenant nunca tuvo multi-sucursal.
+ * maxSucursalesNuevoPlan=null (ilimitado) nunca congela nada.
+ */
+export async function actualizarPlanTenantConCongelamiento(input: {
+  tenantId: string;
+  nuevoPlanId: string;
+  maxSucursalesNuevoPlan: number | null;
+  modificadoPor: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [tenant] = await tx
+      .update(tenants)
+      .set({ planId: input.nuevoPlanId, modificadoPor: input.modificadoPor, modificadoEn: new Date() })
+      .where(eq(tenants.id, input.tenantId))
+      .returning();
+
+    if (input.maxSucursalesNuevoPlan === null) {
+      return { tenant, sucursalesCongeladas: [] as (typeof sucursales.$inferSelect)[] };
+    }
+
+    const candidatas = await tx
+      .select()
+      .from(sucursales)
+      .where(
+        and(
+          eq(sucursales.tenantId, input.tenantId),
+          eq(sucursales.esPrincipal, false),
+          isNull(sucursales.eliminadoEn),
+          isNull(sucursales.congeladaEn)
+        )
+      )
+      .orderBy(desc(sucursales.creadoEn));
+
+    const slotsParaNoPrincipal = Math.max(0, input.maxSucursalesNuevoPlan - 1);
+    const idsACongelar = candidatas
+      .slice(0, Math.max(0, candidatas.length - slotsParaNoPrincipal))
+      .map((s) => s.id);
+
+    if (idsACongelar.length === 0) {
+      return { tenant, sucursalesCongeladas: [] as (typeof sucursales.$inferSelect)[] };
+    }
+
+    const sucursalesCongeladas = await tx
+      .update(sucursales)
+      .set({
+        congeladaEn: new Date(),
+        congeladaMotivo: `Downgrade de plan: el nuevo plan permite hasta ${input.maxSucursalesNuevoPlan} sucursal(es).`,
+      })
+      .where(inArray(sucursales.id, idsACongelar))
+      .returning();
+
+    return { tenant, sucursalesCongeladas };
+  });
+}
+
+export async function crearSucursal(data: {
+  tenantId: string;
+  nombre: string;
+  direccion?: string;
+  creadoPor: string;
+}) {
+  const [sucursal] = await db
+    .insert(sucursales)
+    .values({
+      tenantId: data.tenantId,
+      nombre: data.nombre,
+      direccion: data.direccion,
+      esPrincipal: false,
+      activa: true,
+      creadoPor: data.creadoPor,
+    })
+    .returning();
+  return sucursal;
+}
+
+export async function actualizarSucursal(
+  sucursalId: string,
+  data: { nombre?: string; direccion?: string },
   modificadoPor: string
 ) {
-  const [tenant] = await db
-    .update(tenants)
-    .set({ planId, modificadoPor, modificadoEn: new Date() })
-    .where(eq(tenants.id, tenantId))
+  const [sucursal] = await db
+    .update(sucursales)
+    .set({ ...data, modificadoPor, modificadoEn: new Date() })
+    .where(eq(sucursales.id, sucursalId))
     .returning();
-  return tenant;
+  return sucursal;
+}
+
+/** Panel Admin CEOM, resolucion manual de una sucursal congelada por
+ * downgrade (H-02, "Desbloquear"): excepcion puntual, vuelve operable sin
+ * pasar por un upgrade de plan real. */
+export async function desbloquearSucursal(sucursalId: string, modificadoPor: string) {
+  const [sucursal] = await db
+    .update(sucursales)
+    .set({ congeladaEn: null, congeladaMotivo: null, modificadoPor, modificadoEn: new Date() })
+    .where(eq(sucursales.id, sucursalId))
+    .returning();
+  return sucursal;
+}
+
+/** Panel Admin CEOM ("Eliminar"/"Consolidar"): soft-delete, nunca DELETE
+ * fisico — el historico (ventas, movimientos de stock, etc.) sigue
+ * resolviendo su FK contra esta fila. La precondicion "sin stock" la valida
+ * el caller (capa de composicion de /admin), Identidad no puede consultarla
+ * sin cruzar a Productos (modulo = caja negra). */
+export async function eliminarSucursalSoft(sucursalId: string, modificadoPor: string) {
+  const [sucursal] = await db
+    .update(sucursales)
+    .set({ eliminadoEn: new Date(), modificadoPor, modificadoEn: new Date() })
+    .where(eq(sucursales.id, sucursalId))
+    .returning();
+  return sucursal;
 }
 
 export async function actualizarEstadoSuscripcionTenant(

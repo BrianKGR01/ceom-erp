@@ -122,6 +122,24 @@
   Suscripción: pegan contra Supabase Cloud real, limpian explícitamente en
   `afterAll` (incluye borrar `pagos_pasivo` por cada `pasivo_id` antes de
   borrar los pasivos, por el orden de las FK).
+- **`requireSucursalOperable()` (H-02, 2026-07-27) — freeze de sucursal
+  también acá.** `crearActivo`, `actualizarActivo` (solo si `sucursalId`
+  viene en el input) y `transferirActivo` (chequea origen si el activo ya
+  tenía sucursal, y siempre el destino) rechazan si la sucursal está
+  congelada (`sucursales.congelada_en`). Variante "nullable" — un activo sin
+  `sucursal_id` (compartido) nunca pasa por el chequeo. Ver
+  `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 6.3:
+  este módulo quedó afuera del freeze en la implementación original de H-02
+  y se cerró en una segunda tanda junto con Gastos, Proveedores y Operativo
+  Nicho 1.
+
+## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
+`requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `crearActivo`/`actualizarActivo`/
+`transferirActivo`. Antes del cierre de esta tanda, una sucursal congelada por downgrade de plan
+rechazaba escritura en Productos/Ventas pero la aceptaba acá — modo de falla silencioso señalado en
+la revisión del usuario antes de mergear H-02. Test nuevo en `patrimonio.test.ts` (rompí el chequeo
+a propósito con `if (false && ...)`, confirmé que el test lo atrapa, revertí). Sin cambio de
+contrato — la firma de las tres funciones no cambió, solo se agregó un rechazo temprano.
 
 ## Última actualización: 2026-07-17 (2) — Tanda B de UI (Pasivos): módulo cerrado, 11/11 pantallas de negocio
 Sin cambios de contrato — `pasivoFormSchema`/`registrarPagoPasivoSchema` (nuevos, en `validation.ts`)

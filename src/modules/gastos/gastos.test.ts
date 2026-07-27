@@ -53,6 +53,7 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
   let tenantId: string;
   let ownerId: string;
   let sucursalId: string;
+  let sucursalDosId: string;
   let categoriaServiciosId: string;
 
   beforeAll(async () => {
@@ -81,6 +82,12 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
     });
     tenantId = tenant.id;
     sucursalId = sucursal.id;
+
+    const [sucursalDos] = await db
+      .insert(sucursales)
+      .values({ tenantId, nombre: `Sucursal Dos ${sufijo}`, esPrincipal: false })
+      .returning();
+    sucursalDosId = sucursalDos.id;
 
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
     const categoria = await crearCategoriaGasto(owner!, tenantId, { nombre: "Servicios" });
@@ -536,4 +543,83 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
     expect(ficha.ok).toBe(true);
     if (ficha.ok) expect(ficha.data.gasto?.categoriaId).toBe(categoria.data.categoriaId);
   });
+
+  // H-02: una sucursal congelada rechaza toda escritura en este módulo
+  // también — cierre del hueco señalado explícitamente (Patrimonio/Gastos/
+  // Proveedores/Nicho 1 quedaban fuera del freeze en la primera tanda).
+  it("una sucursal congelada rechaza crearGastoManual/crearGastoRecurrente/generarGastoDesdeRecurrente, pero una operable los acepta", async () => {
+    // Timeout mas alto que el default (5000ms) — este test encadena ~9
+    // round-trips secuenciales contra Supabase Cloud real.
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalDosId));
+
+    const rechazoManual = await crearGastoManual(owner!, tenantId, {
+      sucursalId: sucursalDosId,
+      tipo: "unico",
+      categoriaId: categoriaServiciosId,
+      monto: 40,
+      fechaGasto: "2026-05-02",
+    });
+    expect(rechazoManual.ok).toBe(false);
+
+    // Un gasto SIN sucursal (nivel negocio) sí se puede crear igual — no está
+    // atado a ninguna sucursal en particular.
+    const sinSucursal = await crearGastoManual(owner!, tenantId, {
+      tipo: "unico",
+      categoriaId: categoriaServiciosId,
+      monto: 10,
+      fechaGasto: "2026-05-02",
+    });
+    expect(sinSucursal.ok).toBe(true);
+
+    const rechazoRecurrente = await crearGastoRecurrente(owner!, tenantId, {
+      sucursalId: sucursalDosId,
+      categoriaId: categoriaServiciosId,
+      monto: 100,
+      frecuencia: "mensual",
+      fechaInicio: "2026-05-01",
+    });
+    expect(rechazoRecurrente.ok).toBe(false);
+
+    // Plantilla recurrente ya existente en la sucursal operable — al
+    // congelarse recién ahora, generarGastoDesdeRecurrente() rechaza la
+    // próxima generación aunque la plantilla se haya creado antes.
+    const recurrenteOperable = await crearGastoRecurrente(owner!, tenantId, {
+      sucursalId,
+      categoriaId: categoriaServiciosId,
+      monto: 80,
+      frecuencia: "mensual",
+      fechaInicio: "2026-05-01",
+    });
+    if (!recurrenteOperable.ok) throw new Error("setup falló");
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalId));
+
+    const rechazoDesdeRecurrente = await generarGastoDesdeRecurrente(
+      owner!,
+      recurrenteOperable.data.gastoRecurrenteId,
+      { fechaGasto: "2026-06-01" }
+    );
+    expect(rechazoDesdeRecurrente.ok).toBe(false);
+
+    // Desbloquea las dos y confirma que las mismas operaciones ahora sí funcionan.
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: null, congeladaMotivo: null })
+      .where(inArray(sucursales.id, [sucursalId, sucursalDosId]));
+
+    const aceptaDesdeRecurrente = await generarGastoDesdeRecurrente(
+      owner!,
+      recurrenteOperable.data.gastoRecurrenteId,
+      { fechaGasto: "2026-06-01" }
+    );
+    expect(aceptaDesdeRecurrente.ok).toBe(true);
+  }, 20000);
 });

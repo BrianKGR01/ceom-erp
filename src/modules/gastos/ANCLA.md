@@ -170,6 +170,24 @@
   módulos. `testTimeout: 20000` para todo el archivo (`vi.setConfig`),
   mismo motivo que Módulo 3 — varias operaciones encadenan transacciones
   propias más una llamada cross-módulo real.
+- **`requireSucursalOperable()` (H-02, 2026-07-27) — freeze de sucursal
+  también acá.** `crearGastoManual`, `actualizarGastoManual`,
+  `generarGastoCuotaPasivo`, `generarGastoComisionVenta`,
+  `crearGastoRecurrente`, `actualizarGastoRecurrente` y
+  `generarGastoDesdeRecurrente` rechazan si `sucursalId` apunta a una
+  sucursal congelada. Variante "nullable" — un gasto a nivel negocio (sin
+  `sucursal_id`) nunca pasa por el chequeo. `generarGastoDesdeRecurrente`
+  revalida contra la sucursal de la plantilla en el momento de generar, no
+  solo al crearla: una plantilla creada cuando la sucursal era operable
+  igual se bloquea si se congeló después.
+
+## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
+`requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea los siete escritores que reciben
+`sucursalId`. Antes del cierre de esta tanda, una sucursal congelada por downgrade de plan rechazaba
+escritura en Productos/Ventas pero la aceptaba acá — modo de falla silencioso señalado en la
+revisión del usuario antes de mergear H-02. Test nuevo en `gastos.test.ts`, incluye el caso de la
+plantilla recurrente creada en sucursal operable y congelada recién antes de generar el gasto. Sin
+cambio de contrato — ninguna firma cambió, solo se agregó un rechazo temprano.
 
 ## Última actualización: 2026-07-17 — Tanda de UI completa: Egresos y Gastos, 6/6 pantallas
 Módulo cerrado end-to-end. Sin gaps de backend — se confirmó antes de construir que todos los

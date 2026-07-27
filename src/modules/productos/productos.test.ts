@@ -396,5 +396,144 @@ describe.skipIf(!hasCredenciales)(
       });
       expect(rechazado.ok).toBe(false);
     });
+
+    // H-02: sucursales multiples. Reusa sucursalId (Principal) y
+    // sucursalDestinoId (segunda sucursal insertada directo en el beforeAll
+    // de este archivo) — ver docs/auditoria-prelanzamiento/
+    // 07-sucursales-multiples.md seccion 9.2.
+    it("el stock por sucursal suma exactamente el stock general del producto", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const producto = await crearProducto(owner!, tenantId, {
+        nombre: `Producto Multi-sucursal ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 10,
+      });
+      if (!producto.ok) throw new Error("setup fallo");
+      const productoId = producto.data.productoId;
+
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 30,
+        motivo: "Carga inicial A",
+      });
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId: sucursalDestinoId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 20,
+        motivo: "Carga inicial B",
+      });
+
+      const stockA = await consultarStock(owner!, productoId, sucursalId);
+      const stockB = await consultarStock(owner!, productoId, sucursalDestinoId);
+      expect(stockA.ok && stockA.data.cantidadActual).toBe(30);
+      expect(stockB.ok && stockB.data.cantidadActual).toBe(20);
+
+      const totalGeneral = await repo.obtenerStockTotalProducto(productoId);
+      expect(totalGeneral).toBe(50);
+    }, 20000);
+
+    it("una transferencia entre sucursales mueve exactamente la cantidad, nunca mas ni menos", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const producto = await crearProducto(owner!, tenantId, {
+        nombre: `Producto Transferible ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 5,
+      });
+      if (!producto.ok) throw new Error("setup fallo");
+      const productoId = producto.data.productoId;
+
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 40,
+        motivo: "Carga inicial",
+      });
+
+      const transferencia = await registrarTransferenciaStock(owner!, tenantId, {
+        productoId,
+        sucursalOrigenId: sucursalId,
+        sucursalDestinoId,
+        cantidad: 15,
+      });
+      expect(transferencia.ok).toBe(true);
+      if (transferencia.ok) {
+        expect(transferencia.data.cantidadActualOrigen).toBe(25);
+        expect(transferencia.data.cantidadActualDestino).toBe(15); // producto nuevo, sin stock previo en destino
+      }
+
+      const stockOrigen = await consultarStock(owner!, productoId, sucursalId);
+      expect(stockOrigen.ok && stockOrigen.data.cantidadActual).toBe(25);
+    }, 20000);
+
+    it("una sucursal congelada rechaza escritura de stock pero permite lectura (H-02)", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const producto = await crearProducto(owner!, tenantId, {
+        nombre: `Producto Sucursal Congelada ${sufijo}`,
+        unidadVenta: "unidad",
+        precioVenta: 5,
+      });
+      if (!producto.ok) throw new Error("setup fallo");
+      const productoId = producto.data.productoId;
+
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId: sucursalDestinoId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga previa al congelamiento",
+      });
+
+      // Simula el congelamiento (lo dispara cambiarPlanTenant en Identidad,
+      // fuera de alcance de este modulo — acá se fuerza directo, mismo
+      // criterio que el resto de los tests de este archivo con
+      // db.insert/db.update contra tablas de otro módulo).
+      await db
+        .update(sucursales)
+        .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+        .where(eq(sucursales.id, sucursalDestinoId));
+
+      // Lectura: sigue funcionando.
+      const lectura = await consultarStock(owner!, productoId, sucursalDestinoId);
+      expect(lectura.ok).toBe(true);
+      if (lectura.ok) expect(lectura.data.cantidadActual).toBe(10);
+
+      // Escritura: rechazada.
+      const escrituraRechazada = await registrarAjusteManualStock(owner!, tenantId, {
+        productoId,
+        sucursalId: sucursalDestinoId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 5,
+        motivo: "No debería aplicarse",
+      });
+      expect(escrituraRechazada.ok).toBe(false);
+
+      // La venta tampoco puede descontar de una sucursal congelada.
+      const ventaRechazada = await descontarStockVenta(owner!, tenantId, {
+        productoId,
+        sucursalId: sucursalDestinoId,
+        cantidad: 1,
+      });
+      expect(ventaRechazada.ok).toBe(false);
+
+      // La transferencia bloquea el traspaso completo si CUALQUIERA de los
+      // dos extremos está congelado (incluso si el origen tiene stock real).
+      const transferenciaDesdeCongelada = await registrarTransferenciaStock(owner!, tenantId, {
+        productoId,
+        sucursalOrigenId: sucursalDestinoId,
+        sucursalDestinoId: sucursalId,
+        cantidad: 1,
+      });
+      expect(transferenciaDesdeCongelada.ok).toBe(false);
+
+      // Deja la sucursal descongelada para no interferir con otros tests de este archivo.
+      await db
+        .update(sucursales)
+        .set({ congeladaEn: null, congeladaMotivo: null })
+        .where(eq(sucursales.id, sucursalDestinoId));
+    }, 20000);
   }
 );

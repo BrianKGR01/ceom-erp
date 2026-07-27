@@ -447,8 +447,23 @@ export async function registrarVenta(
   // una sucursal de OTRO tenant (contaminación de FK, mismo patrón ya
   // corregido en Patrimonio/Proveedores).
   const sucursalesRes = await listarSucursalesPorTenant(solicitante, tenantId);
-  if (!sucursalesRes.ok || !sucursalesRes.data.some((s) => s.id === input.sucursalId)) {
+  const sucursalVenta = sucursalesRes.ok
+    ? sucursalesRes.data.find((s) => s.id === input.sucursalId)
+    : undefined;
+  if (!sucursalVenta) {
     return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  // H-02: se valida ACÁ, antes de crear la Venta — descontarStockVenta()
+  // (Productos) también rechaza una sucursal congelada, pero para entonces
+  // la Venta ya estaría creada (registrarVenta no es atómica con el
+  // descuento de stock, gap ya documentado más abajo en este archivo) —
+  // cortar antes evita el peor caso: una Venta confirmada, con snapshot y
+  // deuda del cliente generada, sin stock descontado.
+  if (sucursalVenta.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede vender ahí.",
+    };
   }
 
   // Regla 4: alta implicita de cliente.

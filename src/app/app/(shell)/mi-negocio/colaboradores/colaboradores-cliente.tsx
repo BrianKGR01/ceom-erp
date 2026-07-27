@@ -58,7 +58,11 @@ interface RolOpcion {
   esRolSistema: boolean;
 }
 
-function SubnavMiNegocio() {
+// H-02: el link "Sucursales" solo aparece si el plan del negocio lo incluye
+// — ausente, no deshabilitado. Mismo criterio replicado en los 4 archivos
+// hermanos (roles/capacidades/plan/sucursales) — cada page.tsx server
+// resuelve `mostrarSucursales` con obtenerTopeSucursalesAction().
+function SubnavMiNegocio({ mostrarSucursales }: { mostrarSucursales: boolean }) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
       <Link href="/app/onboarding" className="text-primary hover:underline">
@@ -71,6 +75,11 @@ function SubnavMiNegocio() {
       <Link href="/app/mi-negocio/capacidades" className="text-primary hover:underline">
         Permisos especiales
       </Link>
+      {mostrarSucursales && (
+        <Link href="/app/mi-negocio/sucursales" className="text-primary hover:underline">
+          Sucursales
+        </Link>
+      )}
       <Link href="/app/mi-negocio/plan" className="text-primary hover:underline">
         Mi Plan
       </Link>
@@ -380,10 +389,12 @@ export function ColaboradoresCliente({
   usuarioActualId,
   colaboradores,
   roles,
+  mostrarSucursales,
 }: {
   usuarioActualId: string;
   colaboradores: Colaborador[];
   roles: RolOpcion[];
+  mostrarSucursales: boolean;
 }) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
@@ -408,7 +419,7 @@ export function ColaboradoresCliente({
 
   return (
     <div className="min-h-screen bg-gray-bg p-6">
-      <SubnavMiNegocio />
+      <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader
         title="Colaboradores"
         description="Gestioná quién tiene acceso a tu negocio."

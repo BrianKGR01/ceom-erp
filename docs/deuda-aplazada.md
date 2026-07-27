@@ -299,16 +299,14 @@ puede crear un plan específico de nicho, que es justamente para lo que existe l
 
 ---
 
-### DA-13 · Chequeo de límite de sucursales contra el plan ⚪ ❌
-**Dónde:** [identidad/ANCLA.md:112-113](../src/modules/identidad/ANCLA.md#L112)
+### DA-13 · Chequeo de límite de sucursales contra el plan ✅ CERRADO (2026-07-27)
+**Dónde:** [identidad/ANCLA.md](../src/modules/identidad/ANCLA.md) — sección H-02.
 **Se aplazó porque:** *"**depende de que exista el catálogo Planes**"* (Modulo_01 §9.6).
 
-**Por qué la justificación caducó:** el catálogo Planes existe — módulo `suscripcion`, tabla
-`planes`, y UI en `/admin/planes` construida el 2026-07-18. La dependencia declarada está
-cumplida hace 4 días.
-
-**Sin síntoma:** no hay enforcement ⇒ nadie choca un límite. Es una regla de negocio (y de
-monetización) que simplemente no se aplica.
+**Resuelto junto con H-02.** `planes.incluyeSucursales` (boolean) se reemplazó por
+`planes.maxSucursales` (tope estructurado) y `crearSucursal()` lo valida server-side antes de
+insertar. Diagnóstico y diseño completos en
+[07-sucursales-multiples.md](auditoria-prelanzamiento/07-sucursales-multiples.md).
 
 ---
 
@@ -527,7 +525,7 @@ todos.** Esta tabla es, probablemente, el entregable más reutilizable del barri
 | DA-10 | *"cuando se construya la UI"* | Modal de vinculación, 2026-07-20 | ❌ sin revisar |
 | DA-11 | *"Identidad no expone `obtenerTenant`"* | `obtenerTenantPorId`, Módulo 10 | ❌ sin revisar |
 | DA-12 | *"el módulo de Nicho no existe todavía"* | `nicho-1` + `nicho-4` | ⚠️ 1 de 3 revisado |
-| DA-13 | *"depende de que exista el catálogo Planes"* | Módulo 11 + `/admin/planes` | ❌ sin revisar |
+| DA-13 | *"depende de que exista el catálogo Planes"* | Módulo 11 + `/admin/planes` | ✅ cerrado 2026-07-27 (H-02) |
 
 **La causa raíz no es ninguno de estos ocho.** Es que un `ANCLA.md` es un buen registro de
 decisiones y un mal sistema de recordatorios: nadie relee 15 archivos buscando condiciones

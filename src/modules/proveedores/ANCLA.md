@@ -216,6 +216,23 @@
 - `vi.setConfig({ testTimeout: 20000 })` agregado a `proveedores.test.ts`
   (no lo tenía antes) — `registrarCompra`/`recibirCompra` ahora encadenan
   una llamada cross-módulo real, igual motivo que Módulo 3/4/7.
+- **`requireSucursalOperable()` (H-02, 2026-07-27) — freeze de sucursal
+  también acá.** `compras.sucursal_id` es `NOT NULL` en este módulo (a
+  diferencia de Patrimonio/Gastos), así que el chequeo se llama siempre,
+  sin atajo de null. `registrarCompra` rechaza antes de crear la fila;
+  `recibirCompra` rechaza **antes** de llamar a
+  `repo.marcarCompraRecibida()` — si la sucursal se congeló después de
+  crear una Compra en estado `pedido`, la transición a `recibido` (que
+  dispara entrada de stock) queda bloqueada, la compra se queda en
+  `pedido` en vez de quedar a medio camino.
+
+## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
+`requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarCompra`/`recibirCompra`.
+Antes del cierre de esta tanda, una sucursal congelada por downgrade de plan rechazaba escritura en
+Productos/Ventas pero la aceptaba acá — modo de falla silencioso señalado en la revisión del usuario
+antes de mergear H-02. Test nuevo en `proveedores.test.ts`, incluye el caso de una Compra `pedido`
+creada antes de congelar que debe seguir bloqueada al intentar `recibirCompra`. Sin cambio de
+contrato — ninguna firma cambió, solo se agregó un rechazo temprano.
 
 ## Última actualización: 2026-07-17 (2) — Tanda de UI completa: Proveedores/Compras, 9/9 pantallas
 Módulo cerrado end-to-end. Backend: `consultarSaldoCompra` nueva (saldo pendiente de una Compra,

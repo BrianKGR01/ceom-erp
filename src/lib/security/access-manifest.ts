@@ -149,6 +149,22 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     verificacion: "estatica",
     nota: "Fix de UI-044 — antes sin gate.",
   },
+  "app/app/(shell)/mi-negocio/actions.ts::listarSucursalesAction": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota: "H-02 — sin esOwner: cualquier colaborador del tenant puede ver la lista de sucursales, mismo criterio que un dato informativo (no de facturación). Solo opera sobre el tenant propio del caller.",
+  },
+  "app/app/(shell)/mi-negocio/actions.ts::crearSucursalAction": { nivel: "owner", verificacion: "estatica" },
+  "app/app/(shell)/mi-negocio/actions.ts::actualizarSucursalAction": {
+    nivel: "por-recurso",
+    verificacion: "estatica",
+    nota: "sucursalId — recursoPerteneceAlTenant() dentro de identidad/actions.ts::actualizarSucursal, además exige esOwner.",
+  },
+  "app/app/(shell)/mi-negocio/actions.ts::obtenerTopeSucursalesAction": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota: "H-02 — solo el tope de sucursales del plan propio (visibilidad del link de nav), sin esOwner ni id de recurso ajeno.",
+  },
 
   // --- app/app/(shell)/ventas/actions.ts -----------------------------------
   "app/app/(shell)/ventas/actions.ts::registrarVentaAction": {
@@ -307,6 +323,18 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
   "app/admin/(shell)/tenants/actions.ts::crearTenantAction": { nivel: "ceom_admin", verificacion: "estatica" },
   "app/admin/(shell)/tenants/actions.ts::cambiarPlanTenantAction": { nivel: "ceom_admin", verificacion: "estatica" },
   "app/admin/(shell)/tenants/actions.ts::cambiarEstadoSuscripcionAction": { nivel: "ceom_admin", verificacion: "estatica" },
+  "app/admin/(shell)/tenants/actions.ts::listarSucursalesTenantAction": { nivel: "ceom_admin", verificacion: "estatica" },
+  "app/admin/(shell)/tenants/actions.ts::desbloquearSucursalAction": { nivel: "ceom_admin", verificacion: "estatica" },
+  "app/admin/(shell)/tenants/actions.ts::eliminarSucursalAction": {
+    nivel: "ceom_admin",
+    verificacion: "estatica",
+    nota: "H-02 — compone consultarStockTotalPorSucursal (Productos) + eliminarSucursal (Identidad, ROL_CEOM_ADMIN_ID); la precondición de stock=0 vive acá a propósito, Identidad no puede consultar Productos sin cruzar módulos.",
+  },
+  "app/admin/(shell)/tenants/actions.ts::consolidarSucursalAction": {
+    nivel: "ceom_admin",
+    verificacion: "estatica",
+    nota: "H-02 — compone consolidarStockDeSucursal (Productos, ceom_admin) + eliminarSucursal (Identidad, ceom_admin).",
+  },
 
   // --- app/app/(shell)/simulaciones/actions.ts ------------------------------
   "app/app/(shell)/simulaciones/actions.ts::simularPrecioAction": {

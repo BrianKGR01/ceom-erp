@@ -1,4 +1,4 @@
-import { tienePermiso } from "@/modules/identidad/actions";
+import { listarSucursalesPorTenant, tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
 import * as repo from "./repository";
@@ -157,6 +157,34 @@ export async function desactivarCategoriaGastoSugerida(
   return { ok: true, data: true };
 }
 
+/**
+ * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio (H-02,
+ * completando el freeze en los 6 módulos que escriben con sucursal_id — ver
+ * docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección 6.3
+ * hueco 6). `gastos.sucursalId`/`gastos_recurrentes.sucursalId` son
+ * nullable — null/undefined salta el chequeo, nunca lo rechaza.
+ */
+async function requireSucursalOperable(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string | undefined | null
+): Promise<{ ok: false; error: string } | null> {
+  if (!sucursalId) return null;
+  const res = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!res.ok) return { ok: false, error: res.error };
+  const sucursal = res.data.find((s) => s.id === sucursalId);
+  if (!sucursal) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  if (sucursal.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede operar en ella.",
+    };
+  }
+  return null;
+}
+
 // --- Gastos ---------------------------------------------------------
 
 export interface DatosGasto {
@@ -177,6 +205,8 @@ export async function crearGastoManual(
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear gastos." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
   const gasto = await repo.crearGasto({
     tenantId,
     sucursalId: input.sucursalId,
@@ -224,6 +254,10 @@ export async function actualizarGastoManual(
         error: `No se puede bajar el monto por debajo de lo ya pagado (${totalPagado}).`,
       };
     }
+  }
+  if (input.sucursalId !== undefined) {
+    const sucursalOperable = await requireSucursalOperable(solicitante, gasto.tenantId, input.sucursalId);
+    if (sucursalOperable) return sucursalOperable;
   }
 
   await repo.actualizarGasto(gastoId, {
@@ -400,6 +434,8 @@ export async function generarGastoCuotaPasivo(
   if (!Number.isFinite(monto) || monto <= 0) {
     return { ok: false, error: "El monto de la cuota tiene que ser mayor a 0." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const categoriaId =
     input.categoriaId ??
@@ -475,6 +511,8 @@ export async function generarGastoComisionVenta(
   if (!Number.isFinite(monto) || monto <= 0) {
     return { ok: false, error: "El monto de la comisión tiene que ser mayor a 0." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const fechaGasto =
     input.fechaVenta instanceof Date
@@ -526,6 +564,8 @@ export async function crearGastoRecurrente(
   if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear gastos recurrentes." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
   const gastoRecurrente = await repo.crearGastoRecurrente({
     tenantId,
     sucursalId: input.sucursalId,
@@ -550,6 +590,14 @@ export async function actualizarGastoRecurrente(
     !(await tienePermiso(solicitante, gastoRecurrente.tenantId, "costos_gastos", "editar"))
   ) {
     return { ok: false, error: "No tenés permiso para editar este gasto recurrente." };
+  }
+  if (input.sucursalId !== undefined) {
+    const sucursalOperable = await requireSucursalOperable(
+      solicitante,
+      gastoRecurrente.tenantId,
+      input.sucursalId
+    );
+    if (sucursalOperable) return sucursalOperable;
   }
   await repo.actualizarGastoRecurrente(gastoRecurrenteId, {
     sucursalId: input.sucursalId,
@@ -618,6 +666,12 @@ export async function generarGastoDesdeRecurrente(
   if (!gastoRecurrente.activo) {
     return { ok: false, error: "Este gasto recurrente está desactivado." };
   }
+  const sucursalOperable = await requireSucursalOperable(
+    solicitante,
+    gastoRecurrente.tenantId,
+    gastoRecurrente.sucursalId
+  );
+  if (sucursalOperable) return sucursalOperable;
 
   const gasto = await repo.crearGasto({
     tenantId: gastoRecurrente.tenantId,

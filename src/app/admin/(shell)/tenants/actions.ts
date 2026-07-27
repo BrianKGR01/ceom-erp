@@ -5,6 +5,9 @@ import {
   cambiarEstadoSuscripcion,
   cambiarPlanTenant,
   crearTenant,
+  desbloquearSucursal,
+  eliminarSucursal,
+  listarSucursalesPorTenant,
   obtenerUsuarioActual,
 } from "@/modules/identidad/actions";
 import {
@@ -13,6 +16,7 @@ import {
 } from "@/modules/identidad/validation";
 import type { PeriodoFinanciero } from "@/modules/financiero/actions";
 import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
+import { consolidarStockDeSucursal, consultarStockTotalPorSucursal } from "@/modules/productos/actions";
 import {
   consultarFinancieroTenant,
   consultarInventarioOperativoTenant,
@@ -152,4 +156,71 @@ export async function cambiarEstadoSuscripcionAction(tenantId: string, input: un
     parsed.data.nuevoEstado,
     parsed.data.fechaProximoPago
   );
+}
+
+// --- Sucursales congeladas (H-02) --------------------------------------
+// Server Actions delgadas que COMPONEN Identidad (dueña de `sucursales`) con
+// Productos (dueño del stock) — la composición vive acá, en la capa de
+// `/admin`, y no dentro de ninguno de los dos módulos, mismo criterio ya
+// usado por `crearTenantAction` (Identidad + Gastos): cruzar módulos desde
+// adentro de uno de ellos rompería la regla de caja negra.
+
+export async function listarSucursalesTenantAction(tenantId: string) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return listarSucursalesPorTenant(usuario, tenantId);
+}
+
+export async function desbloquearSucursalAction(sucursalId: string) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return desbloquearSucursal(usuario, sucursalId);
+}
+
+/**
+ * "Eliminar" (H-02): la precondición "sin stock" se valida ACÁ (no dentro de
+ * Identidad, que no puede consultar Productos sin cruzar módulos) antes de
+ * llamar a `eliminarSucursal()`.
+ */
+export async function eliminarSucursalAction(tenantId: string, sucursalId: string) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const stockRes = await consultarStockTotalPorSucursal(usuario, tenantId, sucursalId);
+  if (!stockRes.ok) return stockRes;
+  if (stockRes.data.stockTotal > 0) {
+    return {
+      ok: false as const,
+      error: `Esta sucursal todavía tiene ${stockRes.data.stockTotal} unidades de stock — consolidá antes de eliminarla.`,
+    };
+  }
+
+  return eliminarSucursal(usuario, sucursalId);
+}
+
+/**
+ * "Consolidar" (H-02): mueve todo el stock de `sucursalOrigenId` (la
+ * congelada) a `sucursalDestinoId` (típicamente la Principal) y recién
+ * después cierra la sucursal de origen — en ese orden, y solo si el paso de
+ * stock salió bien, para no dejarla cerrada con stock todavía adentro.
+ */
+export async function consolidarSucursalAction(
+  tenantId: string,
+  sucursalOrigenId: string,
+  sucursalDestinoId: string
+) {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+
+  const transferRes = await consolidarStockDeSucursal(usuario, tenantId, {
+    sucursalOrigenId,
+    sucursalDestinoId,
+  });
+  if (!transferRes.ok) return transferRes;
+
+  return eliminarSucursal(usuario, sucursalOrigenId);
 }

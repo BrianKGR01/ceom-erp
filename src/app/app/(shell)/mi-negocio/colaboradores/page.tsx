@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { listarRolesAction, listarUsuariosAction } from "../actions";
+import { listarRolesAction, listarUsuariosAction, obtenerTopeSucursalesAction } from "../actions";
 import { ColaboradoresCliente } from "./colaboradores-cliente";
 
 export default async function ColaboradoresPage() {
@@ -8,13 +8,18 @@ export default async function ColaboradoresPage() {
   if (!usuario) redirect("/login");
   if (!usuario.esOwner) redirect("/app");
 
-  const [usuariosRes, rolesRes] = await Promise.all([listarUsuariosAction(), listarRolesAction()]);
+  const [usuariosRes, rolesRes, topeRes] = await Promise.all([
+    listarUsuariosAction(),
+    listarRolesAction(),
+    obtenerTopeSucursalesAction(),
+  ]);
 
   return (
     <ColaboradoresCliente
       usuarioActualId={usuario.id}
       colaboradores={usuariosRes.ok ? usuariosRes.data : []}
       roles={rolesRes.ok ? rolesRes.data : []}
+      mostrarSucursales={topeRes.ok && topeRes.data.maxSucursales !== 1}
     />
   );
 }

@@ -22,6 +22,21 @@
   a `ROL_CEOM_ADMIN_ID`). También re-exporta `PLAN_BASICO_ID`.
 
 ## Estado actual
+- [x] **H-02 (2026-07-27) — `planes.incluyeSucursales` (boolean) reemplazado
+      por `planes.maxSucursales` (integer nullable).** 1 = el plan no
+      incluye sucursales adicionales (equivalente exacto al viejo
+      `incluyeSucursales=false` — toda cuenta ya tiene su Principal),
+      N>1 = hasta N, `null` = ilimitadas. `CHECK (max_sucursales IS NULL OR
+      max_sucursales >= 1)`. Migración `0045` agrega la columna y
+      backfillea `incluye_sucursales=false → 1` (el caso `true → ?` se deja
+      en `null`/ilimitado a propósito, no hay forma de que el código decida
+      un número real — producto/ops corrige el tope real de cada plan
+      activo a mano desde `/admin/planes`); migración `0046` elimina
+      `incluye_sucursales`. **Cambio de contrato:** `DatosPlan.maxSucursales`
+      reemplaza a `DatosPlan.incluyeSucursales` en `crearPlan`/`actualizarPlan`.
+      Nuevo helper exportado `incluyeMultiplesSucursales(plan)` para los
+      call-sites que solo necesitan sí/no. Diagnóstico completo en
+      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 5.
 - [x] Schema Drizzle (`planes`) + RLS (policy de solo `select` para
       `authenticated`, sin `crudPolicy()` porque no es tenant-scoped).
 - [x] Plan "Básico" sembrado con ID fijo (`PLAN_BASICO_ID`), **precio_mensual
@@ -97,5 +112,9 @@
   una fila para "Suscripción/Módulo 11"** — es un gap del documento de
   arquitectura, no se corrigió en esta tarea (avisado explícitamente, no
   silencioso).
+
+## Última actualización: 2026-07-27 — H-02: `incluyeSucursales` (boolean) reemplazado por
+`maxSucursales` (integer nullable, tope estructurado). Migraciones `0045`/`0046`. Ver
+`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
 
 ## Última actualización: 2026-07-18 — UI de "Mi Plan" construida (`/app/mi-negocio/plan`), cierra el último ítem pendiente de este módulo. Actualización previa el mismo día: UI del catálogo de Planes construida (`/admin/planes`)

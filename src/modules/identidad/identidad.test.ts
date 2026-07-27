@@ -1,22 +1,27 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
 import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
 import {
   actualizarPermisosRol,
+  actualizarSucursal,
   actualizarTenant,
   asignarNicho,
   cambiarEstadoSuscripcion,
   cambiarPlanTenant,
   cambiarRolUsuario,
   crearRolPersonalizado,
+  crearSucursal,
   crearTenant,
+  desbloquearSucursal,
   eliminarRol,
+  eliminarSucursal,
   invitarUsuario,
   listarCapacidadesEspeciales,
   listarPermisosPorRol,
   listarRoles,
+  listarSucursalesPorTenant,
   listarUsuarios,
   otorgarCapacidadEspecialPorRol,
   otorgarCapacidadEspecialPorUsuario,
@@ -34,6 +39,14 @@ import {
 } from "./constants";
 import { crearPlan, PLAN_BASICO_ID } from "@/modules/suscripcion/actions";
 import { planes } from "@/modules/suscripcion/schema";
+import {
+  consolidarStockDeSucursal,
+  consultarStock,
+  consultarStockTotalPorSucursal,
+  crearProducto,
+  registrarAjusteManualStock,
+} from "@/modules/productos/actions";
+import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import * as repo from "./repository";
 import {
   permisos,
@@ -496,6 +509,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       email: "admin-test@ceom.lat",
       telefono: null,
       rolId: ROL_CEOM_ADMIN_ID,
+      sucursalId: null,
       esOwner: false,
       activo: true,
       ultimoAccesoEn: null,
@@ -539,6 +553,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       email: "admin-test@ceom.lat",
       telefono: null,
       rolId: ROL_CEOM_ADMIN_ID,
+      sucursalId: null,
       esOwner: false,
       activo: true,
       ultimoAccesoEn: null,
@@ -593,6 +608,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       email: "admin-test@ceom.lat",
       telefono: null,
       rolId: ROL_CEOM_ADMIN_ID,
+      sucursalId: null,
       esOwner: false,
       activo: true,
       ultimoAccesoEn: null,
@@ -706,4 +722,300 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
       expect(await repo.contarOwnersActivos(tenantId)).toBe(1);
     });
   });
+});
+
+// Tenant y plan dedicados, separados del describe de arriba, para no
+// interferir con tests que asumen "esta cuenta tiene una sola sucursal" ni
+// pisar la limpieza del `Plan QA ${sufijo}` que ya usan otros tests de este
+// archivo — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+// seccion 9 (H-02).
+describe.skipIf(!hasCredenciales)("Modulo 1 - Sucursales multiples (H-02, integracion)", () => {
+  let admin: ReturnType<typeof crearClienteAdmin>;
+  const sufijo = Date.now();
+  const authIdsCreados: string[] = [];
+  let tenantId: string;
+  let ownerId: string;
+  let planUnaId: string;
+  let planTresId: string;
+
+  const fakeCeomAdmin = {
+    id: "00000000-0000-0000-0000-000000000002",
+    tenantId: CEOM_OPS_TENANT_ID,
+    nombreCompleto: "CEOM Admin (test sucursales)",
+    email: "admin-test-sucursales@ceom.lat",
+    telefono: null,
+    rolId: ROL_CEOM_ADMIN_ID,
+    sucursalId: null,
+    esOwner: false,
+    activo: true,
+    ultimoAccesoEn: null,
+    creadoPor: null,
+    creadoEn: new Date(),
+    modificadoPor: null,
+    modificadoEn: null,
+    eliminadoEn: null,
+    rol: {
+      id: ROL_CEOM_ADMIN_ID,
+      tenantId: null,
+      nombre: "CEOM Admin",
+      esRolSistema: true,
+      creadoEn: new Date(),
+      eliminadoEn: null,
+    },
+  } as repo.UsuarioConRol;
+
+  async function crearAuthUserDePrueba(email: string) {
+    const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: true });
+    if (error || !data.user) throw error ?? new Error("No se pudo crear el usuario de Auth de prueba");
+    authIdsCreados.push(data.user.id);
+    return data.user.id;
+  }
+
+  beforeAll(async () => {
+    admin = crearClienteAdmin();
+    ownerId = await crearAuthUserDePrueba(`owner-sucursales-${sufijo}@ceom-erp.test`);
+
+    const planUna = await crearPlan(fakeCeomAdmin, {
+      nombre: `Plan QA Sucursales Una ${sufijo}`,
+      precioMensual: 10,
+      moneda: "BOB",
+      maxSucursales: 1,
+    });
+    if (!planUna.ok) throw new Error(planUna.error);
+    planUnaId = planUna.data.planId;
+
+    const planTres = await crearPlan(fakeCeomAdmin, {
+      nombre: `Plan QA Sucursales Tres ${sufijo}`,
+      precioMensual: 20,
+      moneda: "BOB",
+      maxSucursales: 3,
+    });
+    if (!planTres.ok) throw new Error(planTres.error);
+    planTresId = planTres.data.planId;
+
+    const { tenant } = await repo.crearTenantConOwner({
+      tenant: {
+        nombreNegocio: `Test Sucursales SRL ${sufijo}`,
+        monedaPrincipal: "BOB",
+        planId: planTresId,
+        estadoSuscripcion: "activa",
+        fechaInicioSuscripcion: new Date().toISOString().slice(0, 10),
+      },
+      ownerId,
+      ownerNombreCompleto: "Owner Sucursales de prueba",
+      ownerEmail: `owner-sucursales-${sufijo}@ceom-erp.test`,
+      rolOwnerId: ROL_OWNER_ID,
+      creadoPor: null,
+    });
+    tenantId = tenant.id;
+  }, 20000);
+
+  afterAll(async () => {
+    await limpiarConAuthGarantizada(async () => {
+      const productoIds = db.select({ id: productos.id }).from(productos).where(eq(productos.tenantId, tenantId));
+      await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+      await db.delete(stock).where(inArray(stock.productoId, productoIds));
+      await db.delete(productos).where(eq(productos.tenantId, tenantId));
+      await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
+      await db.delete(sucursales).where(eq(sucursales.tenantId, tenantId));
+      await db.delete(tenants).where(eq(tenants.id, tenantId));
+      await limpiarEnParalelo([
+        () => db.delete(planes).where(eq(planes.id, planUnaId)),
+        () => db.delete(planes).where(eq(planes.id, planTresId)),
+      ]);
+    }, () => borrarUsuariosAuth(admin, authIdsCreados));
+  }, 20000);
+
+  it("crearSucursal: rechaza sin permiso de Owner y sin cupo de plan (server-side, no solo la UI), acepta dentro del cupo", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    // Tenant arranca en el plan de 3 -- ya tiene 1 (Principal), quedan 2 cupos.
+    const primera = await crearSucursal(owner!, tenantId, { nombre: `Sucursal B ${sufijo}` });
+    expect(primera.ok).toBe(true);
+    const segunda = await crearSucursal(owner!, tenantId, { nombre: `Sucursal C ${sufijo}` });
+    expect(segunda.ok).toBe(true);
+
+    // Cupo agotado (Principal + B + C = 3, tope del plan).
+    const tercera = await crearSucursal(owner!, tenantId, { nombre: `Sucursal D ${sufijo}` });
+    expect(tercera.ok).toBe(false);
+
+    // Rota el plan a "1" (sin sucursales adicionales) y confirma que el
+    // gate de plan se aplica server-side aunque la lista ya tenga 3 filas --
+    // no es solo "esconder el botón", una llamada directa a la Server
+    // Action tiene que rechazar igual.
+    const cambio = await cambiarPlanTenant(fakeCeomAdmin, tenantId, planUnaId);
+    expect(cambio.ok).toBe(true);
+    const cuartaConPlanUna = await crearSucursal(owner!, tenantId, { nombre: `Sucursal E ${sufijo}` });
+    expect(cuartaConPlanUna.ok).toBe(false);
+    if (!cuartaConPlanUna.ok) {
+      expect(cuartaConPlanUna.error).toMatch(/no incluye sucursales|permite hasta/i);
+    }
+
+    // Vuelve al plan de 3 para no interferir con el resto de los tests de este bloque.
+    await cambiarPlanTenant(fakeCeomAdmin, tenantId, planTresId);
+  }, 20000);
+
+  it("cambiarPlanTenant: congela atómicamente el excedente al bajar de plan (más nuevas primero), la Principal nunca se congela, y actualizarSucursal/desbloquearSucursal/eliminarSucursal operan sobre el resultado", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+
+    // Sucursales de este test, en orden de creación (creado_en creciente).
+    const f1 = await crearSucursal(owner!, tenantId, { nombre: `Freeze Vieja ${sufijo}` });
+    const f2 = await crearSucursal(owner!, tenantId, { nombre: `Freeze Nueva ${sufijo}` });
+    expect(f1.ok).toBe(true);
+    expect(f2.ok).toBe(true);
+    if (!f1.ok || !f2.ok) return;
+
+    // El tenant tiene ahora Principal + f1 + f2 en un plan de tope 3 (mas lo
+    // que haya quedado del test anterior, que vuelve a ese mismo plan) --
+    // bajamos directo a tope 1: Principal sobrevive siempre, f1 y f2 (las
+    // unicas dos sin congelar en este momento, mas nuevas primero) se
+    // congelan.
+    const antes = await listarSucursalesPorTenant(owner!, tenantId);
+    expect(antes.ok).toBe(true);
+    if (!antes.ok) return;
+    const operablesAntes = antes.data.filter((s) => !s.congeladaEn);
+
+    const cambio = await cambiarPlanTenant(fakeCeomAdmin, tenantId, planUnaId);
+    expect(cambio.ok).toBe(true);
+    if (!cambio.ok) return;
+
+    // Se congelo exactamente (operablesAntes - 1): el tope 1 lo cubre la Principal sola.
+    expect(cambio.data.sucursalesCongeladas.length).toBe(operablesAntes.length - 1);
+
+    const despues = await listarSucursalesPorTenant(owner!, tenantId);
+    expect(despues.ok).toBe(true);
+    if (!despues.ok) return;
+
+    const principal = despues.data.find((s) => s.esPrincipal);
+    expect(principal?.congeladaEn).toBeNull();
+
+    const f2Actualizada = despues.data.find((s) => s.id === f2.data.sucursalId);
+    const f1Actualizada = despues.data.find((s) => s.id === f1.data.sucursalId);
+    // f2 (creada despues) tiene que estar entre las congeladas -- criterio
+    // "mas nuevas primero" -- f1 tambien lo estara salvo que el tope 1
+    // alcance para dejarla operable, lo cual no pasa aca (tope 1 = solo la
+    // Principal).
+    expect(f2Actualizada?.congeladaEn).not.toBeNull();
+    expect(f1Actualizada?.congeladaEn).not.toBeNull();
+    expect(f2Actualizada?.congeladaMotivo).toMatch(/hasta 1 sucursal/i);
+
+    // actualizarSucursal sigue funcionando sobre una sucursal congelada --
+    // el freeze bloquea ESCRITURA de negocio (Productos/Ventas), no la
+    // gestion de su propio nombre/direccion desde Identidad.
+    const editar = await actualizarSucursal(owner!, f2.data.sucursalId, {
+      nombre: `Freeze Nueva Renombrada ${sufijo}`,
+    });
+    expect(editar.ok).toBe(true);
+
+    // Panel Admin CEOM: Desbloquear saca a f1 del freeze sin pasar por un upgrade real.
+    const desbloqueo = await desbloquearSucursal(fakeCeomAdmin, f1.data.sucursalId);
+    expect(desbloqueo.ok).toBe(true);
+    const trasDesbloqueo = await listarSucursalesPorTenant(owner!, tenantId);
+    expect(trasDesbloqueo.ok && trasDesbloqueo.data.find((s) => s.id === f1.data.sucursalId)?.congeladaEn).toBeNull();
+
+    // eliminarSucursal: nunca la Principal.
+    const rechazoEliminarPrincipal = await eliminarSucursal(fakeCeomAdmin, principal!.id);
+    expect(rechazoEliminarPrincipal.ok).toBe(false);
+
+    // eliminarSucursal: soft-delete real de f2 (todavia congelada) -- deja
+    // de aparecer en listarSucursalesPorTenant (que filtra eliminado_en),
+    // pero la fila sigue existiendo en la base (soft delete, nunca DELETE
+    // fisico) para que el historico de otros modulos no quede huerfano.
+    const eliminacion = await eliminarSucursal(fakeCeomAdmin, f2.data.sucursalId);
+    expect(eliminacion.ok).toBe(true);
+    const trasEliminar = await listarSucursalesPorTenant(owner!, tenantId);
+    expect(trasEliminar.ok && trasEliminar.data.some((s) => s.id === f2.data.sucursalId)).toBe(false);
+    const filaCruda = await db.select().from(sucursales).where(eq(sucursales.id, f2.data.sucursalId));
+    expect(filaCruda).toHaveLength(1);
+    expect(filaCruda[0].eliminadoEn).not.toBeNull();
+
+    // Vuelve al plan de 3 para no interferir con otros tests de este bloque.
+    await cambiarPlanTenant(fakeCeomAdmin, tenantId, planTresId);
+  }, 20000);
+
+  it("crearTenantConOwner sigue creando exactamente una sucursal Principal — un negocio de una sola sucursal no cambia (regresion)", async () => {
+    const propias = await db
+      .select()
+      .from(sucursales)
+      .where(and(eq(sucursales.tenantId, tenantId), eq(sucursales.esPrincipal, true), isNull(sucursales.eliminadoEn)));
+    expect(propias).toHaveLength(1);
+    expect(propias[0].creadoEn).not.toBeNull();
+    expect(propias[0].congeladaEn).toBeNull();
+  });
+
+  it("Panel Admin CEOM — Consolidar: mueve el stock a la Principal y cierra el origen sin dejar huérfanos", async () => {
+    const owner = await repo.obtenerUsuarioConRolPorId(ownerId);
+    const antes = await listarSucursalesPorTenant(owner!, tenantId);
+    expect(antes.ok).toBe(true);
+    if (!antes.ok) return;
+    const principal = antes.data.find((s) => s.esPrincipal)!;
+
+    const origen = await crearSucursal(owner!, tenantId, { nombre: `Consolidar Origen ${sufijo}` });
+    expect(origen.ok).toBe(true);
+    if (!origen.ok) return;
+
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: `Producto Consolidar ${sufijo}`,
+      unidadVenta: "unidad",
+      precioVenta: 7,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    const productoId = producto.data.productoId;
+
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId: origen.data.sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 25,
+      motivo: "Carga a consolidar",
+    });
+
+    // Congela el origen (simula lo que haría un downgrade real) para
+    // confirmar que consolidarStockDeSucursal() puede escribir contra una
+    // sucursal congelada — es exactamente el mecanismo de liquidación, a
+    // propósito no pasa por requireSucursalOperable().
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02 consolidar" })
+      .where(eq(sucursales.id, origen.data.sucursalId));
+
+    // Server Action de /admin no gateada por rol de negocio — se prueba
+    // directo con fakeCeomAdmin, mismo criterio que el resto del archivo.
+    const transferencia = await consolidarStockDeSucursal(fakeCeomAdmin, tenantId, {
+      sucursalOrigenId: origen.data.sucursalId,
+      sucursalDestinoId: principal.id,
+    });
+    expect(transferencia.ok).toBe(true);
+    if (transferencia.ok) expect(transferencia.data.productosTransferidos).toBe(1);
+
+    // El stock quedó realmente en la Principal, y en 0 en el origen — no es
+    // un movimiento fantasma, es el ledger real de Productos.
+    const stockOrigen = await consultarStock(owner!, productoId, origen.data.sucursalId);
+    const stockPrincipal = await consultarStock(owner!, productoId, principal.id);
+    expect(stockOrigen.ok && stockOrigen.data.cantidadActual).toBe(0);
+    expect(stockPrincipal.ok && stockPrincipal.data.cantidadActual).toBe(25);
+
+    // Recién ahora Eliminar puede cerrar el origen (composición real de
+    // admin/tenants/actions.ts: consultarStockTotalPorSucursal === 0 antes
+    // de eliminarSucursal — replicado acá para probar el mismo camino).
+    const stockTotalOrigen = await consultarStockTotalPorSucursal(owner!, tenantId, origen.data.sucursalId);
+    expect(stockTotalOrigen.ok && stockTotalOrigen.data.stockTotal).toBe(0);
+
+    const eliminacion = await eliminarSucursal(fakeCeomAdmin, origen.data.sucursalId);
+    expect(eliminacion.ok).toBe(true);
+
+    // Sin huérfanos: la sucursal quedó soft-deleted (no en el listado real),
+    // pero la fila sigue existiendo — el movimiento de stock ya transferido
+    // sigue apuntando a un sucursal_id válido (nunca DELETE físico de
+    // sucursales, ver eliminarSucursalSoft en repository.ts).
+    const filaOrigen = await db.select().from(sucursales).where(eq(sucursales.id, origen.data.sucursalId));
+    expect(filaOrigen).toHaveLength(1);
+    expect(filaOrigen[0].eliminadoEn).not.toBeNull();
+
+    const movimientosDelOrigen = await db
+      .select({ id: movimientosStock.id })
+      .from(movimientosStock)
+      .where(eq(movimientosStock.sucursalId, origen.data.sucursalId));
+    expect(movimientosDelOrigen.length).toBeGreaterThan(0); // el ledger histórico no se borró
+  }, 20000);
 });
