@@ -54,3 +54,30 @@ export function formatFecha(
   const fechaObj = typeof fecha === "string" ? new Date(fecha) : fecha;
   return fechaObj.toLocaleDateString("es-BO", opciones);
 }
+
+/**
+ * Para columnas `timestamptz` — un INSTANTE, no un dia calendario.
+ *
+ * La distincion importa y `formatFecha` sola no la cubre (H-49):
+ *
+ * - Columna `date` (`gastos.fecha_gasto`, `compras.fecha_compra`,
+ *   `pagos_compra.fecha_pago`…): guarda un dia sin hora. `formatFecha` con su
+ *   default `timeZone: "UTC"` es lo correcto — mostrarla en huso local la corre
+ *   un dia hacia atras.
+ * - Columna `timestamptz` (`ventas.fecha_venta`, `pagos_venta.fecha_pago`,
+ *   `producciones.fecha_produccion`…): guarda un momento absoluto. Mostrarla en
+ *   UTC muestra el dia UTC, no el dia en que el negocio vendio: una venta de las
+ *   22:00 de Bolivia aparece con la fecha del dia siguiente. Va esta funcion,
+ *   con la zona del negocio.
+ *
+ * La zona se pasa explicita (la resuelve el servidor con `zonaHorariaTenant`) y
+ * nunca se deja al huso del navegador, que viaja con el usuario.
+ */
+export function formatFechaEnZona(
+  instante: string | Date,
+  zona: string,
+  opciones: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" }
+): string {
+  const fechaObj = typeof instante === "string" ? new Date(instante) : instante;
+  return fechaObj.toLocaleDateString("es-BO", { ...opciones, timeZone: zona });
+}

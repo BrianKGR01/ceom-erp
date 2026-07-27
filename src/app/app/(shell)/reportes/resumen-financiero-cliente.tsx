@@ -6,6 +6,7 @@ import { BarChart3, Landmark, ListOrdered, MapPin, Minus, Plus, Sigma, TrendingU
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
+import { SelloPeriodoParcial } from "@/components/shared/sello-periodo-parcial";
 import {
   Select,
   SelectContent,
@@ -100,7 +101,9 @@ export function ResumenFinancieroCliente({
       <PageHeader title="Reportes Detallados" description="Vista formal del desempeño financiero del negocio." />
       <NavReportes activo="financiero" />
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SelloPeriodoParcial hasta={calcularRangoPreset(periodoId, zona).hasta} zona={zona} />
+        <div className="flex flex-wrap items-center gap-2">
         <Select
           items={Object.fromEntries(PERIODOS_PRESET.map((p) => [p.id, p.label]))}
           value={periodoId}
@@ -145,6 +148,7 @@ export function ResumenFinancieroCliente({
             </SelectContent>
           </Select>
         )}
+        </div>
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>

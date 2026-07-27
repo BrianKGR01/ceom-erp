@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatFecha, formatMoneda } from "./format";
+import { formatFecha, formatFechaEnZona, formatMoneda } from "./format";
 
 // Intl.NumberFormat con style:"currency" separa el codigo/simbolo de moneda
 // del numero con un espacio de no-quiebre (U+00A0), no un espacio comun --
@@ -60,5 +60,19 @@ describe("formatFecha", () => {
         timeZone: "UTC",
       })
     ).toContain("20 jul 2026");
+  });
+});
+
+describe("formatFechaEnZona (H-49)", () => {
+  it("una venta de las 22:00 de Bolivia se muestra con SU dia, no con el dia UTC", () => {
+    // 2026-07-28T02:00:00Z ya es dia 28 en UTC, pero son las 22:00 del 27 en
+    // Bolivia. formatFecha (default UTC) mostraria el 28: por eso existe esta.
+    const instante = "2026-07-28T02:00:00Z";
+    expect(formatFechaEnZona(instante, "America/La_Paz")).toBe("27 jul 2026");
+    expect(formatFecha(instante)).toBe("28 jul 2026");
+  });
+
+  it("el primer instante del dia local tambien cae en el dia correcto", () => {
+    expect(formatFechaEnZona("2026-07-27T04:00:00Z", "America/La_Paz")).toBe("27 jul 2026");
   });
 });

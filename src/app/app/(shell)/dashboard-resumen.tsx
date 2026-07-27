@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SelloPeriodoParcial } from "@/components/shared/sello-periodo-parcial";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -97,7 +98,9 @@ export function DashboardResumen({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SelloPeriodoParcial hasta={calcularRangoPreset(periodoId, zona).hasta} zona={zona} />
+        <div className="flex flex-wrap items-center gap-2">
         <Button render={<Link href="/app/reportes" />} nativeButton={false} variant="outline">
           <BarChart3 className="size-4" />
           Ver reportes detallados
@@ -150,6 +153,7 @@ export function DashboardResumen({
             </SelectContent>
           </Select>
         )}
+        </div>
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>
