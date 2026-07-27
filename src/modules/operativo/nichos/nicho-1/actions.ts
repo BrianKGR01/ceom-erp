@@ -7,6 +7,7 @@ import {
   fichaProducto,
   registrarEntradaProduccion,
 } from "@/modules/productos/actions";
+import { instanteDeDiaLocal, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import * as repo from "./repository";
 import type { tipoMovimientoInsumoEnum, unidadMedidaInsumoEnum } from "./schema";
 
@@ -687,13 +688,22 @@ export async function registrarProduccion(
     }
   }
 
+  // H-49: `new Date("YYYY-MM-DD")` anclaba a medianoche UTC = 20:00 del día
+  // ANTERIOR en Bolivia, así que toda Producción quedaba guardada un día antes
+  // del que el usuario eligió. Como `fecha_produccion` es `timestamptz` y la
+  // Merma se filtra por ella, arreglar el borde de los reportes sin arreglar
+  // esto movería la merma de día sin ninguna señal.
+  //
+  // `fechaVencimientoLote` de arriba NO usa esto a propósito: es una columna
+  // `date` y su cálculo es aritmética de días pura, sin instante ni huso.
+  const zona = await zonaHorariaTenant(tenantId);
   const produccion = await repo.crearProduccionTx({
     produccion: {
       tenantId,
       sucursalId: input.sucursalId,
       productoId: input.productoId,
       activoId: input.activoId,
-      fechaProduccion: new Date(input.fechaProduccion),
+      fechaProduccion: instanteDeDiaLocal(input.fechaProduccion, zona),
       cantidadLotesProducidos: String(cantidadLotesProducidos),
       cantidadRealObtenida: String(cantidadRealObtenida),
       fechaVencimientoLote,
@@ -782,11 +792,8 @@ export async function consultarMermaPeriodo(
   if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver reportes de este tenant." };
   }
-  const mermaCostoTotal = await repo.consultarMermaPeriodo(
-    tenantId,
-    new Date(periodo.desde),
-    new Date(periodo.hasta)
-  );
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  const mermaCostoTotal = await repo.consultarMermaPeriodo(tenantId, inicio, fin);
   return { ok: true, data: { mermaCostoTotal } };
 }
 
@@ -807,9 +814,12 @@ export async function consultarCapacidadProduccionUsada(
   const capacidad = await consultarCapacidad(solicitante, activoId);
   if (!capacidad.ok) return capacidad;
 
-  const desde = new Date(periodo.desde);
-  const hasta = new Date(periodo.hasta);
-  const semanasEnPeriodo = Math.max(0, (hasta.getTime() - desde.getTime()) / MS_POR_SEMANA);
+  // `[inicio, fin)` en instantes reales del dia local (H-49). El largo se mide
+  // sobre ese intervalo, asi que un periodo de un solo dia ya vale un dia
+  // entero en vez de cero — antes `desde` y `hasta` eran la misma medianoche
+  // UTC y las semanas daban 0.
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  const semanasEnPeriodo = Math.max(0, (fin.getTime() - inicio.getTime()) / MS_POR_SEMANA);
 
   const capacidadPeriodo = calcularCapacidadProduccionPeriodo(
     capacidad.data.disponibilidadHorariaSemanal !== null
@@ -826,8 +836,8 @@ export async function consultarCapacidadProduccionUsada(
 
   const produccionesDelPeriodo = await repo.listarProduccionesPorActivoEnPeriodo(
     activoId,
-    desde,
-    hasta
+    inicio,
+    fin
   );
   const produccionReal = produccionesDelPeriodo.reduce(
     (acc, p) => acc + Number(p.cantidadRealObtenida),

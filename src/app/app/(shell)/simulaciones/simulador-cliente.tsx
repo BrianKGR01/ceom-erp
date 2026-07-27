@@ -32,7 +32,7 @@ import {
   obtenerDatosPreviaAction,
   simularPrecioAction,
 } from "./actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 const FRECUENCIAS: { value: "semanal" | "mensual"; label: string }[] = [
   { value: "semanal", label: "Semanal" },
@@ -121,7 +121,15 @@ interface DatosPrevia {
   costoFijoTotalPeriodo: number;
 }
 
-export function SimuladorCliente({ productos }: { productos: { id: string; nombre: string }[] }) {
+export function SimuladorCliente({
+  productos,
+  zona,
+}: {
+  productos: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
+}) {
   const [productoId, setProductoId] = useState<string>(productos[0]?.id ?? "");
   const [frecuencia, setFrecuencia] = useState<"semanal" | "mensual">("mensual");
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
@@ -150,7 +158,7 @@ export function SimuladorCliente({ productos }: { productos: { id: string; nombr
       }
       setCargandoPreview(true);
       setError(null);
-      const periodo = calcularRangoPreset(periodoId);
+      const periodo = calcularRangoPreset(periodoId, zona);
       const resultado = await obtenerDatosPreviaAction(productoId, periodo);
       setCargandoPreview(false);
       if (resultado.ok) {
@@ -196,7 +204,7 @@ export function SimuladorCliente({ productos }: { productos: { id: string; nombr
     setGuardando(true);
     setError(null);
     setMensajeExito(null);
-    const periodo = calcularRangoPreset(periodoId);
+    const periodo = calcularRangoPreset(periodoId, zona);
     const resultado = await simularPrecioAction({
       productoId,
       frecuencia,
@@ -218,7 +226,7 @@ export function SimuladorCliente({ productos }: { productos: { id: string; nombr
     setGuardando(true);
     setError(null);
     setMensajeExito(null);
-    const periodo = calcularRangoPreset(periodoId);
+    const periodo = calcularRangoPreset(periodoId, zona);
     const resultado = await calcularPuntoEquilibrioAction({ productoId, frecuencia, periodo });
     setGuardando(false);
     if (!resultado.ok) {

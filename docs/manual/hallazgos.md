@@ -93,6 +93,12 @@
 | [H-47](#h-47) | 🟡 | Bajar de plan no revoca lo que el negocio ya comparte |
 | [H-48](#h-48) | ⚪ | La cartera es una lista, no un tablero de seguimiento |
 
+### Fase 5 — aparecido en la auditoría de prelanzamiento
+
+| ID | Severidad | Hallazgo |
+|---|---|---|
+| [H-49](#h-49) | ✅ | ~~El día de hoy no aparece en ningún reporte~~ — **corregido** |
+
 ---
 
 <a id="h-01"></a>
@@ -1131,3 +1137,37 @@ como decisiones sólidas:
 - **El modelo de corrección por ajuste.** Ventas, compras, producciones y stock no se editan: se
   corrigen con un movimiento nuevo que exige motivo. Cuesta un poco explicarlo la primera vez, pero
   es lo que hace que los reportes sean confiables, y el manual lo puede enseñar como una virtud.
+
+---
+
+<a id="h-49"></a>
+## H-49 ✅ El día de hoy no aparece en ningún reporte — corregido el 2026-07-27
+
+**Qué pasaba.** Una venta hecha hoy no aparecía en el reporte de "este mes". Recién aparecía si se
+estiraba el rango hasta mañana. Lo mismo en el dashboard, los cuatro reportes, las simulaciones, la
+merma y el registro de accesos de `/admin`.
+
+**Por qué.** Los reportes recibían el período como dos fechas de solo-día y las convertían con
+`new Date()`, que las ancla a **medianoche UTC**. Con un borde superior inclusivo sobre una columna
+que guarda un instante, en Bolivia (UTC−4) el corte caía a las **20:00 del día anterior**: todo lo
+que pasaba durante el día local quedaba afuera. Como los cuatro presets mandan `hasta = hoy`, el día
+en curso no contaba nunca.
+
+Tres cosas que el diagnóstico agregó a lo que ya se sabía:
+
+- El preset **"Hoy" era una ventana de ancho cero** (`desde == hasta` daba el mismo instante en los
+  dos bordes). No podía mostrar nada, nunca. Verificado contra la base: todos los reportes de un solo
+  día daban 0,00 antes del arreglo.
+- El **borde inferior estaba mal en la dirección contraria** y nadie lo había visto: colaba las
+  últimas 4 horas de la noche anterior al período.
+- **Servidor y navegador calculaban rangos distintos.** No se notaba porque la máquina de desarrollo
+  está en `America/La_Paz`; en Vercel (UTC) aparecía. En el cruce de año daban años distintos.
+
+**Cómo se arregló.** Una sola definición de día en `src/lib/periodo.ts`: los días locales se traducen
+a un intervalo semiabierto `[inicio, fin)` en la capa de acciones, y los repositorios reciben
+instantes ya resueltos. La escritura se arregló **antes** que la lectura — `pagos_venta.fecha_pago` y
+`producciones.fecha_produccion` se guardaban a medianoche UTC, así que corregir solo el filtro las
+habría contado un día antes, en silencio. 10 filas ya cargadas se reanclaron con la migración `0043`.
+
+Desarrollo completo, inventario de los 11 lugares y plan de pruebas en
+[`docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/05-dia-local-y-reportes.md).

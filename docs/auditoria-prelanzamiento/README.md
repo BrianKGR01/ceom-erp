@@ -18,6 +18,7 @@
 | [02-arquitectura-y-calidad.md](02-arquitectura-y-calidad.md) | Si el código cumple la arquitectura prometida; calidad, tests, CI, deuda técnica |
 | [03-seguridad.md](03-seguridad.md) | Postura de seguridad real: qué resiste, qué está a medias, qué falta |
 | [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md) | Las brechas priorizadas (P0/P1/P2) y un plan por etapas hasta el lanzamiento |
+| [05-dia-local-y-reportes.md](05-dia-local-y-reportes.md) | Por qué el día en curso no aparece en ningún reporte: inventario completo, enfoque recomendado, plan de migración y de tests (H-49) |
 
 ---
 

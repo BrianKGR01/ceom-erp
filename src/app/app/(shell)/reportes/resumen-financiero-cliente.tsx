@@ -6,6 +6,7 @@ import { BarChart3, Landmark, ListOrdered, MapPin, Minus, Plus, Sigma, TrendingU
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
+import { SelloPeriodoParcial } from "@/components/shared/sello-periodo-parcial";
 import {
   Select,
   SelectContent,
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerEstadoResultadosAction, obtenerFlujoCajaAction } from "./actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -65,9 +66,13 @@ function NavReportes({ activo }: { activo: "financiero" | "margen" | "historico"
 export function ResumenFinancieroCliente({
   datosIniciales,
   sucursales,
+  zona,
 }: {
   datosIniciales: DatosResumenFinanciero;
   sucursales: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [sucursalId, setSucursalId] = useState("todas");
@@ -76,7 +81,7 @@ export function ResumenFinancieroCliente({
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevaSucursalId: string) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const opts = nuevaSucursalId !== "todas" ? nuevaSucursalId : undefined;
     const [estado, flujo] = await Promise.all([
       obtenerEstadoResultadosAction(periodo, opts),
@@ -96,7 +101,9 @@ export function ResumenFinancieroCliente({
       <PageHeader title="Reportes Detallados" description="Vista formal del desempeño financiero del negocio." />
       <NavReportes activo="financiero" />
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SelloPeriodoParcial hasta={calcularRangoPreset(periodoId, zona).hasta} zona={zona} />
+        <div className="flex flex-wrap items-center gap-2">
         <Select
           items={Object.fromEntries(PERIODOS_PRESET.map((p) => [p.id, p.label]))}
           value={periodoId}
@@ -141,6 +148,7 @@ export function ResumenFinancieroCliente({
             </SelectContent>
           </Select>
         )}
+        </div>
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>

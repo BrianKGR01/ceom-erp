@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerHistoricoVentasAction } from "../actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../../periodo-presets";
+import { calcularRangoPreset, diaLocalDe, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -60,9 +60,15 @@ function formatoMoneda(valor: number): string {
   return valor.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function claveBucket(fecha: Date, granularidad: "dia" | "mes"): string {
-  if (granularidad === "mes") return fecha.toISOString().slice(0, 7);
-  return fecha.toISOString().slice(0, 10);
+/**
+ * H-49, aplicado al eje del grafico. Agrupaba por `toISOString()`, o sea por dia
+ * UTC: una venta de las 21:00 de un lunes se dibujaba en la barra del martes.
+ * Arreglar el filtro y no esto dejaba el total correcto con las barras corridas
+ * — peor que antes, porque el grafico ya *parece* bien.
+ */
+function claveBucket(fecha: Date, granularidad: "dia" | "mes", zona: string): string {
+  const dia = diaLocalDe(fecha, zona);
+  return granularidad === "mes" ? dia.slice(0, 7) : dia;
 }
 
 function etiquetaBucket(clave: string, granularidad: "dia" | "mes"): string {
@@ -80,7 +86,15 @@ function etiquetaBucket(clave: string, granularidad: "dia" | "mes"): string {
   });
 }
 
-export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Resultado<FilaVenta[]> }) {
+export function HistoricoVentasCliente({
+  datosIniciales,
+  zona,
+}: {
+  datosIniciales: Resultado<FilaVenta[]>;
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
+}) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [incluirEventos, setIncluirEventos] = useState(true);
   const [datos, setDatos] = useState(datosIniciales);
@@ -88,7 +102,7 @@ export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Res
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevoIncluirEventos: boolean) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerHistoricoVentasAction(periodo, { incluirEventos: nuevoIncluirEventos });
     setCargando(false);
     setDatos(resultado);
@@ -101,7 +115,7 @@ export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Res
     const mapa = new Map<string, { regular: number; evento: number }>();
     for (const fila of filas) {
       const fecha = new Date(fila.fechaVenta);
-      const clave = claveBucket(fecha, granularidad);
+      const clave = claveBucket(fecha, granularidad, zona);
       const actual = mapa.get(clave) ?? { regular: 0, evento: 0 };
       if (fila.eventoId) actual.evento += fila.montoTotal;
       else actual.regular += fila.montoTotal;
@@ -110,7 +124,7 @@ export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Res
     return [...mapa.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([clave, valores]) => ({ clave, etiqueta: etiquetaBucket(clave, granularidad), ...valores }));
-  }, [datos, granularidad]);
+  }, [datos, granularidad, zona]);
 
   const totalRegular = buckets.reduce((acc, b) => acc + b.regular, 0);
   const totalEvento = buckets.reduce((acc, b) => acc + b.evento, 0);

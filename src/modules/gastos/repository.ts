@@ -255,6 +255,13 @@ export async function listarGastosRecurrentesPorTenant(tenantId: string) {
 
 // --- Agregados (Modulo_04 seccion 2, 5.6) ---------------------------------------------------------
 
+// NOTA H-49: los bordes de esta seccion usan `lte` A PROPOSITO y NO hay que
+// migrarlos a `lt`. `gastos.fecha_gasto` y `pagos_gasto.fecha_pago` son
+// columnas `date`, no `timestamptz`: guardan un dia calendario, sin instante ni
+// huso, y se comparan contra los mismos strings `YYYY-MM-DD` que manda la UI.
+// Por eso Gastos nunca sufrio el defecto del dia en curso. Convertirlas a
+// timestamp o cambiarles el borde introduciria el bug donde hoy no existe.
+
 export async function sumarGastosPorTipoEnPeriodo(
   tenantId: string,
   tipo: (typeof gastos.$inferSelect)["tipo"],

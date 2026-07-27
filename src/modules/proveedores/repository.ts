@@ -305,7 +305,12 @@ export async function listarAjustesPorTenant(tx: Ejecutor, tenantId: string) {
 // directo.
 
 /** Suma de Pago de Compra por fecha_pago — base caja (nunca el evento
- * compra_registrada, que no impacta caja hasta que se paga). */
+ * compra_registrada, que no impacta caja hasta que se paga).
+ *
+ * NOTA H-49: el borde usa `lte` A PROPOSITO. `pagos_compra.fecha_pago` es
+ * columna `date`: un dia calendario, sin instante ni huso, comparado contra el
+ * mismo string `YYYY-MM-DD` que manda la UI. No hay que migrarlo a `lt` — a
+ * diferencia de `compras_ajuste.creado_en`, que si es timestamp y esta abajo. */
 export async function sumarPagosCompraPeriodo(
   tx: Ejecutor,
   tenantId: string,
@@ -353,36 +358,27 @@ export async function sumarPagosCompraPeriodo(
  * Se filtra por `creado_en` porque `compras_ajuste` no tiene fecha propia —
  * misma limitacion que `sumarAjustesVentaPeriodo` en Ventas.
  *
- * **Pero el borde superior NO se copia de ahi, a proposito.** `creado_en` es
- * un timestamp y el `hasta` del periodo llega como fecha sola, que
- * `new Date()` ancla a medianoche UTC: con `<= hasta` (lo que hacen hoy
- * `sumarAjustesVentaPeriodo` y `sumarIngresosCostosPeriodo`) queda FUERA todo
- * lo que pasó durante el dia `hasta`. Como todos los presets de la UI mandan
- * `hasta = hoy`, un ajuste cargado hoy no habria aparecido nunca en el estado
- * de resultados — o sea el mismo defecto silencioso que H-31 viene a cerrar,
- * reintroducido por el borde del rango. Aca se cubre el dia completo
- * (`< hasta + 1 dia`).
+ * Recibe el intervalo SEMIABIERTO `[inicio, fin)` ya traducido desde dias
+ * locales por `rangoInstantes()` en la capa de acciones, igual que el resto de
+ * los agregados por periodo (H-49).
  *
- * Los agregados de Ventas siguen truncando: es un defecto preexistente que
- * afecta ingresos/costos/ajustes de venta (todo lo filtrado por timestamp) y
- * corregirlo toca seis funciones y sus expectativas de test, asi que se
- * reporta aparte en vez de arrastrarlo a este cambio.
+ * Esta funcion fue la primera en cerrar el borde superior (commit `2ea20e5`),
+ * pero lo hizo sumandole un dia a `hasta` en UTC y dejo el borde INFERIOR
+ * anclado a medianoche UTC — o sea seguia colando las ultimas 4 horas de la
+ * noche anterior a `desde`. Ahora los dos bordes salen del mismo lugar.
  */
 export async function sumarCostoExtraAjustesCompraPeriodo(
   tx: Ejecutor,
   tenantId: string,
-  desde: Date,
-  hasta: Date,
+  inicio: Date,
+  fin: Date,
   opts: { sucursalId?: string } = {}
 ): Promise<number> {
-  const finDelDiaHasta = new Date(hasta);
-  finDelDiaHasta.setUTCDate(finDelDiaHasta.getUTCDate() + 1);
-
   const condiciones = [
     eq(compras.tenantId, tenantId),
     isNull(compras.eliminadoEn),
-    gte(comprasAjuste.creadoEn, desde),
-    lt(comprasAjuste.creadoEn, finDelDiaHasta),
+    gte(comprasAjuste.creadoEn, inicio),
+    lt(comprasAjuste.creadoEn, fin),
   ];
   if (opts.sucursalId) condiciones.push(eq(compras.sucursalId, opts.sucursalId));
 

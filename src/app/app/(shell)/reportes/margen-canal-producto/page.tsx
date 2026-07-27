@@ -3,14 +3,15 @@ import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { margenPorCanalYProducto } from "@/modules/reportes/actions";
 import { listarCanalesVenta } from "@/modules/ventas/actions";
 import { listarProductos } from "@/modules/productos/actions";
-import { calcularRangoPreset } from "../../periodo-presets";
+import { calcularRangoPreset, zonaHorariaTenant } from "@/lib/periodo";
 import { MargenCanalProductoCliente } from "./margen-canal-producto-cliente";
 
 export default async function MargenCanalProductoPage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
+  const zona = await zonaHorariaTenant(usuario.tenantId);
 
-  const periodo = calcularRangoPreset("mes");
+  const periodo = calcularRangoPreset("mes", zona);
   const [margenRes, canalesRes, productosRes] = await Promise.all([
     margenPorCanalYProducto(usuario, usuario.tenantId, periodo),
     listarCanalesVenta(usuario, usuario.tenantId),
@@ -27,6 +28,7 @@ export default async function MargenCanalProductoPage() {
           datosIniciales={margenRes}
           canales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
           productos={productos.map((p) => ({ id: p.id, nombre: p.nombre }))}
+          zona={zona}
         />
       </div>
     </div>

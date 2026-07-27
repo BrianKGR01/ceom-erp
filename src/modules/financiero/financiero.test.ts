@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { calcularRangoPreset, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
 import { borrarUsuariosAuth, limpiarConAuthGarantizada, limpiarEnParalelo } from "@/test-utils/limpieza";
@@ -207,6 +208,72 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
     const cajaDespuesDePagar = await flujoCaja(owner!, tenantId, periodo);
     expect(cajaDespuesDePagar.ok).toBe(true);
     if (cajaDespuesDePagar.ok) expect(cajaDespuesDePagar.data.pagosVenta).toBeGreaterThanOrEqual(200);
+  });
+
+  // H-49 — el lado de LECTURA, que es el defecto reportado: una venta hecha hoy
+  // no aparecia en el reporte de este mes.
+  //
+  // Determinismo: la venta se siembra en un INSTANTE EXACTO fijado a mano (se
+  // pisa `fecha_venta` despues de crearla), y el periodo se pide en dias
+  // locales. Ni el instante ni el rango salen del reloj, asi que el test da lo
+  // mismo a las 09:00 que a las 21:00 y corra en el huso que corra.
+  //
+  // Los tres casos son los del plan: el que hoy falla, y los dos que impiden
+  // que el arreglo se pase de largo hacia el otro lado.
+  describe("H-49: el borde del periodo cubre el dia local completo", () => {
+    async function ingresosDelDia(dia: string, instanteVenta: string): Promise<number> {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        lineas: [{ productoId, cantidad: 1 }], // ingresos 50
+      });
+      if (!venta.ok) throw new Error("setup fallo");
+
+      // El instante exacto que se quiere probar, sin depender de como lo
+      // hubiera anclado la ruta de escritura.
+      await db
+        .update(ventas)
+        .set({ fechaVenta: new Date(instanteVenta) })
+        .where(eq(ventas.id, venta.data.ventaId));
+
+      const antes = await estadoResultados(owner!, tenantId, { desde: dia, hasta: dia });
+      if (!antes.ok) throw new Error(antes.error);
+
+      // Se deja la base como estaba para no contaminar los otros casos.
+      await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, venta.data.ventaId));
+      await db.delete(ventas).where(eq(ventas.id, venta.data.ventaId));
+      return antes.data.ingresos;
+    }
+
+    it("una venta de las 10:00 de la manana cuenta en el reporte de ESE dia", async () => {
+      // 2026-05-20T14:00:00Z = 10:00 en Bolivia. Este es el caso que fallaba:
+      // el filtro cortaba en 2026-05-20T00:00Z y la venta quedaba afuera.
+      expect(await ingresosDelDia("2026-05-20", "2026-05-20T14:00:00Z")).toBeGreaterThanOrEqual(50);
+    });
+
+    it("una venta de las 22:00 cuenta en su dia local, no en el siguiente", async () => {
+      // 2026-05-21T02:00:00Z ya es dia 21 en UTC, pero son las 22:00 del 20 en
+      // Bolivia. El negocio la vendio el 20.
+      expect(await ingresosDelDia("2026-05-20", "2026-05-21T02:00:00Z")).toBeGreaterThanOrEqual(50);
+    });
+
+    it("una venta de las 23:00 del dia anterior NO se cuela en el dia siguiente", async () => {
+      // 2026-05-20T03:00:00Z son las 23:00 del 19 en Bolivia. Con el borde
+      // inferior anclado a medianoche UTC esta venta entraba al 20 — el error
+      // en la direccion contraria, que un arreglo apurado deja pasar.
+      expect(await ingresosDelDia("2026-05-20", "2026-05-20T03:00:00Z")).toBe(0);
+    });
+
+    it("el preset `hoy` deja de ser una ventana vacia", async () => {
+      // Antes `desde == hasta` producia un unico instante: el reporte de un solo
+      // dia no podia mostrar nada nunca.
+      const { desde, hasta } = calcularRangoPreset("hoy", ZONA_HORARIA_NEGOCIO);
+      expect(desde).toBe(hasta);
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const res = await estadoResultados(owner!, tenantId, { desde, hasta });
+      expect(res.ok).toBe(true);
+    });
   });
 
   it("regla 1.1: flujoCaja resta pagos de compra y de gasto reales del periodo", async () => {

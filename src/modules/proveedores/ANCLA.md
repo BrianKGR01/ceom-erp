@@ -243,3 +243,17 @@ cambios de contrato en ninguna función existente — todo aditivo. Cubierto por
 `proveedores.test.ts` que verifica el filtro por `estado` (pedido/recibido) y por `estadoPago`.
 
 ## Última actualización anterior: 2026-07-15 — roadmap ítem #12 (Nicho 4): Landed Cost simple, Orden de Compra como estado, FK real de insumo/producto, evento compra_registrada real
+
+
+## Última actualización: 2026-07-27 — H-49: `sumarCostoExtraAjustesCompraPeriodo` alineada con el resto
+
+Esta función había sido la primera en cerrar el borde superior (commit `2ea20e5`, sumándole un día a
+`hasta` en UTC), pero había dejado el borde **inferior** anclado a medianoche UTC — o sea seguía
+colando las últimas 4 horas de la noche anterior a `desde`. Ahora recibe `(inicio, fin)` de
+`rangoInstantes()`, igual que todos los agregados por período: los dos bordes salen del mismo lugar.
+
+`sumarPagosCompraPeriodo` **no** cambia y no hay que "arreglarla": `pagos_compra.fecha_pago` es
+columna `date`, un día calendario sin instante ni huso, y su `lte` es correcto. Queda documentado en
+el código para que nadie lo migre por simetría.
+
+Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.

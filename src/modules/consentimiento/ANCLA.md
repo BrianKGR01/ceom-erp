@@ -316,3 +316,18 @@ FKs desde 3 tablas que hacen inviable un cascade manual sin tocar auditoría rea
 - **Validación end-to-end real** (institución "institucion prueva", email real del usuario) — hecha
   por el usuario mismo, con una bandeja de correo real (Gmail), confirmando que el click real
   completa el login. Ver el bullet "✅ Validado end-to-end" arriba para el detalle.
+
+
+## Última actualización: 2026-07-27 — H-49: el registro de accesos muestra los del día en curso
+
+`listarLogsAcceso` sigue recibiendo `{desde, hasta}` en días locales; `listarLogsAccesoAdminCeom`
+pasa a recibir `{inicio, fin}` con el borde superior exclusivo. Antes, filtrar "hasta hoy" no
+mostraba ni un acceso de hoy: `creado_en` es timestamp y el `<= hasta` cortaba a las 20:00 del día
+anterior.
+
+**Decisión de alcance:** esta pantalla usa una zona **única y fija** (`ZONA_HORARIA_NEGOCIO`), no
+`zonaHorariaTenant()`. Es la auditoría de la plataforma, no el reporte de un negocio: el admin puede
+filtrar sin elegir tenant, y si la zona fuera por negocio dos filas del mismo listado se cortarían
+con días distintos.
+
+Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.

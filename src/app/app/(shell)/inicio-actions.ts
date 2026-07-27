@@ -12,7 +12,7 @@ import {
   rankingProductos,
   resumenPeriodo,
 } from "@/modules/reportes/actions";
-import { calcularPeriodoAnterior } from "./periodo-presets";
+import { calcularPeriodoAnterior } from "@/lib/periodo";
 
 export type ResultadoAccion<T = undefined> =
   | { ok: true; data: T }

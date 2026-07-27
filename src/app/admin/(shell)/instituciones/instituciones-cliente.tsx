@@ -1,5 +1,7 @@
 "use client";
 
+import { hoyLocal, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+
 import { useEffect, useState } from "react";
 import {
   Building2,
@@ -660,7 +662,7 @@ function VincularTenantDialog({
 }) {
   const [tenantId, setTenantId] = useState("");
   const [cohorte, setCohorte] = useState("");
-  const [fechaInicio, setFechaInicio] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fechaInicio, setFechaInicio] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

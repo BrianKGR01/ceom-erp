@@ -310,3 +310,24 @@ Patrimonio (Activos/Pasivos) — requiere cerrar primero un gap chico de backend
 ## Última actualización: 2026-07-20 — Selector de Evento construido en Registrar Venta (`pos-cliente.tsx`), campo opcional filtrado a eventos abiertos. Cerró de paso un gap chico de validación: `eventoId` faltaba en `registrarVentaSchema`. Verificado contra la base (no solo por ausencia de error) que `eventoId` se persiste correcto en la Venta.
 
 ## Última actualización: 2026-07-18 — Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), la verificación previa de `gestionar_eventos` (con override explícito) sigue siendo válida. `importarVentaHistorica` conserva un `!solicitante.esOwner &&` ahora redundante (no bloqueante).
+
+
+## Última actualización: 2026-07-27 — H-49: el día local es el que manda en los agregados por período
+
+Las 7 funciones expuestas a Financiero y Reportes (`consultarIngresosPeriodo`,
+`consultarUnidadesVendidasPeriodo`, `rankingProductos`, `historicoVentas`,
+`margenPorCanalYProducto`, `consultarPagosVentaEnPeriodo`, `consultarAjustesVentaEnPeriodo`) siguen
+recibiendo `PeriodoConsulta {desde, hasta}` en días locales — **el contrato público no cambia**. Lo
+que cambió es adentro: la traducción a instantes ahora la hace `rangoInstantes()` de
+`src/lib/periodo.ts`, y las funciones de `repository.ts` reciben `(inicio, fin)` con el borde
+superior **exclusivo** (`lt`, no `lte`). Antes `new Date(periodo.hasta)` anclaba a medianoche UTC y
+dejaba afuera todo el último día del rango.
+
+`parsearFechaVentaSoloFecha()` ya no ancla a mediodía UTC sino al comienzo del día local vía
+`instanteDeDiaLocal()`. Las ventas ya cargadas con el ancla vieja siguen leyéndose bien (mediodía UTC
+cae dentro del día local en Bolivia), así que no se migraron.
+
+`registrarPagoVenta` **sí** era un defecto real: `new Date("YYYY-MM-DD")` guardaba el pago a las
+20:00 del día anterior. Corregido, y las 8 filas ya cargadas reancladas por la migración `0043`.
+
+Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.

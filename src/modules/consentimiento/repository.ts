@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aprobacionesTenant,
@@ -310,15 +310,24 @@ export async function crearLogAccesoAdminCeom(data: NuevoLogAccesoAdminCeom) {
   return log;
 }
 
+/**
+ * `inicio`/`fin` son el intervalo SEMIABIERTO `[inicio, fin)` ya traducido desde
+ * dias locales en la capa de acciones (H-49). Los dos son opcionales: el
+ * filtro de fechas de /admin/logs no es obligatorio.
+ *
+ * `creado_en` es un timestamp, asi que con `<= fin` el filtro dejaba afuera
+ * todos los accesos del ultimo dia del rango — filtrar "hasta hoy" no mostraba
+ * ni uno de los de hoy.
+ */
 export async function listarLogsAccesoAdminCeom(opts: {
   tenantId?: string;
-  desde?: Date;
-  hasta?: Date;
+  inicio?: Date;
+  fin?: Date;
 }) {
   const condiciones = [];
   if (opts.tenantId) condiciones.push(eq(logsAccesoAdminCeom.tenantId, opts.tenantId));
-  if (opts.desde) condiciones.push(gte(logsAccesoAdminCeom.creadoEn, opts.desde));
-  if (opts.hasta) condiciones.push(lte(logsAccesoAdminCeom.creadoEn, opts.hasta));
+  if (opts.inicio) condiciones.push(gte(logsAccesoAdminCeom.creadoEn, opts.inicio));
+  if (opts.fin) condiciones.push(lt(logsAccesoAdminCeom.creadoEn, opts.fin));
 
   return db
     .select()

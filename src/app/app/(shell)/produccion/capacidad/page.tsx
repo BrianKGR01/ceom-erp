@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { zonaHorariaTenant } from "@/lib/periodo";
 import { Breadcrumb } from "@/components/shared/breadcrumb";
 import { PageHeader } from "@/components/shared/page-header";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
@@ -8,6 +9,7 @@ import { CapacidadCliente } from "./capacidad-cliente";
 export default async function CapacidadPage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
+  const zona = await zonaHorariaTenant(usuario.tenantId);
 
   const resultado = await listarActivos(usuario, usuario.tenantId, { excluirDadosDeBaja: true });
   const activos = resultado.ok
@@ -22,7 +24,7 @@ export default async function CapacidadPage() {
           title="Capacidad de producción"
           description="Producción y almacenamiento reales frente a la capacidad de tu equipo — solo lectura."
         />
-        <CapacidadCliente activos={activos.map((a) => ({ id: a.id, nombre: a.nombre }))} />
+        <CapacidadCliente activos={activos.map((a) => ({ id: a.id, nombre: a.nombre }))} zona={zona} />
       </div>
     </div>
   );

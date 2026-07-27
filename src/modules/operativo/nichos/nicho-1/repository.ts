@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   insumos,
@@ -365,11 +365,16 @@ export async function listarProduccionesPorTenant(tenantId: string) {
 }
 
 /** Usado por Capacidad Operativa (seccion 4) — produccion real registrada
- * por Activo en un periodo. */
+ * por Activo en un periodo.
+ *
+ * `[inicio, fin)` semiabierto, ya traducido desde dias locales por
+ * `rangoInstantes()` en la capa de acciones (H-49): `fecha_produccion` es un
+ * timestamp, y con `<= fin` quedaba afuera todo lo producido durante el ultimo
+ * dia del rango. */
 export async function listarProduccionesPorActivoEnPeriodo(
   activoId: string,
-  desde: Date,
-  hasta: Date
+  inicio: Date,
+  fin: Date
 ) {
   return db
     .select()
@@ -378,8 +383,8 @@ export async function listarProduccionesPorActivoEnPeriodo(
       and(
         eq(producciones.activoId, activoId),
         isNull(producciones.eliminadoEn),
-        gte(producciones.fechaProduccion, desde),
-        lte(producciones.fechaProduccion, hasta)
+        gte(producciones.fechaProduccion, inicio),
+        lt(producciones.fechaProduccion, fin)
       )
     );
 }
@@ -398,7 +403,7 @@ export async function listarProductosSucursalesPorActivo(activoId: string) {
   return filas;
 }
 
-export async function consultarMermaPeriodo(tenantId: string, desde: Date, hasta: Date) {
+export async function consultarMermaPeriodo(tenantId: string, inicio: Date, fin: Date) {
   const [{ total }] = await db
     .select({ total: sql<string>`coalesce(sum(${producciones.mermaCosto}), 0)` })
     .from(producciones)
@@ -406,8 +411,8 @@ export async function consultarMermaPeriodo(tenantId: string, desde: Date, hasta
       and(
         eq(producciones.tenantId, tenantId),
         isNull(producciones.eliminadoEn),
-        gte(producciones.fechaProduccion, desde),
-        lte(producciones.fechaProduccion, hasta)
+        gte(producciones.fechaProduccion, inicio),
+        lt(producciones.fechaProduccion, fin)
       )
     );
   return Number(total);

@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SelloPeriodoParcial } from "@/components/shared/sello-periodo-parcial";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -27,7 +28,7 @@ import {
   type CapacidadAlmacenamientoWidget,
   type DatosDashboard,
 } from "./inicio-actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "./periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 // Primera vez que la app necesita una paleta de graficas — el design
 // system no define una (docs/design-system.md no tiene seccion de
@@ -45,10 +46,13 @@ export function DashboardResumen({
   sucursales,
   datosIniciales,
   capacidadAlmacenamiento,
+  zona,
 }: {
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
   capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
+  /** Zona horaria del negocio — la manda el servidor. Ver src/lib/periodo.ts. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [sucursalId, setSucursalId] = useState<string>("todas");
@@ -58,7 +62,7 @@ export function DashboardResumen({
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevaSucursalId: string) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerDashboardAction(
       periodo,
       nuevaSucursalId !== "todas" ? nuevaSucursalId : undefined
@@ -94,7 +98,9 @@ export function DashboardResumen({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SelloPeriodoParcial hasta={calcularRangoPreset(periodoId, zona).hasta} zona={zona} />
+        <div className="flex flex-wrap items-center gap-2">
         <Button render={<Link href="/app/reportes" />} nativeButton={false} variant="outline">
           <BarChart3 className="size-4" />
           Ver reportes detallados
@@ -147,6 +153,7 @@ export function DashboardResumen({
             </SelectContent>
           </Select>
         )}
+        </div>
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>
