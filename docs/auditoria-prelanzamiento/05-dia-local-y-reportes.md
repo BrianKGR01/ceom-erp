@@ -503,3 +503,98 @@ No alcanza con probarlo en `estadoResultados`: el defecto está en cada reposito
 
 No se escribió ni una línea de código. Con tu sí a las tres decisiones, la etapa 1 arranca sin
 bloquear nada.
+
+---
+
+# Anexo — qué se implementó y qué cambió de verdad (2026-07-27)
+
+> Las tres decisiones se aprobaron el 2026-07-27 y el arreglo se ejecutó completo, en el orden
+> escritura → migración → lectura. Esta sección registra el resultado medido, no el plan.
+
+## A.1 Lo que se hizo, por etapa
+
+| Etapa | Commit | Qué entró |
+|---|---|---|
+| 1 | `d118b13` | `src/lib/periodo.ts`: `zonaHorariaTenant` (async, recibe `tenantId`), `instanteDeDiaLocal` (dos pasadas, DST-aware, sin dependencias), `rangoInstantes` → `[inicio, fin)` |
+| 2 | `ac025f0` | Escritura: `registrarPagoVenta`, `registrarProduccion` y `parsearFechaVentaSoloFecha` anclan al comienzo del día local |
+| 3 | `33625b5` | Migración `0043`: 10 filas reancladas |
+| 4 | `7e64717` | Presets con zona explícita; `periodo-presets.ts` eliminado y unificado en `lib/periodo.ts` |
+| 5 | `04a7907` | Lectura: 12 conversiones → `rangoInstantes`, 11 bordes `lte` → `lt`, + 11 tests anti-regresión |
+| 6 | `7d281f7` | Agrupación del gráfico por día local; sello "el día todavía no terminó"; `formatFechaEnZona` |
+| 7 | `a73fb38` | 9 formularios proponen el día local en vez del día UTC |
+
+## A.2 Las decisiones, como quedaron
+
+1. **Zona única, costura fijada.** `zonaHorariaTenant(tenantId)` es asíncrona y recibe el `tenantId`
+   desde el día uno; devuelve la constante `America/La_Paz`. Migrar a zona-por-negocio es cambiar el
+   cuerpo de esa función. **Una excepción deliberada:** el registro de accesos de `/admin` usa una
+   zona fija y no debe seguir al tenant — es la auditoría de la plataforma y el admin puede filtrar
+   sin elegir negocio; si cada fila se cortara con la zona de su tenant, un mismo listado tendría
+   días distintos. Queda anotado en `consentimiento/ANCLA.md`.
+2. **"Hoy" muestra el día parcial**, con el sello "Al 27 jul, 10:32 — el día todavía no terminó" en
+   el Dashboard y el Resumen Financiero. Solo aparece si el período llega hasta hoy.
+3. **10 filas migradas**, medidas antes de tocarlas y verificadas después.
+
+## A.3 Lo que cambió en los números — medido contra la base
+
+**Reportes de un solo día: de 0,00 a números reales.** Es el cambio más grande y el más seguro.
+Comparando el filtro viejo contra el nuevo día por día sobre el tenant de prueba, **los 15 días
+medidos daban 0,00 con el filtro viejo** — la ventana de ancho cero del §1.3, confirmada contra
+datos reales. Ahora muestran lo que corresponde (por ejemplo el 22 de julio: Bs 228,30 de ingresos y
+Bs 222,30 de caja, antes 0,00 los dos).
+
+**Reportes de mes: sin cambios.** Ingresos, COGS, pagos de venta y merma de "este mes" dan idéntico
+antes y después (Bs 536,50 / 461,58 / 493,15 / 0,85). Es el resultado esperado: el arreglo solo
+mueve los dos bordes, y en estos datos las ventanas de borde estaban vacías.
+
+**Un cambio inesperado, y es el único.** Hay **2 ventas guardadas exactamente a las `00:00:00+00`**
+que con la lectura correcta caen en el día local **anterior**:
+
+| Guardada como | Día que mostraba | Día que muestra ahora | Monto |
+|---|---|---|---|
+| `2026-06-01 00:00:00+00` | 1 de junio | **31 de mayo** (20:00) | Bs 13,50 |
+| `2026-06-02 00:00:00+00` | 2 de junio | 1 de junio (20:00) | Bs 10,00 |
+
+La primera **cruza de mes**: el reporte de junio baja Bs 13,50 y el de mayo sube lo mismo. Es un
+número que baja sin que nadie lo pida — exactamente la clase de cambio silencioso que §6 marcaba
+como el riesgo. Vale aclarar de dónde salen: **no vienen del camino de escritura de la app.**
+`parsearFechaVentaSoloFecha` anclaba a mediodía UTC, así que las ventas cargadas por la app estaban
+bien; estas dos son datos de siembra/prueba del tenant `Mi Negocio de Prueba` que entraron por otra
+vía. No se migraron porque la decisión 3 alcanzaba a pagos y producciones, y ampliarla por cuenta
+propia sería salirse de lo aprobado. **Si querés que se corrijan, es una migración gemela de la
+`0043` sobre `ventas`.**
+
+Ninguna otra tabla tiene filas en esa franja: `pagos_venta`, `ajustes_venta`, `producciones` y
+`compras_ajuste` dan **0 filas** cuyo día UTC difiera del día local.
+
+## A.4 Lo que quedó afuera, a propósito
+
+- **`eventos_venta.fecha_inicio` / `fecha_fin`** tienen el mismo anclaje a medianoche UTC. Son
+  puramente informativos: se muestran con `timeZone: "UTC"` y no entran en ningún filtro ni cálculo.
+  No se tocaron ni se migraron.
+- **Tres pantallas que muestran ventas y pagos individuales** (historial de ventas, ficha de venta)
+  formatean con el huso del **navegador**. En Bolivia dan bien; solo se verían corridas con el
+  navegador en otro huso. `formatFechaEnZona()` ya existe en `lib/format.ts` para cuando se migren.
+- **Las 2 ventas del §A.3**, por lo dicho ahí.
+
+## A.5 Cómo se verificó
+
+- **`src/lib/periodo.test.ts`** — 29 tests puros, sin base y sin reloj (el instante se inyecta).
+  Verdes bajo `TZ=America/La_Paz`, `TZ=UTC` y `TZ=Asia/Tokyo`. Incluyen los casos de horario de
+  verano con `America/Santiago` (la fecha de transición de 2026 se verificó contra la base IANA, no
+  se supuso: el primer intento la puso un día tarde y el test lo cazó).
+- **`src/lib/bordes-de-periodo.test.ts`** — 11 tests que leen el schema de cada módulo para saber el
+  tipo real de cada columna y fallan si vuelve a aparecer un `lte` sobre `timestamptz`, un `lt` sobre
+  `date`, o un `new Date(periodo.*)` en la capa de acciones.
+- **Integración contra base real** — el trío del §9.2 en `financiero.test.ts` (la venta de las 10:00
+  cuenta; la de las 22:00 cuenta en su día local; la de las 23:00 del día anterior **no** se cuela),
+  más los de escritura en `ventas.test.ts` y `operativo-nicho1.test.ts`.
+- **Se rompió cada arreglo a propósito para confirmar que el test lo detecta**, no solo que pasa:
+  revirtiendo la escritura, `expected '2026-03-16' to be '2026-03-17'`; revirtiendo la lectura,
+  `expected 0 to be greater than or equal to 50` (la venta desaparece entera — el síntoma reportado);
+  reintroduciendo el `lte`, el anti-regresión señala las 4 ocurrencias con el arreglo en el mensaje.
+- **La migración se ensayó contra un contenedor limpio** antes de tocar la base real, con `.env.local`
+  movido para que `drizzle.config.ts` no lo pisara: `postgres:16` vacío + `apply-stub.mjs` +
+  `drizzle-kit migrate` (las 43 migraciones desde cero), y después los dos `UPDATE` exactos contra
+  las tablas reales del contenedor con cuatro casos sembrados a mano — la fila rota se movió, la del
+  borde de año también, y las dos que no debía tocar quedaron intactas.

@@ -200,3 +200,25 @@ necesitaron hacerlo en absoluto. Cubierto por 3 tests nuevos en `operativo-nicho
 (integración contra Supabase Cloud real, reutilizando el fixture SanttiCampo ya existente).
 
 ## Última actualización anterior: 2026-07-15 — roadmap ítem #12 (Nicho 4) conectó `registrarEntradaCompraInsumo` como caller real; Nicho 4 reutiliza `calcularPorcentajeCapacidadUsada()`
+
+
+## Última actualización: 2026-07-27 — H-49: merma y capacidad cuentan el día en curso
+
+`consultarMermaPeriodo` y `consultarCapacidadProduccionUsada` conservan su firma pública (días
+locales) y traducen con `rangoInstantes()`; el repositorio recibe `(inicio, fin)` con borde superior
+exclusivo.
+
+Dos defectos propios de este módulo, además del borde compartido:
+
+- `registrarProduccion` guardaba `fecha_produccion` con `new Date("YYYY-MM-DD")`, o sea a las 20:00
+  del día ANTERIOR. **Toda** Producción estaba corrida un día. Corregido, y las 2 filas ya cargadas
+  reancladas por la migración `0043`. Este era el riesgo silencioso: arreglar el filtro sin arreglar
+  esto habría movido la merma de día sin ninguna señal.
+- `consultarCapacidadProduccionUsada` medía el largo del período entre dos medianoches UTC
+  idénticas, así que un período de un solo día valía **cero semanas** y la capacidad daba 0. Ahora se
+  mide sobre el intervalo real.
+
+`fechaVencimientoLote` NO usa el helper a propósito: es columna `date` y su cálculo es aritmética de
+días pura.
+
+Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.
