@@ -35,7 +35,14 @@ export async function resumenPeriodo(
 /** El margen% final se calcula acá (reutiliza calcularMargenPorcentaje de
  * Financiero) — Ventas no puede importar Financiero sin crear un ciclo
  * (Financiero ya importa Ventas), así que devuelve ingresos/costos crudos
- * y ordena por un ratio interno cuando criterio="margen". */
+ * y ordena por un ratio interno cuando criterio="margen".
+ *
+ * **`margenPct` es `null` cuando no hay margen que afirmar** (H-15): o no
+ * hubo ingresos, o parte de esos ingresos son de ventas sin costo cargado.
+ * Antes ese segundo caso daba 100% y encabezaba el ranking por margen — el
+ * producto que el negocio no mide, presentado como el que más le conviene
+ * vender. `ingresosSinCostoConocido` viaja hasta la pantalla para que pueda
+ * distinguir "sin datos" de "sin costo cargado" y decir cuál es cuál. */
 export async function rankingProductos(
   solicitante: UsuarioConRol,
   tenantId: string,
@@ -48,6 +55,7 @@ export async function rankingProductos(
       unidadesVendidas: number;
       ingresos: number;
       costos: number;
+      ingresosSinCostoConocido: number;
       margenPct: number | null;
     }>
   >
@@ -58,9 +66,21 @@ export async function rankingProductos(
     ok: true,
     data: res.data.map((f) => ({
       ...f,
-      margenPct: calcularMargenPorcentaje(f.ingresos, f.costos),
+      margenPct: margenAfirmable(f),
     })),
   };
+}
+
+/** El margen% que se puede afirmar de una fila, o `null` si no se puede
+ * (H-15). Único lugar donde vive la regla, para que Ranking y Margen canal ×
+ * producto no puedan divergir. */
+function margenAfirmable(fila: {
+  ingresos: number;
+  costos: number;
+  ingresosSinCostoConocido: number;
+}): number | null {
+  if (fila.ingresosSinCostoConocido > 0) return null;
+  return calcularMargenPorcentaje(fila.ingresos, fila.costos);
 }
 
 // --- Distribución de gastos por categoría (caso de uso 3) ---------------------------------------------------------
@@ -96,7 +116,14 @@ export async function margenPorCanalYProducto(
   periodo: PeriodoFinanciero
 ): Promise<
   Resultado<
-    Array<{ canalVentaId: string; productoId: string; ingresos: number; costos: number; margenPct: number | null }>
+    Array<{
+      canalVentaId: string;
+      productoId: string;
+      ingresos: number;
+      costos: number;
+      ingresosSinCostoConocido: number;
+      margenPct: number | null;
+    }>
   >
 > {
   const res = await margenPorCanalYProductoVentas(solicitante, tenantId, periodo);
@@ -105,7 +132,7 @@ export async function margenPorCanalYProducto(
     ok: true,
     data: res.data.map((f) => ({
       ...f,
-      margenPct: calcularMargenPorcentaje(f.ingresos, f.costos),
+      margenPct: margenAfirmable(f),
     })),
   };
 }

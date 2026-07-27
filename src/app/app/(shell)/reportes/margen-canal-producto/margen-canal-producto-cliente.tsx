@@ -23,6 +23,8 @@ interface FilaMargen {
   productoId: string;
   ingresos: number;
   costos: number;
+  /** H-15 — si es > 0, esa celda no tiene margen que afirmar. */
+  ingresosSinCostoConocido: number;
   margenPct: number | null;
 }
 
@@ -56,7 +58,17 @@ function NavReportes({ activo }: { activo: "financiero" | "margen" | "historico"
 // funcion propia: se derivan acá sumando ingresos/costos crudos (ya
 // incluidos en cada fila) antes de dividir, nunca promediando porcentajes
 // ya calculados — mismo motivo de fondo que evitar promediar promedios.
-function margenDe(ingresos: number, costos: number): number | null {
+// H-15: los agregados derivados acá tienen que arrastrar la misma regla que
+// el servidor aplica por celda — si algo de ese ingreso viene de ventas sin
+// costo cargado, no hay margen que afirmar. Sin esto, un total de fila o de
+// columna volvía a promediar un costo desconocido como si fuera 0, que es
+// exactamente el defecto que se está cerrando, una capa más arriba.
+function margenDe(
+  ingresos: number,
+  costos: number,
+  ingresosSinCostoConocido: number
+): number | null {
+  if (ingresosSinCostoConocido > 0) return null;
   return ingresos > 0 ? ((ingresos - costos) / ingresos) * 100 : null;
 }
 
@@ -109,34 +121,43 @@ export function MargenCanalProductoCliente({
     const filasProducto = [...productosConVentas].map((productoId) => {
       let ingresos = 0;
       let costos = 0;
+      let sinCosto = 0;
       let mejorCanal: { id: string; pct: number } | null = null;
       for (const canalId of canalesConVentas) {
         const f = celda.get(`${productoId}|${canalId}`);
         if (!f) continue;
         ingresos += f.ingresos;
         costos += f.costos;
+        sinCosto += f.ingresosSinCostoConocido;
         if (f.margenPct !== null && (!mejorCanal || f.margenPct > mejorCanal.pct)) {
           mejorCanal = { id: canalId, pct: f.margenPct };
         }
       }
-      return { productoId, totalPonderado: margenDe(ingresos, costos), mejorCanal };
+      return {
+        productoId,
+        totalPonderado: margenDe(ingresos, costos, sinCosto),
+        mejorCanal,
+      };
     });
 
     const columnasCanal = [...canalesConVentas].map((canalId) => {
       let ingresos = 0;
       let costos = 0;
+      let sinCosto = 0;
       for (const productoId of productosConVentas) {
         const f = celda.get(`${productoId}|${canalId}`);
         if (!f) continue;
         ingresos += f.ingresos;
         costos += f.costos;
+        sinCosto += f.ingresosSinCostoConocido;
       }
-      return { canalId, promedio: margenDe(ingresos, costos) };
+      return { canalId, promedio: margenDe(ingresos, costos, sinCosto) };
     });
 
     const totalGeneral = margenDe(
       filas.reduce((acc, f) => acc + f.ingresos, 0),
-      filas.reduce((acc, f) => acc + f.costos, 0)
+      filas.reduce((acc, f) => acc + f.costos, 0),
+      filas.reduce((acc, f) => acc + f.ingresosSinCostoConocido, 0)
     );
 
     const conMargen = filasProducto.filter((f) => f.totalPonderado !== null);

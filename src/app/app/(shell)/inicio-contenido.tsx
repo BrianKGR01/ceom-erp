@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Package, X } from "lucide-react";
+import { Coins, Package, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardResumen } from "./dashboard-resumen";
@@ -18,6 +18,7 @@ export function InicioContenido({
   tenantId,
   nombreNegocio,
   tieneProductos,
+  productosSinCosto,
   sucursales,
   datosIniciales,
   capacidadAlmacenamiento,
@@ -26,6 +27,8 @@ export function InicioContenido({
   tenantId: string;
   nombreNegocio: string;
   tieneProductos: boolean;
+  /** Cuántos productos activos no tienen costo cargado (H-15). */
+  productosSinCosto: number;
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
   capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
@@ -53,6 +56,37 @@ export function InicioContenido({
     return (
       <div className="space-y-6">
         <PageHeader title={`¡Hola, ${nombreNegocio}!`} description="Así viene tu negocio en este período." />
+        {/* H-15: un negocio que ya opera necesita su Dashboard, no un
+            checklist — así que esto es una tira compacta ARRIBA del
+            Dashboard, no en lugar de él. Sigue siendo prevención: después de
+            la primera venta de un producto sin costo, ese hueco ya no se
+            puede tapar (el snapshot no se recalcula, regla 4). */}
+        {productosSinCosto > 0 && (
+          <div className="flex flex-col items-start gap-3 rounded-2xl bg-warning-bg p-4 shadow-card sm:flex-row sm:items-center">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-card text-warning-text">
+              <Coins className="size-5" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-warning-text">
+                {productosSinCosto === 1
+                  ? "Tenés 1 producto sin costo cargado"
+                  : `Tenés ${productosSinCosto} productos sin costo cargado`}
+              </p>
+              <p className="text-xs text-text-body">
+                Cada venta de esos productos se cuenta como ganancia pura y su margen queda sin
+                calcular. Lo que se vende hoy sin costo no se puede corregir después.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              render={<Link href="/app/productos" />}
+              nativeButton={false}
+              size="sm"
+            >
+              Cargar costos
+            </Button>
+          </div>
+        )}
         <DashboardResumen
           sucursales={sucursales}
           datosIniciales={datosIniciales}
@@ -95,6 +129,15 @@ export function InicioContenido({
           Cargar producto
         </Button>
       </div>
+
+      {/* H-15: el paso que faltaba. Cargar el producto es la mitad — sin el
+          costo, la primera venta ya nace mal contada. Se dice acá, que es
+          cuando el usuario está más dispuesto a completar datos. */}
+      <p className="mt-3 text-xs text-text-muted">
+        Cargale también el <span className="font-medium text-navy">costo</span>: es lo que
+        permite calcular tu margen. Sin él, cada venta se cuenta como ganancia pura — y el
+        costo de una venta ya registrada no se puede corregir después.
+      </p>
     </div>
   );
 }

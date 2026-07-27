@@ -8,6 +8,10 @@ export interface ProductoParaVenta {
   imagenUrl: string | null;
   unidadVenta: string;
   precioVenta: string;
+  /** `null` = no tiene costo cargado (H-15). Viaja hasta acá para poder
+   * avisarlo ANTES de confirmar la venta: el snapshot se congela en ese
+   * instante y no se recalcula nunca, así que después ya es tarde. */
+  costoOperativoVigente: string | null;
 }
 
 // Variante compacta y clickeable de la ProductCard de Modulo 2 — mismo

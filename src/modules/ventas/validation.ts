@@ -67,7 +67,11 @@ export const importarVentaHistoricaFilaSchema = z.object({
   productoId: z.string().min(1),
   cantidad: z.number().positive(),
   precioVentaSnapshot: z.number().min(0),
-  costoUnitarioSnapshot: z.number().min(0),
+  // Opcional (H-15): quien importa historial viejo puede no saber el costo de
+  // entonces. Antes era obligatorio y la unica salida era poner `0`, que se
+  // guardaba igual que un costo medido y contaba esa venta como ganancia
+  // pura. Ausente = desconocido; `0` = costo real de cero.
+  costoUnitarioSnapshot: z.number().min(0).optional(),
 });
 
 // Direccion del ajuste segun su tipo (Modulo_03 seccion 1.3). El estado de

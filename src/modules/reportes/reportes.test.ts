@@ -130,11 +130,11 @@ describe.skipIf(!hasCredenciales)(
     });
 
     it(
-      "H-15: hoy un producto sin costo encabeza el ranking por margen con 100% — el que menos se mide se recomienda primero",
+      "H-15: un producto sin costo medido no encabeza el ranking por margen — margen desconocido no es margen 100%",
       async () => {
-        // Fija el sintoma mas feo de H-15 antes de tocarlo: el reporte que
-        // existe para decirte que te conviene vender pone arriba, con margen
-        // perfecto, justo el producto del que el negocio no sabe el costo.
+        // El sintoma mas feo de H-15: el reporte que existe para decirte que
+        // te conviene vender ponia arriba, con margen perfecto, justo el
+        // producto del que el negocio no sabe el costo.
         const periodoRanking = { desde: "2026-08-01", hasta: "2026-08-31" };
         const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
         const canal = await crearCanalVenta(owner!, tenantId, { nombre: "Ranking" });
@@ -180,12 +180,22 @@ describe.skipIf(!hasCredenciales)(
         const filaMedido = ranking.data.find((f) => f.productoId === medido.data.productoId);
         const filaSinCosto = ranking.data.find((f) => f.productoId === sinCosto.data.productoId);
         expect(filaMedido?.margenPct).toBe(40); // (500 - 300) / 500
-        // El que no se midio: costos 0 -> margen 100%, presentado como un
-        // hecho y no como una incognita. Simulaciones ya trata este mismo
-        // caso como "sin costo cargado"; Ventas/Financiero/Reportes no.
+        expect(filaMedido?.ingresosSinCostoConocido).toBe(0);
+
+        // El que no se midio: sus costos siguen siendo 0 (no hay costo que
+        // sumar), pero el margen ya no se afirma. Antes daba 100% y era una
+        // afirmacion falsa; ahora es `null` — el criterio que Simulaciones
+        // ya aplicaba y que Ventas/Financiero/Reportes no seguian.
         expect(filaSinCosto?.costos).toBe(0);
-        expect(filaSinCosto?.margenPct).toBe(100);
-        expect(ranking.data[0]?.productoId).toBe(sinCosto.data.productoId);
+        expect(filaSinCosto?.margenPct).toBeNull();
+        expect(filaSinCosto?.ingresosSinCostoConocido).toBe(500);
+
+        // Y no encabeza: lo desconocido va al fondo. Ordenar por margen
+        // significa ordenar por lo que se sabe.
+        expect(ranking.data[0]?.productoId).toBe(medido.data.productoId);
+        expect(ranking.data[ranking.data.length - 1]?.productoId).toBe(
+          sinCosto.data.productoId
+        );
       },
       20000
     );

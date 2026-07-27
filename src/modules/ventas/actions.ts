@@ -783,7 +783,12 @@ export interface DatosLineaVentaHistorica {
   productoId: string;
   cantidad: string | number;
   precioVentaSnapshot: string | number;
-  costoUnitarioSnapshot: string | number;
+  /** Opcional a proposito (H-15): quien importa historial viejo puede no
+   * saber cuanto le costaba un producto hace dos años. Sin este campo, la
+   * unica salida era escribir `0` — que se guardaba indistinguible de un
+   * costo medido y hacia que ese historial se contara como ganancia pura.
+   * Ausente = desconocido; `0` = costo real de cero. */
+  costoUnitarioSnapshot?: string | number | null;
 }
 
 export interface DatosVentaHistorica {
@@ -823,11 +828,20 @@ export async function importarVentaHistorica(
   const lineas = input.lineas.map((linea) => {
     const cantidad = Number(linea.cantidad);
     const precioVentaSnapshot = Number(linea.precioVentaSnapshot);
+    // Mismo criterio que registrarVenta (H-15): el costo ausente se guarda
+    // como 0 porque la columna es notNull, pero queda marcado como
+    // desconocido en vez de pasar por un costo medido. Este es el SEGUNDO
+    // camino de escritura de una linea de venta, y el compilador no lo
+    // habria avisado nunca: `costo_desconocido` tiene default en la base,
+    // asi que es opcional en el tipo de insert.
+    const costoDesconocido =
+      linea.costoUnitarioSnapshot === undefined || linea.costoUnitarioSnapshot === null;
     return {
       productoId: linea.productoId,
       cantidad: String(cantidad),
       precioVentaSnapshot: String(precioVentaSnapshot),
-      costoUnitarioSnapshot: String(linea.costoUnitarioSnapshot),
+      costoUnitarioSnapshot: costoDesconocido ? "0" : String(linea.costoUnitarioSnapshot),
+      costoDesconocido,
       subtotal: String(calcularSubtotal(cantidad, precioVentaSnapshot)),
     };
   });
@@ -871,18 +885,16 @@ export async function consultarIngresosPeriodo(
   tenantId: string,
   periodo: PeriodoConsulta,
   opts: { sucursalId?: string; productoId?: string } = {}
-): Promise<Resultado<{ ingresos: number; costos: number }>> {
+): Promise<
+  Resultado<{ ingresos: number; costos: number; ingresosSinCostoConocido: number }>
+> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
   const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
-  const { ingresos, costos } = await repo.sumarIngresosCostosPeriodo(
-    tenantId,
-    inicio,
-    fin,
-    opts
-  );
-  return { ok: true, data: { ingresos, costos } };
+  const { ingresos, costos, ingresosSinCostoConocido } =
+    await repo.sumarIngresosCostosPeriodo(tenantId, inicio, fin, opts);
+  return { ok: true, data: { ingresos, costos, ingresosSinCostoConocido } };
 }
 
 /** Rotación de un producto en un período — roadmap ítem #13 (Simulaciones,
@@ -924,7 +936,15 @@ export async function rankingProductos(
   periodo: PeriodoConsulta,
   opts: { canalVentaId?: string; criterio: "rotacion" | "margen" }
 ): Promise<
-  Resultado<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>>
+  Resultado<
+    Array<{
+      productoId: string;
+      unidadesVendidas: number;
+      ingresos: number;
+      costos: number;
+      ingresosSinCostoConocido: number;
+    }>
+  >
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
@@ -939,12 +959,34 @@ export async function rankingProductos(
 
   const ordenadas = [...filas].sort((a, b) => {
     if (opts.criterio === "rotacion") return b.unidadesVendidas - a.unidadesVendidas;
-    const margenA = a.ingresos !== 0 ? (a.ingresos - a.costos) / a.ingresos : -Infinity;
-    const margenB = b.ingresos !== 0 ? (b.ingresos - b.costos) / b.ingresos : -Infinity;
+    // H-15: un producto con ingresos sin costo conocido NO tiene un margen
+    // que ordenar. Antes su costo era 0, o sea margen 100%, y encabezaba el
+    // ranking: el reporte que existe para decirte qué te conviene vender
+    // recomendaba justo el producto que no medís. Van al fondo — es lo que
+    // corresponde a "no sé", no a "es el mejor" —, ordenados entre sí por
+    // ingresos para que la lista siga siendo estable y útil.
+    const margenA = margenParaOrdenar(a);
+    const margenB = margenParaOrdenar(b);
+    if (margenA === null || margenB === null) {
+      if (margenA === null && margenB === null) return b.ingresos - a.ingresos;
+      return margenA === null ? 1 : -1;
+    }
     return margenB - margenA;
   });
 
   return { ok: true, data: ordenadas };
+}
+
+/** Ratio interno de ordenamiento del ranking (no la fórmula de negocio, que
+ * vive en Financiero). `null` = no hay margen que afirmar. */
+function margenParaOrdenar(fila: {
+  ingresos: number;
+  costos: number;
+  ingresosSinCostoConocido: number;
+}): number | null {
+  if (fila.ingresosSinCostoConocido > 0) return null;
+  if (fila.ingresos === 0) return null;
+  return (fila.ingresos - fila.costos) / fila.ingresos;
 }
 
 /** Separa ventas regulares de las de evento (regla ya fijada en este

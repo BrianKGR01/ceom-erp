@@ -23,6 +23,11 @@ export default async function AppHomePage() {
     listarSucursalesPorTenant(usuario, usuario.tenantId),
   ]);
   const tieneProductos = productosResultado.ok && productosResultado.data.length > 0;
+  // H-15: el checklist de inicio se daba por cumplido con el primer producto,
+  // tuviera costo o no. Este contador habilita el segundo paso.
+  const productosSinCosto = productosResultado.ok
+    ? productosResultado.data.filter((p) => p.activo && p.costoOperativoVigente === null).length
+    : 0;
   const nombreNegocio = tenantResultado.ok ? tenantResultado.data.nombreNegocio : usuario.nombreCompleto;
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
 
@@ -43,6 +48,7 @@ export default async function AppHomePage() {
           tenantId={usuario.tenantId}
           nombreNegocio={nombreNegocio}
           tieneProductos={tieneProductos}
+          productosSinCosto={productosSinCosto}
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
           datosIniciales={datosIniciales}
           capacidadAlmacenamiento={capacidadAlmacenamiento}

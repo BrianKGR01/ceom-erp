@@ -60,10 +60,16 @@ export function ProductCard({
               {precio.toFixed(2)}{" "}
               <span className="text-xs font-normal text-text-muted">/ {producto.unidadVenta}</span>
             </p>
-            {margenPct !== null && (
+            {/* H-15: el silencio no alcanza. Que la card simplemente no
+                muestre el margen se lee como "no hay info de margen", no como
+                "tus reportes van a estar mal". La marca es lo que hace que el
+                costo faltante sea visible antes de vender. */}
+            {margenPct !== null ? (
               <span className="text-xs font-medium text-success-text">
                 {margenPct.toFixed(0)}% margen
               </span>
+            ) : (
+              <span className="text-xs font-medium text-warning-text">Sin costo</span>
             )}
           </div>
         </CardContent>

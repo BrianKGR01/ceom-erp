@@ -95,6 +95,8 @@ export function MargenProductoCliente({
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [resultado, setResultado] = useState<Resultado<{
     margenPorcentaje: number | null;
+    /** H-15 — separa "no hubo ventas" de "hubo, pero sin costo cargado". */
+    ingresosSinCostoConocido: number;
     ingresosAjustados: number;
     costos: number;
   }> | null>(null);
@@ -169,13 +171,22 @@ export function MargenProductoCliente({
             <p className="col-span-3 text-sm text-error-text">{resultado.error}</p>
           ) : (
             <>
+              {/* H-15: `margenPorcentaje` es null por dos motivos distintos y
+                  el usuario tiene que poder distinguirlos — no hubo ventas, o
+                  las hubo pero sin costo cargado. Decir "Sin ventas" en el
+                  segundo caso es tan falso como el 100% que se mostraba
+                  antes. */}
               <KpiCard
                 icon={Percent}
                 label="Margen %"
                 value={
-                  resultado?.ok && resultado.data.margenPorcentaje !== null
-                    ? `${resultado.data.margenPorcentaje.toFixed(0)}%`
-                    : "Sin ventas"
+                  !resultado?.ok
+                    ? "—"
+                    : resultado.data.margenPorcentaje !== null
+                      ? `${resultado.data.margenPorcentaje.toFixed(0)}%`
+                      : resultado.data.ingresosSinCostoConocido > 0
+                        ? "Sin costo cargado"
+                        : "Sin ventas"
                 }
                 destacada
               />

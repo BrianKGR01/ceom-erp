@@ -704,7 +704,7 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
   // cualquier correccion posterior es imposible de medir.
 
   it(
-    "H-15: una venta de un producto sin costo se congela con costo 0 y se cuenta como ganancia pura",
+    "H-15: una venta sin costo conocido no infla el resultado en silencio — el hueco queda marcado",
     async () => {
       // Noviembre arranca vacío y ningún otro test de este archivo lo toca.
       const periodoSinCosto = { desde: "2026-11-01", hasta: "2026-11-30" };
@@ -748,7 +748,8 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       expect(Number(linea.costo)).toBe(0);
 
       // Cuentas a mano: ingresos = 3 x 100 = 300, costos = 0.
-      // El 100% de esa venta se presenta como ganancia.
+      // El numero del resultado NO cambia y no tiene por que cambiar: no hay
+      // costo que restar, el dato no existe. Estimarlo seria inventar.
       const resultado = await estadoResultados(owner!, tenantId, periodoSinCosto);
       expect(resultado.ok).toBe(true);
       if (!resultado.ok) return;
@@ -756,12 +757,71 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       expect(resultado.data.costos).toBe(0);
       expect(resultado.data.estadoResultados).toBe(300);
 
-      // Y el margen del producto en el periodo da 100%, no "desconocido".
+      // Lo que SI cambia: el resultado deja de presentarse como completo.
+      // Los 300 enteros vienen de ventas sin costo cargado, y eso ahora se
+      // puede decir en pantalla en vez de mostrar una ganancia limpia.
+      expect(resultado.data.ingresosSinCostoConocido).toBe(300);
+
+      // Y el margen pasa de "100%" (una afirmacion falsa) a `null` (no se
+      // puede afirmar) — el criterio que Simulaciones ya aplicaba.
       const margen = await margenPorProducto(
         owner!,
         tenantId,
         sinCosto.data.productoId,
         periodoSinCosto
+      );
+      expect(margen.ok).toBe(true);
+      if (!margen.ok) return;
+      expect(margen.data.margenPorcentaje).toBeNull();
+      expect(margen.data.ingresosSinCostoConocido).toBe(300);
+    },
+    20000
+  );
+
+  it(
+    "H-15: un producto con costo real 0 NO se marca como desconocido — su margen sigue siendo afirmable",
+    async () => {
+      // El contraejemplo que impide sobrecorregir: si la marca se pusiera
+      // mirando `costo === 0` en vez del flag, una muestra gratis quedaria
+      // como "margen desconocido" siendo que se conoce perfectamente.
+      const periodoGratis = { desde: "2027-01-01", hasta: "2027-01-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const gratis = await crearProducto(owner!, tenantId, {
+        nombre: "Muestra Gratis Financiero",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+        costoOperativoVigente: 0,
+      });
+      if (!gratis.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: gratis.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial muestra gratis",
+      });
+      await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2027-01-05",
+        lineas: [{ productoId: gratis.data.productoId, cantidad: 3 }],
+      });
+
+      const resultado = await estadoResultados(owner!, tenantId, periodoGratis);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.ingresos).toBe(300);
+      expect(resultado.data.costos).toBe(0);
+      // Mismos 300 de ingreso y mismos 0 de costo que el test anterior, y
+      // aca el hueco NO existe: el costo se conoce, y es 0.
+      expect(resultado.data.ingresosSinCostoConocido).toBe(0);
+
+      const margen = await margenPorProducto(
+        owner!,
+        tenantId,
+        gratis.data.productoId,
+        periodoGratis
       );
       expect(margen.ok).toBe(true);
       if (margen.ok) expect(margen.data.margenPorcentaje).toBe(100);

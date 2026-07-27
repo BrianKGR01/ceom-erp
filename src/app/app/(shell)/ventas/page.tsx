@@ -98,6 +98,7 @@ export default async function PuntoDeVentaPage() {
               imagenUrl: p.imagenUrl,
               unidadVenta: p.unidadVenta,
               precioVenta: p.precioVenta,
+              costoOperativoVigente: p.costoOperativoVigente,
             }))}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}

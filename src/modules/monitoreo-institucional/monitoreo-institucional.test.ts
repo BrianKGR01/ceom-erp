@@ -38,8 +38,8 @@ import {
   stockInsumo,
   vinculacionesProductoReceta,
 } from "@/modules/operativo/nichos/nicho-1/schema";
-import { crearActivo } from "@/modules/patrimonio/actions";
-import { activos } from "@/modules/patrimonio/schema";
+import { crearActivo, crearPasivo, registrarPagoPasivo } from "@/modules/patrimonio/actions";
+import { activos, pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
 import { crearProducto } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
@@ -328,6 +328,14 @@ describe.skipIf(!hasCredenciales)(
               await db.delete(stock).where(eq(stock.productoId, productoProduccionId));
               await db.delete(productos).where(eq(productos.id, productoVentaId));
               await db.delete(productos).where(eq(productos.id, productoProduccionId));
+              // Pasivos antes que activos por la FK opcional pasivo->activo.
+              // Desde H-27, este test registra un pago de pasivo real.
+              const pasivoIds = db
+                .select({ id: pasivos.id })
+                .from(pasivos)
+                .where(eq(pasivos.tenantId, tenantId));
+              await db.delete(pagosPasivo).where(inArray(pagosPasivo.pasivoId, pasivoIds));
+              await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));
               await db.delete(activos).where(eq(activos.tenantId, tenantId));
             },
             async () => {
@@ -536,5 +544,68 @@ describe.skipIf(!hasCredenciales)(
         .delete(instituciones)
         .where(eq(instituciones.id, otraInstitucion.data.institucionId));
     });
+
+    it(
+      "H-27 + §13.11: la cuota de pasivo llega al numero que ve la institucion, y ese numero no es un 0 silencioso",
+      async () => {
+        // Dos cosas a la vez, y la segunda es la importante.
+        //
+        // 1. H-27 cambia lo que Financiero suma, y Financiero es lo que el
+        //    Gateway le muestra a una institucion. Hay que confirmar que el
+        //    cambio cruza esa frontera de verdad.
+        // 2. El riesgo de PLAN-RLS-BACKSTOP.md §13.11: los agregados del
+        //    camino institucional devuelven `coalesce(sum(...), 0)`, asi que
+        //    "RLS filtro todas las filas" y "legitimamente cero" son
+        //    indistinguibles en el resultado — un dato incorrecto, no un
+        //    crash, y un assert debil (`typeof x === "number"`) no lo caza.
+        //    Por eso se afirma el DELTA EXACTO contra el valor de antes: si
+        //    el camino del Gateway se rompiera y devolviera 0, el delta no
+        //    daria -350, daria cualquier otra cosa.
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const solicitud = await crearSolicitudSeguimiento(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+        );
+        if (!solicitud.ok) throw new Error("setup fallo: crearSolicitudSeguimiento");
+        const aprobacion = await aprobarSolicitud(owner!, solicitud.data.solicitudId, {
+          modulosAprobados: ["financiero"],
+        });
+        if (!aprobacion.ok) throw new Error("setup fallo: aprobarSolicitud");
+
+        const antes = await detalleFinanciero(institucionId, tenantId, periodo);
+        expect(antes.ok).toBe(true);
+        if (!antes.ok || !antes.data.autorizado) throw new Error("setup: deberia estar autorizado");
+        const resultadoAntes = antes.data.detalle.estadoResultados;
+        const cajaAntes = antes.data.detalle.flujoCaja;
+        // Guarda contra el falso verde: si el camino ya estuviera devolviendo
+        // 0 por RLS, el delta seguiria dando bien y no probariamos nada.
+        expect(resultadoAntes).not.toBe(0);
+
+        const pasivo = await crearPasivo(owner!, tenantId, {
+          montoTotal: 2000,
+          cuotaPeriodica: 350,
+          frecuenciaCuota: "mensual",
+          plazoCuotas: 6,
+          fechaInicio: "2026-06-01",
+        });
+        if (!pasivo.ok) throw new Error("setup fallo: crearPasivo");
+
+        const pago = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+          monto: 350,
+          fechaPago: periodo.desde,
+        });
+        expect(pago.ok).toBe(true);
+        if (pago.ok) expect(pago.data.gastoCuota.ok).toBe(true);
+
+        const despues = await detalleFinanciero(institucionId, tenantId, periodo);
+        expect(despues.ok).toBe(true);
+        if (!despues.ok || !despues.data.autorizado) return;
+        // El Gasto de la cuota nace pagado, asi que pega en los dos numeros
+        // por el monto exacto, ni mas ni menos.
+        expect(despues.data.detalle.estadoResultados).toBe(resultadoAntes - 350);
+        expect(despues.data.detalle.flujoCaja).toBe(cajaAntes - 350);
+      },
+      20000
+    );
   }
 );

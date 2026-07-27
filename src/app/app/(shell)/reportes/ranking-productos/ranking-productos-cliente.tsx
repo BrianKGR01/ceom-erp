@@ -23,6 +23,8 @@ interface FilaRanking {
   unidadesVendidas: number;
   ingresos: number;
   costos: number;
+  /** H-15 — si es > 0, no hay margen que afirmar para este producto. */
+  ingresosSinCostoConocido: number;
   margenPct: number | null;
 }
 
@@ -176,6 +178,11 @@ export function RankingProductosCliente({
         ) : (
           <div className="space-y-3">
             {filas.map((fila, index) => {
+              // H-15: sin costo cargado no hay margen que dibujar. Antes su
+              // costo era 0 -> 100% -> barra llena y primer puesto: el
+              // producto que menos se mide, recomendado como el mejor.
+              const margenDesconocido =
+                criterio === "margen" && fila.ingresosSinCostoConocido > 0;
               const valor = criterio === "rotacion" ? fila.unidadesVendidas : (fila.margenPct ?? 0);
               return (
                 <div key={fila.productoId} className="flex items-center gap-3 text-sm">
@@ -186,14 +193,25 @@ export function RankingProductosCliente({
                     {productoNombre.get(fila.productoId) ?? "Producto"}
                   </span>
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-bg">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${Math.max(4, (Math.abs(valor) / maxValor) * 100)}%` }}
-                    />
+                    {!margenDesconocido && (
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${Math.max(4, (Math.abs(valor) / maxValor) * 100)}%` }}
+                      />
+                    )}
                   </div>
-                  <span className="w-20 shrink-0 text-right text-xs font-medium text-navy">
-                    {criterio === "rotacion" ? `${valor} un.` : `${valor.toFixed(0)}%`}
-                  </span>
+                  {margenDesconocido ? (
+                    <span
+                      className="w-20 shrink-0 text-right text-xs font-medium text-warning-text"
+                      title="Este producto no tiene costo cargado, así que no se puede calcular su margen."
+                    >
+                      Sin costo
+                    </span>
+                  ) : (
+                    <span className="w-20 shrink-0 text-right text-xs font-medium text-navy">
+                      {criterio === "rotacion" ? `${valor} un.` : `${valor.toFixed(0)}%`}
+                    </span>
+                  )}
                 </div>
               );
             })}
