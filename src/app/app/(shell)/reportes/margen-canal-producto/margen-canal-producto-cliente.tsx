@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerMargenPorCanalYProductoAction } from "../actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -71,10 +71,14 @@ export function MargenCanalProductoCliente({
   datosIniciales,
   canales,
   productos,
+  zona,
 }: {
   datosIniciales: Resultado<FilaMargen[]>;
   canales: { id: string; nombre: string }[];
   productos: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [datos, setDatos] = useState(datosIniciales);
@@ -82,7 +86,7 @@ export function MargenCanalProductoCliente({
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerMargenPorCanalYProductoAction(periodo);
     setCargando(false);
     setDatos(resultado);

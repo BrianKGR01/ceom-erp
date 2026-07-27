@@ -27,7 +27,7 @@ import {
   type CapacidadAlmacenamientoWidget,
   type DatosDashboard,
 } from "./inicio-actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "./periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 // Primera vez que la app necesita una paleta de graficas — el design
 // system no define una (docs/design-system.md no tiene seccion de
@@ -45,10 +45,13 @@ export function DashboardResumen({
   sucursales,
   datosIniciales,
   capacidadAlmacenamiento,
+  zona,
 }: {
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
   capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
+  /** Zona horaria del negocio — la manda el servidor. Ver src/lib/periodo.ts. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [sucursalId, setSucursalId] = useState<string>("todas");
@@ -58,7 +61,7 @@ export function DashboardResumen({
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevaSucursalId: string) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerDashboardAction(
       periodo,
       nuevaSucursalId !== "todas" ? nuevaSucursalId : undefined

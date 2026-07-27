@@ -3,7 +3,7 @@ import { listarSucursalesPorTenant, obtenerTenantPorId, obtenerUsuarioActual } f
 import { listarProductos } from "@/modules/productos/actions";
 import { construirDashboard, obtenerCapacidadAlmacenamientoWidget } from "./inicio-actions";
 import { InicioContenido } from "./inicio-contenido";
-import { calcularRangoPreset } from "./periodo-presets";
+import { calcularRangoPreset, zonaHorariaTenant } from "@/lib/periodo";
 
 // Inicio de /app — checklist de sub-onboarding mientras el tenant no
 // tiene productos (o hasta que se cierre a mano), Dashboard real
@@ -15,6 +15,7 @@ import { calcularRangoPreset } from "./periodo-presets";
 export default async function AppHomePage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
+  const zona = await zonaHorariaTenant(usuario.tenantId);
 
   const [productosResultado, tenantResultado, sucursalesResultado] = await Promise.all([
     listarProductos(usuario, usuario.tenantId),
@@ -26,7 +27,7 @@ export default async function AppHomePage() {
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
 
   const [datosInicialesRes, capacidadAlmacenamiento] = await Promise.all([
-    construirDashboard(calcularRangoPreset("mes")),
+    construirDashboard(calcularRangoPreset("mes", zona)),
     obtenerCapacidadAlmacenamientoWidget(),
   ]);
   // usuario ya se validó arriba — este resultado solo puede fallar en la
@@ -45,6 +46,7 @@ export default async function AppHomePage() {
           sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
           datosIniciales={datosIniciales}
           capacidadAlmacenamiento={capacidadAlmacenamiento}
+          zona={zona}
         />
       </div>
     </div>

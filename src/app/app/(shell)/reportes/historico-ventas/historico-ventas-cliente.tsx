@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerHistoricoVentasAction } from "../actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -80,7 +80,15 @@ function etiquetaBucket(clave: string, granularidad: "dia" | "mes"): string {
   });
 }
 
-export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Resultado<FilaVenta[]> }) {
+export function HistoricoVentasCliente({
+  datosIniciales,
+  zona,
+}: {
+  datosIniciales: Resultado<FilaVenta[]>;
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
+}) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [incluirEventos, setIncluirEventos] = useState(true);
   const [datos, setDatos] = useState(datosIniciales);
@@ -88,7 +96,7 @@ export function HistoricoVentasCliente({ datosIniciales }: { datosIniciales: Res
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevoIncluirEventos: boolean) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerHistoricoVentasAction(periodo, { incluirEventos: nuevoIncluirEventos });
     setCargando(false);
     setDatos(resultado);

@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/app/app/(shell)/periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 import { cn } from "@/lib/utils";
 import {
   cambiarEstadoSuscripcionAction,
@@ -326,17 +326,20 @@ export function FichaTenantAdminCliente({
   tenantId,
   tenant,
   planes,
+  zona,
 }: {
   tenantId: string;
   tenant: TenantDetalle;
   planes: Plan[];
+  /** Zona horaria del negocio OBSERVADO, no la del admin que mira. */
+  zona: string;
 }) {
   const router = useRouter();
   const [dialogoPlan, setDialogoPlan] = useState(false);
   const [dialogoEstado, setDialogoEstado] = useState(false);
   const [tabActivo, setTabActivo] = useState<TabId>("financiero");
   const [presetId, setPresetId] = useState<PeriodoPresetId>("mes");
-  const periodo = calcularRangoPreset(presetId);
+  const periodo = calcularRangoPreset(presetId, zona);
 
   const [financiero, setFinanciero] = useState<{
     flujoCaja: number;

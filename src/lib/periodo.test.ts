@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  calcularPeriodoAnterior,
+  calcularRangoPreset,
   diaLocalDe,
   instanteDeDiaLocal,
   rangoInstantes,
@@ -161,6 +163,97 @@ describe("rangoInstantes", () => {
   it("un anio bisiesto no se saltea el 29 de febrero", () => {
     const { fin } = rangoInstantes({ desde: "2028-02-01", hasta: "2028-02-29" }, LA_PAZ);
     expect(fin.toISOString()).toBe("2028-03-01T04:00:00.000Z");
+  });
+});
+
+describe("calcularRangoPreset", () => {
+  // 09:00 en La Paz. `ahora` se inyecta: el test no depende del reloj.
+  const MANANA_DEL_27 = new Date("2026-07-27T13:00:00Z");
+
+  it("los cuatro presets salen del dia local del negocio", () => {
+    expect(calcularRangoPreset("hoy", LA_PAZ, MANANA_DEL_27)).toEqual({
+      desde: "2026-07-27",
+      hasta: "2026-07-27",
+    });
+    expect(calcularRangoPreset("7dias", LA_PAZ, MANANA_DEL_27)).toEqual({
+      desde: "2026-07-21",
+      hasta: "2026-07-27",
+    });
+    expect(calcularRangoPreset("mes", LA_PAZ, MANANA_DEL_27)).toEqual({
+      desde: "2026-07-01",
+      hasta: "2026-07-27",
+    });
+    expect(calcularRangoPreset("anio", LA_PAZ, MANANA_DEL_27)).toEqual({
+      desde: "2026-01-01",
+      hasta: "2026-07-27",
+    });
+  });
+
+  it("a las 21:00 locales `hasta` sigue siendo hoy, no manana", () => {
+    // El sintoma que se veia en pantalla: pasadas las 20:00 el reloj UTC cruzaba
+    // la medianoche, `hasta` pasaba a ser el dia siguiente y los numeros del dia
+    // aparecian de golpe. El rango ya no depende de la hora a la que se mira.
+    const noche = new Date("2026-07-28T01:00:00Z"); // 27/07 21:00 en La Paz
+    expect(calcularRangoPreset("mes", LA_PAZ, noche)).toEqual({
+      desde: "2026-07-01",
+      hasta: "2026-07-27",
+    });
+  });
+
+  it("da lo mismo mire quien mire: el resultado no depende del huso del proceso", () => {
+    // El caso que HOY falla en produccion: `page.tsx` corre en Vercel (UTC) y el
+    // componente cliente en el navegador del usuario. En el cruce de anio daban
+    // anios distintos — el render del servidor mostraba uno y el primer clic
+    // otro. Con la zona como parametro explicito, los dos dan lo mismo.
+    const cruceDeAnio = new Date("2026-01-01T02:00:00Z"); // 31/12/2025 22:00 en La Paz
+    for (const preset of ["hoy", "7dias", "mes", "anio"] as const) {
+      const rango = calcularRangoPreset(preset, LA_PAZ, cruceDeAnio);
+      expect(rango.hasta).toBe("2025-12-31");
+    }
+    expect(calcularRangoPreset("anio", LA_PAZ, cruceDeAnio).desde).toBe("2025-01-01");
+    expect(calcularRangoPreset("mes", LA_PAZ, cruceDeAnio).desde).toBe("2025-12-01");
+  });
+
+  it("el preset `hoy` produce una ventana de un dia real, no vacia", () => {
+    const { desde, hasta } = calcularRangoPreset("hoy", LA_PAZ, MANANA_DEL_27);
+    const { inicio, fin } = rangoInstantes({ desde, hasta }, LA_PAZ);
+    expect(fin.getTime() - inicio.getTime()).toBe(24 * 60 * 60 * 1000);
+  });
+});
+
+describe("calcularPeriodoAnterior", () => {
+  it("un mes completo se compara contra los mismos dias inmediatamente anteriores", () => {
+    expect(calcularPeriodoAnterior({ desde: "2026-07-01", hasta: "2026-07-27" })).toEqual({
+      desde: "2026-06-04",
+      hasta: "2026-06-30",
+    });
+  });
+
+  it("un solo dia se compara contra el dia anterior", () => {
+    expect(calcularPeriodoAnterior({ desde: "2026-07-27", hasta: "2026-07-27" })).toEqual({
+      desde: "2026-07-26",
+      hasta: "2026-07-26",
+    });
+  });
+
+  it("cruza el borde de mes y de anio con aritmetica de dias, sin husos", () => {
+    // Enero tiene 31 dias, asi que los 31 dias anteriores al 1/1 son todo
+    // diciembre. El largo se conserva; no se alinea a meses calendario.
+    expect(calcularPeriodoAnterior({ desde: "2026-01-01", hasta: "2026-01-31" })).toEqual({
+      desde: "2025-12-01",
+      hasta: "2025-12-31",
+    });
+  });
+
+  it("el periodo anterior tiene exactamente el mismo largo", () => {
+    const periodo = { desde: "2026-03-01", hasta: "2026-03-15" }; // 15 dias
+    const anterior = calcularPeriodoAnterior(periodo);
+    const dias = (p: { desde: string; hasta: string }) =>
+      (new Date(`${p.hasta}T00:00:00Z`).getTime() - new Date(`${p.desde}T00:00:00Z`).getTime()) /
+        86_400_000 +
+      1;
+    expect(dias(anterior)).toBe(dias(periodo));
+    expect(anterior.hasta).toBe("2026-02-28"); // pega justo antes de `desde`
   });
 });
 

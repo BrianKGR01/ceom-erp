@@ -1,5 +1,7 @@
 "use client";
 
+import { calcularRangoPreset } from "@/lib/periodo";
+
 import { useEffect, useState } from "react";
 import { Archive, Factory } from "lucide-react";
 import {
@@ -23,15 +25,6 @@ interface Capacidad {
   };
 }
 
-function primerDiaDelMes(): string {
-  const hoy = new Date();
-  return new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1)).toISOString().slice(0, 10);
-}
-
-function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function BarraCapacidad({ porcentaje }: { porcentaje: number | null }) {
   if (porcentaje === null) {
     return <p className="text-xs text-text-muted">Sin datos suficientes para calcular el % usado.</p>;
@@ -50,10 +43,21 @@ function BarraCapacidad({ porcentaje }: { porcentaje: number | null }) {
   );
 }
 
-export function CapacidadCliente({ activos }: { activos: { id: string; nombre: string }[] }) {
+export function CapacidadCliente({
+  activos,
+  zona,
+}: {
+  activos: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor. Ver src/lib/periodo.ts. */
+  zona: string;
+}) {
   const [activoId, setActivoId] = useState(activos[0]?.id ?? "");
-  const [desde, setDesde] = useState(primerDiaDelMes());
-  const [hasta, setHasta] = useState(hoyISO());
+  // Esta pantalla tenia su PROPIA copia de "primer dia del mes" y "hoy", las dos
+  // en base UTC. Ahora sale del mismo preset que el resto de la app: una sola
+  // definicion de dia (H-49).
+  const rangoInicial = calcularRangoPreset("mes", zona);
+  const [desde, setDesde] = useState(rangoInicial.desde);
+  const [hasta, setHasta] = useState(rangoInicial.hasta);
   const [capacidad, setCapacidad] = useState<Capacidad | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);

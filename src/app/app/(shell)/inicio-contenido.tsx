@@ -21,6 +21,7 @@ export function InicioContenido({
   sucursales,
   datosIniciales,
   capacidadAlmacenamiento,
+  zona,
 }: {
   tenantId: string;
   nombreNegocio: string;
@@ -28,6 +29,9 @@ export function InicioContenido({
   sucursales: { id: string; nombre: string }[];
   datosIniciales: DatosDashboard;
   capacidadAlmacenamiento: CapacidadAlmacenamientoWidget | null;
+  /** Zona horaria del negocio — viaja desde el servidor hasta DashboardResumen,
+   * que la necesita para traducir el preset a dias locales. */
+  zona: string;
 }) {
   const storageKey = `ceom_checklist_cerrado_${tenantId}`;
   const [cerradoManualmente, setCerradoManualmente] = useState(true);
@@ -53,6 +57,7 @@ export function InicioContenido({
           sucursales={sucursales}
           datosIniciales={datosIniciales}
           capacidadAlmacenamiento={capacidadAlmacenamiento}
+          zona={zona}
         />
       </div>
     );

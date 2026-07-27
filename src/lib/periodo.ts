@@ -111,11 +111,23 @@ export function diaLocalDe(instante: Date, zona: string): DiaISO {
   return partes;
 }
 
-function sumarDias(dia: DiaISO, dias: number): DiaISO {
+/**
+ * Aritmetica de dias calendario, pura: `YYYY-MM-DD` -> `YYYY-MM-DD`. No
+ * interviene ningun huso, porque un dia calendario no tiene huso — se opera en
+ * UTC solo para reutilizar el manejo de meses y anios bisiestos de `Date`.
+ */
+export function sumarDias(dia: DiaISO, dias: number): DiaISO {
   const [a, m, d] = dia.split("-").map(Number);
   const siguiente = new Date(Date.UTC(a, m - 1, d));
   siguiente.setUTCDate(siguiente.getUTCDate() + dias);
   return siguiente.toISOString().slice(0, 10);
+}
+
+/** Dias calendario entre dos dias, inclusive de los dos extremos. */
+function largoEnDias(desde: DiaISO, hasta: DiaISO): number {
+  const ms =
+    new Date(`${hasta}T00:00:00Z`).getTime() - new Date(`${desde}T00:00:00Z`).getTime();
+  return Math.max(1, Math.round(ms / 86_400_000) + 1);
 }
 
 /**
@@ -173,4 +185,66 @@ export function rangoInstantes(periodo: Periodo, zona: string): RangoInstantes {
     inicio: instanteDeDiaLocal(periodo.desde, zona),
     fin: instanteDeDiaLocal(sumarDias(periodo.hasta, 1), zona),
   };
+}
+
+// --- Presets de periodo ---------------------------------------------------------
+// Viven aca y no en `app/(shell)/periodo-presets.ts`, que es de donde salieron:
+// los consumian tambien /admin y /portal importando cruzado desde la carpeta de
+// /app, y sobre todo tenian su propia nocion de "hoy", distinta de la de
+// `instanteDeDiaLocal`. Tener dos definiciones de dia es exactamente lo que
+// produjo H-49.
+
+export type PeriodoPresetId = "hoy" | "7dias" | "mes" | "anio";
+
+export const PERIODOS_PRESET: { id: PeriodoPresetId; label: string }[] = [
+  { id: "hoy", label: "Hoy" },
+  { id: "7dias", label: "Últimos 7 días" },
+  { id: "mes", label: "Este mes" },
+  { id: "anio", label: "Este año" },
+];
+
+/**
+ * Traduce un preset al rango de dias locales del negocio.
+ *
+ * **`zona` es un parametro obligatorio, no un default del entorno.** La version
+ * anterior derivaba "hoy" del reloj del proceso donde corriera: en el servidor
+ * el huso de Vercel (UTC), en el navegador el del usuario. Como ademas mezclaba
+ * las dos bases —`hasta` salia de `toISOString()` (UTC) y `desde` de los
+ * getters locales—, el render del servidor y el primer clic del usuario podian
+ * dar rangos distintos. En el cruce de anio daban directamente anios distintos.
+ * Hoy no se nota porque la maquina de desarrollo esta en America/La_Paz; en
+ * produccion aparecia al desplegar.
+ *
+ * `ahora` se inyecta para poder probar la funcion sin depender del reloj.
+ */
+export function calcularRangoPreset(
+  id: PeriodoPresetId,
+  zona: string,
+  ahora: Date = new Date()
+): Periodo {
+  const hoy = diaLocalDe(ahora, zona);
+  switch (id) {
+    case "hoy":
+      return { desde: hoy, hasta: hoy };
+    case "7dias":
+      return { desde: sumarDias(hoy, -6), hasta: hoy };
+    case "mes":
+      return { desde: `${hoy.slice(0, 7)}-01`, hasta: hoy };
+    case "anio":
+      return { desde: `${hoy.slice(0, 4)}-01-01`, hasta: hoy };
+  }
+}
+
+/**
+ * Mismo largo en dias, inmediatamente anterior a `desde` — para el delta "vs
+ * periodo anterior" del Dashboard.
+ *
+ * Aritmetica de dias calendario pura: no toca husos ni instantes. La version
+ * anterior parseaba a `Date` y mezclaba getters UTC con setters locales; daba
+ * bien de casualidad porque los dos errores se cancelaban.
+ */
+export function calcularPeriodoAnterior(periodo: Periodo): Periodo {
+  const largo = largoEnDias(periodo.desde, periodo.hasta);
+  const hasta = sumarDias(periodo.desde, -1);
+  return { desde: sumarDias(hasta, -(largo - 1)), hasta };
 }

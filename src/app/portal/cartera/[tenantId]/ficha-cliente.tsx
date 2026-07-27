@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Banknote, Boxes, Factory, Lock, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PortalTopbar } from "@/components/shared/portal-topbar";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/app/app/(shell)/periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 import { cn } from "@/lib/utils";
 import {
   detalleFinancieroAction,
@@ -74,13 +74,16 @@ function NoAutorizado({ modulo }: { modulo: string }) {
 export function FichaTenantCliente({
   tenantId,
   tenant,
+  zona,
 }: {
   tenantId: string;
   tenant: { nombreNegocio: string; estadoAcceso: string };
+  /** Zona horaria del negocio OBSERVADO, no la de la institucion que mira. */
+  zona: string;
 }) {
   const [tabActivo, setTabActivo] = useState<TabId>("ventas");
   const [presetId, setPresetId] = useState<PeriodoPresetId>("mes");
-  const periodo = calcularRangoPreset(presetId);
+  const periodo = calcularRangoPreset(presetId, zona);
 
   const [ventas, setVentas] = useState<ConAutorizacion<{ ingresos: number }> | null>(null);
   const [financiero, setFinanciero] = useState<ConAutorizacion<{

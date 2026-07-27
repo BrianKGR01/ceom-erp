@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerRankingProductosAction } from "../actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -54,10 +54,14 @@ export function RankingProductosCliente({
   datosIniciales,
   canales,
   productos,
+  zona,
 }: {
   datosIniciales: Resultado<FilaRanking[]>;
   canales: { id: string; nombre: string }[];
   productos: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [canalId, setCanalId] = useState("todos");
@@ -71,7 +75,7 @@ export function RankingProductosCliente({
     nuevoCriterio: "rotacion" | "margen"
   ) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const resultado = await obtenerRankingProductosAction(periodo, {
       canalVentaId: nuevoCanalId !== "todos" ? nuevoCanalId : undefined,
       criterio: nuevoCriterio,

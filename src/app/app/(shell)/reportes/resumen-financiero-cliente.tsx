@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { obtenerEstadoResultadosAction, obtenerFlujoCajaAction } from "./actions";
-import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../periodo-presets";
+import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -65,9 +65,13 @@ function NavReportes({ activo }: { activo: "financiero" | "margen" | "historico"
 export function ResumenFinancieroCliente({
   datosIniciales,
   sucursales,
+  zona,
 }: {
   datosIniciales: DatosResumenFinanciero;
   sucursales: { id: string; nombre: string }[];
+  /** Zona horaria del negocio — la resuelve el servidor con zonaHorariaTenant().
+   * Nunca se deriva del navegador: el usuario puede estar en otro huso. */
+  zona: string;
 }) {
   const [periodoId, setPeriodoId] = useState<PeriodoPresetId>("mes");
   const [sucursalId, setSucursalId] = useState("todas");
@@ -76,7 +80,7 @@ export function ResumenFinancieroCliente({
 
   async function recargar(nuevoPeriodoId: PeriodoPresetId, nuevaSucursalId: string) {
     setCargando(true);
-    const periodo = calcularRangoPreset(nuevoPeriodoId);
+    const periodo = calcularRangoPreset(nuevoPeriodoId, zona);
     const opts = nuevaSucursalId !== "todas" ? nuevaSucursalId : undefined;
     const [estado, flujo] = await Promise.all([
       obtenerEstadoResultadosAction(periodo, opts),
