@@ -25,6 +25,7 @@ import {
   crearCategoria,
   crearProducto,
   listarProductos,
+  registrarAjusteManualStock,
   registrarEntradaCompraReventa,
 } from "@/modules/productos/actions";
 import {
@@ -107,6 +108,13 @@ async function main() {
     { nombre: "Agua Mineral 600ml", categoria: "Bebidas", unidad: "unidad", precio: 1.0, costo: 0.4, stock: 50 },
     { nombre: "Mix de Frutos Secos 100g", categoria: "Snacks", unidad: "unidad", precio: 3.15, costo: 1.6, stock: 5 },
     { nombre: "Galletas de Avena", categoria: "Snacks", unidad: "unidad", precio: 2.5, costo: 1.1, stock: 22 },
+    // H-15: uno SIN costo, a proposito. Hasta esta tanda el seed cargaba
+    // todos los productos con costo, asi que el escenario que H-15 describe
+    // —alguien carga un producto rapido y se olvida el costo— no se
+    // reproducia nunca en datos de prueba: toda la QA visual de reportes y
+    // ranking se hizo sobre un catalogo perfecto. Sin esta fila, la
+    // correccion no se puede ver a ojo en ninguna pantalla.
+    { nombre: "Alfajor de Maicena", categoria: "Snacks", unidad: "unidad", precio: 3.5, costo: null, stock: 12 },
   ] as const;
 
   const productoIdPorNombre: Record<string, string> = {};
@@ -116,20 +124,34 @@ async function main() {
       nombre: p.nombre,
       unidadVenta: p.unidad,
       precioVenta: p.precio,
-      costoOperativoVigente: p.costo,
+      costoOperativoVigente: p.costo ?? undefined,
       tipoOrigenProducto: "reventa_simple",
       origenCosto: "manual",
     });
     if (!resultado.ok) throw new Error(`crearProducto(${p.nombre}): ${resultado.error}`);
     productoIdPorNombre[p.nombre] = resultado.data.productoId;
 
-    const entrada = await registrarEntradaCompraReventa(owner, owner.tenantId, {
-      productoId: resultado.data.productoId,
-      sucursalId: sucursal.id,
-      cantidad: p.stock,
-      costoCompra: p.costo,
-    });
-    if (!entrada.ok) throw new Error(`registrarEntradaCompraReventa(${p.nombre}): ${entrada.error}`);
+    // El producto sin costo entra por ajuste manual, no por compra de
+    // reventa: `registrarEntradaCompraReventa` escribe
+    // `costo_operativo_vigente` a partir del costo de compra, asi que le
+    // pondria un costo y anularia el caso que este producto existe para
+    // reproducir (H-15).
+    const entrada =
+      p.costo === null
+        ? await registrarAjusteManualStock(owner, owner.tenantId, {
+            productoId: resultado.data.productoId,
+            sucursalId: sucursal.id,
+            tipo: "entrada_ajuste_manual",
+            cantidad: p.stock,
+            motivo: "Carga inicial sin costo (demo H-15)",
+          })
+        : await registrarEntradaCompraReventa(owner, owner.tenantId, {
+            productoId: resultado.data.productoId,
+            sucursalId: sucursal.id,
+            cantidad: p.stock,
+            costoCompra: p.costo,
+          });
+    if (!entrada.ok) throw new Error(`carga de stock inicial (${p.nombre}): ${entrada.error}`);
   }
   console.log(`✓ ${PRODUCTOS.length} productos creados, con stock inicial cargado.`);
 

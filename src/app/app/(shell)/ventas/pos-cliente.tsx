@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, User } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -109,6 +110,11 @@ export function PosCliente({
       ];
     });
   }
+
+  // Las líneas del carrito cuyo producto no tiene costo cargado (H-15).
+  const sinCostoEnCarrito = carrito.filter((linea) =>
+    productos.some((p) => p.id === linea.productoId && p.costoOperativoVigente === null)
+  );
 
   function cambiarCantidad(productoId: string, cantidad: number) {
     setCarrito((prev) =>
@@ -268,6 +274,41 @@ export function PosCliente({
               onCambiarCantidad={cambiarCantidad}
               onQuitar={quitarLinea}
             />
+
+            {/* H-15 — avisa, NO bloquea. La venta siempre se tiene que poder
+                registrar: el dueño cobrando con el cliente enfrente no puede
+                quedar trabado por un dato contable. Pero este es el último
+                momento en que el costo todavía se puede capturar: al
+                confirmar, la línea congela su costo y no se recalcula nunca
+                (regla 4), así que cargarlo mañana no repara esta venta. */}
+            {sinCostoEnCarrito.length > 0 && (
+              <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-3">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+                <div className="text-xs text-text-body">
+                  <p className="font-medium text-warning-text">
+                    {sinCostoEnCarrito.length === 1
+                      ? `"${sinCostoEnCarrito[0].nombre}" no tiene costo cargado.`
+                      : `${sinCostoEnCarrito.length} productos de esta venta no tienen costo cargado.`}
+                  </p>
+                  <p className="mt-0.5">
+                    Se va a contar como ganancia pura y el margen va a quedar sin calcular.
+                    Podés registrar la venta igual — pero el costo de esta venta ya no se
+                    puede corregir después.
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                    {sinCostoEnCarrito.map((l) => (
+                      <Link
+                        key={l.productoId}
+                        href={`/app/productos/${l.productoId}/editar`}
+                        className="font-medium text-warning-text underline"
+                      >
+                        Cargar costo de {l.nombre}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Cliente</Label>

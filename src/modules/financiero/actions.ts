@@ -133,6 +133,12 @@ export async function estadoResultados(
     gastos: number;
     ajustesVenta: number;
     ajustesCompra: number;
+    /** H-15: cuánto de `ingresos` viene de ventas cuyo costo no se conocía.
+     * El resultado de arriba **no cambia** por esto —no hay costo que
+     * restar—, pero deja de presentarse como completo: la pantalla puede
+     * decir "de estos ingresos, Bs X no tienen costo cargado, tu margen real
+     * es menor". Marcar el hueco, nunca estimar un número para taparlo. */
+    ingresosSinCostoConocido: number;
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
@@ -150,7 +156,7 @@ export async function estadoResultados(
   if (!ajustesRes.ok) return ajustesRes;
   if (!ajustesCompraRes.ok) return ajustesCompraRes;
 
-  const { ingresos, costos } = ingresosCostosRes.data;
+  const { ingresos, costos, ingresosSinCostoConocido } = ingresosCostosRes.data;
   const gastos = gastosRes.data.totalGastos;
   const ajustesVenta = ajustesRes.data.totalAjustes;
   // Siempre >= 0 (Proveedores solo devuelve la direccion de costo) — se
@@ -173,16 +179,34 @@ export async function estadoResultados(
       gastos,
       ajustesVenta,
       ajustesCompra,
+      ingresosSinCostoConocido,
     },
   };
 }
 
+/**
+ * `margenPorcentaje` es `null` cuando **no se puede afirmar** un margen, y
+ * hay dos motivos distintos que el llamador tiene que poder separar:
+ * no hubo ingresos en el período (`ingresosAjustados === 0`), o parte de esos
+ * ingresos son de ventas sin costo cargado (`ingresosSinCostoConocido > 0`,
+ * H-15). Antes el segundo caso devolvía **100%** —un costo desconocido
+ * contado como cero— y eso es una afirmación falsa, no un dato faltante.
+ * Es el criterio que Simulaciones ya aplicaba y que Ventas/Financiero/
+ * Reportes no seguían.
+ */
 export async function margenPorProducto(
   solicitante: UsuarioConRol,
   tenantId: string,
   productoId: string,
   periodo: PeriodoFinanciero
-): Promise<Resultado<{ margenPorcentaje: number | null; ingresosAjustados: number; costos: number }>> {
+): Promise<
+  Resultado<{
+    margenPorcentaje: number | null;
+    ingresosAjustados: number;
+    costos: number;
+    ingresosSinCostoConocido: number;
+  }>
+> {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
@@ -196,13 +220,18 @@ export async function margenPorProducto(
 
   const ingresosAjustados = ingresosCostosRes.data.ingresos + ajustesRes.data.totalAjustes;
   const costos = ingresosCostosRes.data.costos;
+  const ingresosSinCostoConocido = ingresosCostosRes.data.ingresosSinCostoConocido;
 
   return {
     ok: true,
     data: {
-      margenPorcentaje: calcularMargenPorcentaje(ingresosAjustados, costos),
+      margenPorcentaje:
+        ingresosSinCostoConocido > 0
+          ? null
+          : calcularMargenPorcentaje(ingresosAjustados, costos),
       ingresosAjustados,
       costos,
+      ingresosSinCostoConocido,
     },
   };
 }

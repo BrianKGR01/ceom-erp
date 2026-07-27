@@ -319,6 +319,14 @@ export async function registrarPagoVentaTx(data: NuevoPagoVenta) {
 // reporte de este mes. El repositorio no sabe nada de husos: la traduccion ya
 // vino hecha.
 
+/** Cuanto de los ingresos viene de lineas cuyo costo no se conocia al
+ * venderlas (H-15). No es un costo — es la porcion del ingreso sobre la que
+ * **no se puede afirmar un margen**. Se calcula aparte de `costos` a
+ * proposito: el total de costos no cambia (no hay costo que sumar), lo que
+ * cambia es que ahora se puede decir cuanto del numero es desconocido en vez
+ * de presentarlo como ganancia. */
+const INGRESOS_SIN_COSTO_CONOCIDO = sql<string>`coalesce(sum(${detallesVenta.subtotal}) filter (where ${detallesVenta.costoDesconocido}), 0)`;
+
 /** Ingresos (subtotal, ya persistido) y costos (cantidad x costo snapshot)
  * de Detalle de Venta, por fecha_venta — base devengado. */
 export async function sumarIngresosCostosPeriodo(
@@ -326,7 +334,7 @@ export async function sumarIngresosCostosPeriodo(
   inicio: Date,
   fin: Date,
   opts: { sucursalId?: string; productoId?: string } = {}
-): Promise<{ ingresos: number; costos: number }> {
+): Promise<{ ingresos: number; costos: number; ingresosSinCostoConocido: number }> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
     gte(ventas.fechaVenta, inicio),
@@ -335,16 +343,21 @@ export async function sumarIngresosCostosPeriodo(
   if (opts.sucursalId) condiciones.push(eq(ventas.sucursalId, opts.sucursalId));
   if (opts.productoId) condiciones.push(eq(detallesVenta.productoId, opts.productoId));
 
-  const [{ ingresos, costos }] = await db
+  const [{ ingresos, costos, ingresosSinCostoConocido }] = await db
     .select({
       ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
       costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+      ingresosSinCostoConocido: INGRESOS_SIN_COSTO_CONOCIDO,
     })
     .from(detallesVenta)
     .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
     .where(and(...condiciones));
 
-  return { ingresos: Number(ingresos), costos: Number(costos) };
+  return {
+    ingresos: Number(ingresos),
+    costos: Number(costos),
+    ingresosSinCostoConocido: Number(ingresosSinCostoConocido),
+  };
 }
 
 /** Unidades vendidas (rotación) de un producto en un período — roadmap
@@ -435,7 +448,15 @@ export async function listarRankingProductos(
   inicio: Date,
   fin: Date,
   opts: { canalVentaId?: string } = {}
-): Promise<Array<{ productoId: string; unidadesVendidas: number; ingresos: number; costos: number }>> {
+): Promise<
+  Array<{
+    productoId: string;
+    unidadesVendidas: number;
+    ingresos: number;
+    costos: number;
+    ingresosSinCostoConocido: number;
+  }>
+> {
   const condiciones = [
     eq(ventas.tenantId, tenantId),
     gte(ventas.fechaVenta, inicio),
@@ -449,6 +470,7 @@ export async function listarRankingProductos(
       unidadesVendidas: sql<string>`coalesce(sum(${detallesVenta.cantidad}), 0)`,
       ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
       costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+      ingresosSinCostoConocido: INGRESOS_SIN_COSTO_CONOCIDO,
     })
     .from(detallesVenta)
     .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
@@ -460,6 +482,7 @@ export async function listarRankingProductos(
     unidadesVendidas: Number(f.unidadesVendidas),
     ingresos: Number(f.ingresos),
     costos: Number(f.costos),
+    ingresosSinCostoConocido: Number(f.ingresosSinCostoConocido),
   }));
 }
 
@@ -510,7 +533,13 @@ export async function listarMargenPorCanalYProducto(
   inicio: Date,
   fin: Date
 ): Promise<
-  Array<{ canalVentaId: string; productoId: string; ingresos: number; costos: number }>
+  Array<{
+    canalVentaId: string;
+    productoId: string;
+    ingresos: number;
+    costos: number;
+    ingresosSinCostoConocido: number;
+  }>
 > {
   const filas = await db
     .select({
@@ -518,6 +547,7 @@ export async function listarMargenPorCanalYProducto(
       productoId: detallesVenta.productoId,
       ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
       costos: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+      ingresosSinCostoConocido: INGRESOS_SIN_COSTO_CONOCIDO,
     })
     .from(detallesVenta)
     .innerJoin(ventas, eq(detallesVenta.ventaId, ventas.id))
@@ -535,5 +565,6 @@ export async function listarMargenPorCanalYProducto(
     productoId: f.productoId,
     ingresos: Number(f.ingresos),
     costos: Number(f.costos),
+    ingresosSinCostoConocido: Number(f.ingresosSinCostoConocido),
   }));
 }

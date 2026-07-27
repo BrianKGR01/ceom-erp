@@ -43,7 +43,7 @@
 | [H-12](#h-12) | 🟠 | "Tenant" en 105 mensajes de error |
 | [H-13](#h-13) | 🟡 | Dos cosas que el registro de accesos no distingue |
 | [H-14](#h-14) | 🟠 | No hay pantalla para dar de alta a otra persona del equipo CEOM |
-| [H-15](#h-15) | 🟡 | Un producto sin costo degrada seis pantallas en silencio |
+| [H-15](#h-15) | ✅ | ~~Un producto sin costo degrada seis pantallas en silencio~~ — **corregido** |
 | [H-16](#h-16) | 🟡 | El filtro de sucursal del panel solo afecta a dos de cinco tarjetas |
 | [H-17](#h-17) | ⚪ | Funciones que existen en el backend y no tienen botón |
 | [H-18](#h-18) | 🟡 | Documentación interna filtrada a la pantalla |
@@ -60,7 +60,7 @@
 | [H-24](#h-24) | ✅ | ~~La comisión se calcula, se guarda y no llega a ningún lado~~ — **corregido** |
 | [H-25](#h-25) | 🟠 | El costo de un producto se reemplaza por el de la última compra, no se promedia |
 | [H-26](#h-26) | 🟠 | Un ajuste no cambia el total ni el estado de cobro de la venta |
-| [H-27](#h-27) | 🟠 | Los gastos automáticos son inalcanzables: toda su lógica es código muerto |
+| [H-27](#h-27) | ✅ | ~~Los gastos automáticos son inalcanzables: toda su lógica es código muerto~~ — **corregido** |
 | [H-28](#h-28) | 🟡 | "Stock mínimo" se muestra en pantalla y no hay forma de cargarlo |
 | [H-29](#h-29) | 🟠 | Eliminar una categoría de producto no verifica si está en uso |
 | [H-30](#h-30) | 🔴 | El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso |
@@ -405,7 +405,40 @@ esto, y es raro que la única instrucción para un usuario sea "pedile a alguien
 ---
 
 <a id="h-15"></a>
-## H-15 🟡 Un producto sin costo degrada seis pantallas en silencio
+## H-15 ✅ Un producto sin costo degrada seis pantallas en silencio — CORREGIDO
+
+> **Corregido el 2026-07-27.** El hallazgo pedía "un aviso en la ficha y una marca en el catálogo".
+> El diagnóstico encontró algo más grave: **el daño es irreversible**. `costo_unitario_snapshot` es
+> `notNull`, así que un producto sin costo congelaba un `0` duro, y el snapshot no se recalcula
+> (regla 4) — cargar el costo mañana **no repara** las ventas de hoy. Por eso la corrección es sobre
+> todo prevención, no aviso.
+>
+> **El costo sigue siendo opcional** (es correcto: para un producto de producción lo calcula el Nicho
+> y para uno de reventa lo escribe la compra). Lo que cambió:
+>
+> - **Se registra la incógnita.** `detalles_venta.costo_desconocido` (migración `0044`, aditiva)
+>   separa "no cuesta nada" de "no sabíamos cuánto costaba" — dos cosas que antes se guardaban igual
+>   y que **no se pueden separar después**. Lo escriben los dos caminos: la venta normal y la
+>   importación de historial.
+> - **El punto de venta avisa y no bloquea.** La venta siempre se tiene que poder registrar; el dueño
+>   cobrando con el cliente enfrente no puede quedar trabado por un dato contable. Pero es el último
+>   momento en que el costo se puede capturar, y el aviso trae el enlace para cargarlo.
+> - **Margen desconocido dejó de ser margen 100%.** El síntoma más feo no era el resultado inflado:
+>   era que el ranking por margen ponía **primero** al producto que el negocio no mide. Ahora va al
+>   fondo, marcado "Sin costo". Ventas, Financiero y Reportes adoptaron el criterio que Simulaciones
+>   ya aplicaba bien.
+> - **El resultado del período se marca, no se estima.** El número no cambia —no hay costo que
+>   restar—, pero el estado de resultados dice cuánto del ingreso no tiene costo detrás. Inventar un
+>   costo plausible habría sido el mismo modo de falla que esta familia de hallazgos viene cerrando.
+> - **El catálogo y el inicio lo dicen.** La card muestra "Sin costo" en vez de callarse, y un
+>   negocio con productos sin costo ve cuántos son.
+>
+> **Y `seed:demo` ahora carga un producto sin costo a propósito** — hasta esta tanda todos tenían
+> costo, así que este escenario no se reproducía nunca en datos de prueba y toda la QA visual de
+> reportes se había hecho sobre un catálogo perfecto.
+>
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** `costoOperativoVigente` es opcional (`modules/productos/validation.ts:15`). Se puede
 guardar un producto sin costo y venderlo con normalidad. Nada advierte nada.
@@ -618,7 +651,30 @@ append-only, que está bien: alcanza con que la pantalla lo refleje.
 ---
 
 <a id="h-27"></a>
-## H-27 🟠 Los gastos automáticos son inalcanzables: toda su lógica es código muerto
+## H-27 ✅ Los gastos automáticos son inalcanzables: toda su lógica es código muerto — CORREGIDO
+
+> **Corregido el 2026-07-27.** `registrarPagoPasivo` genera el `Gasto` de la cuota al confirmar el
+> pago (`fijo`, `origen = cuota_pasivo_automatica`, ya pagado, atado al Pasivo por `referenciaId`),
+> en una categoría "Cuotas de deuda" que se autoprovisiona por negocio. Desde ahí la cuota resta en
+> el estado de resultados, sale en el flujo de caja y aparece en la distribución por categoría.
+> **La flecha entre Patrimonio y Gastos se invirtió** —ahora va Patrimonio → Gastos, en un solo
+> sentido— igual que se hizo con Ventas al cerrar H-24: el módulo dueño del evento dispara su
+> consecuencia. `generarGastoCuotaPasivo` gatea por `patrimonio:crear` y no por `costos_gastos:crear`,
+> para que un colaborador con permiso de Patrimonio no pierda el gasto en silencio.
+>
+> **Lo que estaba en juego, medido contra la base de desarrollo:** Bs 10.700 en 5 pagos de pasivo, 0
+> gastos generados — en un tenant cuyos ingresos totales de toda su historia son Bs 701,50.
+>
+> **Con esto los tres valores del enum `origen` se escriben de verdad**, así que la marca
+> "Automático" del listado, el aviso de bloqueo de la ficha y los rechazos de edición/eliminación ya
+> no son código muerto para ninguno de los dos casos automáticos.
+>
+> **Lo que sigue abierto de la misma familia:** los **productos sin costo** (H-15) y la falta de un
+> **scheduler** (H-10) — el gasto de la cuota se genera cuando alguien registra el pago, no "cada
+> período" como pide `Modulo_05` §2.
+>
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** El enum de origen de un gasto tiene tres valores: `manual`,
 `comision_venta_automatica` y `cuota_pasivo_automatica`. Pero:

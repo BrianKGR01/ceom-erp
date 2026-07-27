@@ -13,7 +13,7 @@ import {
 import { canalesVenta, detallesVenta, ventas } from "@/modules/ventas/schema";
 import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
-import { controlMerma, distribucionGastos, resumenPeriodo } from "./actions";
+import { controlMerma, distribucionGastos, rankingProductos, resumenPeriodo } from "./actions";
 
 const hasCredenciales = Boolean(
   process.env.DATABASE_URL && process.env.SUPABASE_SECRET_KEY
@@ -128,6 +128,77 @@ describe.skipIf(!hasCredenciales)(
       expect(resultado.data.ingresos).toBeGreaterThanOrEqual(120);
       expect(resultado.data.costos).toBeGreaterThanOrEqual(45);
     });
+
+    it(
+      "H-15: un producto sin costo medido no encabeza el ranking por margen — margen desconocido no es margen 100%",
+      async () => {
+        // El sintoma mas feo de H-15: el reporte que existe para decirte que
+        // te conviene vender ponia arriba, con margen perfecto, justo el
+        // producto del que el negocio no sabe el costo.
+        const periodoRanking = { desde: "2026-08-01", hasta: "2026-08-31" };
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const canal = await crearCanalVenta(owner!, tenantId, { nombre: "Ranking" });
+        if (!canal.ok) throw new Error("setup fallo: crearCanalVenta");
+
+        // Un producto medido de verdad: margen real (100-60)/100 = 40%.
+        const medido = await crearProducto(owner!, tenantId, {
+          nombre: "Producto Medido",
+          unidadVenta: "unidad",
+          precioVenta: 100,
+          costoOperativoVigente: 60,
+        });
+        // Y uno al que se le olvido el costo.
+        const sinCosto = await crearProducto(owner!, tenantId, {
+          nombre: "Producto Sin Costo",
+          unidadVenta: "unidad",
+          precioVenta: 100,
+        });
+        if (!medido.ok || !sinCosto.ok) throw new Error("setup fallo: crearProducto");
+
+        for (const productoId of [medido.data.productoId, sinCosto.data.productoId]) {
+          await registrarAjusteManualStock(owner!, tenantId, {
+            productoId,
+            sucursalId,
+            tipo: "entrada_ajuste_manual",
+            cantidad: 20,
+            motivo: "Carga inicial ranking",
+          });
+          await registrarVenta(owner!, tenantId, {
+            sucursalId,
+            canalVentaId: canal.data.canalVentaId,
+            fechaVenta: "2026-08-10",
+            lineas: [{ productoId, cantidad: 5 }],
+          });
+        }
+
+        const ranking = await rankingProductos(owner!, tenantId, periodoRanking, {
+          criterio: "margen",
+        });
+        expect(ranking.ok).toBe(true);
+        if (!ranking.ok) return;
+
+        const filaMedido = ranking.data.find((f) => f.productoId === medido.data.productoId);
+        const filaSinCosto = ranking.data.find((f) => f.productoId === sinCosto.data.productoId);
+        expect(filaMedido?.margenPct).toBe(40); // (500 - 300) / 500
+        expect(filaMedido?.ingresosSinCostoConocido).toBe(0);
+
+        // El que no se midio: sus costos siguen siendo 0 (no hay costo que
+        // sumar), pero el margen ya no se afirma. Antes daba 100% y era una
+        // afirmacion falsa; ahora es `null` — el criterio que Simulaciones
+        // ya aplicaba y que Ventas/Financiero/Reportes no seguian.
+        expect(filaSinCosto?.costos).toBe(0);
+        expect(filaSinCosto?.margenPct).toBeNull();
+        expect(filaSinCosto?.ingresosSinCostoConocido).toBe(500);
+
+        // Y no encabeza: lo desconocido va al fondo. Ordenar por margen
+        // significa ordenar por lo que se sabe.
+        expect(ranking.data[0]?.productoId).toBe(medido.data.productoId);
+        expect(ranking.data[ranking.data.length - 1]?.productoId).toBe(
+          sinCosto.data.productoId
+        );
+      },
+      20000
+    );
 
     it("caso borde 1: distribucionGastos en un tenant recien creado (sin gastos aun) devuelve vacio, no error", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);

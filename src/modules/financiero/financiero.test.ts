@@ -14,7 +14,14 @@ import {
   consultarTotalCostosFijos,
 } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
-import { crearProducto, registrarAjusteManualStock } from "@/modules/productos/actions";
+import { crearPasivo, registrarPagoPasivo } from "@/modules/patrimonio/actions";
+import { pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
+import {
+  actualizarProducto,
+  consultarCostoOperativo,
+  crearProducto,
+  registrarAjusteManualStock,
+} from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
 import {
   crearProveedor,
@@ -165,6 +172,17 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
             await db.delete(stock).where(inArray(stock.productoId, productoIds));
             await db.delete(productos).where(eq(productos.tenantId, tenantId));
             await db.delete(categoriasProducto).where(eq(categoriasProducto.tenantId, tenantId));
+          },
+          async () => {
+            // Rama propia: `gastos.referencia_id` apunta al Pasivo pero NO es
+            // una FK (el mismo campo apunta a una Venta cuando el origen es
+            // una comisión), así que pasivos no depende del orden de gastos.
+            const pasivoIds = db
+              .select({ id: pasivos.id })
+              .from(pasivos)
+              .where(eq(pasivos.tenantId, tenantId));
+            await db.delete(pagosPasivo).where(inArray(pagosPasivo.pasivoId, pasivoIds));
+            await db.delete(pasivos).where(eq(pasivos.tenantId, tenantId));
           },
         ]);
 
@@ -570,4 +588,300 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       antes.data.estadoResultados
     );
   });
+
+  it(
+    "H-27: la cuota de un Pasivo llega al estado de resultados y al flujo de caja como Gasto",
+    async () => {
+      // Octubre arranca vacío y ningún otro test de este archivo lo toca —
+      // los números de abajo son absolutos, no deltas.
+      const periodoCuota = { desde: "2026-10-01", hasta: "2026-10-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const productoCuota = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Cuota",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+        costoOperativoVigente: 40,
+      });
+      if (!productoCuota.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: productoCuota.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 20,
+        motivo: "Carga inicial cuota",
+      });
+
+      const antes = await estadoResultados(owner!, tenantId, periodoCuota);
+      expect(antes.ok).toBe(true);
+      if (!antes.ok) return;
+      expect(antes.data.ingresos).toBe(0);
+      expect(antes.data.gastos).toBe(0);
+      expect(antes.data.estadoResultados).toBe(0);
+
+      // Canal "Local" (sin comisión), cobrada al contado el mismo día.
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-10-05",
+        lineas: [{ productoId: productoCuota.data.productoId, cantidad: 10 }],
+        pagoInicial: { monto: 1000, metodoPagoId },
+      });
+      expect(venta.ok).toBe(true);
+      if (!venta.ok) return;
+      expect(venta.data.comisionMontoCalculado).toBeNull();
+
+      const pasivo = await crearPasivo(owner!, tenantId, {
+        montoTotal: 9000,
+        cuotaPeriodica: 1500,
+        frecuenciaCuota: "mensual",
+        plazoCuotas: 6,
+        fechaInicio: "2026-10-01",
+      });
+      if (!pasivo.ok) throw new Error("setup fallo: crearPasivo");
+
+      const pago = await registrarPagoPasivo(owner!, pasivo.data.pasivoId, {
+        monto: 1500,
+        fechaPago: "2026-10-15",
+      });
+      expect(pago.ok).toBe(true);
+      if (!pago.ok) return;
+      expect(pago.data.saldoPendiente).toBe(7500); // 9000 - 1500
+      expect(pago.data.gastoCuota.ok).toBe(true);
+      if (pago.data.gastoCuota.ok) {
+        expect(pago.data.gastoCuota.data.monto).toBe(1500);
+      }
+
+      // Cuentas a mano:
+      //   ingresos  = 10 x 100 = 1000
+      //   costos    = 10 x  40 =  400
+      //   gastos    = la cuota  = 1500  -> Gasto fijo, ya pagado (regla 6)
+      //   resultado = 1000 - 400 - 1500 = -900
+      // Sin la cuota conectada el resultado daría +600: un negocio que
+      // pierde plata mostrándose rentable, que es exactamente el defecto
+      // H-27. Para romperlo a propósito: sacar la llamada a
+      // generarGastoCuotaPasivo de registrarPagoPasivo -> este assert falla
+      // con "expected 600 to be -900".
+      const despues = await estadoResultados(owner!, tenantId, periodoCuota);
+      expect(despues.ok).toBe(true);
+      if (!despues.ok) return;
+      expect(despues.data.ingresos).toBe(1000);
+      expect(despues.data.costos).toBe(400);
+      expect(despues.data.gastos).toBe(1500);
+      expect(despues.data.ajustesVenta).toBe(0);
+      expect(despues.data.estadoResultados).toBe(-900);
+
+      // La venta se cobró entera el mismo día y el gasto de la cuota nace
+      // pagado: 1000 - 0 - 1500 = -500.
+      const caja = await flujoCaja(owner!, tenantId, periodoCuota);
+      expect(caja.ok).toBe(true);
+      if (!caja.ok) return;
+      expect(caja.data.pagosVenta).toBe(1000);
+      expect(caja.data.pagosCompra).toBe(0);
+      expect(caja.data.pagosGasto).toBe(1500);
+      expect(caja.data.flujoCaja).toBe(-500);
+
+      // `pasivos` no tiene sucursal, así que el Gasto de la cuota tampoco
+      // — y `sumarTotalGastosPeriodo` filtra con `eq()`, que excluye los
+      // null. Filtrando por sucursal la cuota NO aparece: 1000 - 400 - 0.
+      // Es una decisión consciente (una deuda es del negocio, no de un
+      // local), afirmada acá para que no sea una sorpresa.
+      const porSucursal = await estadoResultados(owner!, tenantId, periodoCuota, {
+        sucursalId,
+      });
+      expect(porSucursal.ok).toBe(true);
+      if (!porSucursal.ok) return;
+      expect(porSucursal.data.gastos).toBe(0);
+      expect(porSucursal.data.estadoResultados).toBe(600);
+    },
+    20000
+  );
+
+  // --- H-15: el producto sin costo cargado ---------------------------------
+  //
+  // Estos dos tests fijan el comportamiento ANTES de cambiarlo, a proposito.
+  // Hoy no existe ninguno que mire este caso, y sin una linea de base
+  // cualquier correccion posterior es imposible de medir.
+
+  it(
+    "H-15: una venta sin costo conocido no infla el resultado en silencio — el hueco queda marcado",
+    async () => {
+      // Noviembre arranca vacío y ningún otro test de este archivo lo toca.
+      const periodoSinCosto = { desde: "2026-11-01", hasta: "2026-11-30" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      // El caso mas comun del mundo: alguien carga un producto rapido y se
+      // olvida el costo. `costoOperativoVigente` es opcional a proposito
+      // (Modulo_02 §1) — para un producto de produccion lo escribe el Nicho
+      // y para uno de reventa lo escribe la compra, asi que no puede ser
+      // obligatorio. Nada advierte nada.
+      const sinCosto = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Sin Costo",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+      });
+      if (!sinCosto.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: sinCosto.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial sin costo",
+      });
+
+      const venta = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-11-05",
+        lineas: [{ productoId: sinCosto.data.productoId, cantidad: 3 }],
+      });
+      expect(venta.ok).toBe(true);
+      if (!venta.ok) return;
+
+      // El desconocido se convirtio en un cero duro (ventas/actions.ts, el
+      // `?? 0` del snapshot) y la columna es notNull: despues de guardado,
+      // "no sabiamos cuanto costaba" y "no cuesta nada" son indistinguibles.
+      const [linea] = await db
+        .select({ costo: detallesVenta.costoUnitarioSnapshot })
+        .from(detallesVenta)
+        .where(eq(detallesVenta.ventaId, venta.data.ventaId));
+      expect(Number(linea.costo)).toBe(0);
+
+      // Cuentas a mano: ingresos = 3 x 100 = 300, costos = 0.
+      // El numero del resultado NO cambia y no tiene por que cambiar: no hay
+      // costo que restar, el dato no existe. Estimarlo seria inventar.
+      const resultado = await estadoResultados(owner!, tenantId, periodoSinCosto);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.ingresos).toBe(300);
+      expect(resultado.data.costos).toBe(0);
+      expect(resultado.data.estadoResultados).toBe(300);
+
+      // Lo que SI cambia: el resultado deja de presentarse como completo.
+      // Los 300 enteros vienen de ventas sin costo cargado, y eso ahora se
+      // puede decir en pantalla en vez de mostrar una ganancia limpia.
+      expect(resultado.data.ingresosSinCostoConocido).toBe(300);
+
+      // Y el margen pasa de "100%" (una afirmacion falsa) a `null` (no se
+      // puede afirmar) — el criterio que Simulaciones ya aplicaba.
+      const margen = await margenPorProducto(
+        owner!,
+        tenantId,
+        sinCosto.data.productoId,
+        periodoSinCosto
+      );
+      expect(margen.ok).toBe(true);
+      if (!margen.ok) return;
+      expect(margen.data.margenPorcentaje).toBeNull();
+      expect(margen.data.ingresosSinCostoConocido).toBe(300);
+    },
+    20000
+  );
+
+  it(
+    "H-15: un producto con costo real 0 NO se marca como desconocido — su margen sigue siendo afirmable",
+    async () => {
+      // El contraejemplo que impide sobrecorregir: si la marca se pusiera
+      // mirando `costo === 0` en vez del flag, una muestra gratis quedaria
+      // como "margen desconocido" siendo que se conoce perfectamente.
+      const periodoGratis = { desde: "2027-01-01", hasta: "2027-01-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const gratis = await crearProducto(owner!, tenantId, {
+        nombre: "Muestra Gratis Financiero",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+        costoOperativoVigente: 0,
+      });
+      if (!gratis.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: gratis.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial muestra gratis",
+      });
+      await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2027-01-05",
+        lineas: [{ productoId: gratis.data.productoId, cantidad: 3 }],
+      });
+
+      const resultado = await estadoResultados(owner!, tenantId, periodoGratis);
+      expect(resultado.ok).toBe(true);
+      if (!resultado.ok) return;
+      expect(resultado.data.ingresos).toBe(300);
+      expect(resultado.data.costos).toBe(0);
+      // Mismos 300 de ingreso y mismos 0 de costo que el test anterior, y
+      // aca el hueco NO existe: el costo se conoce, y es 0.
+      expect(resultado.data.ingresosSinCostoConocido).toBe(0);
+
+      const margen = await margenPorProducto(
+        owner!,
+        tenantId,
+        gratis.data.productoId,
+        periodoGratis
+      );
+      expect(margen.ok).toBe(true);
+      if (margen.ok) expect(margen.data.margenPorcentaje).toBe(100);
+    },
+    20000
+  );
+
+  it(
+    "H-15: cargar el costo despues NO repara las ventas ya hechas — el snapshot no se recalcula",
+    async () => {
+      // Este es el test mas valioso de los dos: convierte en comportamiento
+      // afirmado lo que hoy es una consecuencia accidental de dos reglas
+      // correctas (snapshot notNull + regla 4 "no recalcular ventas
+      // pasadas"). Si alguien "arregla" H-15 recalculando el pasado, este
+      // test lo frena. Y es la razon por la que en H-15 la prevencion vale
+      // mas que la correccion: lo que se pierde en el instante de la venta
+      // no se recupera nunca.
+      const periodoTardio = { desde: "2026-12-01", hasta: "2026-12-31" };
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+      const tardio = await crearProducto(owner!, tenantId, {
+        nombre: "Gelato Costo Tardío",
+        unidadVenta: "unidad",
+        precioVenta: 100,
+      });
+      if (!tardio.ok) throw new Error("setup fallo: crearProducto");
+      await registrarAjusteManualStock(owner!, tenantId, {
+        productoId: tardio.data.productoId,
+        sucursalId,
+        tipo: "entrada_ajuste_manual",
+        cantidad: 10,
+        motivo: "Carga inicial costo tardío",
+      });
+
+      await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId,
+        fechaVenta: "2026-12-05",
+        lineas: [{ productoId: tardio.data.productoId, cantidad: 3 }],
+      });
+
+      // El dueño se da cuenta y carga el costo real. Tarde.
+      const actualizado = await actualizarProducto(owner!, tardio.data.productoId, {
+        costoOperativoVigente: 60,
+      });
+      expect(actualizado.ok).toBe(true);
+
+      const despues = await estadoResultados(owner!, tenantId, periodoTardio);
+      expect(despues.ok).toBe(true);
+      if (!despues.ok) return;
+      // Sigue en 0. La venta de diciembre quedo mal contada para siempre:
+      // el resultado real era 300 - 180 = 120, y muestra 300.
+      expect(despues.data.costos).toBe(0);
+      expect(despues.data.estadoResultados).toBe(300);
+
+      // El costo vigente si cambio — lo que no cambia es el pasado.
+      const costoVigente = await consultarCostoOperativo(owner!, tardio.data.productoId);
+      expect(costoVigente.ok).toBe(true);
+      if (costoVigente.ok) expect(costoVigente.data.costoOperativoVigente).toBe(60);
+    },
+    20000
+  );
 });

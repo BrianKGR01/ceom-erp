@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { BarChart3, Landmark, ListOrdered, MapPin, Minus, Plus, Sigma, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, BarChart3, Landmark, ListOrdered, MapPin, Minus, Plus, Sigma, TrendingUp, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -28,6 +28,8 @@ interface DatosResumenFinanciero {
     gastos: number;
     ajustesVenta: number;
     ajustesCompra: number;
+    /** H-15 — cuánto del ingreso viene de productos sin costo cargado. */
+    ingresosSinCostoConocido: number;
   }>;
   flujo: Resultado<{ flujoCaja: number; pagosVenta: number; pagosCompra: number; pagosGasto: number }>;
   patrimonio: Resultado<{ valorPatrimonialTotal: number }>;
@@ -203,6 +205,25 @@ export function ResumenFinancieroCliente({
                     <span className="text-xs text-white/70">Utilidad real</span>
                     <span className="ml-auto text-lg font-semibold">{formatoMoneda(estado.estadoResultados)}</span>
                   </div>
+                  {/* H-15: el número de arriba no cambia —no hay costo que
+                      restar—, pero deja de presentarse como completo. Marcar
+                      el hueco, nunca estimar un número para taparlo. */}
+                  {estado.ingresosSinCostoConocido > 0 && (
+                    <div className="mt-2 flex items-start gap-2 rounded-xl bg-warning-bg p-3">
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+                      <p className="text-xs text-text-body">
+                        <span className="font-medium text-warning-text">
+                          {formatoMoneda(estado.ingresosSinCostoConocido)} de estos ingresos son de
+                          productos sin costo cargado.
+                        </span>{" "}
+                        Esa parte se está contando sin costo, así que tu utilidad real es menor.{" "}
+                        <Link href="/app/productos" className="underline">
+                          Cargá los costos que falten
+                        </Link>{" "}
+                        para que este número sea el de verdad.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

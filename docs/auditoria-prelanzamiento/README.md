@@ -19,6 +19,7 @@
 | [03-seguridad.md](03-seguridad.md) | Postura de seguridad real: qué resiste, qué está a medias, qué falta |
 | [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md) | Las brechas priorizadas (P0/P1/P2) y un plan por etapas hasta el lanzamiento |
 | [05-dia-local-y-reportes.md](05-dia-local-y-reportes.md) | Por qué el día en curso no aparece en ningún reporte: inventario completo, enfoque recomendado, plan de migración y de tests (H-49) |
+| [06-costo-ausente-y-cuota-de-pasivo.md](06-costo-ausente-y-cuota-de-pasivo.md) | Los dos últimos huecos entre el dato operativo y el resultado: la cuota de deuda que no genera gasto (H-27) y el producto sin costo que se cuenta como ganancia pura (H-15) |
 
 ---
 

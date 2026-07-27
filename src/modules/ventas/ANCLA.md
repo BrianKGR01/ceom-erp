@@ -39,6 +39,32 @@
   `margenPct` calculado, ver `reportes/ANCLA.md` sección "Decisiones" para
   el motivo — evitar un ciclo de imports con Financiero).
 
+**Cambio de contrato del 2026-07-27 (H-15) — el costo desconocido deja de
+contarse como cero:**
+- `detalles_venta` gana la columna **`costo_desconocido`** (`boolean not null
+  default false`, migración `0044`, puramente aditiva). `costo_unitario_
+  snapshot` es `notNull`, así que un producto sin costo siempre congeló `0` —
+  indistinguible de un producto que genuinamente cuesta 0, y **imposible de
+  separar después** porque el producto puede ganar un costo mañana y la venta
+  de ayer no se recalcula (regla 1). El dato solo existe al escribir.
+- **Los dos caminos de escritura lo setean:** `registrarVenta` (desconocido
+  cuando `consultarCostoOperativo` devuelve `null`) e `importarVentaHistorica`
+  (donde `costoUnitarioSnapshot` pasó a ser **opcional**: ausente =
+  desconocido, `0` = costo real de cero). Un tercer camino que se olvide de
+  setearlo **no lo detecta el compilador** —la columna tiene default, así que
+  es opcional en `$inferInsert`— y por eso lo cubre
+  `src/modules/ventas/snapshot-costo.test.ts` por AST.
+- **Los tres agregados hacia Financiero y Reportes devuelven un campo nuevo:**
+  `consultarIngresosPeriodo`, `rankingProductos` y `margenPorCanalYProducto`
+  suman `ingresosSinCostoConocido` a lo que ya devolvían. No es un costo: es
+  la porción del ingreso sobre la que **no se puede afirmar un margen**. Los
+  totales de `costos` y el resultado del período **no cambian** — no hay costo
+  que restar, y estimarlo sería inventar un número para tapar un hueco.
+- **`rankingProductos` con `criterio: "margen"` manda al fondo** a los
+  productos con ingresos sin costo conocido, en vez de al tope. Antes su costo
+  era 0, o sea margen 100%, y encabezaban: el reporte que existe para decir
+  qué conviene vender recomendaba justo el producto que no se mide.
+
 ## Estado actual
 - [x] Schema Drizzle (`clientes`, `canales_venta`, `metodos_pago`, `eventos`,
       `ventas`, `detalles_venta`, `ajustes_venta`, `pagos_venta`) + RLS

@@ -10,13 +10,15 @@
   en la Venta hacia Financiero) — regla de los tres flujos de dinero (v3).
 - Entradas que consume: `tienePermiso()` de Identidad (gate por
   `"costos_gastos"` × acción — **ya existía** en el catálogo de Identidad,
-  sin cambios de enum). `registrarPagoPasivo()` de Patrimonio (Módulo 5,
-  con `origen: "automatico"`) — caja negra vía `actions.ts`, **wiring real,
-  no stubs**. **Ya NO consume `fichaVenta()` de Ventas** (ver H-24 abajo):
-  la flecha con Ventas quedó en un solo sentido, Ventas → Gastos. `tenants`/
-  `sucursales` de Identidad y `proveedores` de Proveedores para FKs
-  (dirección esperada). **Reutiliza el enum `frecuencia_cuota` de
-  Patrimonio** (import directo del tipo Postgres, no una copia).
+  sin cambios de enum; las dos funciones de auto-generación gatean por el
+  módulo que origina el evento, ver abajo). **Ya NO consume `fichaVenta()`
+  de Ventas** (H-24) **ni `registrarPagoPasivo()` de Patrimonio** (H-27):
+  las dos flechas quedaron en un solo sentido, **Ventas → Gastos** y
+  **Patrimonio → Gastos**. Este módulo ya no importa ningún otro módulo de
+  negocio fuera de Identidad. `tenants`/`sucursales` de Identidad y
+  `proveedores` de Proveedores para FKs (dirección esperada). **Reutiliza el
+  enum `frecuencia_cuota` de Patrimonio** (import directo del tipo Postgres,
+  no una copia).
 - Salidas que expone (`actions.ts`): CRUD de `CategoriaGasto`/
   `GastoRecurrente` + `crearGastoManual`, `actualizarGastoManual`,
   `eliminarGastoManual`, `registrarPagoGasto`, `listarGastos`, `fichaGasto`
@@ -35,11 +37,23 @@
       mismo patrón que Módulo 2). `gastos.proveedor_id` tiene **FK real** a
       `proveedores.id` (Proveedores ya existía al construir este módulo, a
       diferencia de `activo.proveedor_id` en Patrimonio).
-- [x] **`generarGastoCuotaPasivo` cierra un pendiente real de Patrimonio**:
-      crea el `Gasto`+`Pago de Gasto` (nace pagado, regla 6) y llama de
-      verdad a `registrarPagoPasivo(..., origen: "automatico")` —
-      decrementa el saldo real del Pasivo. Verificado con test que confirma
-      el saldo antes/después.
+- [x] **`generarGastoCuotaPasivo` ya tiene llamador real (H-27)**: la llama
+      `registrarPagoPasivo()` de Patrimonio (Módulo_05 sección 2, "hacia
+      Costos & Gastos") después de confirmar el pago. Antes no la llamaba
+      nadie fuera de los tests y las cuotas de deuda no llegaban al estado de
+      resultados — medido en la base de desarrollo: **Bs 10.700 pagados, 0
+      gastos generados**, en un tenant con Bs 701,50 de ingresos totales.
+      **Cambio de contrato de esta tarea:** (a) **ya no llama a
+      `registrarPagoPasivo()`** — esa llamada ataba Gastos → Patrimonio y
+      cerraba un ciclo, ahora la flecha va solo Patrimonio → Gastos, misma
+      inversión que H-24 hizo con Ventas; (b) `categoriaId` pasó a ser
+      **opcional**; (c) **gatea por `patrimonio:crear`, no por
+      `costos_gastos:crear`** — la cuota es la consecuencia automática de un
+      pago ya autorizado, y pedir el permiso de gastos haría que un
+      colaborador sin él registre el pago y pierda el gasto en silencio
+      (lección literal de H-24); (d) rechaza montos ≤ 0 (lección de H-30);
+      (e) devuelve `{gastoId, categoriaId, monto}` en vez de
+      `{gastoId, pagoPasivo}`.
 - [x] **`generarGastoComisionVenta` ya tiene llamador real (H-24)**: la
       llama `registrarVenta()` de Ventas al confirmar la venta (Módulo_03
       regla 5 / sección 4.3). Antes no la llamaba nadie fuera de los tests y
@@ -52,10 +66,12 @@
       automática de una venta ya autorizada, y pedir el permiso de gastos
       haría que un vendedor sin él perdiera la comisión en silencio. Rechaza
       montos ≤ 0: una comisión solo puede restar (lección de H-30).
-- [x] **Categoría autoprovisionada** `CATEGORIA_COMISION_VENTA`
-      ("Comisiones de venta") — get-or-create por tenant la primera vez que
-      hace falta, reutilizando la del Owner si ya existe con ese nombre. Sin
-      esto la comisión dependía de que alguien hubiera creado una categoría
+- [x] **Dos categorías autoprovisionadas**, `CATEGORIA_COMISION_VENTA`
+      ("Comisiones de venta") y `CATEGORIA_CUOTA_PASIVO` ("Cuotas de deuda")
+      — get-or-create por tenant la primera vez que hace falta
+      (`obtenerOCrearCategoriaGastoPorNombre`, una sola implementación),
+      reutilizando la del Owner si ya existe con ese nombre. Sin esto el
+      disparo automático dependía de que alguien hubiera creado una categoría
       antes (H-32).
 - [x] Regla 2 / caso borde 1: `actualizarGastoManual`/`eliminarGastoManual`
       rechazan sobre cualquier gasto de `origen ≠ manual` — verificado
@@ -133,11 +149,18 @@
   también sigue el ciclo normal de `Pago de Gasto` (no nace pagado).
 - **`generarGastoCuotaPasivo`/`generarGastoComisionVenta` reciben los datos
   ya resueltos por el llamador** — no releen Patrimonio/Ventas
-  internamente. En Patrimonio, porque no expone una consulta pública de "un
-  Pasivo individual por id" (`consultarPasivoDeActivo` es por `activoId`).
-  En Ventas, porque quien dispara la comisión **es** `registrarVenta()`, que
-  ya tiene el monto en la mano: ir a buscarlo de vuelta con `fichaVenta()`
-  ataba Gastos → Ventas y cerraba un ciclo entre los dos módulos (H-24).
+  internamente, y **no escriben en ellos**. Quien dispara cada una es el
+  módulo dueño del evento (`registrarVenta()` y `registrarPagoPasivo()`),
+  que ya tiene el monto en la mano; ir a buscarlo de vuelta —o, peor,
+  escribir de vuelta— cerraba un ciclo entre los dos módulos (H-24 con
+  Ventas, H-27 con Patrimonio). **Este módulo no importa Patrimonio ni
+  Ventas: si un cambio futuro necesita agregar uno de esos imports, es la
+  señal de que la flecha se está volviendo a invertir mal.**
+- **Un `generarGasto*` sin llamador de producción es un test rojo**, no un
+  pendiente anotado: `src/lib/auto-generacion-conectada.test.ts` recorre
+  `src/` por AST y falla si alguna de estas funciones solo la llaman los
+  tests. Es la causa raíz literal de H-24, H-27 y H-10, y las tres veces
+  tuvo test verde mientras el número estaba mal.
 - **`registrarPagoGasto` rechaza sobre gastos de origen automático** — no
   está explícitamente prohibido por el doc, pero es coherente con la regla
   6 (ya nacen pagados por el monto completo) y con la regla 2 (no se toca

@@ -1,7 +1,6 @@
 import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
-import { registrarPagoPasivo } from "@/modules/patrimonio/actions";
 import * as repo from "./repository";
 import type {
   estadoPagoGastoEnum,
@@ -318,54 +317,6 @@ export async function registrarPagoGasto(
 
 // --- Auto-generacion (Modulo_04 seccion 2 y 3.6) ---------------------------------------------------------
 
-/**
- * Cierra el pendiente que Patrimonio dejo documentado: crea el Gasto (nace
- * pagado, regla 6) Y llama de verdad a registrarPagoPasivo(origen:
- * "automatico") para decrementar el saldo del Pasivo. El monto/pasivoId los
- * pasa el llamador — Patrimonio no expone una consulta publica de un
- * Pasivo individual mas alla de consultarPasivoDeActivo(activoId).
- */
-export async function generarGastoCuotaPasivo(
-  solicitante: UsuarioConRol,
-  tenantId: string,
-  input: {
-    pasivoId: string;
-    categoriaId: string;
-    sucursalId?: string;
-    monto: string | number;
-    fechaGasto: string;
-  }
-): Promise<
-  Resultado<{ gastoId: string; pagoPasivo: Awaited<ReturnType<typeof registrarPagoPasivo>> }>
-> {
-  if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar gastos." };
-  }
-
-  const { gasto } = await repo.crearGastoConPagoTx({
-    gasto: {
-      tenantId,
-      sucursalId: input.sucursalId,
-      tipo: "fijo",
-      categoriaId: input.categoriaId,
-      monto: String(input.monto),
-      fechaGasto: input.fechaGasto,
-      origen: "cuota_pasivo_automatica",
-      referenciaId: input.pasivoId,
-      creadoPor: solicitante.id,
-    },
-    pago: { monto: String(input.monto), fechaPago: input.fechaGasto, creadoPor: solicitante.id },
-  });
-
-  const pagoPasivo = await registrarPagoPasivo(solicitante, input.pasivoId, {
-    monto: input.monto,
-    fechaPago: input.fechaGasto,
-    origen: "automatico",
-  });
-
-  return { ok: true, data: { gastoId: gasto.id, pagoPasivo } };
-}
-
 /** Categoria bajo la que se archiva la comision de canal/evento. No esta en
  * CATEGORIAS_GASTO_DEFAULT a proposito: ese set lo elige el usuario al
  * arrancar y puede no sembrarse nunca, y la comision no puede depender de
@@ -373,28 +324,108 @@ export async function generarGastoCuotaPasivo(
  * sola, la primera vez que hace falta. */
 export const CATEGORIA_COMISION_VENTA = "Comisiones de venta";
 
+/** La gemela de CATEGORIA_COMISION_VENTA para la cuota de un Pasivo (H-27),
+ * por el mismo motivo: el disparo es automatico desde Patrimonio y no puede
+ * depender de que el Owner haya creado una categoria antes. */
+export const CATEGORIA_CUOTA_PASIVO = "Cuotas de deuda";
+
 /**
- * Devuelve la categoria de comisiones del tenant, creandola si todavia no
- * existe. Si el Owner ya creo una con ese mismo nombre a mano, la reutiliza
+ * Devuelve la categoria de gasto del tenant con ese nombre, creandola si
+ * todavia no existe. Si el Owner ya creo una homonima a mano, la reutiliza
  * en vez de duplicarla.
  *
- * Sin lock: dos ventas simultaneas del mismo tenant, ambas la primera,
+ * Sin lock: dos operaciones simultaneas del mismo tenant, ambas la primera,
  * podrian crear dos filas homonimas. El costo de esa carrera es una
  * categoria repetida en un desplegable — no un gasto perdido ni un numero
  * mal calculado —, y `categorias_gasto` no tiene (ni deberia tener) un
  * unique por nombre: el usuario puede querer dos categorias parecidas.
  */
-async function obtenerOCrearCategoriaComisionVenta(tenantId: string): Promise<string> {
-  const existente = await repo.obtenerCategoriaGastoPorNombre(
-    tenantId,
-    CATEGORIA_COMISION_VENTA
-  );
+async function obtenerOCrearCategoriaGastoPorNombre(
+  tenantId: string,
+  nombre: string
+): Promise<string> {
+  const existente = await repo.obtenerCategoriaGastoPorNombre(tenantId, nombre);
   if (existente) return existente.id;
-  const creada = await repo.crearCategoriaGasto({
-    tenantId,
-    nombre: CATEGORIA_COMISION_VENTA,
-  });
+  const creada = await repo.crearCategoriaGasto({ tenantId, nombre });
   return creada.id;
+}
+
+/**
+ * Convierte el pago de una cuota de Pasivo en el Gasto que le corresponde
+ * (`fijo`, `origen = cuota_pasivo_automatica`, referenciando el Pasivo), ya
+ * pagado (regla 6). Desde ahi la cuota viaja por el mismo camino que
+ * cualquier otro gasto: resta en el estado de resultados, sale en el flujo
+ * de caja y aparece en la distribucion por categoria.
+ *
+ * **La llama `registrarPagoPasivo()` de Patrimonio** (Modulo_05 seccion 2,
+ * "hacia Costos & Gastos"), despues de confirmar el pago — antes no la
+ * llamaba nadie fuera de los tests, y esa era exactamente la causa de H-27.
+ *
+ * **Ya NO llama a `registrarPagoPasivo()`.** Antes esta funcion hacia las
+ * dos mitades (crear el gasto y decrementar el saldo del Pasivo), lo que
+ * ataba Gastos -> Patrimonio; como el disparo correcto es al reves (el pago
+ * genera su gasto), esa llamada cerraba un ciclo entre los dos modulos. La
+ * flecha quedo en un solo sentido: Patrimonio -> Gastos. Misma inversion
+ * que se hizo con Ventas al cerrar H-24.
+ *
+ * **Gatea por `patrimonio:crear`, no por `costos_gastos:crear`.** La cuota
+ * no es una carga manual de gasto: es la consecuencia automatica de un pago
+ * de deuda ya autorizado. Pedir `costos_gastos:crear` haria que un
+ * colaborador sin ese permiso registre el pago y pierda el gasto en
+ * silencio — el mismo defecto silencioso y optimista que esta funcion
+ * existe para cerrar (leccion literal de H-24).
+ *
+ * `categoriaId` es opcional: sin el, se usa (o se crea) la categoria
+ * "Cuotas de deuda" del tenant.
+ */
+export async function generarGastoCuotaPasivo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: {
+    pasivoId: string;
+    categoriaId?: string;
+    sucursalId?: string;
+    monto: string | number;
+    fechaGasto: string;
+  }
+): Promise<Resultado<{ gastoId: string; categoriaId: string; monto: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar pagos de deuda." };
+  }
+
+  const monto = Number(input.monto);
+  // Una cuota es un egreso: solo puede restar. Un monto negativo o cero no
+  // es una cuota, es un dato roto — mejor rechazarlo que archivar un
+  // "gasto" que le sume al resultado (misma leccion que H-30).
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return { ok: false, error: "El monto de la cuota tiene que ser mayor a 0." };
+  }
+
+  const categoriaId =
+    input.categoriaId ??
+    (await obtenerOCrearCategoriaGastoPorNombre(tenantId, CATEGORIA_CUOTA_PASIVO));
+
+  const { gasto } = await repo.crearGastoConPagoTx({
+    gasto: {
+      tenantId,
+      // `pasivos` no tiene sucursal_id (Modulo_05 seccion 1.2): una deuda es
+      // del negocio, no de un local. El gasto nace sin sucursal y por eso NO
+      // aparece en un estado de resultados filtrado por sucursal —
+      // `sumarTotalGastosPeriodo` compara con `eq()`, que excluye los null.
+      // Decision consciente, fijada con un test.
+      sucursalId: input.sucursalId,
+      tipo: "fijo",
+      categoriaId,
+      monto: String(monto),
+      fechaGasto: input.fechaGasto,
+      origen: "cuota_pasivo_automatica",
+      referenciaId: input.pasivoId,
+      creadoPor: solicitante.id,
+    },
+    pago: { monto: String(monto), fechaPago: input.fechaGasto, creadoPor: solicitante.id },
+  });
+
+  return { ok: true, data: { gastoId: gasto.id, categoriaId, monto } };
 }
 
 /**
@@ -451,7 +482,8 @@ export async function generarGastoComisionVenta(
       : input.fechaVenta.slice(0, 10);
 
   const categoriaId =
-    input.categoriaId ?? (await obtenerOCrearCategoriaComisionVenta(tenantId));
+    input.categoriaId ??
+    (await obtenerOCrearCategoriaGastoPorNombre(tenantId, CATEGORIA_COMISION_VENTA));
 
   const { gasto } = await repo.crearGastoConPagoTx({
     gasto: {

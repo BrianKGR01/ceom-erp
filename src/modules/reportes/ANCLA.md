@@ -92,6 +92,19 @@
 - Sin migración — este módulo no agrega tablas.
 
 ## Decisiones tomadas que un agente no debe revertir
+- **`margenPct` es `null` cuando no se puede afirmar un margen, no 0 ni 100**
+  (H-15, 2026-07-27). `margenAfirmable()` —único lugar donde vive la regla,
+  para que Ranking y Margen canal × producto no puedan divergir— devuelve
+  `null` si `ingresosSinCostoConocido > 0`. Antes esas filas tenían `costos =
+  0` y salían con **100% de margen**, encabezando el ranking: el reporte que
+  existe para decir qué conviene vender recomendaba justo el producto que el
+  negocio no mide. Es el criterio que Simulaciones ya aplicaba (excluye del
+  promedio, muestra "Sin costo cargado") y que Ventas/Financiero/Reportes no
+  seguían. **La pantalla también tiene que respetarlo:** los totales de fila y
+  columna de `margen-canal-producto-cliente.tsx` se derivan sumando
+  `ingresos`/`costos` crudos del lado del cliente, así que arrastran
+  `ingresosSinCostoConocido` — sin eso el defecto vuelve a entrar una capa más
+  arriba.
 - **`rankingProductos`/`margenPorCanalYProducto` de VENTAS no calculan
   `margenPct`** — solo devuelven `ingresos`/`costos` crudos. Motivo:
   Financiero ya importa Ventas (`consultarIngresosPeriodo`, etc.); si
