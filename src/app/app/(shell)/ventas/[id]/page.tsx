@@ -61,6 +61,17 @@ export default async function FichaVentaPage({
           ventaId={id}
           estadoPagoInicial={venta!.estadoPago}
           totalVenta={totalVenta}
+          comision={
+            venta!.comisionMontoCalculado !== null
+              ? {
+                  monto: Number(venta!.comisionMontoCalculado),
+                  porcentaje:
+                    venta!.comisionPorcentajeAplicado !== null
+                      ? Number(venta!.comisionPorcentajeAplicado)
+                      : null,
+                }
+              : null
+          }
           detalles={detalles.map((d) => ({
             id: d.id,
             productoNombre: productoPorId.get(d.productoId)?.nombre ?? "Producto",

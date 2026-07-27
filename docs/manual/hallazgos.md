@@ -57,14 +57,14 @@
 
 | ID | Severidad | Hallazgo |
 |---|---|---|
-| [H-24](#h-24) | 🔴 | La comisión se calcula, se guarda y no llega a ningún lado |
+| [H-24](#h-24) | ✅ | ~~La comisión se calcula, se guarda y no llega a ningún lado~~ — **corregido** |
 | [H-25](#h-25) | 🟠 | El costo de un producto se reemplaza por el de la última compra, no se promedia |
 | [H-26](#h-26) | 🟠 | Un ajuste no cambia el total ni el estado de cobro de la venta |
 | [H-27](#h-27) | 🟠 | Los gastos automáticos son inalcanzables: toda su lógica es código muerto |
 | [H-28](#h-28) | 🟡 | "Stock mínimo" se muestra en pantalla y no hay forma de cargarlo |
 | [H-29](#h-29) | 🟠 | Eliminar una categoría de producto no verifica si está en uso |
 | [H-30](#h-30) | 🔴 | El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso |
-| [H-31](#h-31) | 🔴 | Una compra de ajuste no tiene ningún efecto observable |
+| [H-31](#h-31) | ✅ | ~~Una compra de ajuste no tiene ningún efecto observable~~ — **corregido** |
 | [H-32](#h-32) | 🟠 | No se puede cargar un gasto sin crear antes una categoría |
 
 ### Fase 3 — aparecidos al documentar patrimonio, producción, equipo y reportes
@@ -524,7 +524,21 @@ corrige, se corrija también el nombre — o el próximo cambio vuelve a caer en
 ---
 
 <a id="h-24"></a>
-## H-24 🔴 La comisión se calcula, se guarda y no llega a ningún lado
+## H-24 ✅ La comisión se calcula, se guarda y no llega a ningún lado — CORREGIDO
+
+> **Corregido.** `registrarVenta` genera el `Gasto` de comisión al confirmar la venta
+> (`variable_no_productivo`, `origen = comision_venta_automatica`, ya pagado, atado a la venta por
+> `referenciaId`), en una categoría "Comisiones de venta" que se autoprovisiona por negocio. Desde
+> ahí la comisión resta en el estado de resultados, sale en el flujo de caja y aparece en la
+> distribución por categoría; la ficha de la venta la muestra. La flecha entre Ventas y Gastos se
+> invirtió para poder disparar el gasto sin cerrar un ciclo entre los dos módulos.
+>
+> Lo que sigue abierto de la misma familia: **las cuotas de pasivo** (H-27) todavía no generan su
+> gasto — `generarGastoCuotaPasivo` sigue sin llamador. El enum `origen` ya no es código muerto
+> completo: `comision_venta_automatica` se escribe de verdad, así que la marca "Automático" del
+> listado y los rechazos de edición/eliminación de un gasto automático ahora sí se disparan.
+>
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** Al registrar una venta, `registrarVenta` resuelve el porcentaje de comisión (del
 evento si hay, si no del canal), calcula el monto y lo guarda en la venta como
@@ -685,7 +699,19 @@ impacto de esta lista.
 ---
 
 <a id="h-31"></a>
-## H-31 🔴 Una compra de ajuste no tiene ningún efecto observable
+## H-31 ✅ Una compra de ajuste no tiene ningún efecto observable — CORREGIDO
+
+> **Corregido.** El ajuste ahora cambia lo que la compra vale: `montoTotalEfectivo`
+> (= `montoTotal` + Σ ajustes) es contra lo que se derivan el saldo pendiente y `estado_pago`, así
+> que una anulación deja la compra sin saldo en vez de "pendiente" para siempre. Los ajustes se ven
+> en el listado de compras, con el monto original tachado. **Revierte el stock** que había entrado
+> cuando el ajuste va a favor del negocio, y si parte ya se vendió o se consumió devuelve solo lo que
+> quedaba y lo avisa (nunca deja el stock negativo). Y llega al estado de resultados **solo en la
+> dirección de costo**: lo que la compra terminó costando de más resta; lo que costó de menos baja el
+> saldo de la compra pero no sube la utilidad, porque en CEOM una compra nunca fue un gasto —entra al
+> resultado recién como costo cuando la mercadería se vende—, así que deshacerla no es una ganancia.
+>
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** `registrarCompraDeAjuste` (`proveedores/actions.ts:430-457`) valida permiso y motivo, y
 escribe una fila en `compras_ajuste`. Nada más:

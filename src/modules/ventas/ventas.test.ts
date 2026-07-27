@@ -19,6 +19,9 @@ import {
   registrarAjusteManualStock,
 } from "@/modules/productos/actions";
 import { categoriasProducto, movimientosStock, productos, stock } from "@/modules/productos/schema";
+// Solo para la limpieza: H-24 hace que cada venta con comisión genere su
+// Gasto, y este archivo vende por un canal con 10%.
+import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import {
   abrirEvento,
   crearCanalVenta,
@@ -116,6 +119,13 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
     // no en paralelo (bug real encontrado corriendo la suite completa,
     // mismo patrón que reportes.test.ts/simulaciones.test.ts). El permiso
     // especial (Identidad) sí es independiente de ambas.
+    //
+    // "gastos"/"pagos_gasto"/"categorias_gasto" entraron con H-24: el canal
+    // de este archivo tiene 10% de comisión, así que cada venta genera
+    // también su Gasto de comisión (y la categoría se autoprovisiona). Van
+    // en la MISMA cadena que ventas, no en paralelo: gastos.referencia_id
+    // apunta a la venta y su categoría es del tenant, así que si el borrado
+    // del tenant corriera antes fallaría por FK.
     await limpiarConAuthGarantizada(
       async () => {
         await limpiarEnParalelo([
@@ -124,6 +134,11 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
               .delete(permisosEspecialesPorUsuario)
               .where(eq(permisosEspecialesPorUsuario.usuarioId, ownerId)),
           async () => {
+            const gastoIds = db.select({ id: gastos.id }).from(gastos).where(eq(gastos.tenantId, tenantId));
+            await db.delete(pagosGasto).where(inArray(pagosGasto.gastoId, gastoIds));
+            await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
+            await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
+
             const ventaIds = db.select({ id: ventas.id }).from(ventas).where(eq(ventas.tenantId, tenantId));
             await db.delete(ajustesVenta).where(inArray(ajustesVenta.ventaId, ventaIds));
             await db.delete(pagosVenta).where(inArray(pagosVenta.ventaId, ventaIds));

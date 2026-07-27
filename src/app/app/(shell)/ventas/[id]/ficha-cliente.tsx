@@ -75,6 +75,7 @@ export function FichaVentaCliente({
   ventaId,
   estadoPagoInicial,
   totalVenta,
+  comision,
   detalles,
   pagosIniciales,
   ajustesIniciales,
@@ -84,6 +85,7 @@ export function FichaVentaCliente({
   ventaId: string;
   estadoPagoInicial: EstadoPago;
   totalVenta: number;
+  comision: { monto: number; porcentaje: number | null } | null;
   detalles: DetalleLinea[];
   pagosIniciales: PagoFila[];
   ajustesIniciales: AjusteFila[];
@@ -307,6 +309,20 @@ export function FichaVentaCliente({
                 {saldoPendiente.toFixed(2)}
               </span>
             </div>
+            {comision && (
+              <div className="border-t border-gray-border pt-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-muted">
+                    Comisión del canal
+                    {comision.porcentaje !== null && ` (${comision.porcentaje}%)`}
+                  </span>
+                  <span className="text-error-text">-{comision.monto.toFixed(2)}</span>
+                </div>
+                <p className="mt-1 text-xs text-text-muted">
+                  Se registró como gasto del negocio y ya está descontada del resultado.
+                </p>
+              </div>
+            )}
             <Badge variant={BADGE_ESTADO[estadoPago]}>{LABEL_ESTADO[estadoPago]}</Badge>
           </CardContent>
         </Card>

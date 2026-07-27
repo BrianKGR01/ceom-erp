@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import { listarInsumos } from "@/modules/operativo/nichos/nicho-1/actions";
 import { listarProductos } from "@/modules/productos/actions";
-import { listarCompras, listarProveedores } from "@/modules/proveedores/actions";
+import { listarComprasConAjustes, listarProveedores } from "@/modules/proveedores/actions";
 import { ComprasCliente } from "./compras-cliente";
 
 export default async function ComprasPage() {
@@ -13,7 +13,7 @@ export default async function ComprasPage() {
 
   const [comprasResultado, proveedoresResultado, productosResultado, insumosResultado] =
     await Promise.all([
-      listarCompras(usuario, usuario.tenantId),
+      listarComprasConAjustes(usuario, usuario.tenantId),
       listarProveedores(usuario, usuario.tenantId),
       listarProductos(usuario, usuario.tenantId),
       listarInsumos(usuario, usuario.tenantId),
@@ -42,6 +42,14 @@ export default async function ComprasPage() {
             proveedorNombre: c.proveedorId ? (proveedorPorId.get(c.proveedorId) ?? "—") : null,
             cantidad: c.cantidad,
             montoTotal: c.montoTotal,
+            montoTotalEfectivo: c.montoTotalEfectivo,
+            ajustes: c.ajustes.map((a) => ({
+              id: a.id,
+              tipo: a.tipo,
+              montoAjuste: a.montoAjuste,
+              cantidadDevuelta: a.cantidadDevuelta,
+              motivo: a.motivo,
+            })),
             fechaCompra: c.fechaCompra,
             estado: c.estado,
             estadoPago: c.estadoPago,

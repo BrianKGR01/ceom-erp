@@ -20,7 +20,14 @@ import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "../p
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
 interface DatosResumenFinanciero {
-  estado: Resultado<{ estadoResultados: number; ingresos: number; costos: number; gastos: number; ajustesVenta: number }>;
+  estado: Resultado<{
+    estadoResultados: number;
+    ingresos: number;
+    costos: number;
+    gastos: number;
+    ajustesVenta: number;
+    ajustesCompra: number;
+  }>;
   flujo: Resultado<{ flujoCaja: number; pagosVenta: number; pagosCompra: number; pagosGasto: number }>;
   patrimonio: Resultado<{ valorPatrimonialTotal: number }>;
 }
@@ -171,6 +178,15 @@ export function ResumenFinancieroCliente({
                     label="Ajustes de venta"
                     valor={estado.ajustesVenta}
                     tono={estado.ajustesVenta >= 0 ? "success" : "error"}
+                  />
+                  {/* Siempre resta: es lo que las compras del período
+                      terminaron costando de más (H-31). Un ajuste a favor del
+                      negocio baja el saldo de la compra, no sube la utilidad. */}
+                  <FilaResultado
+                    icono={Minus}
+                    label="Ajustes de compra"
+                    valor={-estado.ajustesCompra}
+                    tono="error"
                   />
                   <div className="mt-2 flex items-center gap-3 rounded-xl bg-navy p-3 text-white">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10">

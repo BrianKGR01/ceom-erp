@@ -8,18 +8,22 @@ Empieza distinto de los demás, con una advertencia, porque tiene que empezar as
 
 ## ⚠️ Antes de decidir nada con estos números, leé esto
 
-**Hoy el sistema muestra una ganancia mayor que la real.** No siempre, no en todos los negocios, pero
-sí en varios casos frecuentes, y **nunca te avisa cuándo**.
-
-Son cuatro huecos, todos en la misma dirección: cosas que te cuestan plata y que no llegan a
-descontarse.
+**El sistema todavía puede mostrar una ganancia mayor que la real**, aunque quedan menos huecos que
+antes: las **comisiones de canal** (H-24) y las **correcciones de compra** (H-31) ya se descuentan
+solas. Los que siguen abiertos van todos en la misma dirección —cosas que te cuestan plata y no
+llegan a descontarse— y **el sistema no te avisa cuándo**.
 
 | Qué falta descontar | A quién le pasa | Cuánto pesa |
 |---|---|---|
-| **Las comisiones de tus canales** | A todo el que haya cargado un % de comisión en un canal o un evento. Se calcula, se guarda y nunca se convierte en gasto. (H-24) | Tanto como el % que cobre tu canal. Con 20 % de comisión, tu ganancia aparece bastante más alta de lo que es. |
 | **Las cuotas de tus deudas** | A todo el que tenga una deuda cargada. El pago de la cuota no genera un gasto. (H-27) | El valor de la cuota, cada período. |
 | **El costo de los productos sin costo cargado** | A todo el que haya guardado productos sin completar el costo. El ingreso se suma; el costo, no. (H-15) | Todo el costo de esos productos. |
-| **Las correcciones de compras** | Al que haya anulado o corregido una compra: el ajuste no revierte nada. (H-31) | El monto de lo que creías haber corregido. |
+
+Ya corregidos, y por qué conviene saberlo si comparás con números viejos:
+
+| Qué ya se descuenta | Detalle |
+|---|---|
+| **Las comisiones de tus canales** | Cada venta por un canal con comisión genera sola su gasto, ya pagado (H-24). Las ventas registradas antes de la corrección no lo tienen: su comisión quedó guardada en la venta y nunca se convirtió en gasto. |
+| **Lo que una compra terminó costando de más** | Una corrección de compra al alza se descuenta del período (H-31). Una devolución o anulación **no** sube tu ganancia: baja lo que le debés al proveedor y devuelve el stock. |
 
 Y un quinto que va en cualquier dirección:
 
@@ -131,9 +135,10 @@ dar pérdida por un canal con comisión.
 Los totales por canal se calculan desde los ingresos y costos crudos, no promediando porcentajes
 —que sería incorrecto—.
 
-> ⚠️ Este reporte **no descuenta la comisión del canal**, porque la comisión nunca llega a los
-> gastos. Así que el margen de un canal con comisión aparece más alto de lo real, y justamente acá es
-> donde más importa. Si comparás canales, restá la comisión mentalmente. (ver H-24)
+> ⚠️ Este reporte compara **ingresos contra costo de producto**, y la comisión del canal no es un
+> costo de producto: es un gasto. Así que el margen que ves acá no la tiene descontada, aunque desde
+> H-24 sí esté descontada en tu resultado general. Si comparás dos canales con comisiones distintas,
+> restala mentalmente.
 
 ### Ranking de productos
 
@@ -193,9 +198,10 @@ más bajo de lo real y vas a creer que estás cubierto cuando no.
 Si el precio no supera al costo, el sistema no inventa un número: muestra un aviso explicando que a
 ese precio nunca vas a cubrir los costos fijos. Ese aviso es información, no un error.
 
-> ⚠️ Como las comisiones y las cuotas de deuda no llegan a los gastos, tu costo fijo real es más alto
-> que el que usa esta cuenta. El punto de equilibrio que te muestra es un **piso**, no la meta.
-> (ver H-24, H-27)
+> ⚠️ Esta cuenta usa solo los gastos de tipo **fijo**, y las cuotas de tus deudas todavía no llegan a
+> los gastos, así que tu costo fijo real es más alto que el que usa. El punto de equilibrio que te
+> muestra es un **piso**, no la meta. (La comisión de canal sí se descuenta de tu resultado desde
+> H-24, pero es un gasto variable: no entra en el costo fijo.) (ver H-27)
 
 ### Comparar productos
 

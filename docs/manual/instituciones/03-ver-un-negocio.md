@@ -60,15 +60,18 @@ Los datos que ves son los mismos que ve el dueño en su propia aplicación, con 
 Antes de sacar conclusiones —sobre todo si evaluás desempeño o asignás financiamiento— conviene saber
 esto:
 
-**El resultado que muestra el estado de resultados tiende a ser mejor que el real.** Hay cuatro cosas
-que hoy no se descuentan solas:
+**El resultado que muestra el estado de resultados tiende a ser mejor que el real**, aunque menos que
+antes: las comisiones de canal (H-24) y las correcciones de compra al alza (H-31) ya se descuentan
+solas. Quedan dos cosas que no:
 
 | No se descuenta | Cuándo aplica |
 |---|---|
-| Las **comisiones** de los canales de venta | Si el negocio cargó comisiones (H-24) |
 | Las **cuotas** de sus deudas | Si tiene deudas cargadas (H-27) |
 | El **costo de los productos sin costo cargado** | Muy frecuente en negocios que recién arrancan (H-15) |
-| Las **correcciones de compras** | Si anuló o corrigió compras (H-31) |
+
+Un detalle de comparabilidad: las comisiones se descuentan **desde** que se corrigió H-24. Las ventas
+registradas antes de esa corrección no generaron su gasto de comisión, así que los períodos viejos
+siguen viéndose mejor que los nuevos por ese motivo, no por desempeño.
 
 Y una que puede ir en cualquier dirección: un ajuste de venta cargado con el signo equivocado suma
 en vez de restar (H-30).

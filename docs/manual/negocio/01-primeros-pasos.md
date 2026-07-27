@@ -253,9 +253,9 @@ entero:
 - Si el canal tenía comisión configurada, **se calculó y se guardó el monto de la comisión junto a la
   venta**.
 
-> ⚠️ **Ojo con la comisión.** El monto se calcula y se guarda, pero hasta ahí llega: no se convierte
-> en un gasto, no aparece en ninguna pantalla y no se descuenta de tu resultado. Si cargaste una
-> comisión en el canal esperando que se reflejara en tus números, hoy no lo hace. (ver H-24)
+- Si el canal tenía comisión, **el sistema creó solo el gasto de esa comisión** y ya lo descontó de
+  tu resultado. Lo ves en la ficha de la venta y en tu listado de gastos, en una categoría
+  "Comisiones de venta" que se crea sola la primera vez.
 
 **Si te equivocaste**, no busques cómo editar la venta: no se puede, y es deliberado. Se corrige
 desde la ficha de la venta con un **ajuste** (corrección, devolución, descuento posterior o

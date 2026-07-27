@@ -160,7 +160,20 @@ export async function registrarPagoCompraAction(
 export async function registrarCompraDeAjusteAction(
   compraId: string,
   input: unknown
-): Promise<ResultadoAccion<{ ajusteId: string }>> {
+): Promise<
+  ResultadoAccion<{
+    ajusteId: string;
+    montoTotalEfectivo: number;
+    estadoPago: string;
+    saldoPendiente: number;
+    // H-31: si parte de la mercadería devuelta ya se había vendido, solo
+    // vuelve lo que quedaba — y eso hay que decírselo al usuario, no
+    // tragárselo. `errorStock` es el caso raro en que la reversión falló del
+    // todo con el ajuste financiero ya hecho.
+    avisoStock: string | null;
+    errorStock: string | null;
+  }>
+> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
@@ -172,5 +185,13 @@ export async function registrarCompraDeAjusteAction(
   const resultado = await registrarCompraDeAjuste(usuario, compraId, parsed.data);
   if (!resultado.ok) return resultado;
   revalidatePath("/app/proveedores/compras");
-  return { ok: true, data: resultado.data };
+  const { reversionStock, ...resto } = resultado.data;
+  return {
+    ok: true,
+    data: {
+      ...resto,
+      avisoStock: reversionStock?.aviso ?? null,
+      errorStock: reversionStock?.error ?? null,
+    },
+  };
 }

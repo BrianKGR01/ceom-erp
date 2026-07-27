@@ -1,0 +1,2 @@
+CREATE POLICY "compras_ajuste_gateway_sistema_bypass" ON "compras_ajuste" AS PERMISSIVE FOR SELECT TO "authenticated" USING ((select es_gateway_sistema())
+      and (select public.tenant_tiene_consentimiento_vigente(((select compras.tenant_id from compras where compras.id = compras_ajuste.compra_id)), 'financiero'::modulo_veedor)));

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import type { Ejecutor } from "@/db/contexto";
 import { comprasAjuste, compras, pagosCompra, proveedores } from "./schema";
 
@@ -149,6 +149,85 @@ export async function obtenerTotalPagado(tx: Ejecutor, compraId: string): Promis
   return Number(totalPagado);
 }
 
+/** Suma de los ajustes de una Compra, con su signo (positivo = costó más,
+ * negativo = a favor del negocio). 0 si no tiene ajustes. */
+export async function obtenerTotalAjustes(tx: Ejecutor, compraId: string): Promise<number> {
+  const [{ totalAjustes }] = await tx
+    .select({ totalAjustes: sql<string>`coalesce(sum(${comprasAjuste.montoAjuste}), 0)` })
+    .from(comprasAjuste)
+    .where(eq(comprasAjuste.compraId, compraId));
+  return Number(totalAjustes);
+}
+
+/** Unidades ya devueltas al proveedor por ajustes anteriores de esta Compra —
+ * el tope de cuanto mas se puede devolver (H-31: sin esto un segundo ajuste
+ * devolveria stock de nuevo sobre mercaderia que ya salio). */
+export async function obtenerCantidadYaDevuelta(
+  tx: Ejecutor,
+  compraId: string
+): Promise<number> {
+  const [{ total }] = await tx
+    .select({ total: sql<string>`coalesce(sum(${comprasAjuste.cantidadDevuelta}), 0)` })
+    .from(comprasAjuste)
+    .where(eq(comprasAjuste.compraId, compraId));
+  return Number(total);
+}
+
+/**
+ * Lo que realmente vale la Compra hoy: su monto original mas la suma de sus
+ * ajustes (H-31 — antes los ajustes se escribian y no cambiaban nada, asi que
+ * una compra anulada seguia figurando pendiente por su monto completo). Nunca
+ * negativo: el guard de registrarCompraDeAjuste rechaza un ajuste que lo
+ * empujaria por debajo de 0, y el clamp de aca es la segunda red.
+ */
+export async function obtenerMontoTotalEfectivo(
+  tx: Ejecutor,
+  compraId: string
+): Promise<number> {
+  const [compra] = await tx
+    .select({ montoTotal: compras.montoTotal })
+    .from(compras)
+    .where(eq(compras.id, compraId));
+  if (!compra) return 0;
+  const ajustes = await obtenerTotalAjustes(tx, compraId);
+  return Math.max(0, Number(compra.montoTotal) + ajustes);
+}
+
+/**
+ * estado_pago derivado de lo pagado contra el monto EFECTIVO (con ajustes),
+ * no contra el monto original. Unica fuente de verdad de esa regla: la usan
+ * registrarPagoCompraTx (llega un pago nuevo) y recalcularEstadoPagoTx (llega
+ * un ajuste nuevo).
+ *
+ * El orden de las ramas importa y cambio con H-31: antes era
+ * `pagado <= 0 ? pendiente : ...`, que con una compra anulada (total efectivo
+ * 0, nada pagado) daba "pendiente" — o sea "debes plata" sobre una compra que
+ * ya no existe. Ahora "pendiente" exige que efectivamente haya algo que
+ * deber. Para cualquier compra sin ajustes el resultado es identico al de
+ * antes.
+ */
+export function derivarEstadoPago(
+  totalPagado: number,
+  montoTotalEfectivo: number
+): (typeof compras.$inferSelect)["estadoPago"] {
+  if (totalPagado >= montoTotalEfectivo) return "pagado";
+  if (totalPagado <= 0) return "pendiente";
+  return "parcial";
+}
+
+/** Recalcula estado_pago de una Compra tras un cambio que no es un pago
+ * (hoy: un ajuste). Mismo criterio append-only que el resto del sistema —
+ * no edita montos, solo re-deriva el estado. */
+export async function recalcularEstadoPagoTx(tx: Ejecutor, compraId: string) {
+  const [totalPagado, montoTotalEfectivo] = await Promise.all([
+    obtenerTotalPagado(tx, compraId),
+    obtenerMontoTotalEfectivo(tx, compraId),
+  ]);
+  const estadoPago = derivarEstadoPago(totalPagado, montoTotalEfectivo);
+  await tx.update(compras).set({ estadoPago }).where(eq(compras.id, compraId));
+  return { estadoPago, totalPagado, montoTotalEfectivo };
+}
+
 /**
  * Registra el pago y recalcula estado_pago (pendiente/parcial/pagado) en
  * la misma transaccion — mismo patron que registrarPagoPasivoTx en
@@ -159,23 +238,12 @@ export async function obtenerTotalPagado(tx: Ejecutor, compraId: string): Promis
 export async function registrarPagoCompraTx(tx: Ejecutor, data: NuevoPagoCompra) {
   const [pago] = await tx.insert(pagosCompra).values(data).returning();
 
-  const [compra] = await tx
-    .select({ montoTotal: compras.montoTotal })
-    .from(compras)
-    .where(eq(compras.id, data.compraId));
-  const [{ totalPagado }] = await tx
-    .select({ totalPagado: sql<string>`coalesce(sum(${pagosCompra.monto}), 0)` })
-    .from(pagosCompra)
-    .where(eq(pagosCompra.compraId, data.compraId));
+  // Compara contra el monto EFECTIVO (con ajustes), no contra montoTotal
+  // (H-31): si la compra se corrigio a la baja, pagar el saldo nuevo tiene
+  // que dejarla "pagado", no "parcial" para siempre.
+  const { estadoPago, totalPagado } = await recalcularEstadoPagoTx(tx, data.compraId);
 
-  const pagado = Number(totalPagado);
-  const total = Number(compra.montoTotal);
-  const estadoPago: (typeof compras.$inferSelect)["estadoPago"] =
-    pagado <= 0 ? "pendiente" : pagado >= total ? "pagado" : "parcial";
-
-  await tx.update(compras).set({ estadoPago }).where(eq(compras.id, data.compraId));
-
-  return { pago, estadoPago, totalPagado: pagado };
+  return { pago, estadoPago, totalPagado };
 }
 
 // --- Compra de Ajuste ---------------------------------------------------------
@@ -185,11 +253,49 @@ export async function crearCompraAjuste(tx: Ejecutor, data: NuevaCompraAjuste) {
   return ajuste;
 }
 
+/** Registra cuantas unidades volvieron de verdad por este ajuste — se escribe
+ * DESPUES de la reversion porque puede ser menos de lo pedido (parte del stock
+ * ya vendido). Es el unico UPDATE sobre compras_ajuste, y no edita un valor de
+ * negocio ya publicado: completa el dato de lo que acabo de pasar. */
+export async function actualizarCantidadDevueltaAjuste(
+  tx: Ejecutor,
+  ajusteId: string,
+  cantidadDevuelta: number
+) {
+  const [ajuste] = await tx
+    .update(comprasAjuste)
+    .set({ cantidadDevuelta: String(cantidadDevuelta) })
+    .where(eq(comprasAjuste.id, ajusteId))
+    .returning();
+  return ajuste;
+}
+
 export async function listarAjustesPorCompra(tx: Ejecutor, compraId: string) {
   return tx
     .select()
     .from(comprasAjuste)
     .where(eq(comprasAjuste.compraId, compraId))
+    .orderBy(asc(comprasAjuste.creadoEn));
+}
+
+/** Todos los ajustes del tenant en una sola consulta — evita el N+1 que
+ * saldria de pedirle los ajustes a cada compra del listado (mismo problema
+ * que listarVentasConTotal resuelve por fila; aca alcanza con una query
+ * porque compras_ajuste es chica y se agrupa en memoria). */
+export async function listarAjustesPorTenant(tx: Ejecutor, tenantId: string) {
+  return tx
+    .select({
+      id: comprasAjuste.id,
+      compraId: comprasAjuste.compraId,
+      tipo: comprasAjuste.tipo,
+      montoAjuste: comprasAjuste.montoAjuste,
+      cantidadDevuelta: comprasAjuste.cantidadDevuelta,
+      motivo: comprasAjuste.motivo,
+      creadoEn: comprasAjuste.creadoEn,
+    })
+    .from(comprasAjuste)
+    .innerJoin(compras, eq(comprasAjuste.compraId, compras.id))
+    .where(and(eq(compras.tenantId, tenantId), isNull(compras.eliminadoEn)))
     .orderBy(asc(comprasAjuste.creadoEn));
 }
 
@@ -219,6 +325,80 @@ export async function sumarPagosCompraPeriodo(
     .from(pagosCompra)
     .innerJoin(compras, eq(pagosCompra.compraId, compras.id))
     .where(and(...condiciones));
+
+  return Number(total);
+}
+
+/**
+ * Costo extra que los ajustes de compra del periodo le agregaron al negocio
+ * — el insumo del estado de resultados para H-31.
+ *
+ * **Solo la direccion de costo, nunca la contraria.** Se agrupa por compra,
+ * se toma el NETO de sus ajustes del periodo y se descarta si es negativo
+ * (`greatest(neto, 0)`). El motivo es de negocio, no de programacion: en CEOM
+ * una compra nunca fue un gasto — entra al resultado recien como costo cuando
+ * la mercaderia se vende, congelada en `costo_unitario_snapshot`. Entonces:
+ *
+ * - Si la compra terminó costando MAS de lo registrado, ese excedente es un
+ *   costo real que los snapshots ya congelados no van a recoger nunca. Resta.
+ * - Si terminó costando MENOS (devolución, anulación, corrección a la baja),
+ *   deshacer una compra no es una ganancia: sumarlo al resultado inventaría
+ *   utilidad. Esa dirección se refleja en el saldo de la compra y su estado
+ *   de pago, no en la utilidad.
+ *
+ * El neto se toma POR COMPRA y no fila por fila para que dos correcciones que
+ * se cancelan (+50 y luego -50 sobre la misma compra) queden en 0 en vez de
+ * dejar un costo fantasma de 50.
+ *
+ * Se filtra por `creado_en` porque `compras_ajuste` no tiene fecha propia —
+ * misma limitacion que `sumarAjustesVentaPeriodo` en Ventas.
+ *
+ * **Pero el borde superior NO se copia de ahi, a proposito.** `creado_en` es
+ * un timestamp y el `hasta` del periodo llega como fecha sola, que
+ * `new Date()` ancla a medianoche UTC: con `<= hasta` (lo que hacen hoy
+ * `sumarAjustesVentaPeriodo` y `sumarIngresosCostosPeriodo`) queda FUERA todo
+ * lo que pasó durante el dia `hasta`. Como todos los presets de la UI mandan
+ * `hasta = hoy`, un ajuste cargado hoy no habria aparecido nunca en el estado
+ * de resultados — o sea el mismo defecto silencioso que H-31 viene a cerrar,
+ * reintroducido por el borde del rango. Aca se cubre el dia completo
+ * (`< hasta + 1 dia`).
+ *
+ * Los agregados de Ventas siguen truncando: es un defecto preexistente que
+ * afecta ingresos/costos/ajustes de venta (todo lo filtrado por timestamp) y
+ * corregirlo toca seis funciones y sus expectativas de test, asi que se
+ * reporta aparte en vez de arrastrarlo a este cambio.
+ */
+export async function sumarCostoExtraAjustesCompraPeriodo(
+  tx: Ejecutor,
+  tenantId: string,
+  desde: Date,
+  hasta: Date,
+  opts: { sucursalId?: string } = {}
+): Promise<number> {
+  const finDelDiaHasta = new Date(hasta);
+  finDelDiaHasta.setUTCDate(finDelDiaHasta.getUTCDate() + 1);
+
+  const condiciones = [
+    eq(compras.tenantId, tenantId),
+    isNull(compras.eliminadoEn),
+    gte(comprasAjuste.creadoEn, desde),
+    lt(comprasAjuste.creadoEn, finDelDiaHasta),
+  ];
+  if (opts.sucursalId) condiciones.push(eq(compras.sucursalId, opts.sucursalId));
+
+  const netosPorCompra = tx
+    .select({
+      neto: sql<string>`sum(${comprasAjuste.montoAjuste})`.as("neto"),
+    })
+    .from(comprasAjuste)
+    .innerJoin(compras, eq(comprasAjuste.compraId, compras.id))
+    .where(and(...condiciones))
+    .groupBy(comprasAjuste.compraId)
+    .as("netos_por_compra");
+
+  const [{ total }] = await tx
+    .select({ total: sql<string>`coalesce(sum(greatest(${netosPorCompra.neto}, 0)), 0)` })
+    .from(netosPorCompra);
 
   return Number(total);
 }

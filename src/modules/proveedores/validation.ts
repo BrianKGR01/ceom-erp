@@ -46,8 +46,68 @@ export const recibirCompraSchema = z.object({
   fechaRecepcion: z.string().min(1, "Elegí la fecha de recepción."),
 });
 
-export const compraAjusteSchema = z.object({
-  tipo: z.enum(["correccion", "devolucion_a_proveedor", "anulacion_total"]),
-  montoAjuste: z.number(),
-  motivo: z.string().trim().min(1, "Describí el motivo del ajuste."),
-});
+// Direccion del ajuste segun su tipo — mismo criterio y misma leccion que
+// errorSignoAjuste() en ventas/validation.ts (H-30: un ajuste mal firmado
+// que sumaba en vez de restar).
+//
+// Convencion de signo, la que ya insinuaba el placeholder del formulario
+// ("Negativo si es a favor del negocio"):
+//   positivo -> la compra terminó costando MAS de lo registrado
+//   negativo -> a favor del negocio (devolución, anulación, corrección a la baja)
+//
+// Dos de los tres tipos solo pueden ir a favor del negocio, así que su signo
+// se deriva del tipo y el usuario no lo elige. "correccion" es el único
+// bidireccional a propósito: un error de carga puede haber sido de más o de
+// menos.
+export const TIPOS_AJUSTE_COMPRA_A_FAVOR = [
+  "devolucion_a_proveedor",
+  "anulacion_total",
+] as const;
+
+export type TipoAjusteCompra =
+  | "correccion"
+  | (typeof TIPOS_AJUSTE_COMPRA_A_FAVOR)[number];
+
+export function esTipoAjusteCompraAFavor(tipo: TipoAjusteCompra): boolean {
+  return (TIPOS_AJUSTE_COMPRA_A_FAVOR as readonly string[]).includes(tipo);
+}
+
+/** Regla de signo compartida por el schema de ruta y el guard del modulo,
+ * para que ambos digan exactamente lo mismo. Devuelve el error, o null si el
+ * monto es coherente con el tipo. */
+export function errorSignoAjusteCompra(
+  tipo: TipoAjusteCompra,
+  montoAjuste: number
+): string | null {
+  if (!Number.isFinite(montoAjuste) || montoAjuste === 0) {
+    return "El monto del ajuste no puede ser cero.";
+  }
+  if (esTipoAjusteCompraAFavor(tipo) && montoAjuste > 0) {
+    return "Este tipo de ajuste solo puede reducir la compra: el monto tiene que ser negativo.";
+  }
+  return null;
+}
+
+export const compraAjusteSchema = z
+  .object({
+    tipo: z.enum(["correccion", "devolucion_a_proveedor", "anulacion_total"]),
+    montoAjuste: z.number(),
+    motivo: z.string().trim().min(1, "Describí el motivo del ajuste."),
+    // Unidades que vuelven del stock. Solo tiene sentido en los tipos que van
+    // a favor del negocio: una corrección de monto no mueve mercadería.
+    cantidadDevuelta: z.number().positive().optional(),
+  })
+  .refine((d) => d.montoAjuste !== 0, {
+    path: ["montoAjuste"],
+    message: "El monto del ajuste no puede ser cero.",
+  })
+  .refine((d) => !esTipoAjusteCompraAFavor(d.tipo) || d.montoAjuste < 0, {
+    path: ["montoAjuste"],
+    message:
+      "Este tipo de ajuste solo puede reducir la compra: el monto tiene que ser negativo.",
+  })
+  .refine((d) => d.cantidadDevuelta === undefined || esTipoAjusteCompraAFavor(d.tipo), {
+    path: ["cantidadDevuelta"],
+    message:
+      "Una corrección de monto no devuelve mercadería — si devolviste unidades, el tipo es «devolución a proveedor».",
+  });

@@ -185,6 +185,18 @@ export const comprasAjuste = pgTable(
       .references(() => compras.id),
     tipo: tipoAjusteCompraEnum("tipo").notNull(),
     montoAjuste: numeric("monto_ajuste", { precision: 12, scale: 2 }).notNull(),
+    // Cuantas unidades volvieron del stock por este ajuste (H-31). Nullable:
+    // un ajuste puede corregir solo la plata sin mover mercaderia (una
+    // "correccion" nunca la mueve). Adenda de este cambio, mismo patron y
+    // misma razon que `ajustes_venta.cantidad_producto_ajustada`: sin
+    // persistirla no hay forma de saber cuanto ya se devolvio de una compra,
+    // y un segundo ajuste devolveria stock de nuevo.
+    //
+    // Puede ser MENOR que las unidades que el ajuste cubre en plata: si parte
+    // de la mercaderia ya se habia vendido, solo vuelve lo que quedaba (la
+    // alternativa era dejar el stock en negativo, que mueve el error de lugar
+    // en vez de resolverlo).
+    cantidadDevuelta: numeric("cantidad_devuelta", { precision: 12, scale: 2 }),
     motivo: text("motivo").notNull(),
     creadoPor: uuid("creado_por"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
@@ -195,5 +207,28 @@ export const comprasAjuste = pgTable(
       sql`${table.compraId} in (select id from compras where tenant_id = (select current_tenant_id()))`
     ),
     ceomAdminBypassPolicy("compras_ajuste"),
+    // H-31: desde que el ajuste de compra llega al estado de resultados
+    // (`consultarCostoExtraAjustesCompraEnPeriodo`), esta tabla quedó en el
+    // camino del Gateway igual que `compras`/`pagos_compra` —
+    // `financiero.estadoResultados()` la lee para Monitoreo Institucional.
+    // Sin esta policy el camino Gateway leería 0 ajustes y devolvería un
+    // resultado MAYOR que el real, indistinguible de "este negocio no tuvo
+    // ajustes": exactamente la fuga silenciosa que documenta §13.11 del
+    // backstop de RLS (coalesce(sum(...),0) enmascarando "RLS filtró todo").
+    //
+    // Tercer argumento como en `pagos_compra`: `compras_ajuste` no tiene
+    // `tenant_id` propio, el tenant sale por `compra_id → compras.tenant_id`,
+    // el mismo camino que ya usa `crudPolicy()` arriba.
+    //
+    // Checklist de costo (§16.10): la query real del Gateway sobre esta tabla
+    // (`sumarCostoExtraAjustesCompraPeriodo`) SÍ trae su propio filtro de
+    // tenant explícito — hace `innerJoin(compras)` con
+    // `compras.tenant_id = ?`, así que el SubPlan correlacionado queda
+    // acotado a las filas de ese tenant.
+    gatewayVigenciaBypassPolicy(
+      "compras_ajuste",
+      "financiero",
+      sql`(select compras.tenant_id from compras where compras.id = compras_ajuste.compra_id)`
+    ),
   ]
 ).enableRLS();

@@ -2,7 +2,6 @@ import { tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
 import { registrarPagoPasivo } from "@/modules/patrimonio/actions";
-import { fichaVenta } from "@/modules/ventas/actions";
 import * as repo from "./repository";
 import type {
   estadoPagoGastoEnum,
@@ -367,49 +366,113 @@ export async function generarGastoCuotaPasivo(
   return { ok: true, data: { gastoId: gasto.id, pagoPasivo } };
 }
 
+/** Categoria bajo la que se archiva la comision de canal/evento. No esta en
+ * CATEGORIAS_GASTO_DEFAULT a proposito: ese set lo elige el usuario al
+ * arrancar y puede no sembrarse nunca, y la comision no puede depender de
+ * eso (H-32 — sin categoria no se puede cargar un gasto). Se provisiona
+ * sola, la primera vez que hace falta. */
+export const CATEGORIA_COMISION_VENTA = "Comisiones de venta";
+
 /**
- * Cierra el pendiente que Ventas dejo documentado: lee la comision ya
- * calculada y persistida en la Venta (via fichaVenta(), caja negra) y crea
- * el Gasto correspondiente, ya pagado (regla 6). categoriaId lo pasa el
- * llamador (el doc no especifica que categoria usar automaticamente).
+ * Devuelve la categoria de comisiones del tenant, creandola si todavia no
+ * existe. Si el Owner ya creo una con ese mismo nombre a mano, la reutiliza
+ * en vez de duplicarla.
+ *
+ * Sin lock: dos ventas simultaneas del mismo tenant, ambas la primera,
+ * podrian crear dos filas homonimas. El costo de esa carrera es una
+ * categoria repetida en un desplegable — no un gasto perdido ni un numero
+ * mal calculado —, y `categorias_gasto` no tiene (ni deberia tener) un
+ * unique por nombre: el usuario puede querer dos categorias parecidas.
+ */
+async function obtenerOCrearCategoriaComisionVenta(tenantId: string): Promise<string> {
+  const existente = await repo.obtenerCategoriaGastoPorNombre(
+    tenantId,
+    CATEGORIA_COMISION_VENTA
+  );
+  if (existente) return existente.id;
+  const creada = await repo.crearCategoriaGasto({
+    tenantId,
+    nombre: CATEGORIA_COMISION_VENTA,
+  });
+  return creada.id;
+}
+
+/**
+ * Convierte la comision ya calculada en una Venta en el Gasto que le
+ * corresponde (`variable_no_productivo`, `origen = comision_venta_automatica`,
+ * referenciando la venta), ya pagado (regla 6). Desde ahi la comision viaja
+ * por el mismo camino que cualquier otro gasto: resta en el estado de
+ * resultados, sale en el flujo de caja y aparece en la distribucion por
+ * categoria. La llama `registrarVenta` al confirmar la venta (Modulo_03
+ * regla 5 / seccion 4.3) — antes no la llamaba nadie fuera de los tests, y
+ * esa era exactamente la causa de H-24.
+ *
+ * **Recibe los datos de la venta en vez de ir a buscarlos.** Antes leia la
+ * Venta con `fichaVenta()`, lo que ataba Gastos -> Ventas; como el disparo
+ * correcto es al reves (la venta genera su comision, Modulo_03 seccion 5
+ * "salidas hacia Costos & Gastos"), esa lectura creaba un ciclo entre los
+ * dos modulos. La flecha quedo en un solo sentido: Ventas -> Gastos.
+ *
+ * **Gatea por `ventas:crear`, no por `costos_gastos:crear`.** La comision no
+ * es una carga manual de gasto: es la consecuencia automatica de una venta
+ * ya autorizada. Pedir `costos_gastos:crear` haria que un vendedor sin ese
+ * permiso registre la venta y pierda la comision en silencio — el mismo
+ * defecto silencioso y optimista que esta funcion existe para cerrar.
+ *
+ * `categoriaId` es opcional: sin el, se usa (o se crea) la categoria
+ * "Comisiones de venta" del tenant.
  */
 export async function generarGastoComisionVenta(
   solicitante: UsuarioConRol,
   tenantId: string,
-  input: { ventaId: string; categoriaId: string }
-): Promise<Resultado<{ gastoId: string }>> {
-  if (!(await tienePermiso(solicitante, tenantId, "costos_gastos", "crear"))) {
-    return { ok: false, error: "No tenés permiso para registrar gastos." };
+  input: {
+    ventaId: string;
+    sucursalId: string;
+    montoComision: string | number;
+    fechaVenta: Date | string;
+    categoriaId?: string;
+  }
+): Promise<Resultado<{ gastoId: string; categoriaId: string; monto: number }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar ventas." };
   }
 
-  const ficha = await fichaVenta(solicitante, input.ventaId);
-  if (!ficha.ok) return ficha;
-  const venta = ficha.data.venta;
-  if (!venta || venta.comisionMontoCalculado === null) {
-    return { ok: false, error: "Esta venta no tiene una comisión calculada." };
+  const monto = Number(input.montoComision);
+  // Una comision es un costo: solo puede restar. Un monto negativo o cero no
+  // es una comision, es un dato roto — mejor rechazarlo que archivar un
+  // "gasto" que le sume al resultado (misma leccion que H-30).
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return { ok: false, error: "El monto de la comisión tiene que ser mayor a 0." };
   }
 
-  const fechaGasto = venta.fechaVenta.toISOString().slice(0, 10);
+  const fechaGasto =
+    input.fechaVenta instanceof Date
+      ? input.fechaVenta.toISOString().slice(0, 10)
+      : input.fechaVenta.slice(0, 10);
+
+  const categoriaId =
+    input.categoriaId ?? (await obtenerOCrearCategoriaComisionVenta(tenantId));
+
   const { gasto } = await repo.crearGastoConPagoTx({
     gasto: {
       tenantId,
-      sucursalId: venta.sucursalId,
+      sucursalId: input.sucursalId,
       tipo: "variable_no_productivo",
-      categoriaId: input.categoriaId,
-      monto: venta.comisionMontoCalculado,
+      categoriaId,
+      monto: String(monto),
       fechaGasto,
       origen: "comision_venta_automatica",
       referenciaId: input.ventaId,
       creadoPor: solicitante.id,
     },
     pago: {
-      monto: venta.comisionMontoCalculado,
+      monto: String(monto),
       fechaPago: fechaGasto,
       creadoPor: solicitante.id,
     },
   });
 
-  return { ok: true, data: { gastoId: gasto.id } };
+  return { ok: true, data: { gastoId: gasto.id, categoriaId, monto } };
 }
 
 // --- Gastos Recurrentes ---------------------------------------------------------

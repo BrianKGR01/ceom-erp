@@ -59,10 +59,11 @@
       línea) para que el caller lo detecte.
 - [x] Comisión automática (regla 5/4.3): por `evento.porcentajeComision` si
       la venta pertenece a un Evento, si no por `canal.porcentajeComisionDefault`
-      — se calcula y **persiste** en la propia `Venta`
-      (`comisionPorcentajeAplicado`/`comisionMontoCalculado`). No dispara un
-      `Gasto` real (Módulo 4 no existe) — decisión del plan de esta tarea, el
-      dato queda listo para cuando ese módulo exista.
+      — se calcula, **persiste** en la propia `Venta`
+      (`comisionPorcentajeAplicado`/`comisionMontoCalculado`) **y dispara el
+      `Gasto` real en Módulo 4** (H-24, ver abajo). El resultado de
+      `registrarVenta` expone `gastoComision` (`{ok, error}` o `null` si el
+      canal no cobra comisión), mismo criterio que `descuentosStock`.
 - [x] `registrarAjusteVenta`: motivo obligatorio, nunca edita la Venta
       original; si `cantidadProductoAjustada` viene, dispara un
       `entrada_ajuste_manual` **real** en Módulo 2 (requiere `productoId`,
@@ -85,13 +86,28 @@
       Módulo 6): la Venta se confirma antes de descontar stock en Módulo 2;
       si esa llamada falla, queda una Venta sin el stock correspondiente
       descontado. Sin compensación automática.
-- [x] Comisión calculada y persistida en `Venta` **ya tiene consumidor real**:
-      Módulo 4 (`src/modules/gastos/`) — `generarGastoComisionVenta()` lee
-      `comisionMontoCalculado` vía `fichaVenta()` y crea el `Gasto`
-      correspondiente ya pagado. Sigue sin un trigger automático que la
-      llame justo después de `registrarVenta()` (eso tocaría el contrato de
-      Ventas, no declarado en la tarea de Módulo 4) — hay que invocarla a
-      mano o desde un futuro orquestador.
+- [x] **H-24 cerrado: la comisión llega al estado de resultados.**
+      `registrarVenta()` llama a `generarGastoComisionVenta()` de Módulo 4
+      (`src/modules/gastos/`) al confirmar la venta, y desde ahí la comisión
+      viaja por el mismo camino que cualquier otro gasto (resta en
+      `estadoResultados`, sale en `flujoCaja` porque el gasto nace pagado,
+      aparece en el listado y en la distribución por categoría). Antes se
+      calculaba, se guardaba y no llegaba a ningún lado: un negocio que
+      vendía por un canal al 20% veía una ganancia 20% mayor que la real,
+      sin ninguna señal.
+      **Cambio de contrato declarado:** Ventas ahora **depende de** Gastos
+      (`docs/architecture/CEOM_Arquitectura.md` §7 actualizada). La flecha
+      iba al revés —Gastos leía la Venta con `fichaVenta()`— y dejarla así
+      cerraba un ciclo entre los dos módulos al agregar el disparo. El
+      sentido correcto es el que ya describía Modulo_03 §5 ("salidas hacia
+      Costos & Gastos: se genera automáticamente un registro de gasto
+      vinculado a esta venta").
+      Igual que el descuento de stock, va fuera de la transacción de la
+      Venta y **su fallo no anula la venta** — se devuelve en
+      `gastoComision` para que el caller lo muestre, en vez de perder una
+      venta entera por un gasto que se puede recargar.
+- [x] `importarVentaHistorica` sigue **sin** generar comisión — el doc lo pide
+      explícito (sección 6.2: no dispara efectos automáticos retroactivos).
 - [ ] Pre-carga automática de `CanalVenta` desde el onboarding (sección 1.5)
       **fuera de esta tarea** — la UI de onboarding no existe todavía
       (pendiente ya documentado en `identidad/ANCLA.md`).
@@ -130,9 +146,14 @@
   módulo).
 - **Comisión persistida en `Venta`, no en una tabla "Gasto" propia** — se
   descartó explícitamente modelar una entidad `Gasto` dentro de Ventas (eso
-  pertenece a Costos y Gastos, Módulo 4). Cuando ese módulo exista, lee
-  `ventas.comisionMontoCalculado` para crear su propio registro — no hay
-  que migrar el dato, ya está en el lugar correcto para consultarse.
+  pertenece a Costos y Gastos, Módulo 4). El dato en `Venta` es el registro
+  de qué comisión se aplicó (porcentaje y monto congelados); el `Gasto` que
+  Módulo 4 crea a partir de él es el que impacta el resultado. Los dos
+  conviven a propósito: la Venta no se recalcula si el canal cambia su
+  porcentaje después, y el `Gasto` queda atado a la venta por
+  `referenciaId`. La ficha de la venta muestra la comisión con la nota de
+  que ya está descontada del resultado (antes de H-24 ninguna pantalla la
+  mostraba).
 - **`metodos_pago` sin `eliminado_en`** — la baja es el booleano `activo`,
   mismo criterio que `planes` en Suscripción (el doc no lista `eliminado_en`
   para esta entidad, a diferencia de las demás del módulo).

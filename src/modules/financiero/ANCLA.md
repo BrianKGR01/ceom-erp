@@ -17,8 +17,10 @@
   `consultarAjustesVentaEnPeriodo`), **Gastos**
   (`consultarPagosGastoEnPeriodo`, `consultarTotalGastosEnPeriodo`,
   `consultarTotalCostosFijos`) y **Proveedores**
-  (`consultarPagosCompraEnPeriodo`) — **agregadas por período, nuevas en
-  esta tarea**, ver sección "Contrato tocado en 3 módulos" abajo.
+  (`consultarPagosCompraEnPeriodo` +
+  `consultarCostoExtraAjustesCompraEnPeriodo`, esta última agregada al cerrar
+  H-31) — **agregadas por período**, ver sección "Contrato tocado en 3
+  módulos" abajo.
 - Salidas que expone (`actions.ts`): `flujoCaja`, `estadoResultados`,
   `margenPorProducto`, `costoFijoTotal` + fórmulas puras
   (`calcularFlujoCaja`, `calcularEstadoResultados`,
@@ -28,10 +30,29 @@
 - [x] `flujoCaja` = Σ Pago de Venta − Σ Pago de Compra − Σ Pago de Gasto,
       todos por `fecha_pago` (base caja). Verificado que una venta con
       `estado_pago=pendiente` **no** cuenta hasta que exista un pago real.
-- [x] `estadoResultados` = ingresos − COGS − gastos ± ajustes de venta,
-      todos por su fecha de ocurrencia económica (base devengado).
-      Verificado que una venta pendiente de cobro **sí** cuenta como
-      ingreso (distinción caja vs. resultado, regla 3 del doc).
+- [x] `estadoResultados` = ingresos − COGS − gastos ± ajustes de venta
+      **− costo extra de ajustes de compra**, todos por su fecha de
+      ocurrencia económica (base devengado). Verificado que una venta
+      pendiente de cobro **sí** cuenta como ingreso (distinción caja vs.
+      resultado, regla 3 del doc).
+- [x] **H-31: el quinto término, `ajustesCompra`.** Es lo que las compras del
+      período terminaron costando de MÁS de lo registrado — un costo que los
+      `costo_unitario_snapshot` ya congelados no van a recoger nunca, así que
+      si no resta acá no aparece en ningún lado. Llega **siempre ≥ 0** desde
+      Proveedores (que agrupa por compra y descarta el neto negativo: una
+      devolución o anulación baja el saldo de la compra, no sube la utilidad —
+      en CEOM una compra nunca fue un gasto, entra al resultado recién como
+      COGS al venderse). `calcularEstadoResultados` **vuelve a clampearlo**
+      con `Math.max(0, …)`: hace estructuralmente imposible que un ajuste de
+      compra le sume al resultado, pase lo que pase aguas arriba. Es la clase
+      de error que ya costó H-30 y H-24 y una segunda red cuesta una línea.
+      Parámetro opcional con default 0 — cualquier llamador viejo da el mismo
+      número que antes.
+- [x] **H-24: la comisión de canal entra por el término `gastos`**, sin
+      lógica propia acá: `registrarVenta` la convierte en un `Gasto` real y
+      `consultarTotalGastosEnPeriodo` la recoge sola. Financiero no cambió
+      para eso — es el ejemplo de por qué el camino correcto de un costo
+      nuevo es el ledger de Gastos y no un término más en esta fórmula.
 - [x] `margenPorProducto` = (ingresos_ajustados − costos) ÷
       ingresos_ajustados × 100, con `AjusteVenta.monto_ajuste` sumado a los
       ingresos antes de calcular el porcentaje (decisión del plan — el doc
@@ -48,9 +69,15 @@
 - [x] Filtro `sucursalId` verificado en `estadoResultados` (y disponible en
       `flujoCaja`) — una venta en otra sucursal no se cuenta si se filtra
       por la primera.
-- [x] Tests: `formulas.test.ts` (puro, 3 fórmulas) + `financiero.test.ts`
-      (integración contra Supabase Cloud real, los 6 casos de la prueba de
-      caja negra del plan).
+- [x] Tests: `formulas.test.ts` (puro) + `financiero.test.ts` (integración
+      contra Supabase Cloud real). Los dos casos de H-24/H-31 afirman
+      **valores exactos calculados a mano**, no `>=`: la comisión usa una
+      ventana propia (septiembre) para poder medir absolutos, y el ajuste de
+      compra mide deltas exactos contra la medición inmediatamente anterior
+      (no puede usar ventana propia: `compras_ajuste` se filtra por
+      `creadoEn`, que el test no controla). Los dos se verificaron
+      rompiéndolos a propósito — al desconectar el costo del resultado, el
+      test se pone rojo.
 - [ ] `AjusteVenta` no tiene un campo de fecha propio — se usa `creadoEn`
       (momento real de creación del registro, no controlable por quien
       llama a `registrarAjusteVenta`) como su fecha para el filtro de
