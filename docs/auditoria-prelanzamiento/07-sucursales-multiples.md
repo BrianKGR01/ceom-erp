@@ -12,6 +12,34 @@
 > plan, con el comportamiento estándar de la industria (stock general + stock por sucursal). Lo que
 > falta decidir es el *cómo*, no el *si*.
 
+## Estado de implementación (2026-07-27)
+
+**Implementado en esta tanda** (Etapas 0-6 del plan de §8, con las decisiones de producto que
+cerraron la mayoría de las preguntas abiertas de §10): migraciones `0045`/`0046`
+(`planes.maxSucursales` reemplaza a `incluyeSucursales`; `sucursales` gana auditoría + freeze;
+`usuarios` gana `sucursalId` sin uso), ABM de sucursales (`crearSucursal`/`actualizarSucursal`)
+gateado por plan server-side, congelamiento atómico en `cambiarPlanTenant` (más nuevas primero, la
+Principal nunca se congela), las 3 acciones de Panel Admin CEOM (Desbloquear/Consolidar/Eliminar),
+`requireSucursalOperable()` en Productos (cierra el hueco de autorización real de §3.1 y hace
+cumplir el freeze) y el mismo chequeo en `registrarVenta`. Detalle completo en
+`identidad/ANCLA.md`, `suscripcion/ANCLA.md`, `productos/ANCLA.md`, `ventas/ANCLA.md`.
+
+**Deliberadamente NO implementado en esta tanda** (deuda registrada, no silenciosa):
+- **Etapa 5 de este documento (§8), autorización por sucursal (Track B de §4):** `usuarios.sucursalId`
+  existe en el schema pero ningún módulo filtra por ella. Se activa junto con el modelo de roles por
+  defecto (H-35/D3 de [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md)) — ver la anotación
+  gemela en `identidad/ANCLA.md` y en el comentario de `usuarios.sucursalId` en `schema.ts`.
+- El fix del race condition de `stock.cantidad_actual` (§3.4) y la contaminación de costo en Nicho 1
+  (§3.5/Etapa 5 original del plan de §8, Nicho 1 — no confundir con la Etapa 5 de roles de arriba,
+  son dos cosas distintas que comparten número por casualidad) — ninguno de los dos es nuevo de esta
+  tanda ni lo agrava el alcance implementado (el freeze no habilita traspasos automáticos entre
+  sucursales para un usuario común más allá de lo que ya existía).
+- Cobertura de freeze en Patrimonio, Gastos, Proveedores y Operativo Nicho 1 — solo Productos y
+  Ventas lo hacen cumplir en esta tanda (eran los dos flujos de escritura pedidos explícitamente:
+  stock y ventas). Ver riesgo anotado en `identidad/ANCLA.md`.
+- Agregaciones por sucursal (Etapa 4 original del plan de §8: `costoFijoTotal`/`margenPorProducto`,
+  reportes de Ventas/Gastos/Compras) — no se tocaron, siguen consolidando todo el tenant.
+
 ---
 
 ## 0. Resumen ejecutivo

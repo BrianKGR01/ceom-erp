@@ -31,8 +31,8 @@ sistema ya validado).
 | # | Decisión | Bloquea |
 |---|---|---|
 | D1 | **Precio del plan Básico** (hoy el cliente ve Bs 0) | El lanzamiento comercial entero |
-| D2 | **Sucursales**: ¿ABM ahora o esconder lo que las promete? (H-02) | La corrección de H-02, DA-06, DA-13 |
-| D3 | **Roles por defecto**: sí/no a la propuesta escrita (H-35) | La experiencia de invitar equipo |
+| ~~D2~~ | ~~**Sucursales**: ¿ABM ahora o esconder lo que las promete? (H-02)~~ | ✅ **hecho** (2026-07-27): ABM gateado por plan (`planes.maxSucursales`), congelamiento en downgrade, 3 acciones de Panel Admin CEOM — ver [07-sucursales-multiples.md](07-sucursales-multiples.md). DA-13 (tope por plan) cerrado en el mismo cambio; DA-06 (filtro de sucursal honesto en el Dashboard) sigue abierto, no era parte de este alcance. |
+| D3 | **Roles por defecto**: sí/no a la propuesta escrita (H-35) | La experiencia de invitar equipo. **Cuando se resuelva, incluir el filtrado de permisos por sucursal** (`usuarios.sucursalId` ya existe en el schema desde H-02, deliberadamente sin uso — ver [07-sucursales-multiples.md](07-sucursales-multiples.md) sección "Estado de implementación" y `identidad/ANCLA.md`) |
 | D4 | **Política de costeo de reventa**: ¿último precio o promedio? (H-25) | Documentarla o cambiarla |
 | D5 | **¿El piloto incluye instituciones?** | Si sí: H-42 y H-43 suben a P0. Si no: bajan a P1 |
 | D6 | **Semántica de "pausada"** (H-46) y **downgrade vs. consentimientos** (H-47) | Cambios chicos de reglas |
@@ -87,8 +87,9 @@ sistema ya validado).
 - Consistencia visual transversal (anchos, tabs, EmptyState, formularios RHF vs useState) — el
   backlog priorizado ya existe en `docs/ui/AUDITORIA-UI-UX.md` §6.
 - Paginación de `listarTenants` (DA-37) — al pasar de ~50 tenants.
-- FKs de `planes.nicho_id`/`categorias_sugeridas.nicho_id` (DA-12), límite de sucursales por plan
-  (DA-13 — tras D2), atributos de plan sin efecto (H-36).
+- FKs de `planes.nicho_id`/`categorias_sugeridas.nicho_id` (DA-12); ~~límite de sucursales por plan
+  (DA-13)~~ — ✅ hecho junto con D2/H-02 (2026-07-27); atributos de plan sin efecto (H-36, 2 de 4
+  siguen pendientes).
 - Completar RLS en el resto de módulos + `FORCE` + eliminar el export crudo `db` (etapas 5-6 del
   plan).
 - Registro de auditoría completo de lecturas `ceom_admin` (DA-38) — reputacional, antes de firmar

@@ -31,6 +31,8 @@
   `listarMovimientosStock` (agregada al construir la Ficha de Producto —
   ya existía en `repository.ts`, solo faltaba el wrapper público; gap
   documentado desde `docs/ui/pantallas.md` sección 5).
+  **H-02 (2026-07-27):** `consolidarStockDeSucursal` (Panel Admin CEOM —
+  ver detalle abajo).
 
 ## Estado actual
 - [x] Schema Drizzle (`categorias_producto`, `categorias_sugeridas`,
@@ -117,6 +119,29 @@
       navegador: estado vacío sin Recetas, vinculación real (persiste tras
       reload), desvinculación real (persiste tras reload). Detalle completo
       en `docs/ui/pantallas.md` sección 5.
+- [x] **H-02 (2026-07-27) — `requireSucursalOperable()` + `consolidarStockDeSucursal()`.**
+      El schema de este módulo ya era 100% sucursal-consciente desde el día
+      uno (`stock`/`movimientos_stock.sucursal_id` `NOT NULL`, sin backfill
+      necesario) — el gap real era de autorización, no de datos: las 5
+      funciones que escriben al ledger (`registrarEntradaProduccion`,
+      `registrarEntradaCompraReventa`, `registrarAjusteManualStock`,
+      `descontarStockVenta`, `registrarTransferenciaStock`) validaban
+      `producto_id` contra el tenant (`requireProductoDelTenant`) pero
+      **nunca** validaban que `sucursal_id` perteneciera a ese mismo tenant
+      — mismo tipo de hueco ya cerrado en `ventas/registrarVenta`, nunca
+      acá. `requireSucursalOperable()` (hermano de
+      `requireProductoDelTenant`) cierra ese hueco Y hace cumplir el
+      congelamiento de sucursal por downgrade de plan (H-02, ver
+      `identidad/ANCLA.md`): rechaza si `sucursal_id` no pertenece al
+      tenant o si está congelada. `registrarTransferenciaStock` la llama
+      sobre AMBOS extremos — bloquea el traspaso completo si cualquiera de
+      los dos está congelado. `consolidarStockDeSucursal` (Panel Admin
+      CEOM, `ROL_CEOM_ADMIN_ID` directo) es la ÚNICA función que puede
+      escribir contra una sucursal congelada — a propósito, es el mecanismo
+      para vaciarla antes de cerrarla, así que no pasa por
+      `requireSucursalOperable()`. Diagnóstico completo en
+      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` secciones
+      3 y 7.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/productos/schema.ts`
@@ -224,3 +249,9 @@
   quitarla. Mismo fix pendiente que en Identidad si se necesita de verdad.
 
 ## Última actualización: 2026-07-20 — UI de "Vincular a proceso operativo" construida en la Ficha de Producto (modal, sin cambios de backend). Actualización previa el 2026-07-18: Nota corregida sobre `tieneCapacidadEspecial()`/Owner: el bypass real ya existe (fix en `identidad/ANCLA.md`), las verificaciones previas de `vender_sin_stock` (con override explícito) siguen siendo válidas.
+
+## Última actualización: 2026-07-27 — H-02: `requireSucursalOperable()` cierra un hueco de autorización
+real (sucursal_id nunca se validaba contra el tenant en los 5 escritores del ledger) y hace cumplir el
+congelamiento de sucursal por downgrade de plan. Nueva función `consolidarStockDeSucursal` (Panel Admin
+CEOM). Sin cambios de schema — el ledger ya era 100% sucursal-consciente. Ver
+`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.

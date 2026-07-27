@@ -51,6 +51,14 @@
   `listarCapacidadesEspeciales`, `transferirOwner` (agregadas para la UI de
   Colaboradores/Roles — último ítem pendiente del roadmap original de este
   módulo, ver detalle abajo).
+  **H-02 (2026-07-27):** `crearSucursal`, `actualizarSucursal`,
+  `desbloquearSucursal`, `eliminarSucursal` (ABM de sucursales + resolución
+  del congelamiento por downgrade de plan — ver detalle completo abajo).
+  **Cambio de contrato:** `cambiarPlanTenant` ya no devuelve `Resultado<true>`
+  — devuelve `Resultado<{ sucursalesCongeladas: string[] }>` (congela
+  atómicamente el excedente de sucursales del tenant si el plan nuevo tiene
+  un tope menor). Caller existente (`admin/tenants/actions.ts`) solo miraba
+  `.ok`, no se rompió.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -109,8 +117,8 @@
 - [ ] Panel Administrativo CEOM, Instituciones, Gateway de Consentimiento
       (sección 7.2) — roadmap ítem #10, módulo aparte.
 - [ ] Scheduler real que recalcula y persiste `estado_acceso` por tiempo.
-- [ ] Chequeo de límite de sucursales contra plan (sección 9.6) — depende de
-      que exista el catálogo Planes.
+- [x] **Chequeo de límite de sucursales contra plan (sección 9.6) — cerrado
+      2026-07-27 (H-02).** Ver detalle completo más abajo.
 - [ ] Lógica de habilitación de cofundadores/multi-owner (el modelo de datos
       ya lo permite vía `es_owner` booleano, no hay función que lo active).
 - [ ] `DATABASE_URL`/`SUPABASE_SECRET_KEY` como secrets de GitHub Actions —
@@ -230,6 +238,33 @@
       banner ámbar, así que hacía falta el tenant completo de todas formas).
       Con esto, roadmap ítem #1 de Identidad queda 100% cerrado — cero UI
       pendiente en todo el módulo.
+- [x] **H-02 (2026-07-27): ABM de sucursales + tope de plan + freeze en
+      downgrade.** El motor de multi-sucursal ya existía completo en otros
+      módulos (stock/movimientos por sucursal, traspasos, ventas y
+      producción); lo que faltaba era exclusivamente la puerta de entrada.
+      `planes.incluyeSucursales` (boolean) se reemplazó por
+      `planes.maxSucursales` (integer nullable — 1 = sin sucursales
+      adicionales, N = tope, null = ilimitadas; migraciones `0045`/`0046`
+      con backfill `incluye_sucursales=false → 1`). `sucursales` ganó
+      columnas de auditoría que le faltaban (`creado_en`/`creado_por`/
+      `modificado_*`, cerrando el gap de Modulo_01 §2.2) y de freeze
+      (`congelada_en`/`congelada_motivo`). `usuarios` ganó `sucursal_id`
+      (nullable, estructura para la Etapa 5, ver Decisiones).
+      `crearSucursal(solicitante, tenantId, {nombre, direccion?})` — gate
+      `esOwner` + tope de plan validado server-side (cuenta sucursales
+      activas no congeladas contra `plan.maxSucursales`, mismo patrón que
+      `generarCodigoAcceso` de Consentimiento). `actualizarSucursal` —
+      `esOwner` + `recursoPerteneceAlTenant`. `cambiarPlanTenant` (cambio de
+      contrato, ver arriba) congela atómicamente el excedente en la misma
+      transacción del cambio de plan (molde nuevo en `repository.ts`,
+      `actualizarPlanTenantConCongelamiento` — reemplaza a
+      `actualizarPlanTenant`, que se eliminó): criterio "más nuevas por
+      `creado_en` primero", la Principal nunca entra en la lista candidata.
+      `desbloquearSucursal`/`eliminarSucursal` (Panel Admin CEOM,
+      `ROL_CEOM_ADMIN_ID` directo) — "Consolidar" se compone en
+      `admin/tenants/actions.ts` (Identidad + Productos, ver Decisiones).
+      Diagnóstico completo, decisiones abiertas y verificación en
+      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -247,6 +282,12 @@
   Especiales: `src/app/app/(shell)/mi-negocio/` (`actions.ts` compartido +
   un subdirectorio por pantalla: `colaboradores/`, `roles/`, `capacidades/`).
   Schemas de formulario: `src/modules/identidad/validation.ts`.
+- UI de Sucursales (H-02): `src/app/app/(shell)/mi-negocio/sucursales/`
+  (ABM del Owner) + sección "Sucursales" en
+  `src/app/admin/(shell)/tenants/[tenantId]/ficha-cliente.tsx`
+  (Desbloquear/Consolidar/Eliminar, Panel Admin CEOM).
+- Migraciones relevantes de H-02: `drizzle/migrations/0045` (columnas
+  nuevas + backfill), `0046` (drop de `planes.incluye_sucursales`).
 
 ## Decisiones tomadas que un agente no debe revertir
 - **`/app/mi-negocio/*` (Colaboradores/Roles/Capacidades) vive dentro del
@@ -539,6 +580,58 @@
   (`listarPlanes()` sin `soloActivos`), porque un tenant puede seguir en un
   plan que ya se desactivó y la ficha tiene que poder mostrar su nombre
   igual.
+
+- **H-02 (2026-07-27) — `usuarios.sucursalId` está estructurado pero
+  DELIBERADAMENTE INACTIVO. El filtrado real por sucursal (que un
+  colaborador solo vea/opere en su propia sucursal) es una segunda
+  dimensión de autorización que se construye recién en la Etapa 5
+  (roles por defecto, H-35/D3 de `docs/auditoria-prelanzamiento/
+  04-camino-al-lanzamiento.md`), junto con el modelo de roles — no antes.**
+  Motivo: hoy `tienePermiso()`/`recursoPerteneceAlTenant()` no tienen la
+  dimensión sucursal, no existe una tabla puente `usuario_sucursal` (M:N,
+  preferible a la columna nullable actual — "null = todas" es ambiguo con
+  "no configurado todavía"), y construirla sin un tenant real que la pida
+  sería invertir esfuerzo en un requisito no validado. Ver el análisis
+  completo (Track A vs. Track B) en `docs/auditoria-prelanzamiento/
+  07-sucursales-multiples.md` sección 4. **No agregar el filtrado sin
+  releer esa sección primero** — la anotación gemela vive en el comentario
+  de `usuarios.sucursalId` en `schema.ts`.
+- **H-02 — `eliminarSucursal()` NO valida que la sucursal tenga stock=0.**
+  Es a propósito: Identidad no puede consultar el stock de Productos sin
+  cruzar módulos (regla de caja negra). La precondición vive en la capa de
+  composición (`admin/tenants/actions.ts::eliminarSucursalAction`, que llama
+  a `consultarStockTotalPorSucursal()` de Productos ANTES de llamar a esta
+  función) — mismo criterio que `crearTenantAction` componiendo
+  Identidad+Gastos. Si en el futuro se agrega otro caller de
+  `eliminarSucursal()` que no sea ese Server Action, tiene que replicar el
+  mismo chequeo, no asumir que la función lo hace.
+- **H-02 — `actualizarPlanTenantConCongelamiento()` reemplaza a
+  `actualizarPlanTenant()` (eliminada).** El congelamiento del excedente de
+  sucursales corre en la MISMA transacción que el `UPDATE` de `planId` — a
+  propósito, para no reproducir el patrón de H-47 ("downgrade que no
+  reconcilia nada") un nivel más abajo. Criterio de selección: sucursales
+  no-Principal, no ya congeladas, ordenadas por `creado_en` DESC — se
+  congelan las primeras `candidatas.length - max(0, maxSucursalesNuevoPlan - 1)`.
+  La Principal está excluida por diseño de la consulta (`esPrincipal =
+  false`), nunca por un chequeo posterior — no hay forma de que se cuele.
+- **H-02 — el freeze bloquea escritura en Productos (`requireSucursalOperable`)
+  y en Ventas (`registrarVenta`), pero NO todavía en Patrimonio, Gastos,
+  Proveedores ni Operativo Nicho 1.** Cubre los dos flujos de escritura más
+  críticos y los que pedía la verificación explícita de esta tarea (venta
+  descontando stock). Extender la cobertura a los demás módulos queda
+  documentado como trabajo pendiente, no silencioso — ver
+  `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 6.3
+  hueco 6 (mismo riesgo ya señalado ahí: si no se engancha en todos los
+  módulos que escriben con `sucursal_id`, el freeze corre el riesgo de
+  quedar tan decorativo como `activa` hoy).
+
+## Última actualización: 2026-07-27 — H-02: ABM de sucursales, tope de plan (`max_sucursales`) y
+freeze atómico en downgrade. **Cambio de contrato:** `cambiarPlanTenant` devuelve
+`Resultado<{ sucursalesCongeladas: string[] }>` en vez de `Resultado<true>`. Nuevas funciones:
+`crearSucursal`, `actualizarSucursal`, `desbloquearSucursal`, `eliminarSucursal`. `usuarios.sucursalId`
+agregada pero deliberadamente sin uso — el filtrado real queda para la Etapa 5 (roles). Ver detalle
+completo en "Estado actual" y "Decisiones" más arriba, y el diagnóstico en
+`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
 
 ## Última actualización: 2026-07-23 — la identidad del Gateway deja de ser administrable desde la app
 (OBS-10 de `docs/ui/observaciones-de-uso.md`). **Sin cambio de contrato**: ninguna firma cambia, no

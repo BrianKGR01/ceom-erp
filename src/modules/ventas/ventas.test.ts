@@ -65,6 +65,7 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
   let tenantId: string;
   let ownerId: string;
   let sucursalId: string;
+  let sucursalDosId: string;
   let canalVentaId: string;
   let metodoPagoId: string;
 
@@ -94,6 +95,16 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
     });
     tenantId = tenant.id;
     sucursalId = sucursal.id;
+
+    // H-02: segunda sucursal para los tests de aislamiento — insertada
+    // directo, no hay ninguna forma de tener una 2da sucursal antes de
+    // Identidad.crearSucursal(), y ese camino corre de forma independiente
+    // en identidad.test.ts.
+    const [sucursalDos] = await db
+      .insert(sucursales)
+      .values({ tenantId, nombre: `Sucursal Dos ${sufijo}`, esPrincipal: false })
+      .returning();
+    sucursalDosId = sucursalDos.id;
 
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
     const canal = await crearCanalVenta(owner!, tenantId, {
@@ -850,4 +861,91 @@ describe.skipIf(!hasCredenciales)("Modulo 3 - Ventas + Clientes (integracion)", 
     },
     20000
   );
+
+  // H-02: sucursales multiples.
+  it("una venta en la sucursal A no toca el stock de la sucursal B", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: `Producto Venta Multi-sucursal ${sufijo}`,
+      unidadVenta: "unidad",
+      precioVenta: 12,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    const productoId = producto.data.productoId;
+
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 20,
+      motivo: "Carga A",
+    });
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId: sucursalDosId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 20,
+      motivo: "Carga B",
+    });
+
+    const venta = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId,
+      lineas: [{ productoId, cantidad: 5 }],
+    });
+    expect(venta.ok).toBe(true);
+
+    const stockA = await consultarStock(owner!, productoId, sucursalId);
+    const stockB = await consultarStock(owner!, productoId, sucursalDosId);
+    expect(stockA.ok && stockA.data.cantidadActual).toBe(15); // 20 - 5
+    expect(stockB.ok && stockB.data.cantidadActual).toBe(20); // intacto
+  });
+
+  it("registrarVenta rechaza una sucursal congelada ANTES de crear la Venta (no solo al descontar stock)", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: `Producto Sucursal Congelada Venta ${sufijo}`,
+      unidadVenta: "unidad",
+      precioVenta: 9,
+    });
+    if (!producto.ok) throw new Error("setup fallo");
+    const productoId = producto.data.productoId;
+
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId,
+      sucursalId: sucursalDosId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 10,
+      motivo: "Carga previa al congelamiento",
+    });
+
+    // Congelamiento simulado — lo dispara Identidad (cambiarPlanTenant), no
+    // este módulo (ver el mismo criterio en productos.test.ts).
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalDosId));
+
+    const ventasAntes = await db.select().from(ventas).where(eq(ventas.tenantId, tenantId));
+
+    const ventaRechazada = await registrarVenta(owner!, tenantId, {
+      sucursalId: sucursalDosId,
+      canalVentaId,
+      lineas: [{ productoId, cantidad: 1 }],
+    });
+    expect(ventaRechazada.ok).toBe(false);
+
+    // No quedó ninguna Venta a medio crear — se cortó ANTES del insert.
+    const ventasDespues = await db.select().from(ventas).where(eq(ventas.tenantId, tenantId));
+    expect(ventasDespues.length).toBe(ventasAntes.length);
+
+    // El stock de la sucursal congelada tampoco se tocó.
+    const stock = await consultarStock(owner!, productoId, sucursalDosId);
+    expect(stock.ok && stock.data.cantidadActual).toBe(10);
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: null, congeladaMotivo: null })
+      .where(eq(sucursales.id, sucursalDosId));
+  });
 });

@@ -30,7 +30,7 @@
 | ID | Severidad | Hallazgo |
 |---|---|---|
 | [H-01](#h-01) | 🟠 | El canal de venta es obligatorio, la tarjeta de inicio dice lo contrario |
-| [H-02](#h-02) | 🔴 | No existe forma de crear una sucursal — y hay funciones que asumen que hay varias |
+| [H-02](#h-02) | ✅ | ~~No existe forma de crear una sucursal — y hay funciones que asumen que hay varias~~ — **corregido** |
 | [H-03](#h-03) | 🟠 | Elegido el rubro, los datos del negocio dejan de ser editables |
 | [H-04](#h-04) | 🟠 | "Quitar logo" no quita el logo |
 | [H-05](#h-05) | 🟠 | Dos enlaces muertos en la pantalla de entrada, uno de ellos crítico |
@@ -157,7 +157,32 @@ paso: se encuentra mirando, no siguiendo la guía.
 ---
 
 <a id="h-02"></a>
-## H-02 🔴 No existe forma de crear una sucursal — y hay funciones que asumen que hay varias
+## H-02 ✅ No existe forma de crear una sucursal — y hay funciones que asumen que hay varias — CORREGIDO
+
+> **Corregido el 2026-07-27.** El diagnóstico completo (mapa de impacto módulo por módulo, modelo de
+> stock, control por plan, downgrade y migración) está en
+> [`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`](../auditoria-prelanzamiento/07-sucursales-multiples.md).
+> Lo que cambió:
+>
+> - **Existe el ABM.** `/app/mi-negocio/sucursales` — crear y editar sucursales, gateado a Owner.
+>   El motor de stock por sucursal, traspasos y ventas ya existía completo en otros módulos (era
+>   código real, testeado, pero inalcanzable); esto era exclusivamente la puerta de entrada faltante.
+> - **Es un diferenciador de plan real, no decorativo.** `planes.incluyeSucursales` (boolean, sin
+>   efecto) se reemplazó por `planes.maxSucursales` (tope estructurado: 1 = ninguna adicional, N =
+>   hasta N, ilimitado). `crearSucursal()` lo valida **server-side**, no solo ocultando el botón — un
+>   negocio sin el atributo directamente no ve la función.
+> - **El downgrade tiene una respuesta, no un vacío.** Si un negocio con varias sucursales baja a un
+>   plan con menos cupo, el excedente se **congela automáticamente** (más nuevas primero, la
+>   Principal nunca) — sigue siendo 100% consultable, pero no se puede vender ni mover stock ahí.
+>   Desde `/admin`, el equipo CEOM puede Desbloquear, Consolidar (mover el stock a la Principal y
+>   cerrarla) o Eliminar una sucursal congelada.
+> - **Un negocio de una sola sucursal no nota ninguna diferencia** — es exactamente el caso de todos
+>   los negocios existentes hoy, verificado con test de regresión explícito.
+> - **Deuda registrada, no silenciosa:** un colaborador todavía ve/opera sobre todas las sucursales
+>   de su negocio — restringirlo a la suya queda para cuando se resuelva H-35 (roles por defecto), no
+>   antes. El filtro de sucursal honesto en el Dashboard (H-16) sigue sin resolver.
+>
+> El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** Cada negocio recibe exactamente una sucursal, llamada "Principal", creada junto con el
 negocio (`src/modules/identidad/repository.ts:213-221`). **No hay ninguna pantalla ni acción para
@@ -467,8 +492,12 @@ merma— no reciben el parámetro: sus funciones no lo aceptan en su firma. Ya e
 `reportes/ANCLA.md`.
 
 **Por qué importa.** Un filtro que se aplica a parte de la pantalla y a parte no, sin ninguna marca
-visual, produce lecturas cruzadas erróneas. Hoy el impacto real es nulo porque solo existe una
-sucursal (H-02) — pero si H-02 se resuelve, esto pasa a ser un defecto de datos.
+visual, produce lecturas cruzadas erróneas. Hasta el 2026-07-27 el impacto real era nulo porque solo
+existía una sucursal — **con H-02 corregido, un negocio ya puede tener varias sucursales de verdad,
+así que esto pasó de ser un riesgo hipotético a un defecto de datos activo.** No se corrigió en la
+misma tanda que H-02 — queda priorizado para la próxima, ver
+[07-sucursales-multiples.md](../auditoria-prelanzamiento/07-sucursales-multiples.md) sección "Estado
+de implementación".
 
 ---
 
@@ -918,17 +947,18 @@ Hay una propuesta de seis roles con su matriz en
 <a id="h-36"></a>
 ## H-36 🟡 Tres de los cuatro atributos del plan no tienen efecto
 
-**Qué pasa.** "Mi Plan" muestra cuatro atributos. Solo uno funciona:
+**Qué pasa.** "Mi Plan" muestra cuatro atributos. Dos funcionan de verdad hoy (actualizado
+2026-07-27, ver H-02):
 
 | Atributo | Estado |
 |---|---|
 | Qué información se puede compartir | ✅ Se valida de verdad — `consentimiento/actions.ts:406-415` rechaza los módulos fuera del plan. |
-| Múltiples sucursales | ❌ No hay forma de crear una sucursal (H-02). |
+| Múltiples sucursales | ✅ **Corregido (H-02).** `planes.maxSucursales` se valida server-side en `crearSucursal()`, con congelamiento automático en downgrade. |
 | Más de un dueño | ❌ No existe la acción de agregar un dueño (H-17). |
 | Bajar de plan por autogestión | ❌ No hay pantalla de cambio de plan en `/app`; siempre lo hace CEOM. |
 
-Se le muestran al dueño como características de lo que contrató. Tres de las cuatro son promesas que
-el producto no puede cumplir hoy.
+Se le muestran al dueño como características de lo que contrató. Dos de las cuatro siguen siendo
+promesas que el producto no puede cumplir hoy.
 
 ---
 

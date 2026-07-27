@@ -357,3 +357,12 @@ cae dentro del día local en Bolivia), así que no se migraron.
 20:00 del día anterior. Corregido, y las 8 filas ya cargadas reancladas por la migración `0043`.
 
 Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.
+
+## Última actualización: 2026-07-27 — H-02: `registrarVenta` rechaza una sucursal congelada por
+downgrade de plan. El chequeo se agregó al MISMO punto que ya validaba `input.sucursalId` contra el
+tenant (`actions.ts:444-452` — fix de auditoría de autorización previo), ANTES de crear la Venta —
+a propósito: `descontarStockVenta` (Productos) también rechaza una sucursal congelada, pero para
+entonces la Venta ya estaría creada (con snapshot y deuda del cliente generada), reproduciendo el
+gap de atomicidad cruzada ya documentado arriba en su peor forma. Sin cambios de schema ni de
+contrato — mismo mensaje de error que produce Productos. Ver
+`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
