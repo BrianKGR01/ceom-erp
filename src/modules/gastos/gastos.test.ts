@@ -14,6 +14,7 @@ import { crearCanalVenta, registrarVenta } from "@/modules/ventas/actions";
 import { canalesVenta, detallesVenta, ventas } from "@/modules/ventas/schema";
 import {
   actualizarGastoManual,
+  CATEGORIA_COMISION_VENTA,
   consultarDistribucionPorCategoria,
   consultarTotalCostosFijos,
   crearCategoriaGasto,
@@ -26,6 +27,7 @@ import {
   generarGastoComisionVenta,
   generarGastoCuotaPasivo,
   generarGastoDesdeRecurrente,
+  listarCategoriasGasto,
   registrarPagoGasto,
 } from "./actions";
 import { categoriasGasto, gastos, gastosRecurrentes, pagosGasto } from "./schema";
@@ -233,7 +235,7 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
   );
 
   it(
-    "regla: generarGastoComisionVenta crea el Gasto ya pagado a partir de una Venta real con comision",
+    "H-24: registrarVenta genera sola la comision como Gasto ya pagado, en su categoria propia",
     async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const canal = await crearCanalVenta(owner!, tenantId, {
@@ -265,12 +267,11 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
       if (!venta.ok) return;
       expect(venta.data.comisionMontoCalculado).toBe(20);
 
-      const gastoComision = await generarGastoComisionVenta(owner!, tenantId, {
-        ventaId: venta.data.ventaId,
-        categoriaId: categoriaServiciosId,
-      });
-      expect(gastoComision.ok).toBe(true);
-      if (!gastoComision.ok) return;
+      // El Gasto ya lo creo registrarVenta — nadie lo pide a mano (H-24).
+      const gastoComision = venta.data.gastoComision;
+      expect(gastoComision?.ok).toBe(true);
+      if (!gastoComision?.ok) return;
+      expect(gastoComision.data.monto).toBe(20);
 
       const ficha = await fichaGasto(owner!, gastoComision.data.gastoId);
       expect(ficha.ok).toBe(true);
@@ -278,10 +279,84 @@ describe.skipIf(!hasCredenciales)("Modulo 4 - Egresos y Gastos (integracion)", (
         expect(ficha.data.gasto?.origen).toBe("comision_venta_automatica");
         expect(Number(ficha.data.gasto?.monto)).toBe(20);
         expect(ficha.data.gasto?.estadoPago).toBe("pagado");
+        expect(ficha.data.gasto?.tipo).toBe("variable_no_productivo");
+        // referenciaId ata el gasto a la venta que lo origino.
+        expect(ficha.data.gasto?.referenciaId).toBe(venta.data.ventaId);
+      }
+
+      // La categoria se provisiono sola, sin que el Owner la creara (H-32).
+      const categorias = await listarCategoriasGasto(owner!, tenantId);
+      expect(categorias.ok).toBe(true);
+      if (categorias.ok) {
+        const comisiones = categorias.data.filter(
+          (c) => c.nombre === CATEGORIA_COMISION_VENTA
+        );
+        expect(comisiones).toHaveLength(1);
+        expect(comisiones[0].id).toBe(gastoComision.data.categoriaId);
+      }
+
+      // Una segunda venta reutiliza la misma categoria, no crea otra.
+      const venta2 = await registrarVenta(owner!, tenantId, {
+        sucursalId,
+        canalVentaId: canal.data.canalVentaId,
+        lineas: [{ productoId: producto.data.productoId, cantidad: 5 }], // total 100, comision 10
+      });
+      expect(venta2.ok).toBe(true);
+      if (!venta2.ok) return;
+      expect(venta2.data.gastoComision?.ok).toBe(true);
+      if (venta2.data.gastoComision?.ok) {
+        expect(venta2.data.gastoComision.data.monto).toBe(10);
+        expect(venta2.data.gastoComision.data.categoriaId).toBe(
+          gastoComision.data.categoriaId
+        );
       }
     },
     20000
   );
+
+  it("H-24: una venta por un canal sin comision no genera ningun Gasto", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const canal = await crearCanalVenta(owner!, tenantId, { nombre: "Local sin comisión" });
+    if (!canal.ok) throw new Error("setup fallo: crearCanalVenta");
+
+    const producto = await crearProducto(owner!, tenantId, {
+      nombre: "Gelato Pistacho",
+      unidadVenta: "unidad",
+      precioVenta: 30,
+    });
+    if (!producto.ok) throw new Error("setup fallo: crearProducto");
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId: producto.data.productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 5,
+      motivo: "Carga inicial",
+    });
+
+    const venta = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId: canal.data.canalVentaId,
+      lineas: [{ productoId: producto.data.productoId, cantidad: 2 }],
+    });
+    expect(venta.ok).toBe(true);
+    if (!venta.ok) return;
+    expect(venta.data.comisionMontoCalculado).toBeNull();
+    expect(venta.data.gastoComision).toBeNull();
+  });
+
+  it("H-24: generarGastoComisionVenta rechaza un monto que no puede ser un costo", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    for (const montoComision of [0, -50]) {
+      const resultado = await generarGastoComisionVenta(owner!, tenantId, {
+        ventaId: crypto.randomUUID(),
+        sucursalId,
+        montoComision,
+        fechaVenta: "2026-06-10",
+      });
+      expect(resultado.ok).toBe(false);
+      if (!resultado.ok) expect(resultado.error).toContain("mayor a 0");
+    }
+  });
 
   it("caso de uso 2 / caso borde 3: generarGastoDesdeRecurrente crea un Gasto editable; desactivar no borra el historico", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { crearClienteAdmin } from "@/lib/supabase/server";
@@ -17,7 +17,7 @@ import {
   solicitudesSeguimiento,
 } from "@/modules/consentimiento/schema";
 import { crearGastoManual, crearCategoriaGasto } from "@/modules/gastos/actions";
-import { categoriasGasto, gastos } from "@/modules/gastos/schema";
+import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -86,7 +86,6 @@ describe.skipIf(!hasCredenciales)(
     let canalVentaId: string;
     let ventaId: string;
     let categoriaGastoId: string;
-    let gastoId: string;
     let activoId: string;
     let insumoId: string;
     let recetaId: string;
@@ -178,8 +177,14 @@ describe.skipIf(!hasCredenciales)(
 
       // Venta real: ingresos = precioVenta(20) x cantidad(2) = 40; costos =
       // costoUnitarioSnapshot(10) x 2 = 20. Sin pagoInicial a propósito —
-      // mantiene pagosVenta en 0 para que flujoCaja siga dando exactamente
-      // -100 (el mismo valor ya establecido en panel-admin-ceom.test.ts).
+      // mantiene pagosVenta en 0.
+      //
+      // El canal cobra 10%, así que la venta genera además su Gasto de
+      // comisión: 10% de 40 = 4, ya pagado el 2025-06-02 (H-24). Eso mueve
+      // los dos agregados de Financiero, y a propósito: es la prueba de que
+      // la comisión llega al resultado y a la caja, no solo a la Venta.
+      //   flujoCaja        = pagosVenta(0) - pagosCompra(100) - pagosGasto(4) = -104
+      //   estadoResultados = 40 - 20 - (15 + 4) + 0 = 1
       const canal = await crearCanalVenta(owner!, tenantId, {
         nombre: "Feria",
         porcentajeComisionDefault: 10,
@@ -196,7 +201,8 @@ describe.skipIf(!hasCredenciales)(
       if (!venta.ok) throw new Error("setup fallo: registrarVenta");
       ventaId = venta.data.ventaId;
 
-      // Gasto fijo real: costoFijoTotal = 15; estadoResultados = 40 - 20 - 15 + 0 = 5.
+      // Gasto fijo real: costoFijoTotal = 15 (la comisión es
+      // variable_no_productivo, no entra acá).
       const categoriaGasto = await crearCategoriaGasto(owner!, tenantId, {
         nombre: `Categoria Monitoreo Test ${sufijo}`,
       });
@@ -210,7 +216,6 @@ describe.skipIf(!hasCredenciales)(
         fechaGasto: "2025-06-01",
       });
       if (!gasto.ok) throw new Error("setup fallo: crearGastoManual");
-      gastoId = gasto.data.gastoId;
 
       // --- Operativo/Nicho-1 (detalleOperativo, detalleInventarioOperativo) ---
       // Mismo escenario determinista que operativo-nicho1.test.ts: receta de
@@ -326,8 +331,17 @@ describe.skipIf(!hasCredenciales)(
               await db.delete(activos).where(eq(activos.tenantId, tenantId));
             },
             async () => {
-              await db.delete(gastos).where(eq(gastos.id, gastoId));
-              await db.delete(categoriasGasto).where(eq(categoriasGasto.id, categoriaGastoId));
+              // Tenant-wide, no por id: con H-24 la venta genera además su
+              // Gasto de comisión (ya pagado, así que pagos_gasto sale
+              // primero) en una categoría autoprovisionada que este archivo
+              // no conoce por id.
+              const gastoIds = db
+                .select({ id: gastos.id })
+                .from(gastos)
+                .where(eq(gastos.tenantId, tenantId));
+              await db.delete(pagosGasto).where(inArray(pagosGasto.gastoId, gastoIds));
+              await db.delete(gastos).where(eq(gastos.tenantId, tenantId));
+              await db.delete(categoriasGasto).where(eq(categoriasGasto.tenantId, tenantId));
             },
             async () => {
               await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
@@ -386,12 +400,14 @@ describe.skipIf(!hasCredenciales)(
       expect(financiero.data.autorizado).toBe(true);
       if (!financiero.data.autorizado) return;
       // Valores reales, no `typeof` (§10.6/§13.11 del backstop de RLS —
-      // exactamente el hallazgo que este assert dejaba pasar en verde):
-      // flujoCaja = pagosVenta(0) - pagosCompra(100) - pagosGasto(0) = -100;
-      // estadoResultados = ingresos(40) - costos(20) - gastos(15) + ajustesVenta(0) = 5;
-      // costoFijoTotal = 15 (el único gasto sembrado es tipo "fijo").
-      expect(financiero.data.detalle.flujoCaja).toBe(-100);
-      expect(financiero.data.detalle.estadoResultados).toBe(5);
+      // exactamente el hallazgo que este assert dejaba pasar en verde). Los
+      // dos primeros incluyen la comisión de canal del 10% que la venta
+      // genera sola como Gasto ya pagado (H-24), ver el setup:
+      // flujoCaja = pagosVenta(0) - pagosCompra(100) - pagosGasto(4) = -104;
+      // estadoResultados = ingresos(40) - costos(20) - gastos(15 + 4) + ajustesVenta(0) = 1;
+      // costoFijoTotal = 15 (la comisión es variable, no fija).
+      expect(financiero.data.detalle.flujoCaja).toBe(-104);
+      expect(financiero.data.detalle.estadoResultados).toBe(1);
       expect(financiero.data.detalle.costoFijoTotal).toBe(15);
 
       const tendencia = await tendenciaVentas(institucionId, tenantId, periodo);

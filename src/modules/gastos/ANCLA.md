@@ -11,8 +11,9 @@
 - Entradas que consume: `tienePermiso()` de Identidad (gate por
   `"costos_gastos"` × acción — **ya existía** en el catálogo de Identidad,
   sin cambios de enum). `registrarPagoPasivo()` de Patrimonio (Módulo 5,
-  con `origen: "automatico"`) y `fichaVenta()` de Ventas (Módulo 3) — ambos
-  caja negra vía `actions.ts`, **wiring real, no stubs**. `tenants`/
+  con `origen: "automatico"`) — caja negra vía `actions.ts`, **wiring real,
+  no stubs**. **Ya NO consume `fichaVenta()` de Ventas** (ver H-24 abajo):
+  la flecha con Ventas quedó en un solo sentido, Ventas → Gastos. `tenants`/
   `sucursales` de Identidad y `proveedores` de Proveedores para FKs
   (dirección esperada). **Reutiliza el enum `frecuencia_cuota` de
   Patrimonio** (import directo del tipo Postgres, no una copia).
@@ -39,9 +40,23 @@
       verdad a `registrarPagoPasivo(..., origen: "automatico")` —
       decrementa el saldo real del Pasivo. Verificado con test que confirma
       el saldo antes/después.
-- [x] **`generarGastoComisionVenta` cierra un pendiente real de Ventas**:
-      lee `comisionMontoCalculado` vía `fichaVenta()` y crea el `Gasto` ya
-      pagado con ese monto exacto.
+- [x] **`generarGastoComisionVenta` ya tiene llamador real (H-24)**: la
+      llama `registrarVenta()` de Ventas al confirmar la venta (Módulo_03
+      regla 5 / sección 4.3). Antes no la llamaba nadie fuera de los tests y
+      la comisión no llegaba al estado de resultados — el negocio se veía
+      más rentable de lo real, en silencio. **Cambio de contrato de esta
+      tarea:** recibe `{ventaId, sucursalId, montoComision, fechaVenta,
+      categoriaId?}` en vez de releer la venta con `fichaVenta()` (esa
+      lectura creaba un ciclo Ventas↔Gastos), y **gatea por `ventas:crear`,
+      no por `costos_gastos:crear`** — la comisión es la consecuencia
+      automática de una venta ya autorizada, y pedir el permiso de gastos
+      haría que un vendedor sin él perdiera la comisión en silencio. Rechaza
+      montos ≤ 0: una comisión solo puede restar (lección de H-30).
+- [x] **Categoría autoprovisionada** `CATEGORIA_COMISION_VENTA`
+      ("Comisiones de venta") — get-or-create por tenant la primera vez que
+      hace falta, reutilizando la del Owner si ya existe con ese nombre. Sin
+      esto la comisión dependía de que alguien hubiera creado una categoría
+      antes (H-32).
 - [x] Regla 2 / caso borde 1: `actualizarGastoManual`/`eliminarGastoManual`
       rechazan sobre cualquier gasto de `origen ≠ manual` — verificado
       contra un gasto real generado por `generarGastoCuotaPasivo`.
@@ -99,10 +114,15 @@
   asumir que ya está resuelto"). Si se agrega un valor nuevo a este enum en
   el futuro, afecta a AMBOS módulos (`ALTER TYPE` aislado, mismo patrón que
   siempre) — no asumir que es un enum privado de Gastos.
-- **`generarGastoComisionVenta` recibe `categoriaId` como parámetro
-  obligatorio** — no autogenera ni busca una categoría reservada
-  "Comisiones". El doc no especifica qué categoría usar; inventar una regla
-  de negocio no pedida (nombre fijo, autocreación) se descartó a propósito.
+- **`generarGastoComisionVenta` autoprovisiona su categoría** (`categoriaId`
+  pasó a ser opcional). La decisión original de esta línea era la inversa
+  —parámetro obligatorio, sin nombre fijo ni autocreación— y se revirtió al
+  cerrar H-24: con `categoriaId` obligatorio, el disparo automático desde
+  `registrarVenta()` no tenía de dónde sacarlo, y hacer que el Owner creara
+  una categoría antes de poder vender por un canal con comisión reintroducía
+  H-32. El nombre fijo es el precio de que la comisión llegue sola al
+  resultado; si el Owner ya tiene una categoría con ese nombre, se reutiliza
+  en vez de duplicarla. `categoriaId` explícito sigue soportado y gana.
 - **Los gastos generados desde `GastoRecurrente` llevan `origen="manual"`**,
   no un cuarto valor de enum — decisión del plan de esta tarea: a
   diferencia de la cuota de pasivo o la comisión de venta (que sí
@@ -111,12 +131,13 @@
   una corrección puntual de un mes específico sin tocar la plantilla — se
   comporta como cualquier gasto manual editable (regla 3), y por eso
   también sigue el ciclo normal de `Pago de Gasto` (no nace pagado).
-- **`generarGastoCuotaPasivo`/`generarGastoComisionVenta` reciben el
-  monto/pasivoId/ventaId ya resueltos por el llamador** — no intentan
-  releer todos los datos desde Patrimonio/Ventas internamente, porque
-  ninguno de los dos expone una consulta pública de "un Pasivo individual
-  por id" (`consultarPasivoDeActivo` es por `activoId`, no por `pasivoId`).
-  El llamador ya tuvo que consultar el módulo de origen antes.
+- **`generarGastoCuotaPasivo`/`generarGastoComisionVenta` reciben los datos
+  ya resueltos por el llamador** — no releen Patrimonio/Ventas
+  internamente. En Patrimonio, porque no expone una consulta pública de "un
+  Pasivo individual por id" (`consultarPasivoDeActivo` es por `activoId`).
+  En Ventas, porque quien dispara la comisión **es** `registrarVenta()`, que
+  ya tiene el monto en la mano: ir a buscarlo de vuelta con `fichaVenta()`
+  ataba Gastos → Ventas y cerraba un ciclo entre los dos módulos (H-24).
 - **`registrarPagoGasto` rechaza sobre gastos de origen automático** — no
   está explícitamente prohibido por el doc, pero es coherente con la regla
   6 (ya nacen pagados por el monto completo) y con la regla 2 (no se toca

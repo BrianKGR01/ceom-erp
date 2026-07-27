@@ -58,6 +58,27 @@ export async function listarCategoriasGastoPorTenant(tenantId: string) {
     .where(and(eq(categoriasGasto.tenantId, tenantId), isNull(categoriasGasto.eliminadoEn)));
 }
 
+/** Busqueda por nombre exacto dentro del tenant — insumo del get-or-create
+ * de la categoria de comisiones (ver obtenerOCrearCategoriaComisionVenta en
+ * actions.ts). Si hay mas de una con el mismo nombre devuelve la primera:
+ * el nombre no es unico en la tabla y el usuario puede crear la suya a mano
+ * con el mismo texto. */
+export async function obtenerCategoriaGastoPorNombre(tenantId: string, nombre: string) {
+  const filas = await db
+    .select()
+    .from(categoriasGasto)
+    .where(
+      and(
+        eq(categoriasGasto.tenantId, tenantId),
+        eq(categoriasGasto.nombre, nombre),
+        isNull(categoriasGasto.eliminadoEn)
+      )
+    )
+    .orderBy(asc(categoriasGasto.id))
+    .limit(1);
+  return filas[0] ?? null;
+}
+
 // --- Categorias de Gasto Sugeridas (catalogo global) ---------------------------------------------------------
 
 export async function listarCategoriasGastoSugeridas(

@@ -209,9 +209,9 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Patrimonio / Activos | — | Capacidad Operativa |
 | Proveedores / Compras | Insumos (Nicho 1), Productos (Módulo 2) — FK real de `Compra.insumoId`/`productoId` | Inventario Operativo (`registrarEntradaCompraInsumo`), Productos e Inventario (`registrarEntradaCompraReventa`), Financiero — **caller real desde roadmap ítem #12**, no solo teórico |
 | Nicho 4 (`src/modules/operativo/nichos/nicho-4/`) | Patrimonio (`consultarCapacidad`), Productos e Inventario (`consultarStockTotalPorSucursal`), Operativo Nicho 1 (`calcularPorcentajeCapacidadUsada`, pura) | — |
-| Ventas | Productos e Inventario | Clientes, Costos y Gastos (comisión automática), Financiero |
+| Ventas | Productos e Inventario, **Costos y Gastos** (`generarGastoComisionVenta` — la venta dispara su comisión al confirmarse, H-24) | Clientes, Financiero |
 | Clientes | Ventas (evento) | — |
-| Egresos y Gastos | Proveedores (opcional, ficha) | Financiero |
+| Egresos y Gastos | Proveedores (opcional, ficha) | Financiero, **Ventas** (comisión automática — al cerrar H-24 la flecha con Ventas quedó en un solo sentido: Gastos ya no lee la Venta con `fichaVenta()`, la recibe) |
 | Financiero | Ventas, Gastos, Proveedores/Compras | Gateway de Consentimiento |
 | Gateway de Consentimiento | — | Monitoreo Institucional, Panel Admin CEOM |
 | Monitoreo Institucional (`src/modules/monitoreo-institucional/`) | Gateway (`tieneConsentimiento`, `listarCarteraPropia`), Identidad (`obtenerTenantParaVeedor`, `solicitanteGateway`), Financiero, Ventas, Operaciones (mediado por Gateway) | — |

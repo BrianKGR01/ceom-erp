@@ -307,4 +307,92 @@ describe.skipIf(!hasCredenciales)("Modulo 7 - Financiero (integracion)", () => {
       expect(resultadosSinFiltro.data.ingresos).toBeGreaterThan(resultadosFiltrados.data.ingresos);
     }
   });
+
+  // --- H-24: la comision de canal llega al resultado ---------------------
+  // Ventana propia (septiembre) para poder afirmar valores EXACTOS y no
+  // "mayor o igual": el resto del archivo siembra en junio, y los
+  // ajustes_venta que siembra usan creado_en = hoy (defaultNow, sin
+  // parametro para forzarlo), que tampoco cae en septiembre. Producto y
+  // canal propios por la misma razon.
+  //
+  // Este es el test que tiene que ponerse rojo si la comision se
+  // desconecta: verificado a mano quitando la llamada a
+  // generarGastoComisionVenta en registrarVenta — gastos pasa de 30 a 0 y
+  // el resultado de 60 a 90.
+  it("H-24: la comisión del canal resta en el estado de resultados y sale en la caja", async () => {
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+    const periodoComision = { desde: "2026-09-01", hasta: "2026-09-30" };
+
+    const canalConComision = await crearCanalVenta(owner!, tenantId, {
+      nombre: "Marketplace",
+      porcentajeComisionDefault: 20,
+    });
+    if (!canalConComision.ok) throw new Error("setup fallo: crearCanalVenta");
+
+    const productoComision = await crearProducto(owner!, tenantId, {
+      nombre: "Gelato Comisión",
+      unidadVenta: "unidad",
+      precioVenta: 50,
+      costoOperativoVigente: 20,
+    });
+    if (!productoComision.ok) throw new Error("setup fallo: crearProducto");
+    await registrarAjusteManualStock(owner!, tenantId, {
+      productoId: productoComision.data.productoId,
+      sucursalId,
+      tipo: "entrada_ajuste_manual",
+      cantidad: 10,
+      motivo: "Carga inicial comisión",
+    });
+
+    // Septiembre arranca vacío — la línea base contra la que se mide todo.
+    const antes = await estadoResultados(owner!, tenantId, periodoComision);
+    expect(antes.ok).toBe(true);
+    if (!antes.ok) return;
+    expect(antes.data.ingresos).toBe(0);
+    expect(antes.data.costos).toBe(0);
+    expect(antes.data.gastos).toBe(0);
+    expect(antes.data.estadoResultados).toBe(0);
+
+    const venta = await registrarVenta(owner!, tenantId, {
+      sucursalId,
+      canalVentaId: canalConComision.data.canalVentaId,
+      fechaVenta: "2026-09-10",
+      lineas: [{ productoId: productoComision.data.productoId, cantidad: 3 }],
+    });
+    expect(venta.ok).toBe(true);
+    if (!venta.ok) return;
+
+    // Cuentas a mano, con el canal al 20%:
+    //   ingresos = 3 x 50 = 150
+    //   costos   = 3 x 20 = 60
+    //   comisión = 20% de 150 = 30  -> Gasto variable_no_productivo, ya pagado
+    //   resultado = 150 - 60 - 30 = 60
+    // Sin la comisión conectada el resultado daría 90: un 50% más de
+    // ganancia que la real, que es exactamente el defecto H-24.
+    expect(venta.data.comisionMontoCalculado).toBe(30);
+    expect(venta.data.gastoComision?.ok).toBe(true);
+    if (venta.data.gastoComision?.ok) {
+      expect(venta.data.gastoComision.data.monto).toBe(30);
+    }
+
+    const despues = await estadoResultados(owner!, tenantId, periodoComision);
+    expect(despues.ok).toBe(true);
+    if (!despues.ok) return;
+    expect(despues.data.ingresos).toBe(150);
+    expect(despues.data.costos).toBe(60);
+    expect(despues.data.gastos).toBe(30);
+    expect(despues.data.ajustesVenta).toBe(0);
+    expect(despues.data.estadoResultados).toBe(60);
+
+    // El gasto de comisión nace pagado (regla 6 de Módulo 4), así que la
+    // plata sale el mismo día: la venta no se cobró todavía, así que el
+    // flujo de caja de septiembre es exactamente la comisión, en negativo.
+    const caja = await flujoCaja(owner!, tenantId, periodoComision);
+    expect(caja.ok).toBe(true);
+    if (!caja.ok) return;
+    expect(caja.data.pagosVenta).toBe(0);
+    expect(caja.data.pagosCompra).toBe(0);
+    expect(caja.data.pagosGasto).toBe(30);
+    expect(caja.data.flujoCaja).toBe(-30);
+  });
 });

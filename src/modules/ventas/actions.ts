@@ -5,6 +5,11 @@ import {
   tienePermiso,
 } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
+// Ventas -> Gastos, en un solo sentido: la venta genera su comision al
+// confirmarse (Modulo_03 regla 5 / seccion 4.3, "salidas hacia Costos &
+// Gastos"). Gastos ya no lee Ventas de vuelta — ver el comentario de
+// generarGastoComisionVenta sobre por que se invirtio esa flecha.
+import { generarGastoComisionVenta } from "@/modules/gastos/actions";
 import {
   consultarCostoOperativo,
   consultarPrecioVenta,
@@ -407,9 +412,10 @@ export interface DatosVenta {
 /**
  * Registra la venta: snapshot doble por linea, descuenta stock real en
  * Productos e Inventario, calcula y persiste la comision (por evento o por
- * canal), y opcionalmente registra el primer pago. El descuento de stock
- * ocurre DESPUES de confirmar la Venta (necesita su id como referencia) —
- * mismo gap de atomicidad cruzada ya documentado y aceptado en Modulo 6.
+ * canal) **y la convierte en el Gasto que le corresponde**, y opcionalmente
+ * registra el primer pago. El descuento de stock ocurre DESPUES de
+ * confirmar la Venta (necesita su id como referencia) — mismo gap de
+ * atomicidad cruzada ya documentado y aceptado en Modulo 6.
  */
 export async function registrarVenta(
   solicitante: UsuarioConRol,
@@ -420,6 +426,7 @@ export async function registrarVenta(
     ventaId: string;
     totalVenta: number;
     comisionMontoCalculado: number | null;
+    gastoComision: Awaited<ReturnType<typeof generarGastoComisionVenta>> | null;
     descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>>;
   }>
 > {
@@ -546,9 +553,33 @@ export async function registrarVenta(
     });
   }
 
+  // H-24: hasta acá la comisión se calculaba, se guardaba en la Venta y no
+  // llegaba a ningún lado — el negocio veía una ganancia mayor que la real,
+  // sin ninguna señal. Ahora se convierte en un Gasto real, que es el único
+  // camino por el que un costo llega al estado de resultados y al flujo de
+  // caja. Igual que el descuento de stock: fuera de la transacción de la
+  // Venta (mismo gap de atomicidad cruzada aceptado), y su fallo NO anula
+  // la venta — se devuelve para que el llamador lo muestre como aviso, en
+  // vez de perder la venta entera por un gasto que se puede recargar.
+  let gastoComision: Awaited<ReturnType<typeof generarGastoComisionVenta>> | null = null;
+  if (comisionMontoCalculado !== null && comisionMontoCalculado > 0) {
+    gastoComision = await generarGastoComisionVenta(solicitante, tenantId, {
+      ventaId: venta.id,
+      sucursalId: input.sucursalId,
+      montoComision: comisionMontoCalculado,
+      fechaVenta,
+    });
+  }
+
   return {
     ok: true,
-    data: { ventaId: venta.id, totalVenta, comisionMontoCalculado, descuentosStock },
+    data: {
+      ventaId: venta.id,
+      totalVenta,
+      comisionMontoCalculado,
+      gastoComision,
+      descuentosStock,
+    },
   };
 }
 
