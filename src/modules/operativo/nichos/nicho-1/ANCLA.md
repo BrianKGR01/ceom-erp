@@ -126,6 +126,12 @@
   real (rol `postgres`, bypassea RLS), mismo criterio que los demás módulos.
   Dos tests (insumo insuficiente y producción de ajuste) necesitan
   `20000`ms de timeout explícito por las mismas razones que en Módulo 2.
+- **`requireSucursalOperable()` (H-02, 2026-07-27) — freeze de sucursal
+  también acá.** `sucursalId` es `NOT NULL` en los cuatro escritores de este
+  módulo (a diferencia de Patrimonio/Gastos), así que el chequeo se llama
+  siempre: `registrarEntradaCompraInsumo`, `registrarAjusteManualInsumo`,
+  `registrarMermaAlmacenamiento` y `registrarProduccion` rechazan si la
+  sucursal está congelada.
 
 - **Nicho 4 (roadmap ítem #12) ya existe** en
   `src/modules/operativo/nichos/nicho-4/` — pero NO es un espejo completo:
@@ -138,6 +144,14 @@
   porque el dominio de ambos nichos no tiene el mismo shape — decisión
   confirmada explícitamente con el usuario antes de implementar Nicho 4, no
   un desvío silencioso.
+
+## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
+`requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarEntradaCompraInsumo`/
+`registrarAjusteManualInsumo`/`registrarMermaAlmacenamiento`/`registrarProduccion`. Antes del cierre
+de esta tanda, una sucursal congelada por downgrade de plan rechazaba escritura en Productos/Ventas
+pero la aceptaba acá — modo de falla silencioso señalado en la revisión del usuario antes de mergear
+H-02. Test nuevo en `operativo-nicho1.test.ts`. Sin cambio de contrato — ninguna firma cambió, solo
+se agregó un rechazo temprano.
 
 ## Última actualización: 2026-07-17 (2) — Tanda de UI completa: Nicho 1, 10/10 pantallas — módulo cerrado
 Todas las pantallas del contrato (`docs/ui/pantallas.md` sección 6) construidas y verificadas

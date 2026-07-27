@@ -15,7 +15,7 @@ import {
   registrarAjusteManualInsumo,
   registrarEntradaCompraInsumo,
 } from "@/modules/operativo/nichos/nicho-1/actions";
-import { tienePermiso } from "@/modules/identidad/actions";
+import { listarSucursalesPorTenant, tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import {
   consultarStock,
@@ -172,6 +172,33 @@ export async function fichaProveedor(
       },
     };
   });
+}
+
+/**
+ * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio/Gastos
+ * (H-02, completando el freeze en los 6 módulos que escriben con
+ * sucursal_id — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+ * sección 6.3 hueco 6). `compras.sucursalId` es `NOT NULL` acá (a diferencia
+ * de Patrimonio/Gastos) — se llama siempre, sin atajo de null.
+ */
+async function requireSucursalOperable(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string
+): Promise<{ ok: false; error: string } | null> {
+  const res = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!res.ok) return { ok: false, error: res.error };
+  const sucursal = res.data.find((s) => s.id === sucursalId);
+  if (!sucursal) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  if (sucursal.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede operar en ella.",
+    };
+  }
+  return null;
 }
 
 // --- Compras ---------------------------------------------------------
@@ -346,6 +373,8 @@ export async function registrarCompra(
   if (input.tipo === "reventa" && (!input.productoId || input.insumoId)) {
     return { ok: false, error: "Para una compra de reventa tenés que elegir un producto, no un insumo." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   return comoUsuario(solicitante.id, async (tx) => {
     // Si se indica proveedor, debe ser del tenant — sin esto la compra
@@ -415,6 +444,13 @@ export async function recibirCompra(
     if (compra.estado === "recibido") {
       return { ok: false, error: "Esta compra ya está recibida." };
     }
+    // Chequeo temprano, antes de marcar la compra como "recibido" — si la
+    // sucursal se congeló DESPUÉS de crear la compra (estado "pedido"),
+    // esto evita el estado parcial "recibido pero sin entrada de stock"
+    // (gap de atomicidad cruzada ya documentado y aceptado, no hay que
+    // sumarle un caso más).
+    const sucursalOperable = await requireSucursalOperable(solicitante, compra.tenantId, compra.sucursalId);
+    if (sucursalOperable) return sucursalOperable;
 
     const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
     const compraRecibida = await repo.marcarCompraRecibida(tx, compraId, fecha);

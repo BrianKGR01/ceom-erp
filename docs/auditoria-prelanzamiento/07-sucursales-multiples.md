@@ -24,7 +24,26 @@ Principal nunca se congela), las 3 acciones de Panel Admin CEOM (Desbloquear/Con
 cumplir el freeze) y el mismo chequeo en `registrarVenta`. Detalle completo en
 `identidad/ANCLA.md`, `suscripcion/ANCLA.md`, `productos/ANCLA.md`, `ventas/ANCLA.md`.
 
-**Deliberadamente NO implementado en esta tanda** (deuda registrada, no silenciosa):
+**Segunda tanda (2026-07-27, mismo día) — cobertura de freeze completada en los 6 módulos.** La
+primera tanda dejaba el freeze aplicado solo en Productos y Ventas; una sucursal congelada seguía
+aceptando escritura en Patrimonio, Gastos, Proveedores y Operativo Nicho 1 — un "solo-lectura" que
+era falso en cuatro de seis módulos, señalado como modo de falla silencioso antes de mergear (no una
+feature faltante: una regla de seguridad con agujeros). Se extendió `requireSucursalOperable()` (o
+su variante local) a los 8 escritores restantes que reciben `sucursalId`: `crearActivo`/
+`actualizarActivo`/`transferirActivo` (Patrimonio), `crearGastoManual`/`actualizarGastoManual`/
+`crearGastoRecurrente`/`actualizarGastoRecurrente`/`generarGastoDesdeRecurrente` (Gastos —
+`generarGastoCuotaPasivo`/`generarGastoComisionVenta` no reciben `sucursalId` del llamador, no
+aplica), `registrarCompra`/`recibirCompra` (Proveedores) y `registrarEntradaCompraInsumo`/
+`registrarAjusteManualInsumo`/`registrarMermaAlmacenamiento`/`registrarProduccion` (Operativo
+Nicho 1). Cada módulo tiene ahora un test de integración que rompe deliberadamente sobre una
+sucursal congelada y confirma que la misma operación pasa sobre una operable; el chequeo de
+Proveedores se rompió a propósito (`if (false && ...)`) para confirmar que el test lo atrapa, luego
+se revirtió. Detalle por módulo en `patrimonio/ANCLA.md`, `gastos/ANCLA.md`, `proveedores/ANCLA.md`,
+`operativo/nichos/nicho-1/ANCLA.md`. Sin cambios de contrato — ninguna firma pública cambió, solo se
+agregó un rechazo temprano en cada escritor.
+
+**Deliberadamente NO implementado** (deuda registrada, no silenciosa — confirmado con el usuario
+que ambos son features faltantes, no agujeros de seguridad, y quedan fuera de alcance):
 - **Etapa 5 de este documento (§8), autorización por sucursal (Track B de §4):** `usuarios.sucursalId`
   existe en el schema pero ningún módulo filtra por ella. Se activa junto con el modelo de roles por
   defecto (H-35/D3 de [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md)) — ver la anotación
@@ -34,11 +53,51 @@ cumplir el freeze) y el mismo chequeo en `registrarVenta`. Detalle completo en
   son dos cosas distintas que comparten número por casualidad) — ninguno de los dos es nuevo de esta
   tanda ni lo agrava el alcance implementado (el freeze no habilita traspasos automáticos entre
   sucursales para un usuario común más allá de lo que ya existía).
-- Cobertura de freeze en Patrimonio, Gastos, Proveedores y Operativo Nicho 1 — solo Productos y
-  Ventas lo hacen cumplir en esta tanda (eran los dos flujos de escritura pedidos explícitamente:
-  stock y ventas). Ver riesgo anotado en `identidad/ANCLA.md`.
 - Agregaciones por sucursal (Etapa 4 original del plan de §8: `costoFijoTotal`/`margenPorProducto`,
-  reportes de Ventas/Gastos/Compras) — no se tocaron, siguen consolidando todo el tenant.
+  reportes de Ventas/Gastos/Compras) — no se tocaron, siguen consolidando todo el tenant. Ver el
+  detalle de qué significa esto en la práctica (vista consolidada vs. filtro que no filtra) en la
+  sección "Respuesta: Financiero/Reportes y sucursal" más abajo.
+
+### Respuesta: Financiero/Reportes y sucursal — ¿vista consolidada o filtro que no filtra?
+
+Las dos cosas coexisten, en pantallas distintas, y conviene separarlas:
+
+**Filtro que SÍ filtra (mayoría de los casos verificados).** El selector de sucursal en
+`/app/reportes` (Resumen Financiero) y en `/app` (Dashboard) pasa `sucursalId` hasta el SQL real:
+`estadoResultados`/`flujoCaja` (`financiero/actions.ts`) delegan en `consultarIngresosPeriodo`
+(Ventas), `consultarTotalGastosEnPeriodo` (Gastos) y `consultarPagosCompraEnPeriodo`/
+`consultarCostoExtraAjustesCompraEnPeriodo` (Proveedores), y las cuatro aplican
+`eq(tabla.sucursalId, opts.sucursalId)` de verdad en el `WHERE` (`ventas/repository.ts:343`,
+`gastos/repository.ts:325,351`, `proveedores/repository.ts:326,383`). Elegir una sucursal en el
+selector de "Estado de Resultados"/"Flujo de Caja" muestra los números de esa sucursal, no de todas.
+
+**Filtro que NO filtra (peligroso, ya documentado como H-16, agravado por H-02).** El Dashboard de
+Inicio (`/app`) tiene el mismo selector de sucursal, pero solo llega a 2 de sus 5 tarjetas —
+Ranking de productos, Gastos por categoría y Control de merma **no reciben el parámetro en su firma
+en absoluto** (`H-16` en `docs/manual/hallazgos.md`, ya registrado antes de esta tanda). Hasta hoy
+el impacto real era nulo porque solo existía una sucursal por tenant; **con H-02 ya mergeado, un
+negocio puede tener varias de verdad, así que este defecto pasa de riesgo hipotético a poder mostrar
+en pantalla el ranking/gastos/merma de TODO el negocio mientras el usuario cree que está viendo solo
+la sucursal que eligió** — sin ninguna marca visual que lo diferencie de las dos tarjetas que sí
+filtran.
+
+**Instancia nueva del mismo patrón, encontrada al responder esta pregunta (no estaba en H-16, que
+solo cubre el Dashboard de Inicio):** en `/app/reportes` (Resumen Financiero), la tarjeta "Valor
+patrimonial total" tiene el mismo problema. `consultarValorPatrimonialTotal()`
+(`patrimonio/actions.ts:212`) no acepta `sucursalId` — es intrínsecamente tenant-wide, un activo no
+tiene por qué pertenecer a la sucursal que se esté mirando — y en
+`resumen-financiero-cliente.tsx:84-94`, `recargar()` solo vuelve a pedir `estado` y `flujo` cuando
+cambia el selector; `patrimonio` se queda con el valor inicial (todo el tenant) para siempre, en la
+misma pantalla donde Estado de Resultados y Flujo de Caja sí cambian. No se corrigió en esta tanda
+— el alcance acordado fue cerrar el freeze, no las agregaciones por sucursal.
+
+**Conclusión para decidir alcance:** ninguna de las dos filtra otra sucursal *como si fuera la
+elegida* (no hay fuga cruzada de datos con nombre equivocado) — el problema es que una parte de cada
+pantalla ignora el selector y sigue mostrando el total del negocio sin decirlo. Es menos grave que
+un filtro que muestra sucursal B etiquetada como sucursal A, pero sigue siendo un número mal leído
+sin ninguna señal, y el 2026-07-27 dejó de ser hipotético. Registrado como deuda (H-16 ya existía;
+la instancia de "Valor patrimonial total" queda anotada acá, sin hallazgo propio nuevo salvo que se
+pida). Fuera del alcance acordado para este merge — el usuario decide si entra en la próxima tanda.
 
 ---
 

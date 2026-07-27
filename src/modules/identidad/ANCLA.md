@@ -614,16 +614,19 @@
   congelan las primeras `candidatas.length - max(0, maxSucursalesNuevoPlan - 1)`.
   La Principal está excluida por diseño de la consulta (`esPrincipal =
   false`), nunca por un chequeo posterior — no hay forma de que se cuele.
-- **H-02 — el freeze bloquea escritura en Productos (`requireSucursalOperable`)
-  y en Ventas (`registrarVenta`), pero NO todavía en Patrimonio, Gastos,
-  Proveedores ni Operativo Nicho 1.** Cubre los dos flujos de escritura más
-  críticos y los que pedía la verificación explícita de esta tarea (venta
-  descontando stock). Extender la cobertura a los demás módulos queda
-  documentado como trabajo pendiente, no silencioso — ver
-  `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 6.3
-  hueco 6 (mismo riesgo ya señalado ahí: si no se engancha en todos los
-  módulos que escriben con `sucursal_id`, el freeze corre el riesgo de
-  quedar tan decorativo como `activa` hoy).
+- **H-02 — el freeze bloquea escritura en los 6 módulos que escriben con
+  `sucursal_id` (2026-07-27, cerrado en dos tandas el mismo día).** La
+  primera tanda cubrió Productos (`requireSucursalOperable`) y Ventas
+  (`registrarVenta`) — los dos flujos que pedía la verificación explícita
+  de esa tarea. Antes de mergear, la revisión encontró exactamente el
+  riesgo ya señalado acá abajo: el freeze quedaba decorativo en cuatro de
+  seis módulos — una sucursal congelada rechazaba venta y movimiento de
+  stock, pero seguía aceptando alta de Activo, Gasto, Compra y movimiento
+  de Insumo/Producción, así que el negocio seguía operando en la sucursal
+  que perdió con el plan. Se cerró en la segunda tanda extendiendo
+  `requireSucursalOperable()` (o su variante local) a Patrimonio, Gastos,
+  Proveedores y Operativo Nicho 1 — ver el `ANCLA.md` de cada uno. Freeze
+  hoy cubre los 6 módulos, sin excepción.
 
 ## Última actualización: 2026-07-27 — H-02: ABM de sucursales, tope de plan (`max_sucursales`) y
 freeze atómico en downgrade. **Cambio de contrato:** `cambiarPlanTenant` devuelve

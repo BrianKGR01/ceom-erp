@@ -29,6 +29,7 @@ import {
   listarMovimientosInsumo,
   registrarAjusteManualInsumo,
   registrarEntradaCompraInsumo,
+  registrarMermaAlmacenamiento,
   registrarProduccion,
   registrarProduccionDeAjuste,
   vincularProductoAReceta,
@@ -58,6 +59,7 @@ describe.skipIf(!hasCredenciales)(
     let ownerId: string;
     let colaboradorId: string | undefined;
     let sucursalId: string;
+    let sucursalDosId: string;
     let activoId: string;
     let insumoLecheId: string;
     let recetaId: string;
@@ -88,6 +90,12 @@ describe.skipIf(!hasCredenciales)(
       });
       tenantId = tenant.id;
       sucursalId = sucursal.id;
+
+      const [sucursalDos] = await db
+        .insert(sucursales)
+        .values({ tenantId, nombre: `Sucursal Dos ${sufijo}`, esPrincipal: false })
+        .returning();
+      sucursalDosId = sucursalDos.id;
 
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
       const activo = await crearActivo(owner!, tenantId, {
@@ -525,5 +533,84 @@ describe.skipIf(!hasCredenciales)(
     // comentario). Un test flaky "de siempre" era en realidad un N+1 real
     // (arreglado) mas un timeout ajustado que un cambio ajeno (esta migracion)
     // termino de empujar por encima del limite -- documentado, no ignorado.
+
+    // H-02: una sucursal congelada rechaza toda escritura en este módulo
+    // también — cierre del hueco señalado explícitamente por la revisión
+    // adversarial del diagnóstico (registrarEntradaCompraInsumo/
+    // registrarAjusteManualInsumo/registrarMermaAlmacenamiento/
+    // registrarProduccion quedaban fuera del freeze en la primera tanda).
+    it(
+      "una sucursal congelada rechaza registrarEntradaCompraInsumo/registrarAjusteManualInsumo/registrarMermaAlmacenamiento/registrarProduccion, pero una operable los acepta",
+      async () => {
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+        await db
+          .update(sucursales)
+          .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+          .where(eq(sucursales.id, sucursalDosId));
+
+        const rechazoEntrada = await registrarEntradaCompraInsumo(owner!, tenantId, {
+          insumoId: insumoLecheId,
+          sucursalId: sucursalDosId,
+          cantidad: 10,
+          costoCompra: 5,
+        });
+        expect(rechazoEntrada.ok).toBe(false);
+
+        const rechazoAjuste = await registrarAjusteManualInsumo(owner!, tenantId, {
+          insumoId: insumoLecheId,
+          sucursalId: sucursalDosId,
+          tipo: "entrada_ajuste_manual",
+          cantidad: 5,
+          motivo: "No debería aplicarse",
+        });
+        expect(rechazoAjuste.ok).toBe(false);
+
+        const rechazoMerma = await registrarMermaAlmacenamiento(owner!, tenantId, {
+          insumoId: insumoLecheId,
+          sucursalId: sucursalDosId,
+          cantidad: 1,
+          motivo: "No debería aplicarse",
+        });
+        expect(rechazoMerma.ok).toBe(false);
+
+        const productoCongelado = await crearProducto(owner!, tenantId, {
+          nombre: "Gelato Sucursal Congelada",
+          unidadVenta: "unidad",
+          precioVenta: 25,
+        });
+        if (!productoCongelado.ok) throw new Error("setup falló");
+        await vincularProductoAReceta(owner!, tenantId, {
+          productoId: productoCongelado.data.productoId,
+          recetaId,
+          cantidadBaseConsumidaPorUnidad: 0.1,
+        });
+
+        const rechazoProduccion = await registrarProduccion(owner!, tenantId, {
+          productoId: productoCongelado.data.productoId,
+          sucursalId: sucursalDosId,
+          activoId,
+          fechaProduccion: "2026-03-01",
+          cantidadLotesProducidos: 1,
+          cantidadRealObtenida: 28,
+        });
+        expect(rechazoProduccion.ok).toBe(false);
+
+        // Desbloquea y confirma que la misma operación ahora sí funciona.
+        await db
+          .update(sucursales)
+          .set({ congeladaEn: null, congeladaMotivo: null })
+          .where(eq(sucursales.id, sucursalDosId));
+
+        const aceptaEntrada = await registrarEntradaCompraInsumo(owner!, tenantId, {
+          insumoId: insumoLecheId,
+          sucursalId: sucursalDosId,
+          cantidad: 10,
+          costoCompra: 5,
+        });
+        expect(aceptaEntrada.ok).toBe(true);
+      },
+      20000
+    );
   }
 );

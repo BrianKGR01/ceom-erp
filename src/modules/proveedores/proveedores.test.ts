@@ -43,6 +43,7 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
   let tenantId: string;
   let ownerId: string;
   let sucursalId: string;
+  let sucursalDosId: string;
   let proveedorId: string;
   let insumoId: string;
   let productoId: string;
@@ -73,6 +74,12 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
     });
     tenantId = tenant.id;
     sucursalId = sucursal.id;
+
+    const [sucursalDos] = await db
+      .insert(sucursales)
+      .values({ tenantId, nombre: `Sucursal Dos ${sufijo}`, esPrincipal: false })
+      .returning();
+    sucursalDosId = sucursalDos.id;
 
     const [proveedor] = await db
       .insert(proveedores)
@@ -785,4 +792,62 @@ describe.skipIf(!hasCredenciales)("Modulo 8 - Proveedores/Compras (integracion)"
       );
     }
   });
+
+  // H-02: una sucursal congelada rechaza toda escritura en este módulo
+  // también — cierre del hueco señalado explícitamente (Patrimonio/Gastos/
+  // Proveedores/Nicho 1 quedaban fuera del freeze en la primera tanda).
+  it("una sucursal congelada rechaza registrarCompra/recibirCompra, pero una operable los acepta", async () => {
+    // Timeout mas alto que el default (5000ms) — este test encadena ~8
+    // round-trips secuenciales contra Supabase Cloud real.
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalDosId));
+
+    const rechazoRegistrar = await registrarCompra(owner!, tenantId, {
+      sucursalId: sucursalDosId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 5,
+      montoTotal: 100,
+      fechaCompra: "2026-06-01",
+    });
+    expect(rechazoRegistrar.ok).toBe(false);
+
+    // Compra "pedido" creada en la sucursal operable ANTES de que se
+    // congele — recibirCompra() tiene que rechazar igual, chequeo temprano
+    // antes de marcarla "recibido".
+    const pedidoEnOperable = await registrarCompra(owner!, tenantId, {
+      sucursalId,
+      tipo: "insumo",
+      insumoId,
+      cantidad: 5,
+      montoTotal: 100,
+      fechaCompra: "2026-06-01",
+      estado: "pedido",
+    });
+    if (!pedidoEnOperable.ok) throw new Error("setup falló");
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalId));
+
+    const rechazoRecibir = await recibirCompra(owner!, pedidoEnOperable.data.compraId);
+    expect(rechazoRecibir.ok).toBe(false);
+    // No quedó a medio camino: la compra sigue "pedido", no "recibido" sin stock.
+    const compraTrasRechazo = await repo.obtenerCompraPorId(db, pedidoEnOperable.data.compraId);
+    expect(compraTrasRechazo?.estado).toBe("pedido");
+
+    // Desbloquea y confirma que las mismas operaciones ahora sí funcionan.
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: null, congeladaMotivo: null })
+      .where(inArray(sucursales.id, [sucursalId, sucursalDosId]));
+
+    const aceptaRecibir = await recibirCompra(owner!, pedidoEnOperable.data.compraId);
+    expect(aceptaRecibir.ok).toBe(true);
+  }, 20000);
 });

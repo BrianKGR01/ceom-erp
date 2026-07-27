@@ -1,6 +1,6 @@
 import { comoUsuario } from "@/db/contexto";
 import { generarGastoCuotaPasivo } from "@/modules/gastos/actions";
-import { tienePermiso } from "@/modules/identidad/actions";
+import { listarSucursalesPorTenant, tienePermiso } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import * as repo from "./repository";
 import type {
@@ -238,6 +238,40 @@ export async function consultarValorPatrimonialTotal(
   });
 }
 
+/**
+ * Hermano de requireSucursalOperable en Productos/Ventas (H-02, extendido a
+ * todos los módulos que escriben con sucursal_id — ver
+ * docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección 6.3
+ * hueco 6, "el freeze no puede quedar decorativo en 4 de 6 módulos"):
+ * valida que sucursalId pertenezca al tenant y no esté congelada.
+ *
+ * A diferencia de Productos/Ventas, acá sucursalId es NULLABLE
+ * (`activos.sucursalId`: "null = aplica a todo el negocio, ej. vehículo
+ * compartido") — null/undefined salta el chequeo a propósito, nunca lo
+ * rechaza: un activo compartido no está atado a ninguna sucursal cuya
+ * operabilidad importe.
+ */
+async function requireSucursalOperable(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string | undefined | null
+): Promise<{ ok: false; error: string } | null> {
+  if (!sucursalId) return null;
+  const res = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!res.ok) return { ok: false, error: res.error };
+  const sucursal = res.data.find((s) => s.id === sucursalId);
+  if (!sucursal) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  if (sucursal.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede operar en ella.",
+    };
+  }
+  return null;
+}
+
 // --- Activos (escritura) ---------------------------------------------------------
 
 export interface DatosActivo {
@@ -268,6 +302,8 @@ export async function crearActivo(
   if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear activos." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.crearActivo(tx, {
@@ -306,6 +342,10 @@ export async function actualizarActivo(
     if (!activo) return { ok: false, error: "Activo no encontrado." };
     if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "editar"))) {
       return { ok: false, error: "No tenés permiso para editar este activo." };
+    }
+    if (input.sucursalId !== undefined) {
+      const sucursalOperable = await requireSucursalOperable(solicitante, activo.tenantId, input.sucursalId);
+      if (sucursalOperable) return sucursalOperable;
     }
 
     await repo.actualizarActivo(tx, activoId, {
@@ -359,6 +399,14 @@ export async function transferirActivo(
     if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "editar"))) {
       return { ok: false, error: "No tenés permiso para transferir este activo." };
     }
+    // Se valida AMBOS extremos (mismo criterio que registrarTransferenciaStock
+    // en Productos): el origen actual del activo, si tiene uno, y el destino.
+    if (activo.sucursalId) {
+      const origenOperable = await requireSucursalOperable(solicitante, activo.tenantId, activo.sucursalId);
+      if (origenOperable) return origenOperable;
+    }
+    const destinoOperable = await requireSucursalOperable(solicitante, activo.tenantId, nuevaSucursalId);
+    if (destinoOperable) return destinoOperable;
 
     await repo.actualizarSucursalActivo(tx, activoId, nuevaSucursalId, solicitante.id);
     return { ok: true, data: true };

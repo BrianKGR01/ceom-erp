@@ -1,4 +1,8 @@
-import { tieneCapacidadEspecial, tienePermiso } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  tieneCapacidadEspecial,
+  tienePermiso,
+} from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { consultarCapacidad } from "@/modules/patrimonio/actions";
 import {
@@ -213,6 +217,34 @@ export async function listarMovimientosInsumo(
   return { ok: true, data: await repo.listarMovimientosPorInsumo(insumoId, sucursalId) };
 }
 
+/**
+ * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio/Gastos/
+ * Proveedores (H-02, completa el freeze en los 6 módulos que escriben con
+ * sucursal_id — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+ * sección 6.3 hueco 6). Cierra además el mismo hueco de autorización que ya
+ * se había señalado (revisión adversarial V1 del diagnóstico): ninguna de
+ * las 4 funciones de abajo validaba que sucursalId perteneciera al tenant.
+ */
+async function requireSucursalOperable(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string
+): Promise<{ ok: false; error: string } | null> {
+  const res = await listarSucursalesPorTenant(solicitante, tenantId);
+  if (!res.ok) return { ok: false, error: res.error };
+  const sucursal = res.data.find((s) => s.id === sucursalId);
+  if (!sucursal) {
+    return { ok: false, error: "La sucursal indicada no existe en este negocio." };
+  }
+  if (sucursal.congeladaEn) {
+    return {
+      ok: false,
+      error: "Esta sucursal está congelada por el plan del negocio — no se puede operar en ella.",
+    };
+  }
+  return null;
+}
+
 // --- Ledger de Insumo ---------------------------------------------------------
 
 /** entrada_compra (seccion 3.1 y 3.6) — hoy sin caller real (Proveedores no
@@ -240,6 +272,8 @@ export async function registrarEntradaCompraInsumo(
   if (!insumo || insumo.tenantId !== tenantId) {
     return { ok: false, error: "Insumo no encontrado." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const fechaVencimiento =
     input.fechaVencimiento ??
@@ -289,6 +323,8 @@ export async function registrarAjusteManualInsumo(
   if (!insumo || insumo.tenantId !== tenantId) {
     return { ok: false, error: "Insumo no encontrado." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const { movimiento, cantidadActual } = await repo.crearMovimientoInsumoTx({
     insumoId: input.insumoId,
@@ -323,6 +359,8 @@ export async function registrarMermaAlmacenamiento(
   if (!insumo || insumo.tenantId !== tenantId) {
     return { ok: false, error: "Insumo no encontrado." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   const { movimiento, cantidadActual } = await repo.crearMovimientoInsumoTx({
     insumoId: input.insumoId,
@@ -590,6 +628,8 @@ export async function registrarProduccion(
   if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
     return { ok: false, error: "No tenés permiso para registrar producciones en este tenant." };
   }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
 
   // Regla 3.4 / caso borde 4: sin vinculacion, no hay Produccion.
   const vinculacion = await repo.obtenerVinculacionPorProducto(input.productoId);

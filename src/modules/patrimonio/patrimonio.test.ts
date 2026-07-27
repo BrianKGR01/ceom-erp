@@ -8,6 +8,7 @@ import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema
 import { borrarUsuariosAuth, limpiarConAuthGarantizada } from "@/test-utils/limpieza";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import {
+  actualizarActivo,
   consultarCapacidad,
   consultarPasivoDeActivo,
   consultarValorPatrimonialTotal,
@@ -236,6 +237,67 @@ describe.skipIf(!hasCredenciales)("Modulo 5 - Patrimonio (integracion)", () => {
     expect(activoActualizado?.modificadoPor).toBe(ownerId);
     expect(activoActualizado?.modificadoEn).not.toBeNull();
   });
+
+  // H-02: una sucursal congelada rechaza toda escritura en este módulo
+  // también — cierre del hueco señalado explícitamente (Patrimonio/Gastos/
+  // Proveedores/Nicho 1 quedaban fuera del freeze en la primera tanda).
+  it("una sucursal congelada rechaza crearActivo/actualizarActivo/transferirActivo, pero una operable los acepta", async () => {
+    // Timeout mas alto que el default (5000ms) — este test encadena ~7
+    // round-trips secuenciales contra Supabase Cloud real (3x crearActivo +
+    // actualizarActivo + transferirActivo x2 + los 2 UPDATE de congelamiento).
+    const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: new Date(), congeladaMotivo: "Test H-02" })
+      .where(eq(sucursales.id, sucursalDosId));
+
+    const rechazoCrear = await crearActivo(owner!, tenantId, {
+      nombre: "Activo en sucursal congelada",
+      tipo: "mobiliario",
+      sucursalId: sucursalDosId,
+      valorCompra: 100,
+      fechaAdquisicion: "2025-01-01",
+    });
+    expect(rechazoCrear.ok).toBe(false);
+
+    // Un activo SIN sucursal (compartido) sí se puede crear con la sucursal
+    // congelada en juego — no está atado a ninguna sucursal en particular.
+    const compartido = await crearActivo(owner!, tenantId, {
+      nombre: "Activo compartido",
+      tipo: "mobiliario",
+      valorCompra: 50,
+      fechaAdquisicion: "2025-01-01",
+    });
+    expect(compartido.ok).toBe(true);
+
+    // Activo previo (creado en la sucursal Principal, operable) — reasignarlo
+    // a la sucursal congelada se rechaza.
+    const activoOperable = await crearActivo(owner!, tenantId, {
+      nombre: "Activo en sucursal operable",
+      tipo: "mobiliario",
+      valorCompra: 150,
+      fechaAdquisicion: "2025-01-01",
+    });
+    if (!activoOperable.ok) throw new Error("setup falló");
+
+    const rechazoActualizar = await actualizarActivo(owner!, activoOperable.data.activoId, {
+      sucursalId: sucursalDosId,
+    });
+    expect(rechazoActualizar.ok).toBe(false);
+
+    const rechazoTransferir = await transferirActivo(owner!, activoOperable.data.activoId, sucursalDosId);
+    expect(rechazoTransferir.ok).toBe(false);
+
+    // Desbloquea y confirma que las mismas operaciones ahora sí funcionan.
+    await db
+      .update(sucursales)
+      .set({ congeladaEn: null, congeladaMotivo: null })
+      .where(eq(sucursales.id, sucursalDosId));
+
+    const aceptaTransferir = await transferirActivo(owner!, activoOperable.data.activoId, sucursalDosId);
+    expect(aceptaTransferir.ok).toBe(true);
+  }, 20000);
 
   it("listarActivos/obtenerActivoPorId: wrappers de lectura gateados por permiso", async () => {
     const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
