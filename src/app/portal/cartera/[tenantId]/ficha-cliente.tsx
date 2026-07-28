@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Banknote, Boxes, Factory, Lock, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Banknote, Boxes, Factory, Lock, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PortalTopbar } from "@/components/shared/portal-topbar";
 import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
@@ -57,6 +57,39 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
   );
 }
 
+/**
+ * X-01 — el marcador de completitud de H-15, con al menos la misma prominencia
+ * que tiene para el dueño (principio rector #9).
+ *
+ * El dueño ve exactamente esta advertencia en su Resumen Financiero
+ * (`reportes/resumen-financiero-cliente.tsx`); hasta la tanda 3.3a la
+ * institución veía el mismo `estadoResultados` **presentado como completo**,
+ * porque el campo se descartaba en la capa de proyección. Y el error de lectura
+ * no es simétrico: falta costo, nunca sobra, así que el número siempre se lee
+ * mejor de lo que es.
+ *
+ * La diferencia con la versión del dueño es deliberada: **no hay enlace para
+ * arreglarlo.** El dueño puede ir a cargar los costos; la institución no puede
+ * hacer nada al respecto, y ofrecerle una acción que no tiene sería ruido. Lo
+ * que sí necesita es saber cómo leer el número.
+ */
+function MarcadorSinCosto({ monto }: { monto: number }) {
+  if (monto <= 0) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-3">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+      <p className="text-xs text-text-body">
+        <span className="font-medium text-warning-text">
+          {formatoMoneda(monto)} de los ingresos de este período son de productos sin costo
+          cargado.
+        </span>{" "}
+        Esa parte se está contando sin costo, así que el resultado real de este negocio es{" "}
+        <strong>menor</strong> que el de arriba. Leelo como un techo, no como la ganancia.
+      </p>
+    </div>
+  );
+}
+
 function NoAutorizado({ modulo }: { modulo: string }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-2xl bg-card py-16 text-center shadow-card">
@@ -90,6 +123,8 @@ export function FichaTenantCliente({
     flujoCaja: number;
     estadoResultados: number;
     costoFijoTotal: number;
+    /** X-01: el marcador de completitud de H-15. */
+    ingresosSinCostoConocido: number;
   }> | null>(null);
   const [operativo, setOperativo] = useState<ConAutorizacion<{
     producciones: Produccion[];
@@ -217,10 +252,13 @@ export function FichaTenantCliente({
               ) : !financiero.autorizado ? (
                 <NoAutorizado modulo="Ventas y finanzas" />
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.detalle.flujoCaja)} />
-                  <StatCard label="Estado de Resultados" valor={formatoMoneda(financiero.detalle.estadoResultados)} />
-                  <StatCard label="Costo Fijo Total" valor={formatoMoneda(financiero.detalle.costoFijoTotal)} />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.detalle.flujoCaja)} />
+                    <StatCard label="Estado de Resultados" valor={formatoMoneda(financiero.detalle.estadoResultados)} />
+                    <StatCard label="Costo Fijo Total" valor={formatoMoneda(financiero.detalle.costoFijoTotal)} />
+                  </div>
+                  <MarcadorSinCosto monto={financiero.detalle.ingresosSinCostoConocido} />
                 </div>
               ))}
 

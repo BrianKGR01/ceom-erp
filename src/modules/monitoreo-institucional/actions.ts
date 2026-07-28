@@ -18,7 +18,13 @@ import {
   estadoResultados,
   flujoCaja,
 } from "@/modules/financiero/actions";
-import type { PeriodoFinanciero } from "@/modules/financiero/actions";
+import type {
+  EstadoResultadosData,
+  MarcadorEstadoResultados,
+  PeriodoFinanciero,
+} from "@/modules/financiero/actions";
+import { proyectar } from "@/lib/proyeccion-institucional";
+import type { Clasificacion, Proyectado } from "@/lib/proyeccion-institucional";
 import {
   obtenerTenantParaVeedor,
   solicitanteGateway,
@@ -123,13 +129,54 @@ export async function tendenciaVentas(
   return { ok: true, data: { autorizado: true, detalle: { ingresos: res.data.ingresos } } };
 }
 
+/**
+ * Qué campos de `estadoResultados()` llegan a la institución (D-10 / X-03).
+ *
+ * **No es una lista de campos elegidos a mano: es una clasificación exhaustiva
+ * verificada por el compilador.** Si `EstadoResultadosData` gana un campo,
+ * `pnpm typecheck` falla acá hasta que alguien decida qué hacer con él — que es
+ * exactamente lo que NO pasó con `ingresosSinCostoConocido` y produjo X-01.
+ *
+ * `ingresosSinCostoConocido` está clasificado `"marcador"` porque figura en
+ * `MARCADORES_ESTADO_RESULTADOS`; el tipo **no admite** otra cosa para él.
+ */
+const PROYECCION_ESTADO_RESULTADOS = {
+  estadoResultados: "expuesto",
+  ingresosSinCostoConocido: "marcador",
+  ingresos: {
+    omitido: "El portal es agregado por diseño: la institución ve el resultado, no su descomposición.",
+    esMarcador: false,
+  },
+  costos: {
+    omitido: "Ídem `ingresos` — descomposición, no completitud.",
+    esMarcador: false,
+  },
+  gastos: {
+    omitido: "Ídem `ingresos` — descomposición, no completitud.",
+    esMarcador: false,
+  },
+  ajustesVenta: {
+    omitido: "Ídem `ingresos` — ya está incorporado al resultado que sí viaja.",
+    esMarcador: false,
+  },
+  ajustesCompra: {
+    omitido: "Ídem `ingresos` — ya está incorporado al resultado que sí viaja.",
+    esMarcador: false,
+  },
+} as const satisfies Clasificacion<EstadoResultadosData, MarcadorEstadoResultados>;
+
 export async function detalleFinanciero(
   institucionId: string,
   tenantId: string,
   periodo: PeriodoFinanciero
 ): Promise<
   Resultado<
-    ConAutorizacion<{ flujoCaja: number; estadoResultados: number; costoFijoTotal: number }>
+    ConAutorizacion<
+      { flujoCaja: number; costoFijoTotal: number } & Proyectado<
+        EstadoResultadosData,
+        typeof PROYECCION_ESTADO_RESULTADOS
+      >
+    >
   >
 > {
   if (!(await tieneConsentimiento(institucionId, tenantId, "financiero"))) {
@@ -151,8 +198,9 @@ export async function detalleFinanciero(
       autorizado: true,
       detalle: {
         flujoCaja: flujoRes.data.flujoCaja,
-        estadoResultados: resultadosRes.data.estadoResultados,
         costoFijoTotal: costoFijoRes.data.costoFijoTotal,
+        // X-01: acá se descartaba el marcador. Ya no se elige a mano.
+        ...proyectar(resultadosRes.data, PROYECCION_ESTADO_RESULTADOS),
       },
     },
   };

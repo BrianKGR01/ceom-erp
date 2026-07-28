@@ -120,27 +120,50 @@ export async function flujoCaja(
   };
 }
 
+export interface EstadoResultadosData {
+  estadoResultados: number;
+  ingresos: number;
+  costos: number;
+  gastos: number;
+  ajustesVenta: number;
+  ajustesCompra: number;
+  /** H-15: cuánto de `ingresos` viene de ventas cuyo costo no se conocía.
+   * El resultado de arriba **no cambia** por esto —no hay costo que
+   * restar—, pero deja de presentarse como completo: la pantalla puede
+   * decir "de estos ingresos, Bs X no tienen costo cargado, tu margen real
+   * es menor". Marcar el hueco, nunca estimar un número para taparlo. */
+  ingresosSinCostoConocido: number;
+}
+
+/**
+ * **Los marcadores de completitud de `estadoResultados()`** — principio rector
+ * #9 (`CEOM_Arquitectura.md` §3).
+ *
+ * Un marcador es un campo que **cambia cómo se lee otro número** sin cambiar su
+ * valor. Figurar acá tiene una consecuencia dura: cualquier capa que proyecte
+ * este resultado hacia un tercero (institución, Panel Admin CEOM) **está
+ * obligada por tipos a exponerlo** — no puede clasificarlo como omitido. Ver
+ * `src/lib/proyeccion-institucional.ts`.
+ *
+ * **Si agregás un campo nuevo a `EstadoResultadosData`, la pregunta a hacerse
+ * es: ¿alguien podría leer mal `estadoResultados` si no ve este campo?** Si la
+ * respuesta es sí, va en esta lista, y va acá y no en el módulo que consume —
+ * la semántica la tiene este módulo, y esta línea está al lado del campo que
+ * acabás de escribir.
+ *
+ * (Lo que el compilador NO puede garantizar es que te acuerdes de agregarlo.
+ * Lo que sí garantiza es que ningún campo nuevo pase sin clasificar, y que
+ * omitir uno exija afirmar por escrito que no es un marcador.)
+ */
+export const MARCADORES_ESTADO_RESULTADOS = ["ingresosSinCostoConocido"] as const;
+export type MarcadorEstadoResultados = (typeof MARCADORES_ESTADO_RESULTADOS)[number];
+
 export async function estadoResultados(
   solicitante: UsuarioConRol,
   tenantId: string,
   periodo: PeriodoFinanciero,
   opts: { sucursalId?: string } = {}
-): Promise<
-  Resultado<{
-    estadoResultados: number;
-    ingresos: number;
-    costos: number;
-    gastos: number;
-    ajustesVenta: number;
-    ajustesCompra: number;
-    /** H-15: cuánto de `ingresos` viene de ventas cuyo costo no se conocía.
-     * El resultado de arriba **no cambia** por esto —no hay costo que
-     * restar—, pero deja de presentarse como completo: la pantalla puede
-     * decir "de estos ingresos, Bs X no tienen costo cargado, tu margen real
-     * es menor". Marcar el hueco, nunca estimar un número para taparlo. */
-    ingresosSinCostoConocido: number;
-  }>
-> {
+): Promise<Resultado<EstadoResultadosData>> {
   if (!(await tienePermiso(solicitante, tenantId, "financiero", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver Financiero." };
   }
