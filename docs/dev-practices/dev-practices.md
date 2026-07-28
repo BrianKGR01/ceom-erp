@@ -214,6 +214,35 @@ Convención para cualquier script nuevo en esta carpeta:
 
 ---
 
+## 7.1.1. ⚠️ `drizzle-kit migrate` puede saltear una migración y decir "applied successfully"
+
+**Encontrado en vivo el 2026-07-27** (Etapa 3, tanda 3.2), y es de los peores modos de falla
+posibles: silencioso y con salida en verde.
+
+`drizzle-kit` **no ordena las migraciones por el prefijo numérico del archivo** — las ordena por el
+campo `when` (epoch en ms) de cada entrada en `drizzle/migrations/meta/_journal.json`, y aplica solo
+las que tengan un `when` mayor que la última registrada en la tabla `drizzle.__drizzle_migrations`.
+
+Qué pasó: las entradas `0044`/`0045`/`0046` tenían `when` **asignados a mano** en una secuencia
+sintética (`…3400001`, `…3400002`, `…3400003`), unos 38 minutos por delante del reloj real. La
+migración `0047`, generada después, recibió el `when` real — es decir, **menor** que el de `0046`.
+Drizzle la consideró anterior a lo ya aplicado, la salteó, e imprimió
+`[✓] migrations applied successfully!`. La columna nueva simplemente no existía, y nada lo dijo.
+
+**Cómo detectarlo:** después de `pnpm drizzle-kit migrate`, **verificar el objeto real en la base**
+(`information_schema.columns`, `pg_policies`, lo que corresponda), nunca confiar en el mensaje de
+éxito. Es el mismo criterio de §10: verificar contra lo vivo, no contra lo que la herramienta dice.
+
+**Cómo arreglarlo:** editar el `when` de la entrada nueva en `_journal.json` para que sea mayor que
+el de la última entrada, y volver a correr `migrate`. No renombrar el archivo ni tocar migraciones ya
+aplicadas.
+
+**Cómo evitarlo:** si alguna vez hay que tocar un `when` a mano, **subirlo, nunca bajarlo**, y
+mantener la secuencia coherente con el orden de los prefijos. Un `when` en el futuro condena a todas
+las migraciones siguientes a ser salteadas hasta que el reloj lo alcance.
+
+---
+
 ## 7.2. Migraciones que tocan `auth`/`storage`: verificar contra un contenedor limpio, no solo contra el entorno de desarrollo compartido
 
 **Regla dura, no opcional:** toda migración que inserte/actualice datos en los schemas `auth` o

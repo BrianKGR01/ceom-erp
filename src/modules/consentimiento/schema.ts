@@ -218,6 +218,20 @@ export const codigosAcceso = pgTable(
     institucionId: uuid("institucion_id").references(() => instituciones.id),
     canjeadoEn: timestamp("canjeado_en", { withTimezone: true }),
     revocadoEn: timestamp("revocado_en", { withTimezone: true }),
+    // TTL obligatorio (D-7, tanda 3.2). NO es una fecha opcional que el Owner
+    // puede dejar vacia: generarCodigoAcceso() siempre la completa
+    // (creado_en + TTL_CODIGO_ACCESO_DIAS). Un Codigo de Acceso es una
+    // credencial que circula FUERA del sistema (WhatsApp, correo, papel), y
+    // "vive para siempre" es la decision equivocada para una credencial: hasta
+    // esta tanda, un codigo compartido hace ocho meses seguia otorgando acceso
+    // completo, y el manual de instituciones ya le prometia al usuario que los
+    // codigos vencen.
+    //
+    // Nullable en el esquema por una sola razon: las filas anteriores a la
+    // migracion 0047, que la propia migracion rellena (creado_en + TTL) en vez
+    // de dejarlas inmortales. Una fila con expira_en NULL despues de eso es un
+    // bug, no un caso valido — canjearCodigoAcceso() la trata como vencida.
+    expiraEn: timestamp("expira_en", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("codigos_acceso_codigo_unique").on(table.codigo),
