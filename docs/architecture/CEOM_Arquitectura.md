@@ -55,6 +55,8 @@ La decisión es un **Core Común** (igual para cualquier rubro) más **Módulos 
 6. **Cero fricción, primero.** Onboarding progresivo — lo avanzado se revela cuando hace falta, no se impone desde el día uno.
 7. **Todo número que CEOM sirve a un tercero viaja con sus marcadores de completitud.** Si el dueño ve un marcador que cambia cómo se lee el número, el tercero lo ve también y con al menos la misma prominencia, porque tiene menos contexto para inferirlo. Ningún marcador se descarta en la capa de presentación institucional. **Marcar el hueco, nunca estimarlo.**
 
+   **Y la capa de presentación institucional no deriva indicadores cuya validez dependa de la completitud de los datos.** Márgenes, porcentajes, ratios y costos unitarios vienen de la acción pública del módulo dueño de la regla de completitud —la que ya sabe cuándo devolver `null`—, nunca se calculan a partir de los escalares que esa acción devolvió.
+
 ### 3.1 Sobre el principio #7 — qué es un marcador de completitud, y por qué es un principio y no una convención
 
 Un **marcador de completitud** es cualquier dato que responde *"¿sobre qué parte de la realidad se calculó este número?"*. No cambia el número: cambia cómo se lee. Tres ejemplos vivos, todos con el marcador ya existente en la base:
@@ -67,7 +69,13 @@ Un **marcador de completitud** es cualquier dato que responde *"¿sobre qué par
 
 **Por qué es un principio y no una convención de código.** El dueño de un negocio tiene contexto para dudar de sus propios números: sabe qué cargó y qué no. Una institución externa no — ve un número y no tiene con qué contrastarlo. El error de lectura, además, **no es simétrico**: falta costo, nunca sobra; falta cobertura, nunca sobra. Todo marcador ausente empuja la lectura hacia el mismo lado, y ese lado es el optimista. Un agregado sin marcador servido a un tercero no es "un dato con menos detalle": es una afirmación más fuerte que la que el sistema puede sostener.
 
-**Consecuencia operativa.** Una capa de presentación institucional (hoy `src/modules/monitoreo-institucional/`) **nunca debe re-proyectar a mano** el resultado de una función del Core eligiendo campos: cada campo nuevo del origen nacería invisible para el tercero, en silencio. El descarte de un campo tiene que ser una decisión explícita y detectable, con el mismo criterio que `src/lib/security/access-manifest.ts` aplica a las Server Actions sin clasificar. Diagnóstico completo del caso que originó este principio: [`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.6-4.8.
+**Consecuencia operativa 1 — no re-proyectar a mano.** Una capa de presentación institucional (hoy `src/modules/monitoreo-institucional/`) **nunca debe re-proyectar a mano** el resultado de una función del Core eligiendo campos: cada campo nuevo del origen nacería invisible para el tercero, en silencio. El descarte de un campo tiene que ser una decisión explícita y detectable, con el mismo criterio que `src/lib/security/access-manifest.ts` aplica a las Server Actions sin clasificar.
+
+**Consecuencia operativa 2 — no derivar indicadores.** Son dos defectos distintos y el primero no cubre al segundo: una proyección exhaustiva detecta que se *descarte* un campo, pero no detecta que alguien *calcule un número nuevo* en la capa institucional a partir de los escalares que ya viajan. Eso sería una función nueva, no un campo faltante, y ningún chequeo de exhaustividad la ve.
+
+El caso concreto que hay que evitar: `estadoResultados` e `ingresos` ya viajan al portal. Dividir uno por otro para mostrar un margen es una línea de código — y produce exactamente el número del que el dueño está protegido, porque la regla real vive en `margenAfirmable()` (`src/modules/reportes/actions.ts`), que devuelve `null` cuando hay ingresos sin costo conocido. **Un indicador derivado hereda la incompletitud de sus insumos sin heredar su marcador.** Por eso la regla es que el margen (o el ratio, o el costo unitario) se pide a la acción pública del módulo dueño de la regla, y esa acción decide si hay número o `null`.
+
+Diagnóstico completo del caso que originó este principio: [`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.6-4.8.
 
 ---
 

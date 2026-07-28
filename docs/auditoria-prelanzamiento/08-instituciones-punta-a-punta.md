@@ -1090,6 +1090,46 @@ hacia un tercero (Panel Admin CEOM ya es candidato), hay que aplicarlo ahí tamb
 estructural en `monitoreo-institucional/actions.ts`, adyacente a su contrato, y por eso se trae a
 decisión antes de implementarlo.
 
+> **✅ Resuelto — Opción 3, en la tanda 3.3.** Va con X-01/X-02/G-14 y no con la 3.2: es el mismo
+> archivo y el mismo tema, y el mapa de proyección tiene que expresar justamente cómo viaja el
+> marcador. Meterlo en la 3.2 sería tocar un módulo ajeno dentro de una tanda de seguridad.
+
+#### Qué garantiza de verdad la Opción 3, y qué no
+
+Corrección de la propuesta de arriba, que se afirmó de más. **"Clasificar un marcador como omitido
+sería un error de tipos" solo se sostiene si el tipo de origen distingue sus marcadores** — y hoy no
+los distingue. La forma real:
+
+```ts
+type Proyeccion<TOrigen, TMarcadores extends keyof TOrigen> = {
+  [K in keyof TOrigen]: K extends TMarcadores
+    ? "marcador"                            // forzado: no admite { omitido }
+    : "expuesto" | { omitido: string };
+};
+```
+
+**Garantía dura (la da el compilador, no se puede olvidar):**
+1. **Exhaustividad.** Un campo nuevo en el tipo de origen rompe `pnpm typecheck` hasta que alguien lo
+   clasifique. Es lo que habría atajado la *clase* de X-01.
+2. **Trinquete del marcador.** Una vez que un campo figura en `TMarcadores`, el tipo **prohíbe**
+   clasificarlo como omitido. Difícil de deshacer sin querer.
+
+**Convención (juicio humano, sin red):**
+3. **Que un campo nuevo entre a `TMarcadores`.** Nada en el tipo sabe que `ingresosSinCostoConocido`
+   es un marcador y no un dato más — esa lista la escribe una persona. Si mañana `estadoResultados`
+   gana un `gastosSinCategoriaConocida`, la exhaustividad obliga a clasificarlo, pero **nada obliga a
+   clasificarlo como marcador** en vez de omitido. Es el mismo olvido que produjo X-01, movido un
+   paso más arriba.
+
+Lo único que conocemos que convertiría (3) en garantía dura es **marcar el campo en el tipo de
+origen** (`ingresosSinCostoConocido: Marcador<number>`, con un *branded type*). Eso cambia el
+contrato público de `financiero/actions.ts` y se propaga a las cuatro pantallas del dueño que ya lo
+consumen: costo real, beneficio acotado a un caso que todavía no ocurrió. **No se hace ahora**, y
+queda anotado acá como la única salida conocida si la convención llega a fallar.
+
+**Se adopta igual, con esa asimetría escrita.** Una garantía chica y honesta —"ningún campo nuevo
+pasa sin que alguien lo mire"— vale más que una grande y aspiracional.
+
 ---
 
 ## 10. Qué mirar primero

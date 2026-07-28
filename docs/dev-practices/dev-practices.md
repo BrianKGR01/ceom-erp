@@ -170,9 +170,27 @@ usuario `ceom_admin` cuando el entorno recién se levanta) usamos
 resuelve el alias `@/*` que usa casi todo `src/modules/**`, `tsx` sí porque
 lee `tsconfig.json`).
 
+### Orden de bootstrap de un entorno desde cero
+
+**Los cuatro comandos, en este orden.** No es una lista de opciones: un entorno al que le falte
+alguno queda con un punto ciego, y este proyecto ya se comió ese error cuatro veces (productos sin
+costo, `auth.users`, sucursales, instituciones).
+
 ```bash
-pnpm seed:admin <email> ["Nombre completo"]
+pnpm seed:admin <email> ["Nombre completo"]           # 1. primer ceom_admin (resuelve el candado circular)
+pnpm seed:tenant <emailAdmin> <negocio> <emailOwner> <"Owner">   # 2. primer tenant real
+pnpm seed:demo [emailOwner]                           # 3. datos de negocio de ESE tenant
+pnpm seed:instituciones <emailAdmin>                  # 4. instituciones, códigos y consentimiento
 ```
+
+**`seed:demo` no llama a `seed:instituciones`, a propósito**, aunque el hallazgo que originó el
+cuarto comando fuera justamente "el seed de demo no crea ninguna institución". Son dos cosas de
+forma distinta: `seed:demo` **puebla un tenant que ya existe** y recibe el correo de su Owner;
+`seed:instituciones` **crea cuatro tenants nuevos** y recibe el de un `ceom_admin`. Encadenarlos
+haría que pedir "poblá este negocio" cree cuatro negocios más, que es peor que tener que correr un
+comando de más. Por eso el requisito vive acá, en el orden de bootstrap, y no en un encadenamiento
+implícito: **el paso 4 no es opcional para verificar nada del portal institucional**, y el
+`README` del setup de e2e (Etapa 7) tiene que exigirlo igual.
 
 Convención para cualquier script nuevo en esta carpeta:
 - Reutilizar los `actions.ts`/`repository.ts` de los módulos existentes

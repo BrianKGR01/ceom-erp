@@ -70,7 +70,13 @@ docs/architecture/CEOM_Arquitectura.md)
    inferirlo, y todo marcador ausente empuja la lectura hacia el lado optimista. Ninguna capa
    de presentación institucional descarta un marcador, y **ninguna re-proyecta a mano** el
    resultado de una función del Core eligiendo campos — así es como un campo nuevo nace
-   invisible para el tercero. Marcar el hueco, nunca estimarlo. Justificación completa:
+   invisible para el tercero. Marcar el hueco, nunca estimarlo.
+10. **La capa de presentación institucional no deriva indicadores** cuya validez dependa de
+   la completitud de los datos. Márgenes, porcentajes, ratios y costos unitarios vienen de la
+   acción pública del módulo dueño de la regla de completitud —la que ya sabe cuándo devolver
+   `null`—, nunca se calculan a partir de los escalares que esa acción devolvió. Es un defecto
+   distinto del #9 y ningún chequeo de exhaustividad lo detecta: sería una función nueva, no
+   un campo faltante. Justificación completa de #9 y #10:
    `docs/architecture/CEOM_Arquitectura.md` §3 principio 7 y §3.1.
 
 ## Qué NO hacer nunca
