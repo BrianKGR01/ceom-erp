@@ -57,18 +57,24 @@ const ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const TTL_CODIGO_ACCESO_DIAS = 30;
 
 /**
- * `true` si el error de Postgres es una violacion del indice unico parcial de
- * `instituciones.email` (23505). Se detecta por codigo Y por nombre de
- * constraint: postgres.js expone el `code` en distintos lugares segun como
- * lo envuelva Drizzle, asi que mirar solo uno de los dos deja pasar el caso
- * que este chequeo existe para atrapar.
+ * `true` si el error es una violacion del indice unico parcial de
+ * `instituciones.email` (SQLSTATE 23505).
+ *
+ * **Camina la cadena de `cause`**, no mira solo el error de arriba:
+ * drizzle-orm 0.45.2 envuelve el `PostgresError` real dentro de un
+ * `DrizzleQueryError`, asi que `code`/`constraint_name` NO son propiedades
+ * del error rechazado — es el mismo detalle que `consentimiento.test.ts` ya
+ * documentaba para la constraint de aprobaciones. La primera version de esta
+ * funcion miraba solo el error externo: compilaba, parecia razonable y no
+ * atrapaba nada. El test la detecto.
  */
 function esCorreoDeInstitucionDuplicado(error: unknown): boolean {
-  const texto = JSON.stringify(
-    error,
-    Object.getOwnPropertyNames(error ?? {})
-  );
-  return texto.includes("23505") && texto.includes("instituciones_email_unique");
+  for (let actual = error, saltos = 0; actual && saltos < 5; saltos++) {
+    const e = actual as { code?: unknown; constraint_name?: unknown; cause?: unknown };
+    if (e.code === "23505" && e.constraint_name === "instituciones_email_unique") return true;
+    actual = e.cause;
+  }
+  return false;
 }
 
 function generarCodigoAlfanumerico(longitud = 8): string {

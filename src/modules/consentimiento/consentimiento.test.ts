@@ -11,6 +11,7 @@ import { planes } from "@/modules/suscripcion/schema";
 import {
   aprobarSolicitud,
   canjearCodigoAcceso,
+  canjearCodigoAccesoAutenticada,
   crearInstitucion,
   crearSolicitudSeguimiento,
   generarCodigoAcceso,
@@ -19,6 +20,7 @@ import {
   revocarConsentimiento,
   solicitarMagicLinkInstitucion,
   tieneConsentimiento,
+  TTL_CODIGO_ACCESO_DIAS,
   vincularInstitucionAutenticada,
 } from "./actions";
 import {
@@ -421,6 +423,245 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
       })
     ).rejects.toMatchObject({
       cause: { code: "23505", constraint_name: "aprobaciones_tenant_vigente_unica" },
+    });
+  });
+
+  // --- Tanda 3.2: ciclo de vida del Codigo de Acceso -----------------------
+
+  describe("tanda 3.2 — ciclo de vida del Codigo de Acceso", () => {
+    /** Institucion recien canjeada + su codigo, para no repetir el setup. */
+    async function institucionCanjeada(etiqueta: string, email?: string) {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const codigo = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigo.ok) throw new Error("setup fallo: generarCodigoAcceso");
+      const canje = await canjearCodigoAcceso({
+        codigo: codigo.data.codigo,
+        institucionNueva: { nombre: `${etiqueta} ${sufijo}`, tipo: "organizacion", email },
+      });
+      if (!canje.ok) throw new Error(`setup fallo: canjearCodigoAcceso — ${canje.error}`);
+      return { institucionId: canje.data.institucionId, codigo: codigo.data };
+    }
+
+    it("D-7: generarCodigoAcceso siempre pone expira_en, a TTL_CODIGO_ACCESO_DIAS exactos", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const antes = Date.now();
+      const codigo = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      expect(codigo.ok).toBe(true);
+      if (!codigo.ok) return;
+
+      expect(codigo.data.expiraEn).not.toBeNull();
+      // Valor exacto, no "es una fecha": el vencimiento se calcula DENTRO de
+      // la accion, con un `Date.now()` posterior a `antes`, así que el delta
+      // es 30 días más lo que tardó la llamada. Se afirma esa ventana, no un
+      // instante puntual — la holgura es de 1 minuto, no "lo que dé".
+      const MS_POR_DIA = 24 * 60 * 60 * 1000;
+      const delta = codigo.data.expiraEn!.getTime() - antes;
+      expect(delta).toBeGreaterThanOrEqual(TTL_CODIGO_ACCESO_DIAS * MS_POR_DIA);
+      expect(delta).toBeLessThanOrEqual(TTL_CODIGO_ACCESO_DIAS * MS_POR_DIA + 60_000);
+    });
+
+    it("D-7: un codigo vencido NO se puede canjear, y el mensaje lo dice", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const codigo = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigo.ok) throw new Error("setup fallo");
+
+      // Envejecer la fila un segundo hacia atras del vencimiento — mas
+      // honesto que inyectar un TTL de prueba: se ejercita la comparacion
+      // real contra `now`.
+      await db
+        .update(codigosAcceso)
+        .set({ expiraEn: new Date(Date.now() - 1000) })
+        .where(eq(codigosAcceso.id, codigo.data.codigoAccesoId));
+
+      const canje = await canjearCodigoAcceso({
+        codigo: codigo.data.codigo,
+        institucionNueva: { nombre: `Vencida ${sufijo}`, tipo: "organizacion" },
+      });
+      expect(canje.ok).toBe(false);
+      if (canje.ok) return;
+      expect(canje.error).toContain("venció");
+
+      // Y el codigo NO se quemo: sigue activo, no paso a canjeado.
+      const [fila] = await db
+        .select()
+        .from(codigosAcceso)
+        .where(eq(codigosAcceso.id, codigo.data.codigoAccesoId));
+      expect(fila.estado).toBe("activo");
+    });
+
+    it("H-42: una institucion YA registrada canjea un segundo codigo y suma el negocio a su cartera", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const { institucionId: nuevaId } = await institucionCanjeada("Incubadora H42");
+
+      // Segundo negocio, segundo codigo — el caso que hasta esta tanda era
+      // imposible: no habia ningun camino al canje estando ya registrada.
+      const segundoTenant = await identidadRepo.crearTenantConOwner({
+        tenant: {
+          nombreNegocio: `Segundo Negocio H42 ${sufijo}`,
+          monedaPrincipal: "BOB",
+          canalesVenta: [],
+          planId,
+          estadoSuscripcion: "activa",
+          fechaInicioSuscripcion: "2026-01-01",
+        },
+        ownerId: (
+          await admin.auth.admin.createUser({
+            email: `h42-owner2-${sufijo}@ceom-erp.test`,
+            email_confirm: true,
+          })
+        ).data.user!.id,
+        ownerNombreCompleto: "Owner Segundo H42",
+        ownerEmail: `h42-owner2-${sufijo}@ceom-erp.test`,
+        rolOwnerId: ROL_OWNER_ID,
+        creadoPor: null,
+      });
+      const owner2 = await identidadRepo.obtenerUsuarioConRolPorId(
+        segundoTenant.usuarioOwner.id
+      );
+      const codigo2 = await generarCodigoAcceso(owner2!, segundoTenant.tenant.id, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigo2.ok) throw new Error("setup fallo: segundo codigo");
+
+      const canje2 = await canjearCodigoAccesoAutenticada(nuevaId, codigo2.data.codigo);
+      expect(canje2.ok).toBe(true);
+      if (!canje2.ok) return;
+      expect(canje2.data.tenantId).toBe(segundoTenant.tenant.id);
+
+      // La afirmacion que importa: DOS negocios en la MISMA institucion.
+      const cartera = await db
+        .select()
+        .from(carteraInstitucional)
+        .where(eq(carteraInstitucional.institucionId, nuevaId));
+      expect(cartera.map((c) => c.tenantId).sort()).toEqual(
+        [tenantId, segundoTenant.tenant.id].sort()
+      );
+      expect(await tieneConsentimiento(nuevaId, tenantId, "financiero")).toBe(true);
+      expect(await tieneConsentimiento(nuevaId, segundoTenant.tenant.id, "financiero")).toBe(true);
+
+      // Orden obligatorio: las aprobaciones referencian el codigo, y el
+      // codigo/cartera referencian el tenant.
+      await db
+        .delete(aprobacionesTenant)
+        .where(eq(aprobacionesTenant.tenantId, segundoTenant.tenant.id));
+      await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, segundoTenant.tenant.id));
+      await db
+        .delete(carteraInstitucional)
+        .where(eq(carteraInstitucional.tenantId, segundoTenant.tenant.id));
+      await db.delete(usuarios).where(eq(usuarios.id, segundoTenant.usuarioOwner.id));
+      await db.delete(roles).where(eq(roles.tenantId, segundoTenant.tenant.id));
+      await db.delete(sucursales).where(eq(sucursales.tenantId, segundoTenant.tenant.id));
+      await db.delete(tenants).where(eq(tenants.id, segundoTenant.tenant.id));
+      await borrarUsuariosAuth(admin, [segundoTenant.usuarioOwner.id]);
+    });
+
+    it("H-42: canjear con un correo YA usado devuelve {ok:false} con mensaje, sin lanzar y sin quemar el codigo", async () => {
+      const email = `h42-duplicado-${sufijo}@ceom-erp.test`;
+      await institucionCanjeada("Primera H42", email);
+
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const codigo2 = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigo2.ok) throw new Error("setup fallo");
+
+      // Antes de esta tanda: la Server Action LANZABA la violacion de
+      // unicidad sin capturar, y el usuario veia un boton colgado.
+      const segundo = await canjearCodigoAcceso({
+        codigo: codigo2.data.codigo,
+        institucionNueva: { nombre: `Segunda H42 ${sufijo}`, tipo: "organizacion", email },
+      });
+      expect(segundo.ok).toBe(false);
+      if (segundo.ok) return;
+      expect(segundo.error).toContain("¿Ya tenés acceso?");
+      // Anti-enumeracion: el mensaje habla del intento, nunca confirma que
+      // ESE correo este registrado.
+      expect(segundo.error).not.toContain(email);
+
+      // El codigo sigue disponible para el segundo intento por el camino bueno.
+      const [fila] = await db
+        .select()
+        .from(codigosAcceso)
+        .where(eq(codigosAcceso.id, codigo2.data.codigoAccesoId));
+      expect(fila.estado).toBe("activo");
+      // Y no quedo ninguna institucion a medio crear.
+      const huerfanas = await db
+        .select()
+        .from(instituciones)
+        .where(eq(instituciones.nombre, `Segunda H42 ${sufijo}`));
+      expect(huerfanas).toHaveLength(0);
+    });
+
+    it("G-03: dos canjes simultaneos del mismo codigo — gana exactamente uno", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const codigo = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigo.ok) throw new Error("setup fallo");
+
+      const [a, b] = await Promise.all([
+        canjearCodigoAcceso({
+          codigo: codigo.data.codigo,
+          institucionNueva: { nombre: `Carrera A ${sufijo}`, tipo: "organizacion" },
+        }),
+        canjearCodigoAcceso({
+          codigo: codigo.data.codigo,
+          institucionNueva: { nombre: `Carrera B ${sufijo}`, tipo: "organizacion" },
+        }),
+      ]);
+
+      // Exactamente uno. Antes de la tanda 3.2 pasaban los dos: el chequeo
+      // era un SELECT y la escritura un UPDATE sin condicion sobre estado.
+      expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+
+      // Y solo UNA aprobacion nacio de ese codigo.
+      const aprobaciones = await db
+        .select()
+        .from(aprobacionesTenant)
+        .where(eq(aprobacionesTenant.codigoAccesoId, codigo.data.codigoAccesoId));
+      expect(aprobaciones).toHaveLength(1);
+    });
+
+    it("G-17: revocar y volver a otorgar — el acceso vuelve, sin duplicar la cartera", async () => {
+      const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const { institucionId: nuevaId, codigo } = await institucionCanjeada("Reotorgada G17");
+      expect(await tieneConsentimiento(nuevaId, tenantId, "financiero")).toBe(true);
+
+      // 1. El Owner revoca.
+      const revocacion = await revocarCodigoAcceso(owner!, codigo.codigoAccesoId);
+      expect(revocacion.ok).toBe(true);
+      expect(await tieneConsentimiento(nuevaId, tenantId, "financiero")).toBe(false);
+
+      // 2. Genera un codigo nuevo y la institucion lo canjea AUTENTICADA.
+      //    Hasta esta tanda no habia camino: la unica palanca de
+      //    otorgamiento del Owner es generar un codigo, y una institucion ya
+      //    registrada no podia canjearlo. La revocacion era de una sola
+      //    direccion.
+      // (solo "financiero": es lo unico que permite el plan de prueba de
+      // este describe, y alcanza — lo que G-17 afirma es que el acceso
+      // VUELVE, no que cambien los modulos.)
+      const codigoNuevo = await generarCodigoAcceso(owner!, tenantId, {
+        modulosHabilitados: ["financiero"],
+      });
+      if (!codigoNuevo.ok) throw new Error(`setup fallo: ${codigoNuevo.error}`);
+      const recanje = await canjearCodigoAccesoAutenticada(nuevaId, codigoNuevo.data.codigo);
+      expect(recanje.ok).toBe(true);
+
+      // 3. El acceso volvio.
+      expect(await tieneConsentimiento(nuevaId, tenantId, "financiero")).toBe(true);
+
+      // 4. Y la cartera NO se duplico: sigue habiendo una sola fila viva.
+      const cartera = await db
+        .select()
+        .from(carteraInstitucional)
+        .where(eq(carteraInstitucional.institucionId, nuevaId));
+      expect(cartera).toHaveLength(1);
     });
   });
 });
