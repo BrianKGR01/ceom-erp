@@ -63,6 +63,15 @@ docs/architecture/CEOM_Arquitectura.md)
    sección 8.1), no por módulo completo.
 8. **Antes de escribir código en un módulo**, lee su `docs/modules/Modulo_XX.md` y su
    `src/modules/<módulo>/ANCLA.md` si ya existe.
+9. **Todo número que se sirve a un tercero viaja con sus marcadores de completitud.** Si el
+   dueño ve un marcador que cambia cómo se lee un número (`ingresosSinCostoConocido`, una
+   sucursal congelada, un módulo que no aplica al nicho), el tercero —institución, Panel
+   Admin CEOM— lo ve también y con al menos la misma prominencia: tiene menos contexto para
+   inferirlo, y todo marcador ausente empuja la lectura hacia el lado optimista. Ninguna capa
+   de presentación institucional descarta un marcador, y **ninguna re-proyecta a mano** el
+   resultado de una función del Core eligiendo campos — así es como un campo nuevo nace
+   invisible para el tercero. Marcar el hueco, nunca estimarlo. Justificación completa:
+   `docs/architecture/CEOM_Arquitectura.md` §3 principio 7 y §3.1.
 
 ## Qué NO hacer nunca
 - No tocar migraciones ya aplicadas en `drizzle/migrations/` — solo generar nuevas.

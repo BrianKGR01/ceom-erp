@@ -53,6 +53,21 @@ La decisión es un **Core Común** (igual para cualquier rubro) más **Módulos 
 4. **Privacidad por defecto.** Ningún tercero —institución, ni siquiera el propio equipo de CEOM— ve el detalle de un emprendimiento sin que ese emprendimiento lo haya aprobado explícitamente. CEOM no tiene acceso privilegiado por ser dueño de la plataforma.
 5. **Multi-perfil desde el diseño.** Owner, colaborador, institución y equipo CEOM interno ven el mismo negocio con distinto nivel de detalle, gobernado por el mismo motor de autorización (Módulo 1) y el mismo Gateway de Consentimiento.
 6. **Cero fricción, primero.** Onboarding progresivo — lo avanzado se revela cuando hace falta, no se impone desde el día uno.
+7. **Todo número que CEOM sirve a un tercero viaja con sus marcadores de completitud.** Si el dueño ve un marcador que cambia cómo se lee el número, el tercero lo ve también y con al menos la misma prominencia, porque tiene menos contexto para inferirlo. Ningún marcador se descarta en la capa de presentación institucional. **Marcar el hueco, nunca estimarlo.**
+
+### 3.1 Sobre el principio #7 — qué es un marcador de completitud, y por qué es un principio y no una convención
+
+Un **marcador de completitud** es cualquier dato que responde *"¿sobre qué parte de la realidad se calculó este número?"*. No cambia el número: cambia cómo se lee. Tres ejemplos vivos, todos con el marcador ya existente en la base:
+
+| Marcador | Qué declara | Sin él, el tercero lee |
+|---|---|---|
+| `ingresosSinCostoConocido` (H-15) | Cuánto del ingreso no tiene costo cargado | Un resultado presentado como completo, siempre desviado al lado optimista |
+| `sucursales.congelada_en` (H-02) | Que solo una parte de las sucursales puede registrar | Un negocio que se cayó, en vez de un negocio que se registra a medias |
+| `tenants.nicho_id` | Que el negocio no usa ese módulo | "No hubo actividad", en vez de "no aplica" |
+
+**Por qué es un principio y no una convención de código.** El dueño de un negocio tiene contexto para dudar de sus propios números: sabe qué cargó y qué no. Una institución externa no — ve un número y no tiene con qué contrastarlo. El error de lectura, además, **no es simétrico**: falta costo, nunca sobra; falta cobertura, nunca sobra. Todo marcador ausente empuja la lectura hacia el mismo lado, y ese lado es el optimista. Un agregado sin marcador servido a un tercero no es "un dato con menos detalle": es una afirmación más fuerte que la que el sistema puede sostener.
+
+**Consecuencia operativa.** Una capa de presentación institucional (hoy `src/modules/monitoreo-institucional/`) **nunca debe re-proyectar a mano** el resultado de una función del Core eligiendo campos: cada campo nuevo del origen nacería invisible para el tercero, en silencio. El descarte de un campo tiene que ser una decisión explícita y detectable, con el mismo criterio que `src/lib/security/access-manifest.ts` aplica a las Server Actions sin clasificar. Diagnóstico completo del caso que originó este principio: [`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.6-4.8.
 
 ---
 
