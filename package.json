@@ -15,7 +15,8 @@
     "seed:tenant": "tsx --env-file=.env.local scripts/seed-tenant.ts",
     "seed:demo": "tsx --env-file=.env.local scripts/seed-demo-data.ts",
     "seed:instituciones": "tsx --env-file=.env.local scripts/seed-instituciones.ts",
-    "storage:setup": "tsx --env-file=.env.local scripts/setup-storage.ts"
+    "storage:setup": "tsx --env-file=.env.local scripts/setup-storage.ts",
+    "auth:config": "tsx scripts/auth-config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
