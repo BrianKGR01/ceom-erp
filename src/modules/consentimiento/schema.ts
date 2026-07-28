@@ -261,6 +261,13 @@ export const codigosAcceso = pgTable(
 // `huella` es un HASH de la IP con un secreto del servidor, nunca la IP: no
 // hace falta saber de donde vino, solo si es el mismo origen. Sin policy para
 // `authenticated` (deny total), mismo criterio que logs_acceso_admin_ceom.
+//
+// PENDIENTE conocido, no silencioso: la tabla **crece sin limite** — se
+// inserta una fila por intento y nada las borra. A escala de piloto es
+// irrelevante (unos cientos de filas), pero antes de produccion hace falta
+// una purga de las filas mas viejas que la ventana (un cron, o un DELETE
+// oportunista en el mismo insert). No se hizo en la tanda 3.2 para no meter
+// scheduling en una tanda que no lo tenia en alcance.
 export const intentosCanje = pgTable(
   "intentos_canje",
   {

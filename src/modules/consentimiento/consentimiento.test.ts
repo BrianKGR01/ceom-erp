@@ -99,10 +99,15 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
     // que borrar las aprobaciones antes que los codigos. Dos grupos sin FK
     // entre sí (la institución "principal" del describe vs. las auto-creadas
     // al canjear código) corren en paralelo.
+    // `%${sufijo}` y no `Consultora Canjeada ${sufijo}%`: la tanda 3.2 sumó
+    // seis instituciones más creadas al vuelo por los casos de canje
+    // ("Incubadora H42", "Primera H42", "Carrera A/B", "Reotorgada G17"), y
+    // todas terminan con el mismo sufijo. Con el patrón viejo quedaban
+    // huérfanas en la base compartida corrida tras corrida.
     const institucionesCanjeadas = db
       .select({ id: instituciones.id })
       .from(instituciones)
-      .where(like(instituciones.nombre, `Consultora Canjeada ${sufijo}%`));
+      .where(like(instituciones.nombre, `%${sufijo}`));
 
     await limpiarConAuthGarantizada(
       async () => {
@@ -121,7 +126,7 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
             await db
               .delete(carteraInstitucional)
               .where(inArray(carteraInstitucional.institucionId, institucionesCanjeadas));
-            await db.delete(instituciones).where(like(instituciones.nombre, `Consultora Canjeada ${sufijo}%`));
+            await db.delete(instituciones).where(like(instituciones.nombre, `%${sufijo}`));
           },
         ]);
 
