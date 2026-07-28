@@ -18,6 +18,7 @@ import {
 } from "@/modules/consentimiento/schema";
 import { crearGastoManual, crearCategoriaGasto } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
+import { asignarNicho } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -132,6 +133,16 @@ describe.skipIf(!hasCredenciales)(
       });
       tenantId = tenant.id;
       sucursalId = sucursal.id;
+
+      // G-14 (tanda 3.3a): este tenant tiene producciones e insumos, así que
+      // es de Nicho 1 — hay que decirlo. Sin `nicho_id`, `detalleOperativo`/
+      // `detalleInventarioOperativo` devuelven ahora `modulo_no_aplica`, que
+      // es el comportamiento CORRECTO: un negocio sin nicho no usa el Módulo
+      // Operativo. El test lo detectó al agregar el chequeo, y la que estaba
+      // mal era la fixture, no el código.
+      const ownerParaNicho = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const nicho = await asignarNicho(ownerParaNicho!, "nicho_1");
+      if (!nicho.ok) throw new Error(`setup fallo: asignarNicho — ${nicho.error}`);
 
       const institucion = await crearInstitucion(
         { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
