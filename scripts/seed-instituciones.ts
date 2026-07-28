@@ -36,6 +36,7 @@ import {
   agregarTenantACartera,
   aprobarSolicitud,
   canjearCodigoAcceso,
+  canjearCodigoAccesoAutenticada,
   crearInstitucion,
   crearSolicitudSeguimiento,
   generarCodigoAcceso,
@@ -785,15 +786,27 @@ async function main() {
     );
     const incubadoraId = canje.institucionId;
 
-    // Los negocios B y C entran a la cartera de I1 por el camino 2 (CEOM), que
-    // es la circunvalación documentada de H-42: hoy una institución YA
-    // registrada no puede canjear un segundo código. En cuanto la tanda 3.2
-    // habilite el canje autenticado, estos dos negocios se pueden volver a
-    // sembrar por el camino 1 y este bloque se simplifica.
-    for (const [tenant, modulos] of [
-      [B, ["financiero", "operativo"]],
-      [C, ["financiero"]],
-    ] as const) {
+    // B entra por el CAMINO 1 y AUTENTICADA — el cierre de H-42 (tanda 3.2).
+    // Hasta entonces este bloque no podía existir: una institución ya
+    // registrada no tenía forma de canjear un segundo código, así que los
+    // tres negocios de la Incubadora se sembraban por el camino 2. Dejarlo
+    // así habría vuelto el seed cómplice del defecto — el escenario "cartera
+    // de varios" existiría, pero armado por el camino que NO estaba roto.
+    const codigoB = exigir(
+      await generarCodigoAcceso(B.owner, B.tenantId, {
+        modulosHabilitados: ["financiero", "operativo"],
+      }),
+      "generarCodigoAcceso(B → I1)"
+    );
+    exigir(
+      await canjearCodigoAccesoAutenticada(incubadoraId, codigoB.codigo),
+      "canjearCodigoAccesoAutenticada(I1 → B)"
+    );
+
+    // C sigue entrando por el camino 2 (CEOM vincula + solicitud + el Owner
+    // aprueba), a propósito: los DOS caminos tienen que estar representados
+    // en los datos de prueba, no solo el que se acaba de arreglar.
+    for (const [tenant, modulos] of [[C, ["financiero"]]] as const) {
       exigir(
         await agregarTenantACartera(ceomAdmin, {
           institucionId: incubadoraId,
@@ -818,7 +831,7 @@ async function main() {
         "aprobarSolicitud(I1)"
       );
     }
-    console.log("✓ I1 (Incubadora Andina): 3 negocios en cartera — A, B y C.");
+    console.log("✓ I1 (Incubadora Andina): 3 negocios — A por canje, B por canje AUTENTICADO (H-42), C por camino 2.");
 
     // I2 — el mismo negocio A que I1, pero solo "financiero". La afirmación que
     // hoy NADIE prueba: dos instituciones sobre el mismo negocio, cada una
