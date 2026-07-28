@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   date,
+  index,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -240,6 +241,34 @@ export const codigosAcceso = pgTable(
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
   ]
+).enableRLS();
+
+// Intentos de canje, para poder limitarlos (tanda 3.2). `canjearCodigoAcceso`
+// es la UNICA escritura sin autenticar de todo el producto —correctamente:
+// una institucion no tiene cuenta cuando llega con su primer codigo— y hasta
+// esta tanda no tenia ningun limite.
+//
+// Por que una tabla y no un contador en memoria: la app corre en Vercel
+// (serverless, multi-instancia, procesos efimeros). Un Map en memoria se
+// resetea en cada deploy y no se comparte entre instancias, asi que seria un
+// limite decorativo. Esto es la version honesta.
+//
+// Que NO es esto: proteccion contra fuerza bruta del codigo en si. El espacio
+// de claves es 32^8 (~1,1x10^12); a 10 intentos/segundo son ~3500 años, la
+// fuerza bruta no es la amenaza. Lo que cubre es abuso del endpoint y que
+// probar sea gratis y sin dejar rastro.
+//
+// `huella` es un HASH de la IP con un secreto del servidor, nunca la IP: no
+// hace falta saber de donde vino, solo si es el mismo origen. Sin policy para
+// `authenticated` (deny total), mismo criterio que logs_acceso_admin_ceom.
+export const intentosCanje = pgTable(
+  "intentos_canje",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    huella: text("huella").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("intentos_canje_huella_creado_en").on(table.huella, table.creadoEn)]
 ).enableRLS();
 
 // Traza interna de acceso del equipo CEOM (Modulo_11 seccion 4, regla 5) —

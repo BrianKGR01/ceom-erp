@@ -77,6 +77,41 @@ function esCorreoDeInstitucionDuplicado(error: unknown): boolean {
   return false;
 }
 
+/**
+ * Limite de intentos de canje por origen (tanda 3.2). `canjearCodigoAcceso`
+ * es la unica escritura sin autenticar del producto y hasta esta tanda no
+ * tenia ninguno; `docs/auditoria-prelanzamiento/03-seguridad.md` lo marco
+ * como previo a cualquier despliegue.
+ *
+ * Deliberadamente holgado: 10 intentos cada 15 minutos no molesta a nadie
+ * transcribiendo un codigo a mano (el alfabeto ya evita 0/O y 1/I justamente
+ * por eso) y corta el abuso automatizado. NO pretende frenar fuerza bruta
+ * sobre el codigo — ver el comentario de `intentosCanje` en schema.ts.
+ */
+export const MAX_INTENTOS_CANJE = 10;
+export const VENTANA_INTENTOS_CANJE_MINUTOS = 15;
+
+/**
+ * Registra un intento y devuelve si ese origen se paso del limite.
+ *
+ * **Registra siempre, incluso cuando ya esta pasado** — a proposito: si el
+ * insert se salteara al estar bloqueado, la ventana se vaciaria sola mientras
+ * el atacante sigue pegando, y el bloqueo se levantaria a los 15 minutos de
+ * su ULTIMO intento contado en vez de del ultimo real.
+ *
+ * `huella` la calcula el llamador (capa de ruta): es la unica que tiene
+ * acceso a los headers de la request, y un modulo de negocio no deberia saber
+ * que existe una IP. Ver `limiteDeCanjeSuperado()` en app/portal/actions.ts.
+ */
+export async function registrarIntentoCanjeYVerificarLimite(
+  huella: string
+): Promise<{ superado: boolean; intentos: number }> {
+  await repo.registrarIntentoCanje(huella);
+  const desde = new Date(Date.now() - VENTANA_INTENTOS_CANJE_MINUTOS * 60 * 1000);
+  const intentos = await repo.contarIntentosCanjeDesde(huella, desde);
+  return { superado: intentos > MAX_INTENTOS_CANJE, intentos };
+}
+
 function generarCodigoAlfanumerico(longitud = 8): string {
   const bytes = randomBytes(longitud);
   let codigo = "";

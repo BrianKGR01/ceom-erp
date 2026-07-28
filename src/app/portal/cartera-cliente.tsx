@@ -2,11 +2,115 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, CheckCircle2, Eye, Search, ShieldAlert, Store, UtensilsCrossed } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Building2,
+  CheckCircle2,
+  Eye,
+  KeyRound,
+  Search,
+  ShieldAlert,
+  Store,
+  UtensilsCrossed,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PortalTopbar } from "@/components/shared/portal-topbar";
 import { cn } from "@/lib/utils";
+import { canjearCodigoAutenticadaAction } from "./actions";
+
+/**
+ * Canje estando ya autenticada — el lado visible de H-42.
+ *
+ * `try/catch` alrededor de la Server Action, no solo `if (!resultado.ok)`: el
+ * defecto original no era solo que faltara el camino, era que cuando la
+ * acción rechazaba, la ejecución se cortaba y `setEnviando(false)` nunca
+ * corría — el botón quedaba en "Canjeando..." para siempre, sin ningún
+ * mensaje, y no hay ningún `error.tsx` en todo `src/app/` que lo recoja.
+ */
+function CanjearOtroCodigoDialog({
+  open,
+  onOpenChange,
+  onCanjeado,
+}: {
+  open: boolean;
+  onOpenChange: (abierto: boolean) => void;
+  onCanjeado: () => void;
+}) {
+  const [codigo, setCodigo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmar() {
+    if (!codigo.trim()) {
+      setError("Ingresá el código de acceso.");
+      return;
+    }
+    setEnviando(true);
+    setError(null);
+    try {
+      const resultado = await canjearCodigoAutenticadaAction(codigo.trim());
+      if (!resultado.ok) {
+        setError(resultado.error);
+        return;
+      }
+      setCodigo("");
+      onCanjeado();
+    } catch {
+      setError("No pudimos canjear el código — probá de nuevo en un momento.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Canjear otro código</DialogTitle>
+          <DialogDescription>
+            Sumá otro negocio a tu cartera con el código que te dio su dueño.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="codigo-extra">Código de acceso</Label>
+          <Input
+            id="codigo-extra"
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+            placeholder="Ej: ABC12XYZ"
+            className="text-center font-heading tracking-widest uppercase"
+            onKeyDown={(e) => e.key === "Enter" && confirmar()}
+            autoFocus
+          />
+          {error && (
+            <p role="alert" className="text-xs text-error-text">
+              {error}
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={enviando}>
+            {enviando ? "Canjeando..." : "Canjear"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type EstadoAcceso = "activo" | "solo_lectura" | "bloqueado";
 
@@ -62,7 +166,9 @@ export function CarteraCliente({
   cartera: FilaCartera[];
   planes: Plan[];
 }) {
+  const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
+  const [canjeAbierto, setCanjeAbierto] = useState(false);
   const nombrePlan = useMemo(() => new Map(planes.map((p) => [p.id, p.nombre])), [planes]);
 
   const conteos = useMemo(() => {
@@ -92,16 +198,37 @@ export function CarteraCliente({
             <h1 className="font-heading text-2xl font-semibold text-navy">Mi cartera de negocios</h1>
             <p className="mt-1 text-sm text-text-muted">Seguí el estado de los negocios en tu cartera.</p>
           </div>
-          <div className="relative sm:w-64">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
-            <Input
-              placeholder="Buscar negocio..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="pl-8"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative sm:w-64">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
+              <Input
+                placeholder="Buscar negocio..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            {/* H-42: hasta la tanda 3.2 no existía ningún camino para canjear
+                un segundo código. /portal era una bifurcación binaria (con
+                sesión, cartera; sin sesión, canje) y una institución ya
+                registrada quedaba sin salida: con su mismo correo rompía la
+                Server Action, y con otro correo nacía una segunda institución
+                con cartera de un solo negocio. Este botón ES el cierre. */}
+            <Button onClick={() => setCanjeAbierto(true)} className="gap-1.5">
+              <KeyRound className="size-4" />
+              Canjear otro código
+            </Button>
           </div>
         </div>
+
+        <CanjearOtroCodigoDialog
+          open={canjeAbierto}
+          onOpenChange={setCanjeAbierto}
+          onCanjeado={() => {
+            setCanjeAbierto(false);
+            router.refresh();
+          }}
+        />
 
         <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">

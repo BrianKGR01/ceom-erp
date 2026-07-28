@@ -1,10 +1,11 @@
-import { and, desc, eq, gte, isNull, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aprobacionesTenant,
   carteraInstitucional,
   codigosAcceso,
   instituciones,
+  intentosCanje,
   logsAccesoAdminCeom,
   solicitudesSeguimiento,
 } from "./schema";
@@ -416,6 +417,20 @@ export async function canjearCodigoAccesoTx(input: {
   });
 }
 
+
+// --- Limite de intentos de canje (tanda 3.2) ---------------------------------------------------------
+
+export async function registrarIntentoCanje(huella: string) {
+  await db.insert(intentosCanje).values({ huella });
+}
+
+export async function contarIntentosCanjeDesde(huella: string, desde: Date) {
+  const [fila] = await db
+    .select({ total: sql<string>`count(*)` })
+    .from(intentosCanje)
+    .where(and(eq(intentosCanje.huella, huella), gte(intentosCanje.creadoEn, desde)));
+  return Number(fila.total);
+}
 
 // --- Log de Acceso Admin CEOM ---------------------------------------------------------
 

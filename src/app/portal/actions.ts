@@ -1,9 +1,13 @@
 "use server";
 
+import { createHash } from "node:crypto";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   canjearCodigoAcceso,
+  canjearCodigoAccesoAutenticada,
   obtenerInstitucionActual,
+  registrarIntentoCanjeYVerificarLimite,
   solicitarMagicLinkInstitucion,
 } from "@/modules/consentimiento/actions";
 import type { DatosInstitucion } from "@/modules/consentimiento/actions";
@@ -18,11 +22,66 @@ import {
   tendenciaVentas,
 } from "@/modules/monitoreo-institucional/actions";
 
+/**
+ * Huella del origen de la request, para el límite de intentos de canje.
+ *
+ * **Hash, nunca la IP en claro**: para limitar alcanza con saber si es el
+ * mismo origen, no cuál es. El secreto sale de `SUPABASE_SECRET_KEY` (ya
+ * obligatoria en el servidor) para que la huella no sea reversible con un
+ * diccionario de IPs — un SHA-256 pelado de una IPv4 se rompe por fuerza
+ * bruta en segundos.
+ *
+ * Vive en la capa de ruta y no en el módulo: es la única que ve los headers,
+ * y `consentimiento` no debería saber que existe una IP.
+ */
+async function huellaDelOrigen(): Promise<string> {
+  const cabeceras = await headers();
+  const ip =
+    cabeceras.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    cabeceras.get("x-real-ip") ||
+    "desconocido";
+  return createHash("sha256")
+    .update(`${process.env.SUPABASE_SECRET_KEY ?? ""}:${ip}`)
+    .digest("hex");
+}
+
+/** `{ok:false}` si este origen se pasó del límite; `null` si puede seguir. */
+async function limiteDeCanjeSuperado(): Promise<{ ok: false; error: string } | null> {
+  const { superado } = await registrarIntentoCanjeYVerificarLimite(await huellaDelOrigen());
+  if (!superado) return null;
+  return {
+    ok: false,
+    error:
+      "Demasiados intentos. Esperá unos minutos y volvé a probar — si el código no te funciona, " +
+      "pedile al negocio que te genere uno nuevo.",
+  };
+}
+
 export async function canjearCodigoAccesoAction(input: {
   codigo: string;
   institucionNueva: DatosInstitucion;
 }) {
+  const limite = await limiteDeCanjeSuperado();
+  if (limite) return limite;
   return canjearCodigoAcceso(input);
+}
+
+/**
+ * Canje estando ya autenticada — el cierre de H-42 del lado de la UI.
+ *
+ * Resuelve la Institucion desde SU PROPIA sesion (`obtenerInstitucionActual`),
+ * nunca desde un `institucionId` que venga del cliente: si lo recibiera por
+ * parametro, cualquiera podria canjear un codigo en nombre de otra
+ * institucion. Mismo criterio que las 5 acciones delgadas de abajo.
+ *
+ * No pasa por `limiteDeCanjeSuperado()`: acá ya hay una sesión real detrás, y
+ * el límite existe para la única escritura SIN autenticar del producto.
+ */
+export async function canjearCodigoAutenticadaAction(codigo: string) {
+  const institucion = await obtenerInstitucionActual();
+  if (!institucion)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return canjearCodigoAccesoAutenticada(institucion.id, codigo);
 }
 
 // Server Actions delgadas (mismo patron que reportes/actions.ts): resuelven

@@ -54,21 +54,34 @@ export function CanjearCliente() {
     }
     setEnviando(true);
     setError(null);
-    const resultado = await canjearCodigoAccesoAction({
-      codigo: codigo.trim(),
-      institucionNueva: {
-        nombre: nombre.trim(),
-        tipo,
-        contacto: contacto.trim() || undefined,
-        email: email.trim(),
-      },
-    });
-    setEnviando(false);
-    if (!resultado.ok) {
-      setError(resultado.error);
-      return;
+    // `try/catch` + `finally`: sin esto, cuando la Server Action rechazaba
+    // —el caso real de H-42: el correo ya pertenecía a otra institución y la
+    // violación de unicidad no estaba capturada en ningún punto de la
+    // cadena— la ejecución de esta función se cortaba y `setEnviando(false)`
+    // NUNCA corría. El botón quedaba en "Confirmando..." de forma
+    // permanente, y como no hay ningún `error.tsx` en todo `src/app/`,
+    // tampoco había error boundary que mostrara nada. Lo que veía la
+    // institución no era un error feo: era una pantalla congelada.
+    try {
+      const resultado = await canjearCodigoAccesoAction({
+        codigo: codigo.trim(),
+        institucionNueva: {
+          nombre: nombre.trim(),
+          tipo,
+          contacto: contacto.trim() || undefined,
+          email: email.trim(),
+        },
+      });
+      if (!resultado.ok) {
+        setError(resultado.error);
+        return;
+      }
+      setPaso("listo");
+    } catch {
+      setError("No pudimos completar el canje — probá de nuevo en un momento.");
+    } finally {
+      setEnviando(false);
     }
-    setPaso("listo");
   }
 
   async function enviarMagicLink() {
@@ -90,10 +103,12 @@ export function CanjearCliente() {
           <CheckCircle2 className="size-7" />
         </span>
         <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Acceso otorgado</h1>
+        {/* Este texto decía que el panel "está por construirse". Existe desde
+            el ítem #11 del roadmap: era copy muerto de una tanda anterior. */}
         <p className="mt-2 text-sm text-text-muted">
-          Ya podés hacer seguimiento de este negocio. El panel donde vas a ver los datos
-          compartidos está por construirse — mientras tanto, guardá tu email: la próxima vez podés
-          volver a entrar desde &ldquo;¿Ya tenés acceso?&rdquo; sin el código.
+          Ya podés hacer seguimiento de este negocio. Para entrar a tu cartera, pedí tu enlace de
+          acceso desde &ldquo;¿Ya tenés acceso?&rdquo; con el correo que acabás de registrar — y si
+          te dan más códigos, los canjeás desde ahí mismo, sin volver a esta pantalla.
         </p>
       </div>
     );
@@ -106,9 +121,16 @@ export function CanjearCliente() {
           <Mail className="size-7" />
         </span>
         <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Revisá tu correo</h1>
+        {/* El mensaje es el MISMO exista o no ese correo (anti-enumeración,
+            mismo criterio que la recuperación de contraseña). Por eso dice
+            "si existe" y nunca confirma nada. */}
         <p className="mt-2 text-sm text-text-muted">
           Si existe una cuenta con ese email, te enviamos un enlace para entrar. Puede tardar
           unos minutos en llegar.
+        </p>
+        <p className="mt-2 text-sm text-text-muted">
+          Una vez adentro, canjeá tu código desde <strong>Canjear otro código</strong> en tu
+          cartera.
         </p>
         <Button variant="outline" onClick={() => setPaso("codigo")} className="mt-6 w-full justify-center">
           Volver
@@ -232,10 +254,24 @@ export function CanjearCliente() {
           <h1 className="text-center font-heading text-lg font-semibold text-navy">
             Contanos quién sos
           </h1>
+          {/* El texto anterior decía "No encontramos una cuenta con este
+              código todavía", presentándolo como el resultado de una
+              búsqueda. El código nunca buscó nada: `continuarConCodigo()`
+              solo valida que el campo no esté vacío y salta a este paso. Era
+              una afirmación falsa, no una omisión. */}
           <p className="mt-1 text-center text-sm text-text-muted">
-            No encontramos una cuenta con este código todavía — completá estos datos para crear tu
-            perfil de institución.
+            Completá estos datos para registrar tu institución.
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setPaso("reingreso");
+            }}
+            className="mt-2 w-full text-center text-xs font-medium text-primary hover:underline"
+          >
+            ¿Tu institución ya tiene acceso a CEOM? Entrá con tu correo
+          </button>
 
           <div className="mt-6 space-y-4">
             <div className="space-y-1.5">
