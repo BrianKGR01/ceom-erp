@@ -34,9 +34,14 @@ La única palanca de otorgamiento del Owner es generar un código; la única for
 formulario de canje; y ese formulario es inalcanzable para una institución ya registrada. La revocación
 es, hoy, de una sola dirección — ver [§5.4](#54-revocar-es-irreversible-desde-app).
 
-Alrededor de eso aparecieron **17 huecos verificados**, tres de ellos con consecuencia de privacidad o
-de dato incorrecto en pantalla, y **un punto ciego de entorno que hace que hoy nadie pueda entrar al
-portal autenticado**. El detalle de cada uno abajo.
+Alrededor de eso aparecieron **20 huecos verificados**, y **un punto ciego de entorno que hace que hoy
+nadie pueda entrar al portal autenticado**. El detalle de cada uno abajo.
+
+> **Actualización del 2026-07-27 (tanda 3.1).** Al verificar el cruce con sucursales múltiples
+> aparecieron tres hallazgos más, y **uno de ellos desplazó a H-42 del primer lugar por consecuencia**:
+> el estado de resultados se le sirve a la institución presentado como completo sin serlo (X-01, §4.6).
+> Los tres resultaron ser casos del mismo defecto —marcadores de completitud que existen y no se
+> propagan al tercero— que quedó escrito como **principio rector #7** del producto. Ver §4.6-4.8 y §10.
 
 ### Tabla de hallazgos
 
@@ -62,6 +67,18 @@ portal autenticado**. El detalle de cada uno abajo.
 
 Severidad: 🔴 tarea imposible o dato incorrecto sin aviso · 🟠 consecuencia real, con circunvalación ·
 🟡 fricción o promesa incumplida · ⚪ falta de producto, no defecto.
+
+### Hallazgos agregados el 2026-07-27 (tanda 3.1) — el cruce con sucursales
+
+Agregados después de aprobado el documento, al verificar el cruce entre este subsistema y el de
+sucursales múltiples ([07-sucursales-multiples.md](07-sucursales-multiples.md)): ninguno de los dos
+diagnósticos había mirado al otro, cada uno asumió que el otro lo cubría.
+
+| ID | Sev. | Hallazgo | § |
+|---|---|---|---|
+| X-01 | 🔴 | El marcador de completitud de H-15 se descarta en la capa institucional | [4.6](#46-x-01--el-marcador-de-h-15-se-descarta-para-la-institución) |
+| X-02 | 🟠 | Una sucursal congelada vuelve parcial el dato, y nada lo dice | [4.7](#47-x-02--una-sucursal-congelada-vuelve-parcial-el-dato) |
+| X-03 | 🟠 | El re-proyectado a mano de `detalleFinanciero()` es una fábrica de X-01 | [4.8](#48-x-03--el-defecto-común-y-por-qué-va-a-repetirse) |
 
 ---
 
@@ -464,6 +481,113 @@ premisa sobre la que está construida la separación de identidades de `CEOM_Arq
 que el modelo de "quién es quién" deje de ser una función. Corresponde al menos rechazar el vínculo
 cuando el `authUserId` ya es un Usuario.
 
+### 4.6 X-01 — El marcador de H-15 se descarta para la institución
+
+**El hallazgo de mayor consecuencia de todo este documento.** Arreglo chico, consecuencia grande.
+
+`estadoResultados()` devuelve **siete** campos, y uno de ellos no es un dato más:
+`ingresosSinCostoConocido`, el campo que nació al corregir H-15, con su propósito escrito al lado
+(`financiero/actions.ts:136-142`):
+
+> *"El resultado de arriba **no cambia** por esto —no hay costo que restar—, pero deja de presentarse
+> como completo: la pantalla puede decir 'de estos ingresos, Bs X no tienen costo cargado, tu margen
+> real es menor'. **Marcar el hueco, nunca estimar un número para taparlo.**"*
+
+`detalleFinanciero()` (`monitoreo-institucional/actions.ts:148-158`) reenvía **tres**: `flujoCaja`,
+`estadoResultados`, `costoFijoTotal`. **El marcador se descarta ahí.** Idéntico en `tendenciaVentas()`
+(líneas 112-124): `consultarIngresosPeriodo` devuelve `{ingresos, costos, ingresosSinCostoConocido}` y
+reenvía solo `ingresos`.
+
+Que se descarte la **descomposición** (`ingresos`, `gastos`, `ajustesVenta`, `ajustesCompra`) es
+defendible: el portal es agregado por diseño y el manual lo declara. **Descartar el marcador de
+completitud no lo es.** Es el único de los seis campos perdidos cuyo propósito entero es impedir que se
+malinterprete el número que sí se muestra.
+
+**La asimetría es total.** El marcador llega a cuatro pantallas del dueño —
+`reportes/resumen-financiero-cliente.tsx:211-216` (*"Bs X de estos ingresos son de ventas sin costo
+cargado"*), `reportes/ranking-productos-cliente.tsx:185`,
+`reportes/margen-canal-producto-cliente.tsx:69-71,131,152,160` y
+`simulaciones/margen-producto-cliente.tsx:187`. A la institución **no le llega en ninguna forma**.
+
+**Por qué es 🔴 y no 🟠.** Es un número que se presenta completo sin serlo, **desviado siempre hacia el
+lado optimista** (falta costo, nunca sobra), leído por el actor que menos contexto tiene para dudar de
+él y que puede estar decidiendo financiamiento. Es el mismo modo de falla que este proyecto ya cerró
+seis veces en la familia del número financiero (H-15, H-24, H-25, H-27, H-30, H-31), reapareciendo en la
+única superficie donde nadie lo había buscado.
+
+**Y el manual lo compensa en prosa.** `instituciones/03-ver-un-negocio.md:63-88` le dedica un bloque
+entero de advertencias — *"El estado de resultados leelo como un techo"*, *"un negocio con mucha venta y
+poco costo cargado no es un negocio rentable: es un negocio con los costos sin cargar"*. El producto
+tiene el número exacto, a una línea de distancia, y le pide a la institución que lo estime de memoria.
+
+**¿El portal le muestra un margen a la institución?** **No, hoy no** — verificado: cero coincidencias de
+"margen" en `src/app/portal/` y en `monitoreo-institucional/actions.ts`. La ficha muestra exactamente
+tres tarjetas escalares. Pero eso es **accidente de alcance, no protección**: `monitoreo-institucional/ANCLA.md:46`
+tiene `margenPorProducto` anotado como pendiente sin marcar. La disciplina que protege al dueño es que
+`margenAfirmable()` devuelve `null` cuando el marcador es > 0 (`reportes/actions.ts:74-84`, *"único
+lugar donde vive la regla, para que Ranking y Margen canal × producto no puedan divergir"*) — un `null`
+sobreviviría a un reenvío ingenuo. **El riesgo real es el inverso**: que quien tilde ese pendiente
+calcule el margen en la capa institucional a partir de los escalares que ya viajan, sin pasar por
+`margenAfirmable()`. Ahí la institución vería justo el número del que el dueño está protegido. Hoy no
+pasa; nada lo impide mañana. Es X-03.
+
+### 4.7 X-02 — Una sucursal congelada vuelve parcial el dato
+
+Primero lo que **no** es defecto: la consolidación en sí es correcta y consistente. Ninguna función del
+camino institucional pasa `sucursalId`, y todas las de abajo lo tratan como opcional
+(`ventas/repository.ts:343`, `gastos/repository.ts:325,351`, `proveedores/repository.ts:326,383`,
+`nicho-1/repository.ts:359,406`). Una institución sigue un negocio, no una sucursal. **No hay ningún
+"filtro que no filtra" en el portal** — a diferencia del Dashboard del dueño (H-16).
+
+El defecto es otro, y el encuadre importa porque cambia qué hay que construir.
+
+**Una sucursal congelada no es una sucursal cerrada.** El local puede seguir operando en la vida real;
+lo que no puede es **registrarse en CEOM** — el freeze rechaza escritura en los seis módulos (tras
+`ff48f95`). Entonces lo que la institución mira no es un negocio que se achicó: **es un negocio del que
+se está registrando una parte.** El dato se volvió parcial y nada lo dice.
+
+Y el único diagnóstico que la institución tiene se lo niega:
+
+- El portal **no menciona sucursales en ningún lado**. `obtenerTenantParaVeedor()`
+  (`identidad/actions.ts:193-214`) devuelve `{id, nombreNegocio, nichoId, planId, estadoAcceso}` — ni
+  cuántas sucursales hay, ni cuántas son operables.
+- `calcularEstadoAcceso()` (`identidad/actions.ts:53-72`) depende **solo** de `estadoSuscripcion` y
+  `fechaProximoPago`. **Un downgrade de plan deja el estado en `activo`.**
+
+Eso vuelve falso el consejo que el manual le da en `instituciones/02-tu-cartera.md:39-45`: *"Si ves que
+la actividad de un negocio se detuvo, mirá primero su estado antes de concluir que dejó de vender."*
+Mira el estado, dice **Activo**, y concluye lo contrario de lo que pasó.
+
+**Decisión tomada — ver [D-9](#d-9--x-02-cómo-se-declara-la-cobertura-parcial-por-sucursal).** La señal
+no dice "bajó de plan" ni nombra el plan: **declara la cobertura del dato**. No es información
+comercial, es un marcador de completitud — el mismo que X-01, sobre otro eje.
+
+### 4.8 X-03 — El defecto común, y por qué va a repetirse
+
+X-01, X-02 y G-14 **no son tres hallazgos: son tres casos del mismo defecto.** Marcadores de
+completitud que existen en el sistema y no se propagan al tercero:
+
+| Caso | El marcador existe como… | Se pierde en… |
+|---|---|---|
+| **X-01** | `ingresosSinCostoConocido` (campo real, ya calculado) | El re-proyectado de `detalleFinanciero()` |
+| **X-02** | `sucursales.congelada_en` (columna real) | `obtenerTenantParaVeedor()`, que nunca lo miró |
+| **G-14** | `tenants.nicho_id` (columna real) | El camino de Nicho 1, que nunca lo chequea |
+
+En los tres, el dato que evita la mala lectura **ya está en la base**. Ninguno requiere calcular nada
+nuevo. Lo que falta es que atraviese la frontera hacia el tercero.
+
+**Y el mecanismo que los produce sigue en pie.** `detalleFinanciero()` recibe siete campos y reenvía
+tres **elegidos a mano**. Ese re-proyectado es lo que descartó el marcador, y va a descartar el próximo:
+**cada campo nuevo que gane `estadoResultados` nace invisible para la institución, en silencio, sin que
+nada falle y sin que nadie lo note.** No es un bug: es una fábrica de bugs.
+
+El proyecto ya resolvió este patrón exacto una vez —`src/lib/security/access-manifest.ts` y su test por
+AST, que rompe la build cuando aparece una Server Action sin clasificar— y la propuesta para aplicar la
+misma idea acá está en [D-10](#d-10--x-03-cómo-se-vuelve-detectable-el-descarte-de-un-campo).
+
+La regla general que sale de esto quedó escrita como **principio rector #7** del producto
+(`docs/architecture/CEOM_Arquitectura.md` §3) y como **regla no negociable #9** de `CLAUDE.md`.
+
 ---
 
 ## 5. Revocación y consentimiento vigente
@@ -576,66 +700,91 @@ autorizó.
 
 ---
 
-## 7. Plan de sub-etapas verificables
+## 7. Plan de tandas verificables
 
-Cada etapa se puede mergear sola, en verde, y deja el sistema mejor que antes. El orden está elegido para
-que la verificación de la etapa N no dependa de nada de la N+1.
+> **Nomenclatura (fijada el 2026-07-27).** "Etapa" es la numeración del **proyecto**: Etapa 2 =
+> sucursales múltiples, **Etapa 3 = instituciones (este documento)**, Etapa 4 = segundo Owner. Las
+> sub-divisiones de este plan se llaman **tandas 3.1 a 3.6**. La numeración de tandas **no se corre**
+> aunque dos se fusionen. Usar esta nomenclatura en commits, PR y documentos.
 
-### Etapa 0 — Hacer el flujo observable (habilita todo lo demás)
-Sin esto, ninguna etapa siguiente se puede verificar de punta a punta.
-- Extender `seed-demo-data.ts`: **1 institución con 2 negocios en cartera** (módulos distintos en cada
-  uno), **1 institución con 1 negocio**, **1 negocio que no autorizó a nadie**, 1 código `activo`, 1
-  `canjeado`, 1 `revocado`, y 1 negocio de nicho distinto con `operativo` consentido (el caso G-14).
-- Resolver el acceso autenticado de prueba: sembrar `auth_user_id` en la institución de demo contra un
-  usuario de Auth creado por el propio seed, para que `/portal` logueado sea alcanzable sin bandeja real.
-- **Verificable por:** `pnpm seed:demo` en base limpia + entrar a `/portal` y ver una cartera de 2.
+Cada tanda se puede mergear sola, en verde, y deja el sistema mejor que antes. El orden está elegido
+para que la verificación de la tanda N no dependa de nada de la N+1.
 
-### Etapa 1 — Cerrar H-42 (G-08), sin cambiar el modelo
+| Tanda | Qué cierra | Estado |
+|---|---|---|
+| **3.1** | Cruce con sucursales verificado · decisiones registradas · seed observable | En curso (2026-07-27) |
+| **3.2** | H-42 (canje autenticado) + atomicidad + TTL de códigos + rate limiting | Pendiente |
+| **3.3** | Que lo que se ve sea verdad: X-01, X-02, X-03, G-14, G-15 | Pendiente |
+| **3.4** | Coherencia de la revocación: G-05, G-17, G-06, G-07 | Pendiente |
+| **3.5** | Superficie de datos: G-13, G-16, G-04 (log institucional) | Pendiente |
+| **3.6** | Escala del piloto: G-09, G-10 | Pendiente, opcional |
+
+### Tanda 3.1 — Hacer el flujo observable (habilita todo lo demás)
+Sin esto, ninguna tanda siguiente se puede verificar de punta a punta.
+- **Verificar el cruce con sucursales** antes de tocar nada — hecho: X-01, X-02, X-03 (§4.6-4.8).
+- **Registrar las decisiones** de §9 para que ninguna tanda posterior las reabra.
+- Extender `seed-demo-data.ts` con el caso del piloto **y sus casos degenerados** (§6.3), incluidos los
+  dos que exponen X-01 y X-02.
+- Resolver el acceso autenticado de prueba: sembrar `auth_user_id` contra usuarios de Auth creados por
+  el propio seed, para que `/portal` logueado sea alcanzable sin bandeja de correo real.
+- Limpiar la fila de G-16 sembrada por accidente (`admin@ceom.lat` como institución).
+- **Verificable por:** `pnpm seed:demo` en base limpia + entrar a `/portal` y ver una cartera de varios.
+
+### Tanda 3.2 — Cerrar H-42 y la integridad del canje (G-08, G-02, G-03, G-04, G-01)
+Fusiona las Etapas 1 y 2 del plan original **más dos ítems sumados el 2026-07-27**: tocan todas la misma
+función (`canjearCodigoAcceso`) y separarlas obligaría a tocarla tres veces.
 - `canjearCodigoAccesoAction`: `institucionNueva` pasa a opcional; aceptar `institucionId`.
 - Superficie nueva en `/portal` para canjear con sesión (ruta o diálogo desde `CarteraCliente`), que
   resuelve `obtenerInstitucionActual()` y manda su `id`.
-- Capturar la violación de unicidad en `crearInstitucion` y devolver `{ok:false}` con un mensaje que
-  explique qué hacer (por si alguien llega sin sesión con un correo ya registrado).
+- Capturar la violación de unicidad en `crearInstitucion` y devolver `{ok:false}` con un mensaje útil.
 - `try/catch` en `confirmarCanje` (`canjear-cliente.tsx`) para que ningún rechazo deje el botón colgado.
 - Corregir las dos copias muertas del asistente (§1.3).
-- **Verificable por:** una institución con sesión canjea un segundo código y ve dos negocios.
+- Las tres escrituras de `canjearCodigoAcceso()` dentro de una transacción (**G-02**).
+- `UPDATE ... WHERE id = ? AND estado = 'activo'`, verificando filas afectadas (**G-03**).
+- **Sumado:** TTL por defecto de los Códigos de Acceso ([D-7](#d-7--vencen-los-códigos)).
+- **Sumado:** rate limiting del canje (**G-04**) — es la única escritura sin autenticar del producto, ya
+  está en producción, y `03-seguridad.md` lo marcó como previo a cualquier despliegue.
+- **Verificable por:** una institución con sesión canjea un segundo código y ve dos negocios; test que
+  inyecta un fallo en `crearAprobacionTenant` y afirma que el código sigue `activo`.
 
-### Etapa 2 — Integridad del canje (G-02, G-03)
-- Las tres escrituras de `canjearCodigoAcceso()` dentro de una transacción.
-- `UPDATE ... WHERE id = ? AND estado = 'activo'`, verificando filas afectadas.
-- **Verificable por:** test que inyecta un fallo en `crearAprobacionTenant` y afirma que el código sigue
-  `activo` y no quedó institución huérfana.
+### Tanda 3.3 — Que lo que se ve sea verdad (X-01, X-02, X-03, G-14, G-15) — **la de mayor consecuencia**
+- **X-01** — propagar `ingresosSinCostoConocido` hasta la pantalla de la institución, con al menos la
+  misma prominencia que tiene para el dueño. **Es lo primero de esta tanda** (§10).
+- **X-03** — hacer detectable el descarte de un campo
+  ([D-10](#d-10--x-03-cómo-se-vuelve-detectable-el-descarte-de-un-campo)).
+- **X-02** — declarar la cobertura parcial por sucursal
+  ([D-9](#d-9--x-02-cómo-se-declara-la-cobertura-parcial-por-sucursal)).
+- **G-14** — estado explícito "este negocio no usa este módulo" en la ficha
+  ([D-4](#d-4--qué-se-hace-con-los-módulos-veedor-que-no-aplican-al-nicho)).
+- **G-15** — estado `error` por pestaña en `ficha-cliente.tsx`, en vez de `null` eterno.
+- Ajustar `instituciones/03-ver-un-negocio.md`: las advertencias en prosa sobre H-15 pasan a ser
+  redundantes con el marcador real, y la afirmación *"una tabla vacía sin candado significa que ese
+  negocio realmente no registró actividad"* deja de ser falsa.
+- **Verificable por:** el e2e de §8.1 con valores exactos sobre un negocio con costo faltante y otro con
+  sucursal congelada.
 
-### Etapa 3 — Que lo que se ve sea verdad (G-14, G-15) — **la de mayor valor de privacidad/veracidad**
-- Decidir e implementar [D-4](#d-4--qué-se-hace-con-los-módulos-veedor-que-no-aplican-al-nicho) para
-  Producción e Insumos de negocios de otro nicho.
-- Estado `error` por pestaña en `ficha-cliente.tsx`, en vez de `null` eterno.
-- Ajustar `03-ver-un-negocio.md` si la decisión de D-4 cambia lo que la pestaña muestra.
-- **Verificable por:** abrir la ficha de un negocio de nicho 4 con `operativo` consentido y no ver
-  "Sin producciones registradas" a secas; y forzar un error de acción y ver un mensaje.
-
-### Etapa 4 — Coherencia de la revocación (G-05, G-17, G-06, G-07)
+### Tanda 3.4 — Coherencia de la revocación (G-05, G-17, G-06, G-07)
 - Implementar [D-3](#d-3--qué-pasa-con-la-cartera-cuando-el-negocio-revoca).
-- Camino de re-otorgamiento desde `/app` (queda resuelto casi entero por la Etapa 1: con el canje
+- Camino de re-otorgamiento desde `/app` (queda resuelto casi entero por la tanda 3.2: con el canje
   autenticado disponible, generar un código nuevo vuelve a ser un camino válido; falta confirmarlo y
   decirlo en la pantalla).
 - Aplicar `fecha_fin` en `estaEnCartera()`/`listarCartera()` y mostrarla, o quitarla del manual.
-- `eliminarInstitucionSoft()`: revocar aprobaciones, dar de baja la cartera, y decidir si libera el
-  correo ([D-6](#d-6--qué-hace-un-borrado-de-institución-con-su-correo)).
+- `eliminarInstitucionSoft()`: revocar aprobaciones, dar de baja la cartera y **liberar el correo**
+  ([D-6](#d-6--qué-hace-un-borrado-de-institución-con-su-correo)).
 - **Verificable por:** el e2e de revocación de §8.
 
-### Etapa 5 — Superficie de datos (G-13, G-16, G-04)
-- Angostar `instituciones_select_authenticated` (ver [D-2](#d-2--se-angosta-la-rls-de-instituciones)).
-- Rechazar el vínculo perezoso si el `authUserId` ya es un Usuario de tenant.
-- Registro de acceso institucional (tabla nueva, análoga a `logs_acceso_admin_ceom`) — ver
-  [D-1](#d-1--se-registra-lo-que-lee-una-institución).
-- **Verificable por:** repetir la consulta con `set local role authenticated` y ver 0 filas o solo las
-  legítimas; test del vínculo rechazado.
+### Tanda 3.5 — Superficie de datos y trazabilidad (G-13, G-16, G-04)
+- Angostar el acceso a `instituciones` vía `REVOKE` de columna
+  ([D-2](#d-2--se-angosta-la-rls-de-instituciones)).
+- Rechazar el vínculo perezoso si el `authUserId` ya es un Usuario de tenant (**G-16**).
+- Registro de acceso institucional, **visible para el negocio**
+  ([D-1](#d-1--se-registra-lo-que-lee-una-institución)).
+- **Verificable por:** repetir la consulta con `set local role authenticated` y ver que `email` y
+  `auth_user_id` ya no salen; test del vínculo rechazado.
 
-### Etapa 6 — Escala del piloto (G-09, G-10, G-01)
+### Tanda 3.6 — Escala del piloto (G-09, G-10)
 Solo si el piloto lo pide; nada de esto bloquea la corrección.
 - Acoplar cartera+solicitud en el contrato, no solo en la UI.
-- Vencimiento opcional de códigos ([D-7](#d-7--vencen-los-códigos)).
 - Alta múltiple para una cohorte.
 
 ---
@@ -710,7 +859,25 @@ misma sesión.
 
 ---
 
-## 9. Decisiones abiertas
+## 9. Decisiones — todas cerradas (2026-07-27)
+
+> **Estado: cerradas.** Las ocho decisiones abiertas de la versión original de este documento fueron
+> resueltas por el dueño del producto el **2026-07-27**, en la tanda 3.1, más dos nuevas (D-9, D-10)
+> nacidas del cruce con sucursales. **Ninguna tanda posterior debe reabrirlas** sin decirlo
+> explícitamente. Cada una conserva abajo el análisis original y agrega el bloque **Resuelto**.
+
+| # | Decisión | Resolución | Dónde se implementa |
+|---|---|---|---|
+| D-1 | Log de acceso institucional | **Sí**, y el negocio lo ve | Tanda 3.5 |
+| D-2 | Superficie de `instituciones` | `REVOKE` de columna + filtrar `eliminado_en`; **sin policy nueva** | Tanda 3.5 |
+| D-3 | Cartera al revocar | **Opción (c)** — marcada "acceso revocado"; se ocultan plan y estado | Tanda 3.4 |
+| D-4 | Módulos veedor fuera del nicho | **Las dos**, pero el estado en la ficha es lo obligatorio y va primero | Tanda 3.3 |
+| D-5 | Backstop fino por institución | **Se difiere 4.b.1**; el próximo incremento es G-12; se adopta el test SQL↔TS | Tanda 3.3 (test) |
+| D-6 | Correo al borrar institución | **Se libera** | Tanda 3.4 |
+| D-7 | Vencimiento de códigos | **Vencen, con TTL por defecto, no opcional** | Tanda 3.2 |
+| D-8 | ¿Alcanza el camino 2? | **No** — se implementa el canje autenticado | Tanda 3.2 |
+| D-9 | Cobertura parcial por sucursal (X-02) | Señal de **cobertura del dato**, no de plan | Tanda 3.3 |
+| D-10 | Detectar el descarte de un campo (X-03) | **Propuesta pendiente de aprobación** | Tanda 3.3 |
 
 ### D-1 — ¿Se registra lo que lee una institución?
 Hoy no existe ninguna traza de acceso institucional (G-04). `logs_acceso_admin_ceom` solo cubre al equipo
@@ -722,6 +889,12 @@ después de que `tieneConsentimiento()` devuelve `true` — cuatro call-sites, e
 hay nada que mirar. **Decisión secundaria: ¿el negocio ve ese registro?** Recomiendo que sí (a diferencia
 del log de CEOM, que es deliberadamente interno): es el dato que vuelve tangible el consentimiento.
 
+> **✅ Resuelto — sí al log, y el negocio lo ve.** Se implementa en la **tanda 3.5**. Tabla propia
+> análoga a `logs_acceso_admin_ceom`, escrita desde las cuatro funciones de
+> `monitoreo-institucional/actions.ts` después de que `tieneConsentimiento()` devuelve `true`. A
+> diferencia del log de CEOM (deny total para `authenticated`), éste **es visible para el negocio
+> observado**: es lo que vuelve auditable la promesa de privacidad para quien la otorgó.
+
 ### D-2 — ¿Se angosta la RLS de `instituciones`?
 Opciones: (a) dejarla como está y aceptar el riesgo por escrito; (b) restringir las columnas expuestas
 por PostgREST; (c) cambiar la policy a "solo instituciones con las que compartís tenant, o la propia".
@@ -731,6 +904,13 @@ current_tenant_id()))`. Cuidado con la regla dura de no-recursión de `schema.ts
 antes de escribirla. Si (c) resulta cara o riesgosa, (b) —quitar `email` y `auth_user_id` del alcance de
 `anon`/`authenticated`— resuelve el 90% con un `REVOKE ... ON COLUMN`.
 
+> **✅ Resuelto — se va por (b), no por (c).** `REVOKE` de columna sobre `email` y `auth_user_id`, más
+> agregar `eliminado_en is null` a la policy existente. **No se crea una policy nueva que lea otra
+> tabla.** Razón: (c) haría que la policy de `instituciones` leyera `aprobaciones_tenant`, y aunque hoy
+> no viola la regla dura de no-recursión de `schema.ts:182-193`, agrega una dependencia entre tablas del
+> mismo módulo que esa regla existe para evitar. (b) cierra la exposición de PII —que es lo que motiva
+> el hallazgo— sin tocar la forma de la policy. Tanda 3.5.
+
 ### D-3 — ¿Qué pasa con la cartera cuando el negocio revoca?
 Tres opciones: (a) statu quo — el negocio se queda en la cartera con candados; (b) dar de baja la fila de
 cartera al revocar; (c) mantenerla pero marcarla visiblemente como "acceso revocado" y ocultar plan y
@@ -739,6 +919,12 @@ estado de suscripción.
 contradice lo que el Owner cree que hizo. (b) hace desaparecer el negocio sin explicación y borra el
 historial del vínculo, que es de CEOM. (c) es honesta con los dos lados: la institución entiende qué
 pasó, el negocio deja de compartir. **Esta decisión es tuya y afecta copy del manual en dos capítulos.**
+
+> **✅ Resuelto — opción (c).** La fila de cartera queda marcada como **"acceso revocado"**; se **ocultan
+> plan y estado de suscripción** (información comercial del negocio, que es lo que no corresponde seguir
+> filtrando a un tercero sin permiso); se **conservan nombre y rubro** (el vínculo histórico es de CEOM y
+> la institución tiene que poder entender qué pasó). Tanda 3.4. Impacta copy de
+> `instituciones/02-tu-cartera.md` y `03-ver-un-negocio.md`.
 
 ### D-4 — ¿Qué se hace con los módulos veedor que no aplican al nicho?
 El caso G-14: un comercio comparte "Producción" y la institución ve una tabla vacía que el manual le
@@ -750,6 +936,12 @@ módulo") distinto de candado y de vacío. Alternativa más barata si el alcance
 tercero en la ficha, dejando la generación como está. **Lo que no recomiendo es dejarlo:** es dato
 incorrecto en pantalla para el actor que menos contexto tiene para detectarlo.
 
+> **✅ Resuelto — las dos, en ese orden.** El **estado explícito en la ficha es lo obligatorio y va
+> primero** (tanda 3.3): es lo que corrige el dato incorrecto que ya está en pantalla. La validación
+> contra el nicho en `generarCodigoAcceso()` es **endurecimiento posterior** — evita que el caso vuelva
+> a nacer, pero no repara los códigos ya canjeados, así que no puede ser lo único. Es el mismo criterio
+> del principio rector #7: marcar el hueco primero, cerrar la fuente después.
+
 ### D-5 — ¿Se reabre la Etapa 4.b.1?
 El backstop por institución (G-11) se difirió con el supuesto de una institución por negocio.
 **Recomendación: reabrir la evaluación, no implementarla ahora.** El piloto cambia la exposición pero
@@ -759,6 +951,13 @@ invariante de esquema debajo. Recomiendo un paso intermedio y barato: el test de
 sobre los mismos negocios, ahí sí 4.b.1 se vuelve prioritaria. **Necesito tu lectura del riesgo
 comercial**: cuánto peso tiene la promesa de aislamiento frente a una incubadora que evalúa financiar.
 
+> **✅ Resuelto — se difiere 4.b.1, y el próximo incremento de seguridad es G-12, no la granularidad.**
+> Extender el backstop a los módulos que hoy no tienen piso (Ventas, Gastos, Financiero, Nicho 1 — 3 de
+> las 4 pestañas del portal) vale más que afinar por institución el único módulo que sí lo tiene. **Se
+> adopta ya el test de coherencia SQL↔TS de §8.3** como el reemplazo barato del backstop fino: detecta
+> una divergencia entre las dos implementaciones de la regla sin construir el GUC
+> `request.gateway.institucion_id`. Anotado también en `docs/security/PLAN-RLS-BACKSTOP.md`.
+
 ### D-6 — ¿Qué hace un borrado de institución con su correo?
 Hoy lo bloquea para siempre (G-07).
 **Recomendación: liberarlo** — al soft-borrar, mover el correo a una columna de archivo o agregar
@@ -766,12 +965,23 @@ Hoy lo bloquea para siempre (G-07).
 usar su misma casilla institucional. Riesgo a mirar: dos filas históricas con el mismo correo hacen
 ambiguo `obtenerInstitucionPorEmail()`, que ya filtra borradas — habría que confirmarlo, no asumirlo.
 
+> **✅ Resuelto — se libera el correo al soft-borrar.** Tanda 3.4. El riesgo señalado arriba
+> (ambigüedad de `obtenerInstitucionPorEmail()`) hay que **confirmarlo con un test**, no asumirlo: las
+> tres funciones de lookup por email ya filtran `eliminado_en`, pero eso debe quedar afirmado, no
+> heredado.
+
 ### D-7 — ¿Vencen los códigos?
 Hoy no (G-01), y el manual dice que sí.
 **Recomendación: implementar vencimiento opcional** (`expira_en` nullable, elegido por el Owner al
 generar; sin fecha = como hoy). Es aditivo, no rompe códigos existentes, y alinea el producto con lo que
 ya se le prometió al usuario. Si se decide no implementarlo, **hay que corregir el manual** — no dejar
 una promesa falsa en la guía del actor externo.
+
+> **✅ Resuelto — vencen, con TTL por defecto, no opcional.** Más estricto que la recomendación
+> original: no es una fecha que el Owner puede elegir dejar vacía, es un vencimiento que **todo código
+> tiene**. Un código de acceso es una credencial que circula fuera del sistema (WhatsApp, correo,
+> papel); que el estado por defecto sea "vive para siempre" es la decisión equivocada para una
+> credencial. Tanda 3.2, junto al resto de los cambios de `canjearCodigoAcceso()`.
 
 ### D-8 — Alcance del piloto: ¿el camino 2 alcanza para la primera cohorte?
 Si las quince altas se hacen por CEOM (30 diálogos), H-42 deja de ser bloqueante para el piloto y pasa a
@@ -781,18 +991,62 @@ que revoque y quiera volver a otorgar cae en G-17 sin salida. Y el canje autenti
 comparativamente barato. **Pero si el calendario del piloto aprieta, ésta es la palanca**, y la decisión
 es tuya.
 
+> **✅ Resuelto — el camino 2 no alcanza; se implementa el canje autenticado.** Tanda 3.2.
+
+### D-9 — X-02: cómo se declara la cobertura parcial por sucursal
+
+Nace del cruce con sucursales (§4.7). La pregunta original era "¿le explicamos a la institución por qué
+cayó la actividad?". **El encuadre correcto es otro, y cambia la implementación.**
+
+Una sucursal congelada **no es una sucursal cerrada**: el local puede seguir operando, lo que no puede es
+registrarse en CEOM. Lo que la institución mira no es un negocio que se achicó — **es un negocio del que
+se está registrando una parte**. El dato se volvió parcial y nada lo dice.
+
+> **✅ Resuelto — señal de cobertura del dato, en la ficha.** `obtenerTenantParaVeedor()` pasa a
+> devolver la cobertura (total de sucursales vs. sucursales operables) y la ficha lo declara cuando
+> difieren.
+>
+> **La señal NO dice "bajó de plan" ni nombra el plan.** Dice que el resumen cubre una parte de las
+> sucursales del negocio. Es una **afirmación sobre la cobertura del dato**, no información comercial —
+> por eso es publicable a un tercero sin violar la privacidad del negocio, y por eso es un marcador de
+> completitud en el sentido exacto del principio rector #7, no un aviso de estado.
+>
+> Se descartó el cuarto badge en la cartera (opción (c) del análisis original): mezclaría dos ejes
+> distintos —salud de la suscripción vs. cobertura del registro— en un solo indicador. Tanda 3.3.
+
+### D-10 — X-03: cómo se vuelve detectable el descarte de un campo
+
+**Única decisión que queda abierta.** `detalleFinanciero()` recibe siete campos y reenvía tres elegidos a
+mano; ese re-proyectado descartó el marcador de X-01 y descartará el próximo campo que nazca, en
+silencio. El proyecto ya resolvió este patrón con `src/lib/security/access-manifest.ts` + su test por
+AST, que rompe la build cuando aparece una Server Action sin clasificar.
+
+**La propuesta está pendiente de aprobación** — ver el mensaje de cierre de la tanda 3.1. No se
+implementa nada hasta que esté decidida.
+
 ---
 
 ## 10. Qué mirar primero
 
-Si hubiera que ordenar por consecuencia y no por esfuerzo:
+Si hubiera que ordenar por consecuencia y no por esfuerzo (orden actualizado el 2026-07-27 con los
+hallazgos del cruce):
 
-1. **G-14** — es lo único de esta lista que hace que una institución lea un número falso y tome una
-   decisión con él. El manual la entrenó explícitamente para interpretarlo mal.
-2. **G-08 + G-17** — H-42 y su reverso. Bloquean el piloto y bloquean la reversibilidad del
+1. **X-01** — el estado de resultados se le sirve a la institución **presentado como completo sin
+   serlo**, desviado siempre hacia el lado optimista, con el marcador que lo corrige existiendo a una
+   línea de distancia y llegando a cuatro pantallas del dueño. Es el modo de falla que este proyecto ya
+   cerró seis veces en la familia del número financiero, reaparecido en la única superficie donde nadie
+   lo buscó, y lo lee quien puede estar decidiendo financiamiento. **Arreglo chico, consecuencia grande.**
+2. **G-14 + X-02** — los otros dos casos del mismo defecto: un vacío que el manual enseña a leer como
+   "no hubo actividad", y un dato parcial que se presenta como total.
+3. **X-03** — el mecanismo que produjo los tres y que va a producir el próximo. Es lo único de la lista
+   que no es un defecto sino una fábrica de defectos.
+4. **G-08 + G-17** — H-42 y su reverso. Bloquean el piloto y bloquean la reversibilidad del
    consentimiento.
-3. **G-13 + G-04** — la superficie de datos y la ausencia total de traza de acceso institucional. Son
+5. **G-13 + G-04** — la superficie de datos y la ausencia total de traza de acceso institucional. Son
    las dos que, en el único punto de privacidad de la plataforma, no tienen respuesta si alguien
    pregunta.
-4. **Etapa 0** — sin datos de prueba que reflejen el caso real, todo lo demás se verifica contra un
-   escenario que no existe. Es el error que este proyecto ya cometió tres veces.
+6. **Tanda 3.1** — sin datos de prueba que reflejen el caso real, todo lo demás se verifica contra un
+   escenario que no existe. Es el error que este proyecto ya cometió tres veces — y el cruce con
+   sucursales lo confirmó una cuarta: los dos únicos negocios de la base que exponen X-01 y X-02 **no
+   los sigue ninguna institución**, y el único que sí tiene cartera no tiene ninguna de las dos
+   condiciones.
