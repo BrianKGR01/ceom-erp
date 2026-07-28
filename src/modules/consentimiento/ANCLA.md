@@ -318,6 +318,70 @@ FKs desde 3 tablas que hacen inviable un cascade manual sin tocar auditoría rea
   completa el login. Ver el bullet "✅ Validado end-to-end" arriba para el detalle.
 
 
+## Última actualización: 2026-07-27 (3) — Etapa 3 / tanda 3.2: ciclo de vida del Código de Acceso (H-42, G-02, G-03, G-04, G-17, D-7)
+
+**Cambio de contrato — dos funciones nuevas y una firma modificada:**
+
+- **`canjearCodigoAccesoAutenticada(institucionId, codigo)`** — nueva. Cierra H-42. El
+  `institucionId` que `canjearCodigoAcceso()` acepta desde el día uno **no lo llamaba nadie**:
+  `/portal` era una bifurcación binaria y no existía ninguna ruta al canje con sesión. El caller
+  (`canjearCodigoAutenticadaAction`, `app/portal/actions.ts`) resuelve la institución desde **su
+  propia sesión**, nunca desde un id que venga del cliente.
+- **`registrarIntentoCanjeYVerificarLimite(huella)`** — nueva (G-04). 10 intentos / 15 min. La
+  huella la calcula la capa de ruta: un módulo de negocio no debe saber que existe una IP.
+- **`generarCodigoAcceso()` ahora devuelve también `expiraEn`** (D-7). TTL de 30 días,
+  **obligatorio**. `expira_en` null después de la migración `0047` se trata como **vencido**, nunca
+  como "sin vencimiento".
+
+**Decisiones que un agente no debe revertir:**
+
+- **`canjearCodigoAccesoTx()` es una sola transacción, y el reclamo del código es un `UPDATE …
+  WHERE id = ? AND estado = 'activo'`.** No volver a las tres escrituras sueltas: sin transacción,
+  un fallo a mitad dejaba el código `canjeado` —irrecuperable, no hay acción que lo reactive— con la
+  institución creada y sin acceso. Sin la condición, dos canjes simultáneos pasaban los dos.
+- **La Institución nueva se crea DENTRO de esa transacción.** Si se saca afuera, un canje fallido
+  deja una institución huérfana ocupando su correo para siempre (G-07 sigue abierto hasta la 3.4).
+- **La cartera solo se inserta si no existía.** Es lo que permite re-otorgar (G-17) sin duplicar la
+  fila.
+- **`esCorreoDeInstitucionDuplicado()` camina la cadena de `cause`.** drizzle-orm 0.45.2 envuelve el
+  `PostgresError` en `DrizzleQueryError`; mirar solo el error externo compila, parece razonable y no
+  atrapa nada. Pasó en el primer intento de esta tanda y lo detectó el test.
+- **El mensaje del correo duplicado no confirma que ese correo esté registrado.** Es deliberado
+  (anti-enumeración, mismo criterio que `solicitarMagicLinkInstitucion`). Hay un test que afirma que
+  el mensaje **no contiene** el correo — no relajarlo "para que sea más claro".
+
+**Lo que sigue abierto y NO se tocó en esta tanda:** G-05/G-06/G-07/G-17-de-cartera (tanda 3.4),
+X-01/X-02/X-03/G-14/G-15 (tanda 3.3), G-13/G-16/D-1 (tanda 3.5).
+
+## Última actualización: 2026-07-27 (2) — Etapa 3 / tanda 3.1: seed propio del subsistema y limpieza de la institución del operador
+
+**`pnpm seed:instituciones <emailCeomAdmin>`** (`scripts/seed-instituciones.ts`) — el subsistema no
+tenía **ningún** dato de prueba reproducible: `seed:demo` puebla un tenant de negocio y no toca
+consentimiento, así que todo lo que existía eran residuos manuales de tandas anteriores (los que este
+mismo archivo documenta más arriba). Consecuencia medida antes de escribirlo: 0 instituciones con
+`auth_user_id` (nadie podía entrar al portal autenticado) y ninguna con más de 1 negocio en cartera.
+
+Siembra 4 negocios y 3 instituciones, e incluye a propósito los **estados degenerados** —institución
+sin correo, institución sin vincular, negocio sin consentir a nadie, negocio de otro nicho con
+`operativo` consentido, negocio con sucursal congelada, negocio con ingresos sin costo, códigos en los
+3 estados—. Detalle completo y números exactos:
+`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md` §6.
+
+**Dos cosas que un agente futuro debe saber:**
+
+- **El escenario NO incluye un canje autenticado, y no es un olvido: es H-42.** Una institución ya
+  registrada no puede canjear un segundo código, así que la Incubadora entra a su cartera de 3
+  negocios por el camino 2 (CEOM vincula + solicitud + aprobación). El bloque de instituciones del
+  script está gateado por existencia justamente por eso — un segundo canje con el mismo correo
+  revienta con la violación de unicidad, sin capturar. Cuando la tanda 3.2 cierre H-42, esa guarda se
+  puede relajar y los negocios B/C se pueden sembrar por el camino 1.
+- **Se limpió la institución con el correo del operador de CEOM** (`admin@ceom.lat`, el caso G-16 que
+  el diagnóstico había encontrado sembrado por accidente, con una aprobación vigente). El orden
+  importa y está en el código: revocar la aprobación → dar de baja la cartera → **liberar el correo**
+  → soft delete. Lo del correo es obligatorio hoy porque `instituciones_email_unique` es parcial sobre
+  `email is not null` y **no** excluye `eliminado_en` (G-07): sin limpiarlo, la dirección quedaría
+  bloqueada para siempre. Cuando la tanda 3.4 arregle G-07, ese paso se puede sacar.
+
 ## Última actualización: 2026-07-27 — H-49: el registro de accesos muestra los del día en curso
 
 `listarLogsAcceso` sigue recibiendo `{desde, hasta}` en días locales; `listarLogsAccesoAdminCeom`

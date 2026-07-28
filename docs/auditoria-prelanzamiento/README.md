@@ -21,6 +21,7 @@
 | [05-dia-local-y-reportes.md](05-dia-local-y-reportes.md) | Por qué el día en curso no aparece en ningún reporte: inventario completo, enfoque recomendado, plan de migración y de tests (H-49) |
 | [06-costo-ausente-y-cuota-de-pasivo.md](06-costo-ausente-y-cuota-de-pasivo.md) | Los dos últimos huecos entre el dato operativo y el resultado: la cuota de deuda que no genera gasto (H-27) y el producto sin costo que se cuenta como ganancia pura (H-15) |
 | [07-sucursales-multiples.md](07-sucursales-multiples.md) | Diagnóstico y diseño técnico de sucursales múltiples (H-02): mapa de impacto completo, modelo de stock por sucursal, control por plan, downgrade, migración y plan de tests |
+| [08-instituciones-punta-a-punta.md](08-instituciones-punta-a-punta.md) | El subsistema de consentimiento de punta a punta (H-42): causa raíz y alcance real del defecto, ciclo de vida de código y consentimiento con sus 17 huecos, si el modelo soporta institución-con-cartera, estado del aislamiento (RLS + aplicación), revocación, plan de sub-etapas y de tests |
 
 ---
 

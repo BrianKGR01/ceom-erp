@@ -295,7 +295,22 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
   },
 
   // --- app/portal/actions.ts ------------------------------------------------
-  "app/portal/actions.ts::canjearCodigoAccesoAction": { nivel: "publico", verificacion: "estatica" },
+  "app/portal/actions.ts::canjearCodigoAccesoAction": {
+    nivel: "publico",
+    verificacion: "estatica",
+    nota:
+      "La ÚNICA escritura sin autenticar del producto, y correctamente: una institución no tiene " +
+      "cuenta cuando llega con su primer código. Desde la tanda 3.2 pasa por " +
+      "limiteDeCanjeSuperado() (10 intentos / 15 min por origen).",
+  },
+  "app/portal/actions.ts::canjearCodigoAutenticadaAction": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota:
+      "H-42. La institución se resuelve desde SU PROPIA sesión (obtenerInstitucionActual), nunca " +
+      "desde un institucionId del cliente — si lo recibiera por parámetro, cualquiera podría " +
+      "canjear un código en nombre de otra institución.",
+  },
   "app/portal/actions.ts::listarCarteraAction": { nivel: "autenticado", verificacion: "estatica" },
   "app/portal/actions.ts::estadoTenantAction": {
     nivel: "por-recurso",

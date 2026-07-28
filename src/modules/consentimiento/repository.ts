@@ -1,10 +1,11 @@
-import { and, desc, eq, gte, isNull, lt, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aprobacionesTenant,
   carteraInstitucional,
   codigosAcceso,
   instituciones,
+  intentosCanje,
   logsAccesoAdminCeom,
   solicitudesSeguimiento,
 } from "./schema";
@@ -185,20 +186,30 @@ export async function listarSolicitudesPorTenant(tenantId: string) {
  * cambio de query separado; ver ANCLA.md).
  */
 export async function crearAprobacionTenant(data: NuevaAprobacionTenant) {
-  return db.transaction(async (tx) => {
-    await tx
-      .update(aprobacionesTenant)
-      .set({ revocadoEn: new Date() })
-      .where(
-        and(
-          eq(aprobacionesTenant.institucionId, data.institucionId),
-          eq(aprobacionesTenant.tenantId, data.tenantId),
-          isNull(aprobacionesTenant.revocadoEn)
-        )
-      );
-    const [aprobacion] = await tx.insert(aprobacionesTenant).values(data).returning();
-    return aprobacion;
-  });
+  return db.transaction((tx) => crearAprobacionTenantEnTx(tx, data));
+}
+
+/** El cuerpo de crearAprobacionTenant(), reutilizable desde una transaccion
+ * ya abierta (canjearCodigoAccesoTx). Extraido en la tanda 3.2 sin cambiar
+ * su comportamiento: el canje necesita insertar la Aprobacion DENTRO de su
+ * propia transaccion, y anidar `db.transaction()` adentro de otra abriria un
+ * savepoint por cada canje sin ninguna necesidad. */
+async function crearAprobacionTenantEnTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  data: NuevaAprobacionTenant
+) {
+  await tx
+    .update(aprobacionesTenant)
+    .set({ revocadoEn: new Date() })
+    .where(
+      and(
+        eq(aprobacionesTenant.institucionId, data.institucionId),
+        eq(aprobacionesTenant.tenantId, data.tenantId),
+        isNull(aprobacionesTenant.revocadoEn)
+      )
+    );
+  const [aprobacion] = await tx.insert(aprobacionesTenant).values(data).returning();
+  return aprobacion;
 }
 
 export async function obtenerAprobacionPorId(aprobacionId: string) {
@@ -301,6 +312,124 @@ export async function actualizarCodigoAcceso(
 
 export async function listarCodigosAccesoPorTenant(tenantId: string) {
   return db.select().from(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
+}
+
+/**
+ * El canje completo, en UNA transaccion (G-02) y con reclamo condicional del
+ * codigo (G-03) — tanda 3.2.
+ *
+ * Antes eran tres escrituras sueltas fuera de toda transaccion (marcar el
+ * codigo, crear la cartera, crear la aprobacion) mas la creacion de la
+ * Institucion antes que todas. Dos defectos reales:
+ *
+ * - **G-02:** si fallaba la segunda o la tercera, el codigo ya habia quedado
+ *   `canjeado` —irrecuperable, no hay accion que lo vuelva a `activo`— y la
+ *   Institucion quedaba creada sin cartera o sin aprobacion. El actor que lo
+ *   sufre no tiene cuenta, ni soporte dentro del producto, ni pantalla que le
+ *   explique su situacion.
+ * - **G-03:** el chequeo de `estado === "activo"` era un SELECT y la escritura
+ *   un `UPDATE ... WHERE id = ?` sin condicion, asi que dos canjes simultaneos
+ *   del mismo codigo pasaban los dos y quedaban dos instituciones con acceso
+ *   al mismo negocio.
+ *
+ * El `UPDATE ... WHERE id = ? AND estado = 'activo'` de abajo es el reclamo:
+ * Postgres serializa las dos transacciones sobre esa fila, la segunda ve
+ * `estado = 'canjeado'`, no matchea, y `returning()` vuelve vacio. Devolver
+ * `null` ahi (en vez de seguir) es lo que hace que exactamente uno gane.
+ *
+ * La Institucion nueva se crea DENTRO de la misma transaccion a proposito: si
+ * el canje falla despues, no queda una Institucion huerfana ocupando su correo
+ * —que hoy seria para siempre, porque el indice unico parcial no excluye
+ * `eliminado_en` (G-07)—.
+ */
+export async function canjearCodigoAccesoTx(input: {
+  codigoAccesoId: string;
+  tenantId: string;
+  modulosAprobados: NuevaAprobacionTenant["modulosAprobados"];
+  aprobadoPor: string;
+  fechaInicioCartera: string;
+  /** Excluyente con `institucionNueva`. */
+  institucionExistenteId?: string;
+  institucionNueva?: Omit<NuevaInstitucion, "id">;
+}) {
+  return db.transaction(async (tx) => {
+    // 1. Reclamar el codigo. Si no matchea, alguien lo canjeo primero.
+    const [codigo] = await tx
+      .update(codigosAcceso)
+      .set({ estado: "canjeado", canjeadoEn: new Date() })
+      .where(and(eq(codigosAcceso.id, input.codigoAccesoId), eq(codigosAcceso.estado, "activo")))
+      .returning();
+    if (!codigo) return null;
+
+    // 2. La Institucion: existente, o creada aca adentro.
+    let institucionId = input.institucionExistenteId;
+    if (!institucionId) {
+      if (!input.institucionNueva) {
+        throw new Error("canjearCodigoAccesoTx: falta institucionExistenteId o institucionNueva.");
+      }
+      const [institucion] = await tx
+        .insert(instituciones)
+        .values(input.institucionNueva)
+        .returning();
+      institucionId = institucion.id;
+    }
+
+    // 3. Completar el codigo con la institucion ya resuelta.
+    await tx
+      .update(codigosAcceso)
+      .set({ institucionId })
+      .where(eq(codigosAcceso.id, input.codigoAccesoId));
+
+    // 4. Cartera — solo si no la sigue ya. El canje autenticado (H-42) puede
+    // traer un codigo de un negocio que la institucion YA tiene en cartera:
+    // el caso G-17, donde el Owner revoco y genero un codigo nuevo para
+    // volver a otorgar. Sin este chequeo, re-otorgar duplicaria la fila y el
+    // negocio apareceria dos veces en la cartera.
+    const [carteraExistente] = await tx
+      .select({ id: carteraInstitucional.id })
+      .from(carteraInstitucional)
+      .where(
+        and(
+          eq(carteraInstitucional.institucionId, institucionId),
+          eq(carteraInstitucional.tenantId, input.tenantId),
+          isNull(carteraInstitucional.eliminadoEn)
+        )
+      )
+      .limit(1);
+    if (!carteraExistente) {
+      await tx.insert(carteraInstitucional).values({
+        institucionId,
+        tenantId: input.tenantId,
+        fechaInicio: input.fechaInicioCartera,
+      });
+    }
+
+    // 5. Aprobacion (revoca la previa del mismo par, si la habia).
+    const aprobacion = await crearAprobacionTenantEnTx(tx, {
+      tenantId: input.tenantId,
+      institucionId,
+      modulosAprobados: input.modulosAprobados,
+      aprobadoPor: input.aprobadoPor,
+      codigoAccesoId: input.codigoAccesoId,
+    });
+
+    return { institucionId, aprobacionId: aprobacion.id };
+  });
+}
+
+
+// --- Limite de intentos de canje (tanda 3.2) ---------------------------------------------------------
+
+export async function registrarIntentoCanje(huella: string) {
+  await db.insert(intentosCanje).values({ huella });
+}
+
+export async function contarIntentosCanjeDesde(huella: string, desde: Date) {
+  const [fila] = await db
+    .select({ total: sql<string>`count(*)` })
+    .from(intentosCanje)
+    .where(and(eq(intentosCanje.huella, huella), gte(intentosCanje.creadoEn, desde)));
+  return Number(fila.total);
 }
 
 // --- Log de Acceso Admin CEOM ---------------------------------------------------------

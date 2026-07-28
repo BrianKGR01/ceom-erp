@@ -85,7 +85,7 @@
 
 | ID | Severidad | Hallazgo |
 |---|---|---|
-| [H-42](#h-42) | 🔴 | Una institución no puede canjear un segundo código |
+| [H-42](#h-42) | ✅ | ~~Una institución no puede canjear un segundo código~~ — **corregido** |
 | [H-43](#h-43) | 🟠 | El correo de una institución figura como opcional y no lo es |
 | [H-44](#h-44) | 🟡 | No hay historial de cambios administrativos |
 | [H-45](#h-45) | 🟠 | La suscripción no vence sola, no cobra y no avisa |
@@ -1046,7 +1046,26 @@ capítulo de CEOM: **poner "vencida" sin fecha bloquea al negocio en el acto.**
 ---
 
 <a id="h-42"></a>
-## H-42 🔴 Una institución no puede canjear un segundo código
+## H-42 ✅ Una institución no puede canjear un segundo código
+
+> **Corregido el 2026-07-27** (Etapa 3, tanda 3.2). Ahora una institución autenticada canjea desde
+> **"Canjear otro código"** en su cartera: `canjearCodigoAccesoAutenticada()` resuelve la institución
+> desde su propia sesión y pasa el `institucionId` que la función ya aceptaba y que nadie llamaba.
+> Verificado de punta a punta en navegador: la cartera pasó de 3 a 4 negocios.
+>
+> Se cerraron además las tres cosas que hacían el fallo invisible: la violación de unicidad ahora se
+> captura y devuelve un mensaje que **no confirma** si ese correo está registrado (anti-enumeración);
+> el botón ya no queda colgado en "Confirmando..." (`try/catch` + `finally`); y las dos copias falsas
+> del asistente se corrigieron. El canje pasó a ser **transaccional** (G-02) y con **reclamo
+> condicional** del código (G-03), y los códigos ahora **vencen a los 30 días** (D-7).
+>
+> **Consecuencia que este hallazgo no registraba:** también estaba rota la vuelta atrás. Como la
+> única palanca de otorgamiento del Owner es generar un código, y una institución ya registrada no
+> podía canjearlo, **revocar era irreversible desde `/app`** (G-17). Al cerrar H-42 se cierra eso, y
+> hay un test que lo afirma explícitamente en vez de asumirlo.
+>
+> Diagnóstico completo: `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`.
+
 
 **Qué pasa.** El asistente de canje del portal **siempre** manda `institucionNueva` y nunca
 `institucionId`: el tipo de `canjearCodigoAccesoAction` (`src/app/portal/actions.ts:21-26`) lo exige

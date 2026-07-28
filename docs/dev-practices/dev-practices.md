@@ -170,9 +170,27 @@ usuario `ceom_admin` cuando el entorno recién se levanta) usamos
 resuelve el alias `@/*` que usa casi todo `src/modules/**`, `tsx` sí porque
 lee `tsconfig.json`).
 
+### Orden de bootstrap de un entorno desde cero
+
+**Los cuatro comandos, en este orden.** No es una lista de opciones: un entorno al que le falte
+alguno queda con un punto ciego, y este proyecto ya se comió ese error cuatro veces (productos sin
+costo, `auth.users`, sucursales, instituciones).
+
 ```bash
-pnpm seed:admin <email> ["Nombre completo"]
+pnpm seed:admin <email> ["Nombre completo"]           # 1. primer ceom_admin (resuelve el candado circular)
+pnpm seed:tenant <emailAdmin> <negocio> <emailOwner> <"Owner">   # 2. primer tenant real
+pnpm seed:demo [emailOwner]                           # 3. datos de negocio de ESE tenant
+pnpm seed:instituciones <emailAdmin>                  # 4. instituciones, códigos y consentimiento
 ```
+
+**`seed:demo` no llama a `seed:instituciones`, a propósito**, aunque el hallazgo que originó el
+cuarto comando fuera justamente "el seed de demo no crea ninguna institución". Son dos cosas de
+forma distinta: `seed:demo` **puebla un tenant que ya existe** y recibe el correo de su Owner;
+`seed:instituciones` **crea cuatro tenants nuevos** y recibe el de un `ceom_admin`. Encadenarlos
+haría que pedir "poblá este negocio" cree cuatro negocios más, que es peor que tener que correr un
+comando de más. Por eso el requisito vive acá, en el orden de bootstrap, y no en un encadenamiento
+implícito: **el paso 4 no es opcional para verificar nada del portal institucional**, y el
+`README` del setup de e2e (Etapa 7) tiene que exigirlo igual.
 
 Convención para cualquier script nuevo en esta carpeta:
 - Reutilizar los `actions.ts`/`repository.ts` de los módulos existentes
@@ -193,6 +211,35 @@ Convención para cualquier script nuevo en esta carpeta:
   del archivo, así que `src/db/client.ts` (que lee `DATABASE_URL` al
   importarse) ya se evalúa con el env todavía vacío si `loadEnvFile()` se
   llama después de los imports. Bug real encontrado durante esta tarea.
+
+---
+
+## 7.1.1. ⚠️ `drizzle-kit migrate` puede saltear una migración y decir "applied successfully"
+
+**Encontrado en vivo el 2026-07-27** (Etapa 3, tanda 3.2), y es de los peores modos de falla
+posibles: silencioso y con salida en verde.
+
+`drizzle-kit` **no ordena las migraciones por el prefijo numérico del archivo** — las ordena por el
+campo `when` (epoch en ms) de cada entrada en `drizzle/migrations/meta/_journal.json`, y aplica solo
+las que tengan un `when` mayor que la última registrada en la tabla `drizzle.__drizzle_migrations`.
+
+Qué pasó: las entradas `0044`/`0045`/`0046` tenían `when` **asignados a mano** en una secuencia
+sintética (`…3400001`, `…3400002`, `…3400003`), unos 38 minutos por delante del reloj real. La
+migración `0047`, generada después, recibió el `when` real — es decir, **menor** que el de `0046`.
+Drizzle la consideró anterior a lo ya aplicado, la salteó, e imprimió
+`[✓] migrations applied successfully!`. La columna nueva simplemente no existía, y nada lo dijo.
+
+**Cómo detectarlo:** después de `pnpm drizzle-kit migrate`, **verificar el objeto real en la base**
+(`information_schema.columns`, `pg_policies`, lo que corresponda), nunca confiar en el mensaje de
+éxito. Es el mismo criterio de §10: verificar contra lo vivo, no contra lo que la herramienta dice.
+
+**Cómo arreglarlo:** editar el `when` de la entrada nueva en `_journal.json` para que sea mayor que
+el de la última entrada, y volver a correr `migrate`. No renombrar el archivo ni tocar migraciones ya
+aplicadas.
+
+**Cómo evitarlo:** si alguna vez hay que tocar un `when` a mano, **subirlo, nunca bajarlo**, y
+mantener la secuencia coherente con el orden de los prefijos. Un `when` en el futuro condena a todas
+las migraciones siguientes a ser salteadas hasta que el reloj lo alcance.
 
 ---
 
@@ -239,6 +286,34 @@ veces no propaga el mensaje real de Postgres.
 `scripts/ci/stub-supabase-schemas.sql` con las columnas reales verificadas contra el proyecto Cloud
 (`information_schema.columns`), no simplificar la migración para esquivar el stub — el stub existe para
 aproximar la realidad, la migración está escrita para la realidad.
+
+---
+
+## 7.3. Auto-merge de PRs: por qué se puede hoy, y qué lo termina
+
+**Hoy un agente puede abrir un PR de `dev` a `main` y mergearlo él mismo, sin esperar
+aprobación.** No es una relajación del estándar: es que el radio de impacto de un error es una base
+de prueba.
+
+**Las tres condiciones que lo habilitan** (2026-07-27):
+
+1. **No hay nada en producción.** El proyecto de Vercel no es producción.
+2. **No hay usuarios reales.** Todo lo que hay en la base de desarrollo son datos de prueba.
+3. **Ningún dato es irrecuperable.** Lo peor que puede pasar es rehacer el seed.
+
+**El disparador que lo termina — escrito acá justamente para que no dependa de que alguien se
+acuerde:**
+
+> **El día del arranque real** —cuando exista un proyecto de Supabase de producción con el primer
+> negocio real cargado— **los PRs vuelven a revisarse antes de mergear.** Sin excepción, y sin
+> importar cuán chico parezca el cambio.
+
+Ese día, además, cambian dos cosas que hoy son cómodas y dejan de serlo: los tests de integración
+dejan de poder correr contra la base compartida (§6), y las migraciones dejan de poder verificarse
+sobre datos que se pueden tirar (§7.1.1, §7.2).
+
+**Si estás leyendo esto y ya existe un negocio real:** esta sección está vencida. Actualizala en el
+mismo cambio en que lo descubras.
 
 ---
 

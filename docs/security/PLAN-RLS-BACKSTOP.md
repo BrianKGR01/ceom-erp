@@ -25,7 +25,7 @@ puntual, no para arrancar.
 | 3.f | Hoisting a `InitPlan` de `es_ceom_admin()` (`(select ...)`) | ✅ Hecho | §12 |
 | 4.a | Identidad real del Gateway, Opción A′ (`es_gateway_sistema()`, fila sembrada) | ✅ Hecho | §13-§15 |
 | 4.b.0 | Backstop grueso del Gateway por tenant+módulo (`tenant_tiene_consentimiento_vigente()`) | ✅ Hecho | §16 |
-| 4.b.1 | Backstop fino por institución (requiere GUC nuevo) | ❌ Diferida a propósito | §16.11 decisión 2 |
+| 4.b.1 | Backstop fino por institución (requiere GUC nuevo) | ❌ **Diferida en firme** (D-5, 2026-07-27) | §16.11 decisión 2 + nota de abajo |
 | 5 | `FORCE ROW LEVEL SECURITY` en las 44 tablas de negocio | 🟡 Parcial — por-módulo, no una pasada final | Proveedores sí (§9.2), Patrimonio no (Etapa 1 fue previa a esa decisión) |
 | 6 | Eliminar el export crudo `db` de `client.ts` | ❌ Sin empezar | Nadie debería necesitarlo ya, no verificado con un grep dedicado |
 
@@ -47,11 +47,37 @@ de los dos depende de que Consentimiento migre para funcionar.*
 
 | Decisión | Dónde se tomó | Por qué sigue así |
 |---|---|---|
-| 4.b.1 — backstop fino del Gateway por institución | §16.11 decisión 2 | Requiere plumbing nuevo (GUC `request.gateway.institucion_id` en `comoGatewaySistema()`); valor incremental real pero menor que el gap que 4.b.0 ya cerró |
+| 4.b.1 — backstop fino del Gateway por institución | §16.11 decisión 2, **ratificada como D-5 el 2026-07-27** | Requiere plumbing nuevo (GUC `request.gateway.institucion_id` en `comoGatewaySistema()`); valor incremental real pero menor que el gap que 4.b.0 ya cerró. **Ver la nota de abajo: la decisión se revisó con el piloto de instituciones en la mano y se ratificó, con dos consecuencias.** |
 | Etapa 6 — borrar el export crudo `db` | Tabla original §3 | No debería tener consumidores ya, pero nunca se verificó con un grep dedicado antes de borrarlo |
 | M1-M6 (`docs/security/AUDITORIA-AUTORIZACION.md` §7) | Auditoría de autorización previa a este plan | Hallazgos Medios/Bajos (FKs anidadas sin validar contra el tenant — clase de bug que RLS explícitamente NO cubre, §6) — documentados a propósito sin corregir, recomendado cerrarlos "en Fase C junto con la migración" del módulo correspondiente |
 | `panel-admin-ceom.test.ts` caso 3 — sin ninguna aserción de `estadoResultados`/`costoFijoTotal` | §14.2/§14.3 | Quedó fuera del pedido puntual que sí corrigió el archivo hermano (`monitoreo-institucional.test.ts`, §13.11) |
 | `consultarOperativoTenant`/`consultarInventarioOperativoTenant` (Panel Admin CEOM) — cero tests | §10.6/§14.2 | Gap de cobertura, no de assert débil — nunca se escribió el test, no solo quedó flojo |
+
+### Nota 2026-07-27 — D-5: 4.b.1 ratificada como diferida, con dos consecuencias
+
+La Etapa 3 del proyecto (instituciones de punta a punta, H-42) obligó a revisar esta decisión: 4.b.1 se
+había diferido cuando cada institución seguía **un solo negocio**, y el piloto introduce carteras de
+varios negocios y varias instituciones sobre los mismos tenants. Con eso, un bug en
+`tieneConsentimiento()` —hoy el **único** lugar donde se decide institución A vs. institución B, porque
+`tenant_tiene_consentimiento_vigente()` no recibe `institucion_id`— pasa de filtrar de una institución a
+un negocio, a filtrar entre cualquier par. Diagnóstico completo:
+[`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.1 (G-11, G-12).
+
+**Revisada con eso a la vista, la decisión se ratifica: 4.b.1 sigue diferida.** Dos consecuencias que
+**no** son opcionales:
+
+1. **El próximo incremento de seguridad del Gateway es G-12, no la granularidad por institución.**
+   Extender el backstop a los módulos que hoy no tienen ningún piso (Ventas, Gastos, Financiero,
+   Nicho-1) cubre **3 de las 4 pestañas del portal institucional**, que hoy corren enteras como
+   `postgres`. Afinar por institución el único módulo que sí tiene piso (Proveedores) protege menos
+   superficie por más plumbing.
+2. **Se adopta el test de coherencia SQL↔TS**, como reemplazo barato del backstop fino. Es el "test
+   dorado" que este plan ya recomendaba en su decisión abierta 3 y que nunca se escribió: correr la
+   misma matriz de escenarios sintéticos (vigente / revocado / módulo no aprobado / tenant bloqueado)
+   contra `tieneConsentimiento()` (TS) y contra `tenant_tiene_consentimiento_vigente()` (SQL), y fallar
+   si alguna vez difieren. No sustituye al backstop fino —no puede, la función SQL no conoce la
+   institución— pero sí detecta la divergencia entre las dos implementaciones de la regla de vigencia,
+   que es el riesgo que motivaba la duda original. Se implementa en la **tanda 3.3** de la Etapa 3.
 
 *Corrección sobre una referencia que puede estar circulando de sesiones anteriores:
 `monitoreo-institucional.test.ts:156` — el assert débil que señalaban §9.6/§10.6 **ya está

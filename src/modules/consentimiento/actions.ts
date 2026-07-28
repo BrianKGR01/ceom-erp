@@ -48,6 +48,70 @@ function requiereOwnerDelTenant(
 // Alfabeto sin 0/O/1/I para evitar confusion al transcribir el codigo a mano.
 const ALFABETO_CODIGO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+/**
+ * TTL de un Codigo de Acceso (D-7, tanda 3.2). Obligatorio, no opcional: un
+ * codigo circula FUERA del sistema y "vive para siempre" es la decision
+ * equivocada para una credencial. Si se cambia este valor, las filas ya
+ * emitidas conservan su `expira_en` — no se recalculan.
+ */
+export const TTL_CODIGO_ACCESO_DIAS = 30;
+
+/**
+ * `true` si el error es una violacion del indice unico parcial de
+ * `instituciones.email` (SQLSTATE 23505).
+ *
+ * **Camina la cadena de `cause`**, no mira solo el error de arriba:
+ * drizzle-orm 0.45.2 envuelve el `PostgresError` real dentro de un
+ * `DrizzleQueryError`, asi que `code`/`constraint_name` NO son propiedades
+ * del error rechazado — es el mismo detalle que `consentimiento.test.ts` ya
+ * documentaba para la constraint de aprobaciones. La primera version de esta
+ * funcion miraba solo el error externo: compilaba, parecia razonable y no
+ * atrapaba nada. El test la detecto.
+ */
+function esCorreoDeInstitucionDuplicado(error: unknown): boolean {
+  for (let actual = error, saltos = 0; actual && saltos < 5; saltos++) {
+    const e = actual as { code?: unknown; constraint_name?: unknown; cause?: unknown };
+    if (e.code === "23505" && e.constraint_name === "instituciones_email_unique") return true;
+    actual = e.cause;
+  }
+  return false;
+}
+
+/**
+ * Limite de intentos de canje por origen (tanda 3.2). `canjearCodigoAcceso`
+ * es la unica escritura sin autenticar del producto y hasta esta tanda no
+ * tenia ninguno; `docs/auditoria-prelanzamiento/03-seguridad.md` lo marco
+ * como previo a cualquier despliegue.
+ *
+ * Deliberadamente holgado: 10 intentos cada 15 minutos no molesta a nadie
+ * transcribiendo un codigo a mano (el alfabeto ya evita 0/O y 1/I justamente
+ * por eso) y corta el abuso automatizado. NO pretende frenar fuerza bruta
+ * sobre el codigo — ver el comentario de `intentosCanje` en schema.ts.
+ */
+export const MAX_INTENTOS_CANJE = 10;
+export const VENTANA_INTENTOS_CANJE_MINUTOS = 15;
+
+/**
+ * Registra un intento y devuelve si ese origen se paso del limite.
+ *
+ * **Registra siempre, incluso cuando ya esta pasado** — a proposito: si el
+ * insert se salteara al estar bloqueado, la ventana se vaciaria sola mientras
+ * el atacante sigue pegando, y el bloqueo se levantaria a los 15 minutos de
+ * su ULTIMO intento contado en vez de del ultimo real.
+ *
+ * `huella` la calcula el llamador (capa de ruta): es la unica que tiene
+ * acceso a los headers de la request, y un modulo de negocio no deberia saber
+ * que existe una IP. Ver `limiteDeCanjeSuperado()` en app/portal/actions.ts.
+ */
+export async function registrarIntentoCanjeYVerificarLimite(
+  huella: string
+): Promise<{ superado: boolean; intentos: number }> {
+  await repo.registrarIntentoCanje(huella);
+  const desde = new Date(Date.now() - VENTANA_INTENTOS_CANJE_MINUTOS * 60 * 1000);
+  const intentos = await repo.contarIntentosCanjeDesde(huella, desde);
+  return { superado: intentos > MAX_INTENTOS_CANJE, intentos };
+}
+
 function generarCodigoAlfanumerico(longitud = 8): string {
   const bytes = randomBytes(longitud);
   let codigo = "";
@@ -391,7 +455,7 @@ export async function generarCodigoAcceso(
   solicitante: UsuarioConRol,
   tenantId: string,
   input: { modulosHabilitados: ModuloVeedor[] }
-): Promise<Resultado<{ codigoAccesoId: string; codigo: string }>> {
+): Promise<Resultado<{ codigoAccesoId: string; codigo: string; expiraEn: Date | null }>> {
   const bloqueo = requiereOwnerDelTenant(solicitante, tenantId);
   if (bloqueo) return bloqueo;
 
@@ -416,15 +480,20 @@ export async function generarCodigoAcceso(
   }
 
   const codigo = generarCodigoAlfanumerico();
+  const expiraEn = new Date(Date.now() + TTL_CODIGO_ACCESO_DIAS * 24 * 60 * 60 * 1000);
   const fila = await repo.crearCodigoAcceso({
     tenantId,
     modulosHabilitados: input.modulosHabilitados,
     codigo,
     estado: "activo",
     creadoPor: solicitante.id,
+    expiraEn,
   });
 
-  return { ok: true, data: { codigoAccesoId: fila.id, codigo: fila.codigo } };
+  return {
+    ok: true,
+    data: { codigoAccesoId: fila.id, codigo: fila.codigo, expiraEn: fila.expiraEn },
+  };
 }
 
 /** Funciona tanto sobre un codigo "activo" (antes de canjearse) como
@@ -460,47 +529,110 @@ export async function canjearCodigoAcceso(input: {
   institucionId?: string;
   institucionNueva?: DatosInstitucion;
 }): Promise<Resultado<{ institucionId: string; tenantId: string; modulosAprobados: ModuloVeedor[] }>> {
-  const codigoRow = await repo.obtenerCodigoAccesoPorCodigo(input.codigo);
+  const codigoRow = await repo.obtenerCodigoAccesoPorCodigo(input.codigo.trim().toUpperCase());
   if (!codigoRow || codigoRow.estado !== "activo") {
     return { ok: false, error: "Código inválido, ya utilizado o revocado." };
   }
+  // D-7: `expira_en` null solo puede venir de una fila anterior a la
+  // migracion 0047 que el backfill no alcanzo — se trata como vencida, nunca
+  // como "sin vencimiento".
+  if (!codigoRow.expiraEn || codigoRow.expiraEn.getTime() <= Date.now()) {
+    return {
+      ok: false,
+      error: "Este código venció. Pedile al negocio que te genere uno nuevo.",
+    };
+  }
 
-  let institucionId = input.institucionId;
-  if (!institucionId) {
-    if (!input.institucionNueva) {
-      return { ok: false, error: "Falta indicar la institución (existente o nueva)." };
-    }
-    const institucion = await repo.crearInstitucion({
-      nombre: input.institucionNueva.nombre,
-      tipo: input.institucionNueva.tipo,
-      contacto: input.institucionNueva.contacto,
-      email: input.institucionNueva.email,
-      creadoPor: null,
-    });
-    institucionId = institucion.id;
+  if (!input.institucionId && !input.institucionNueva) {
+    return { ok: false, error: "Falta indicar la institución (existente o nueva)." };
   }
 
   const modulosAprobados = codigoRow.modulosHabilitados as ModuloVeedor[];
 
-  await repo.actualizarCodigoAcceso(codigoRow.id, {
-    estado: "canjeado",
-    institucionId,
-    canjeadoEn: new Date(),
-  });
-  await repo.agregarACartera({
-    institucionId,
-    tenantId: codigoRow.tenantId,
-    fechaInicio: new Date().toISOString().slice(0, 10),
-  });
-  await repo.crearAprobacionTenant({
-    tenantId: codigoRow.tenantId,
-    institucionId,
-    modulosAprobados,
-    aprobadoPor: codigoRow.creadoPor,
-    codigoAccesoId: codigoRow.id,
-  });
+  let resultado: Awaited<ReturnType<typeof repo.canjearCodigoAccesoTx>>;
+  try {
+    resultado = await repo.canjearCodigoAccesoTx({
+      codigoAccesoId: codigoRow.id,
+      tenantId: codigoRow.tenantId,
+      modulosAprobados,
+      aprobadoPor: codigoRow.creadoPor,
+      fechaInicioCartera: new Date().toISOString().slice(0, 10),
+      institucionExistenteId: input.institucionId,
+      institucionNueva: input.institucionId
+        ? undefined
+        : {
+            nombre: input.institucionNueva!.nombre,
+            tipo: input.institucionNueva!.tipo,
+            contacto: input.institucionNueva!.contacto,
+            email: input.institucionNueva!.email,
+            creadoPor: null,
+          },
+    });
+  } catch (error) {
+    // H-42: el correo ya pertenece a otra Institucion. Hasta la tanda 3.2
+    // esto no estaba capturado en ningun punto de la cadena: la Server Action
+    // lanzaba y el usuario —alguien sin cuenta, sin soporte dentro del
+    // producto— veia un error generico de Next.js, o directamente un boton
+    // colgado en "Confirmando...".
+    //
+    // El mensaje NO confirma que ese correo este registrado (seria un oraculo
+    // de enumeracion, aunque acotado a quien ya tiene un codigo valido):
+    // habla del intento, no del correo, y ofrece el camino correcto. Es el
+    // mismo criterio anti-enumeracion que solicitarMagicLinkInstitucion() y
+    // la recuperacion de contraseña. La transaccion garantiza que no quedo
+    // nada a medias, y el codigo sigue `activo` para el segundo intento.
+    if (esCorreoDeInstitucionDuplicado(error)) {
+      return {
+        ok: false,
+        error:
+          "No pudimos completar el registro con esos datos. Si tu institución ya tiene acceso a " +
+          "CEOM, entrá con tu correo desde «¿Ya tenés acceso?» y canjeá el código desde tu cartera.",
+      };
+    }
+    throw error;
+  }
 
-  return { ok: true, data: { institucionId, tenantId: codigoRow.tenantId, modulosAprobados } };
+  // G-03: perdio la carrera — otro canje reclamo el codigo entre el SELECT de
+  // arriba y el UPDATE condicional de la transaccion.
+  if (!resultado) {
+    return { ok: false, error: "Código inválido, ya utilizado o revocado." };
+  }
+
+  return {
+    ok: true,
+    data: { institucionId: resultado.institucionId, tenantId: codigoRow.tenantId, modulosAprobados },
+  };
+}
+
+/**
+ * Canje estando ya autenticada como Institucion — **el cierre de H-42**
+ * (tanda 3.2).
+ *
+ * `canjearCodigoAcceso()` acepta `institucionId` desde el dia uno y hasta
+ * esta tanda no lo llamaba nadie: `/portal` era una bifurcacion binaria (con
+ * sesion, cartera; sin sesion, canje) y no habia ninguna ruta, boton ni rama
+ * que llegara al canje con sesion. Una institucion con un segundo codigo solo
+ * podia romper la Server Action (mismo correo) o crear una segunda
+ * institucion con cartera de un solo negocio (correo distinto).
+ *
+ * Sin `solicitante`, mismo criterio que el resto del modulo: la identidad de
+ * Institucion no es un `UsuarioConRol`. Quien llama ya resolvio su propia
+ * sesion via `obtenerInstitucionActual()` — esta funcion no la puede resolver
+ * porque vive fuera del runtime de Next.js en los tests.
+ */
+export async function canjearCodigoAccesoAutenticada(
+  institucionId: string,
+  codigo: string
+): Promise<Resultado<{ tenantId: string; modulosAprobados: ModuloVeedor[] }>> {
+  const institucion = await repo.obtenerInstitucionPorId(institucionId);
+  if (!institucion) return { ok: false, error: "Institución no encontrada." };
+
+  const resultado = await canjearCodigoAcceso({ codigo, institucionId });
+  if (!resultado.ok) return resultado;
+  return {
+    ok: true,
+    data: { tenantId: resultado.data.tenantId, modulosAprobados: resultado.data.modulosAprobados },
+  };
 }
 
 export async function listarCodigosAcceso(

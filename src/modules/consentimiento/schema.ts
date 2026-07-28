@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   date,
+  index,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -218,6 +219,20 @@ export const codigosAcceso = pgTable(
     institucionId: uuid("institucion_id").references(() => instituciones.id),
     canjeadoEn: timestamp("canjeado_en", { withTimezone: true }),
     revocadoEn: timestamp("revocado_en", { withTimezone: true }),
+    // TTL obligatorio (D-7, tanda 3.2). NO es una fecha opcional que el Owner
+    // puede dejar vacia: generarCodigoAcceso() siempre la completa
+    // (creado_en + TTL_CODIGO_ACCESO_DIAS). Un Codigo de Acceso es una
+    // credencial que circula FUERA del sistema (WhatsApp, correo, papel), y
+    // "vive para siempre" es la decision equivocada para una credencial: hasta
+    // esta tanda, un codigo compartido hace ocho meses seguia otorgando acceso
+    // completo, y el manual de instituciones ya le prometia al usuario que los
+    // codigos vencen.
+    //
+    // Nullable en el esquema por una sola razon: las filas anteriores a la
+    // migracion 0047, que la propia migracion rellena (creado_en + TTL) en vez
+    // de dejarlas inmortales. Una fila con expira_en NULL despues de eso es un
+    // bug, no un caso valido — canjearCodigoAcceso() la trata como vencida.
+    expiraEn: timestamp("expira_en", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("codigos_acceso_codigo_unique").on(table.codigo),
@@ -226,6 +241,41 @@ export const codigosAcceso = pgTable(
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
   ]
+).enableRLS();
+
+// Intentos de canje, para poder limitarlos (tanda 3.2). `canjearCodigoAcceso`
+// es la UNICA escritura sin autenticar de todo el producto —correctamente:
+// una institucion no tiene cuenta cuando llega con su primer codigo— y hasta
+// esta tanda no tenia ningun limite.
+//
+// Por que una tabla y no un contador en memoria: la app corre en Vercel
+// (serverless, multi-instancia, procesos efimeros). Un Map en memoria se
+// resetea en cada deploy y no se comparte entre instancias, asi que seria un
+// limite decorativo. Esto es la version honesta.
+//
+// Que NO es esto: proteccion contra fuerza bruta del codigo en si. El espacio
+// de claves es 32^8 (~1,1x10^12); a 10 intentos/segundo son ~3500 años, la
+// fuerza bruta no es la amenaza. Lo que cubre es abuso del endpoint y que
+// probar sea gratis y sin dejar rastro.
+//
+// `huella` es un HASH de la IP con un secreto del servidor, nunca la IP: no
+// hace falta saber de donde vino, solo si es el mismo origen. Sin policy para
+// `authenticated` (deny total), mismo criterio que logs_acceso_admin_ceom.
+//
+// PENDIENTE conocido, no silencioso: la tabla **crece sin limite** — se
+// inserta una fila por intento y nada las borra. A escala de piloto es
+// irrelevante (unos cientos de filas), pero antes de produccion hace falta
+// una purga de las filas mas viejas que la ventana (un cron, o un DELETE
+// oportunista en el mismo insert). No se hizo en la tanda 3.2 para no meter
+// scheduling en una tanda que no lo tenia en alcance.
+export const intentosCanje = pgTable(
+  "intentos_canje",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    huella: text("huella").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("intentos_canje_huella_creado_en").on(table.huella, table.creadoEn)]
 ).enableRLS();
 
 // Traza interna de acceso del equipo CEOM (Modulo_11 seccion 4, regla 5) —

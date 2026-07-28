@@ -41,19 +41,31 @@ queda otorgado el acceso a los tipos de información que el dueño eligió.
 **El código es de un solo uso** y no hay forma de ver qué contiene sin canjearlo. Si el código está
 mal escrito, vencido o revocado, el error aparece recién al confirmar el segundo paso.
 
+**Los códigos vencen a los 30 días** de generados. Es a propósito: un código es una credencial que
+viaja fuera del sistema —por WhatsApp, por correo, anotado en un papel— y no tiene sentido que siga
+abriendo la puerta para siempre. Si el tuyo venció, pedile al negocio que te genere uno nuevo; no se
+pierde nada.
+
 **El correo que cargues es tu llave.** Es lo único con lo que vas a poder volver a entrar. Usá una
 casilla institucional a la que acceda más de una persona —`programas@tuinstitucion.edu`— y no la
 personal de quien hace el trámite: si esa persona se va, el acceso se va con ella.
 
-> ⚠️ **No canjees un segundo código con el mismo correo.** El portal siempre da de alta una
-> institución nueva al canjear: no ofrece "ya estoy registrada". Como el correo no se puede repetir,
-> canjear un segundo código con el mismo correo **falla con un error técnico** que no explica qué
-> pasó. Y si lo hacés con un correo distinto para esquivarlo, quedás con **dos instituciones
-> separadas**, cada una viendo solo su propio negocio, sin forma de unirlas.
->
-> **Qué hacer si te dan un segundo código:** no lo canjees. Pedile al equipo de CEOM que vincule ese
-> negocio a tu institución ya existente y que genere una solicitud de seguimiento. Es el camino 2, y
-> llega al mismo resultado sin romper nada. (ver H-42)
+---
+
+## Si te dan un segundo código
+
+**Canjealo desde adentro, no desde esta pantalla.** Entrá a tu cartera y tocá **"Canjear otro
+código"**. Ese negocio se suma a los que ya seguís, en la misma institución.
+
+**Si todavía no entraste nunca** pero tu institución ya está registrada (por ejemplo, porque el
+equipo de CEOM te dio de alta), el orden es al revés de lo que parece: **primero identificate,
+después canjeá**. Tocá "¿Ya tenés acceso?", pedí tu enlace por correo, entrá, y recién ahí canjeá el
+código desde tu cartera. Si en cambio completás el formulario de institución nueva con un correo que
+ya está registrado, el canje no se completa — y el código no se gasta, así que podés volver a
+intentarlo por el camino correcto.
+
+**Nunca uses un correo distinto para esquivar el problema**: quedarías con dos instituciones
+separadas, cada una viendo solo su propio negocio, sin forma de unirlas.
 
 ---
 
