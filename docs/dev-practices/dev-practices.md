@@ -289,6 +289,34 @@ aproximar la realidad, la migración está escrita para la realidad.
 
 ---
 
+## 7.3. Auto-merge de PRs: por qué se puede hoy, y qué lo termina
+
+**Hoy un agente puede abrir un PR de `dev` a `main` y mergearlo él mismo, sin esperar
+aprobación.** No es una relajación del estándar: es que el radio de impacto de un error es una base
+de prueba.
+
+**Las tres condiciones que lo habilitan** (2026-07-27):
+
+1. **No hay nada en producción.** El proyecto de Vercel no es producción.
+2. **No hay usuarios reales.** Todo lo que hay en la base de desarrollo son datos de prueba.
+3. **Ningún dato es irrecuperable.** Lo peor que puede pasar es rehacer el seed.
+
+**El disparador que lo termina — escrito acá justamente para que no dependa de que alguien se
+acuerde:**
+
+> **El día del arranque real** —cuando exista un proyecto de Supabase de producción con el primer
+> negocio real cargado— **los PRs vuelven a revisarse antes de mergear.** Sin excepción, y sin
+> importar cuán chico parezca el cambio.
+
+Ese día, además, cambian dos cosas que hoy son cómodas y dejan de serlo: los tests de integración
+dejan de poder correr contra la base compartida (§6), y las migraciones dejan de poder verificarse
+sobre datos que se pueden tirar (§7.1.1, §7.2).
+
+**Si estás leyendo esto y ya existe un negocio real:** esta sección está vencida. Actualizala en el
+mismo cambio en que lo descubras.
+
+---
+
 ## 8. Integración continua (GitHub Actions)
 
 ```yaml
