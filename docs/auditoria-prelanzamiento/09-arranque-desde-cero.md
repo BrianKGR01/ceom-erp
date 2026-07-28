@@ -133,6 +133,10 @@ arranque con el síntoma lejos de la causa.
 > cada ítem por separado**, con la instrucción de refutarlo. 40 candidatos → **27 confirmados, 7
 > refutados con motivo, 6 sin verificar**. Los refutados están abajo con su razón: sirven para que
 > nadie los vuelva a agregar. Cada ítem tiene evidencia `archivo:línea` o una consulta real.
+>
+> **Esta sección es el diagnóstico — el porqué de cada ítem.** El día del arranque no se lee esto: se
+> ejecuta el **runbook de [§3.2](#32-runbook-del-arranque--la-secuencia-que-el-ensayo-tiene-que-probar)**,
+> que es la misma información en forma de secuencia con valor y verificación por paso.
 
 ### 🔴 Auth — acá está todo lo que rompe de verdad
 
@@ -202,6 +206,46 @@ La verificación adversarial tumbó 7 candidatos. Se dejan escritos para que nad
 - **`Confirm signup` y `Magic Link` en default** no es config faltante: **el estado correcto ES el de
   fábrica**. Queda como la advertencia pegada a A1.
 
+## 3.2 Runbook del arranque — la secuencia que el ensayo tiene que probar
+
+> **Esto es lo que se ejecuta el día del arranque, en este orden.** Cada paso dice qué configurar,
+> con qué valor y **cómo verificar que tomó efecto** — porque lo que el ensayo de
+> [§5](#5-el-ensayo--requisito-de-cierre-de-la-etapa-3) prueba no es que el sistema arranque: es que
+> **este runbook alcanza**. Si al ejecutarlo hace falta tocar algo que no está acá, el runbook está
+> incompleto y ese es el hallazgo.
+>
+> `⟨ref⟩` = el project-ref del proyecto nuevo. `⟨url⟩` = el origen público de la app, sin barra final.
+
+| # | Paso | Valor | Cómo verificar que tomó |
+|---|---|---|---|
+| **1** | Crear el proyecto de Supabase | Región `sa-east-1` (misma que hoy, por latencia) | El proyecto responde en el dashboard |
+| **2** | Cargar las 6 variables en `.env.local` | De Settings → Database (`DATABASE_URL` :6543, `DIRECT_URL` :5432) y Settings → API | `pnpm drizzle-kit migrate` conecta |
+| **3** | **Auth → SMTP Settings**: SMTP propio | Resend, remitente `@ceom.lat` | `pnpm auth:config` muestra `smtp_host` de Resend |
+| **4** | **Auth → URL Configuration**: Site URL | `⟨url⟩` exacto, **sin barra final** (de fábrica viene `http://localhost:3000`) | `pnpm auth:config` → `site_url` |
+| **5** | **Auth → Emails**: plantilla *Invite user* | `{{ .SiteURL }}/app/auth/callback?token_hash={{ .TokenHash }}&type=invite` | `pnpm auth:config` → ✅ en "Invite user" |
+| **6** | **Auth → Emails**: plantilla *Reset password* | Ídem con `type=recovery` | `pnpm auth:config` → ✅ en "Reset password" |
+| **7** | **NO tocar** *Confirm signup* ni *Magic Link* | Quedan de fábrica | `pnpm auth:config` → ✅ (por defecto) en las dos |
+| **8** | **Auth → Providers → Email**: permitir signup | Habilitado | `pnpm auth:config` → `disable_signup: false` |
+| **9** | **Auth → Password Security**: leaked password protection | Habilitado | Advisors sin `auth_leaked_password_protection` |
+| **10** | **Auth → Rate Limits** | Subir el cupo de correos por encima del de fábrica | `pnpm auth:config` → `rate_limit_email_sent` |
+| **11** | `pnpm drizzle-kit migrate` | 49 migraciones | El esquema vivo coincide con el último snapshot ([§1](#1-migraciones--confiable-pero-recién-desde-ahora)) |
+| **12** | `pnpm seed:admin <correo real>` | — | **Llega el correo y el clic aterriza en `/app/definir-contrasena`** ← prueba 3+5 juntos |
+| **13** | `pnpm storage:setup` | Bucket `tenant-uploads` | `pnpm seed:demo` no reclama el bucket |
+| **14** | `pnpm seed:tenant …` | — | Llega el correo del Owner y el clic funciona |
+| **15** | `pnpm seed:demo` / `pnpm seed:instituciones` | — | Cada seed cierra con "✅ Entorno completo" |
+| **16** | Reapuntar las 6 variables de **Vercel** (Production) al proyecto nuevo | Las mismas de (2) | Un deploy nuevo, y `/login` entra contra el proyecto nuevo |
+| **17** | **Enforce SSL** (Settings → Database) | Habilitado | La conexión sin `sslmode` es rechazada |
+
+**El paso 12 es el que de verdad prueba el runbook.** Es el primer punto donde un correo real tiene
+que llegar **y su clic tiene que aterrizar en la app**: ejercita el SMTP (3), el Site URL (4) y la
+plantilla de invitación (5) de una sola vez. Si algo de eso está mal, falla acá — y falla en el
+único momento en que todavía no hay un negocio real esperando.
+
+**Lo que este runbook deliberadamente NO incluye**, y no es olvido: el alta masiva de negocios (no
+existe, y es la decisión de go-to-market de [§2](#2-los-dos-pasos-que-dependen-de-una-bandeja-de-correo)),
+las Network Restrictions (hardening posterior, ver los refutados) y la migración de datos del
+proyecto viejo (no hay datos reales que migrar en el primer arranque).
+
 ### ⚠️ Seis candidatos sin verificar
 
 La corrida se quedó sin presupuesto antes de terminar la verificación de estos, así que **no están
@@ -210,8 +254,15 @@ confirmados ni refutados** — se listan como pistas, no como hallazgos:
 `6543 vs 5432` como diferencia funcional · el runtime de producción (Node 24) nunca corrió la suite
 (CI usa Node 20) · las `NEXT_PUBLIC_*` se resuelven en build (cambiarlas sin redesplegar no tiene
 efecto) · CI en verde no valida nada del proyecto nuevo (no tiene credenciales y los tests que las
-necesitan se saltan solos) · plan del proyecto y política de backups · endurecimiento de Auth por
-proyecto.
+necesitan se saltan solos) · plan del proyecto y política de backups.
+
+> **El sexto se cerró (2026-07-28).** Era el único que tocaba Auth —"endurecimiento por proyecto:
+> leaked password protection y rate limits"— y el propio hallazgo de esta sección es el filtro: lo
+> que rompe de verdad está todo en Auth, así que ése valía cerrarlo ahora y el resto no.
+> **Verificado contra los advisors en vivo**: `auth_leaked_password_protection` sigue en `WARN`, o
+> sea **deshabilitada hoy**. No es un ítem nuevo: es A5 y A6 del inventario, confirmados con
+> evidencia en vez de con una cita. Los otros cinco quedan como pistas para el ensayo — ninguno toca
+> Auth, y gastar una corrida en ellos no cambiaría el runbook.
 
 
 
