@@ -1145,6 +1145,60 @@ queda anotado acá como la única salida conocida si la convención llega a fall
 **Se adopta igual, con esa asimetría escrita.** Una garantía chica y honesta —"ningún campo nuevo
 pasa sin que alguien lo mire"— vale más que una grande y aspiracional.
 
+#### Reconsideración (2026-07-27): los marcadores como DATO del módulo de origen
+
+La conclusión de arriba estaba bien razonada y **la respuesta era más barata de lo que calculé**. Es
+una idea del dueño del producto y funciona.
+
+**La idea.** En vez de marcar el campo en el *tipo* de origen (branded type, caro), el módulo dueño
+declara sus marcadores como **dato**: un `export` más, sin tocar el tipo de retorno ni ninguna
+pantalla.
+
+```ts
+// financiero/actions.ts — al lado de estadoResultados()
+export const MARCADORES_ESTADO_RESULTADOS = ["ingresosSinCostoConocido"] as const;
+```
+
+Y la proyección los recibe como parámetro de tipo, en vez de que el consumidor los elija:
+
+```ts
+type Proyeccion<TOrigen, TMarcador extends keyof TOrigen> = {
+  [K in keyof TOrigen]: K extends TMarcador
+    ? "marcador"                        // forzado: no admite { omitido }
+    : "expuesto" | { omitido: string; esMarcador: false };
+};
+
+const PROYECCION_FINANCIERO: Proyeccion<
+  EstadoResultadosData,
+  (typeof MARCADORES_ESTADO_RESULTADOS)[number]
+> = { … };
+```
+
+**Qué cambia, y por qué es mejor que lo que yo había concluido.** El consumidor **ya no elige** qué
+es un marcador: lo decide el módulo que tiene la semántica. Si `financiero` agrega un campo y lo
+declara marcador, `pnpm typecheck` falla en `monitoreo-institucional` hasta que se exponga. La
+decisión se toma **en el momento y el lugar de máximo contexto** —quien escribe
+`ingresosSinCostoConocido` está editando `financiero/actions.ts` y agrega una línea al lado— en vez
+de "acordarse de ir a editar un mapa en otro módulo". Eso era exactamente lo que mi propio argumento
+pedía, y no lo vi.
+
+**Costo real:** un `export const` por módulo de origen. **Cero** cambios de tipo de retorno, **cero**
+pantallas del dueño tocadas. Muchísimo más barato que el branded type.
+
+**Lo que sigue sin ser garantía dura, dicho sin adornar:** nada obliga a agregar el campo a
+`MARCADORES_*`. Sigue siendo una decisión humana — pero pasa de "recordar algo en un módulo lejano"
+a "escribir una línea al lado del campo que acabás de crear", que es una diferencia de ergonomía
+grande, no cosmética.
+
+**Y una pieza más para achicar ese hueco**, que sale de mirar el problema con este encuadre: el
+tercer valor del mapa no es `{omitido: string}` sino **`{omitido: string; esMarcador: false}`**. Así
+no se puede omitir un campo sin **afirmar explícitamente** que no es un marcador de completitud. No
+convierte la convención en garantía —el compilador no sabe semántica— pero convierte un **olvido
+silencioso** en una **afirmación escrita y equivocada**, que es revisable en un diff.
+
+**Adoptado así para la tanda 3.3**: marcadores como dato del origen + `esMarcador: false` obligatorio
+en cada omisión.
+
 ---
 
 ## 10. Qué mirar primero
