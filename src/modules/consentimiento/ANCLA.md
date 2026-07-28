@@ -318,6 +318,35 @@ FKs desde 3 tablas que hacen inviable un cascade manual sin tocar auditoría rea
   completa el login. Ver el bullet "✅ Validado end-to-end" arriba para el detalle.
 
 
+## Última actualización: 2026-07-27 (2) — Etapa 3 / tanda 3.1: seed propio del subsistema y limpieza de la institución del operador
+
+**`pnpm seed:instituciones <emailCeomAdmin>`** (`scripts/seed-instituciones.ts`) — el subsistema no
+tenía **ningún** dato de prueba reproducible: `seed:demo` puebla un tenant de negocio y no toca
+consentimiento, así que todo lo que existía eran residuos manuales de tandas anteriores (los que este
+mismo archivo documenta más arriba). Consecuencia medida antes de escribirlo: 0 instituciones con
+`auth_user_id` (nadie podía entrar al portal autenticado) y ninguna con más de 1 negocio en cartera.
+
+Siembra 4 negocios y 3 instituciones, e incluye a propósito los **estados degenerados** —institución
+sin correo, institución sin vincular, negocio sin consentir a nadie, negocio de otro nicho con
+`operativo` consentido, negocio con sucursal congelada, negocio con ingresos sin costo, códigos en los
+3 estados—. Detalle completo y números exactos:
+`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md` §6.
+
+**Dos cosas que un agente futuro debe saber:**
+
+- **El escenario NO incluye un canje autenticado, y no es un olvido: es H-42.** Una institución ya
+  registrada no puede canjear un segundo código, así que la Incubadora entra a su cartera de 3
+  negocios por el camino 2 (CEOM vincula + solicitud + aprobación). El bloque de instituciones del
+  script está gateado por existencia justamente por eso — un segundo canje con el mismo correo
+  revienta con la violación de unicidad, sin capturar. Cuando la tanda 3.2 cierre H-42, esa guarda se
+  puede relajar y los negocios B/C se pueden sembrar por el camino 1.
+- **Se limpió la institución con el correo del operador de CEOM** (`admin@ceom.lat`, el caso G-16 que
+  el diagnóstico había encontrado sembrado por accidente, con una aprobación vigente). El orden
+  importa y está en el código: revocar la aprobación → dar de baja la cartera → **liberar el correo**
+  → soft delete. Lo del correo es obligatorio hoy porque `instituciones_email_unique` es parcial sobre
+  `email is not null` y **no** excluye `eliminado_en` (G-07): sin limpiarlo, la dirección quedaría
+  bloqueada para siempre. Cuando la tanda 3.4 arregle G-07, ese paso se puede sacar.
+
 ## Última actualización: 2026-07-27 — H-49: el registro de accesos muestra los del día en curso
 
 `listarLogsAcceso` sigue recibiendo `{desde, hasta}` en días locales; `listarLogsAccesoAdminCeom`

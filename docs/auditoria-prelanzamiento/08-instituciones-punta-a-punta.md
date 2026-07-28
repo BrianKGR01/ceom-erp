@@ -643,6 +643,35 @@ promete al negocio y a la institución (*"solo su dueño puede volver a otorgarl
 
 ## 6. El punto ciego del entorno de prueba
 
+> **✅ Cerrado en la tanda 3.1 (2026-07-27) — `pnpm seed:instituciones <emailCeomAdmin>`.**
+> `scripts/seed-instituciones.ts` siembra el caso del piloto **y sus estados degenerados**. El
+> diagnóstico de abajo queda como el registro de por qué hizo falta; lo que sigue es lo que hay ahora:
+>
+> | Estado | Antes | Ahora |
+> |---|---|---|
+> | Institución con 2+ negocios | ❌ nunca existió | ✅ Incubadora Andina con 3 |
+> | Institución autenticada | ❌ 0 vinculadas | ✅ Incubadora entra a `/portal` sin bandeja de correo |
+> | Dos instituciones sobre el mismo negocio | ❌ | ✅ Incubadora + Universidad sobre Aurora, con módulos distintos |
+> | Negocio en cartera sin consentimiento vigente | ✅ por accidente | ✅ a propósito (Fundación ↔ Bertoni) |
+> | Negocio de otro nicho con `operativo` consentido | ❌ | ✅ Bertoni (`nicho_4`) |
+> | Negocio con sucursal congelada, en una cartera | ❌ | ✅ Cruz (2 sucursales, 1 congelada por downgrade real) |
+> | Negocio con ingresos sin costo, en una cartera | ❌ | ✅ Bertoni (180 de 360 exactos) |
+> | Institución sin correo (H-43) | ✅ por accidente | ✅ a propósito (Fundación Tejido) |
+> | Negocio que no autorizó a nadie | ❌ | ✅ Dalmiro (525, que nadie debe ver) |
+> | Códigos en los 3 estados | parcial | ✅ activo / canjeado / revocado |
+>
+> **Verificado con valores exactos** por el camino real de lectura institucional y en navegador. Lo que
+> el portal muestra hoy sobre estos datos: Bertoni con *"ESTADO DE RESULTADOS 285,00"* sin ninguna
+> marca de que 180 de sus 360 de ingresos no tienen costo (**X-01**); su pestaña *Producción* con
+> *"Sin producciones registradas"* **sin candado** —siendo un `nicho_4` que no puede producir— al lado
+> de *Insumos y stock*, que **sí** muestra el candado correctamente (**G-14**, el contraste exacto);
+> y Cruz con *"INGRESOS DEL PERÍODO 800,00"* y el badge **Activo**, sobre un negocio que ya solo puede
+> registrar en 1 de sus 2 sucursales (**X-02**).
+>
+> Sigue faltando: la fila de G-16 se limpió (ver abajo), pero **el escenario no cubre el canje
+> autenticado** — no puede, es H-42: la Incubadora entra a su cartera por el camino 2. Se completa en
+> la tanda 3.2.
+
 El pedido anticipó el patrón (productos sin costo, `auth.users`) y acá es peor de lo esperado.
 
 ### 6.1 El seed de demo no crea instituciones. Ninguna.
@@ -1021,8 +1050,45 @@ mano; ese re-proyectado descartó el marcador de X-01 y descartará el próximo 
 silencio. El proyecto ya resolvió este patrón con `src/lib/security/access-manifest.ts` + su test por
 AST, que rompe la build cuando aparece una Server Action sin clasificar.
 
-**La propuesta está pendiente de aprobación** — ver el mensaje de cierre de la tanda 3.1. No se
-implementa nada hasta que esté decidida.
+**La propuesta está pendiente de aprobación.** No se implementa nada hasta que esté decidida.
+
+Tres formas, de menos a más maquinaria:
+
+**Opción 1 — Manifiesto de proyección + test por AST (el análogo literal de `access-manifest.ts`).**
+Un archivo que declara, por cada función de origen, qué pasa con **cada uno** de sus campos:
+`expuesto` / `omitido_por_agregación` / `marcador`. Un test lee el tipo de retorno de la función de
+origen y falla si aparece un campo sin clasificar, o si un campo clasificado `marcador` no está en el
+`detalle` proyectado.
+*A favor:* atrapa las dos direcciones y es el patrón que el equipo ya conoce. *En contra:* un segundo
+archivo que mantener, y leer **tipos** por AST es bastante más frágil que leer nombres de funciones
+exportadas, que es todo lo que hace `access-manifest.ts` hoy.
+
+**Opción 2 — Invertir la proyección: pasar todo y omitir explícitamente.**
+`detalle: omitir(resultadosRes.data, ["ingresos", "gastos", "ajustesVenta", "ajustesCompra"])`. Un
+campo nuevo viaja **por defecto**; para que no viaje, alguien tiene que nombrarlo.
+*A favor:* el comportamiento seguro pasa a ser el default, sin archivos nuevos. *En contra:* **invierte
+el modo de falla** — de "esconde algo en silencio" a "expone algo en silencio". En la única superficie
+de privacidad del producto, eso es peor: un campo nuevo de `estadoResultados` que no deba salir del
+negocio llegaría a un tercero sin que nadie lo decida.
+
+**Opción 3 — Que lo haga TypeScript (recomendada).**
+Declarar la proyección como un mapa exhaustivo sobre las claves del tipo de origen:
+
+```ts
+type Proyeccion<TOrigen> = { [K in keyof TOrigen]: "expuesto" | "marcador" | { omitido: string } };
+```
+
+El `detalle` se deriva de ese mapa. Cuando `estadoResultados` gana un campo, **el mapa deja de ser
+exhaustivo y `pnpm typecheck` falla** — que ya corre en CI. Y `"marcador"` se define de forma que
+**no pueda** resolverse a omitido: un marcador clasificado como omitido es un error de tipos, no una
+convención que alguien tiene que recordar.
+*A favor:* costo casi nulo, imposible de olvidar, falla en el lugar más temprano posible, sin runtime
+ni archivo nuevo. *En contra:* solo cubre esta capa; si mañana aparece otro punto de re-proyección
+hacia un tercero (Panel Admin CEOM ya es candidato), hay que aplicarlo ahí también a mano.
+
+**Recomiendo la 3**, con la 1 como plan B si la gimnasia de tipos sale ilegible. Es un cambio
+estructural en `monitoreo-institucional/actions.ts`, adyacente a su contrato, y por eso se trae a
+decisión antes de implementarlo.
 
 ---
 
