@@ -18,6 +18,7 @@
 
 import { eq } from "drizzle-orm";
 import { client as pgClient, db } from "@/db/client";
+import { informarEstadoDelEntorno } from "./_estado-entorno";
 import { urlCallbackApp } from "@/lib/site-url";
 import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
 import { crearTenant } from "@/modules/identidad/actions";
@@ -109,6 +110,8 @@ async function main() {
   console.log(
     `Owner invitado (${emailOwner}) — le llegó un correo de Supabase para fijar su contraseña.`
   );
+
+  await informarEstadoDelEntorno();
 }
 
 main()

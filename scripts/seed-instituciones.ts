@@ -24,14 +24,20 @@
 // excepciones estan marcadas con "EXCEPCION" y justificadas donde ocurren.
 //
 // Uso:
-//   pnpm seed:instituciones <emailCeomAdmin> [--force]
+//   pnpm seed:instituciones <emailCeomAdmin> [--force] [--reset]
 //
 // Sin --force, aborta si el escenario ya existe (idempotente por deteccion,
 // no por upsert: correrlo dos veces sin --force no duplica nada).
+//
+// --reset BORRA el escenario demo entero (los 4 negocios y las 3
+// instituciones, por lista explicita) y lo vuelve a sembrar desde cero. Es lo
+// unico que ejercita la rama del canje autenticado, que con la guarda por
+// existencia nunca corria.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { eq, inArray, like, sql } from "drizzle-orm";
 import { client as pgClient, db } from "@/db/client";
+import { informarEstadoDelEntorno } from "./_estado-entorno";
 import {
   agregarTenantACartera,
   aprobarSolicitud,
@@ -45,7 +51,13 @@ import {
   vincularInstitucionAutenticada,
 } from "@/modules/consentimiento/actions";
 import * as consentimientoRepo from "@/modules/consentimiento/repository";
-import { instituciones } from "@/modules/consentimiento/schema";
+import {
+  aprobacionesTenant,
+  carteraInstitucional,
+  codigosAcceso,
+  instituciones,
+  solicitudesSeguimiento,
+} from "@/modules/consentimiento/schema";
 import { sembrarCategoriasGastoDefault } from "@/modules/gastos/actions";
 import { asignarNicho, cambiarPlanTenant, crearSucursal } from "@/modules/identidad/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
@@ -199,6 +211,177 @@ function exigir<T>(resultado: { ok: true; data: T } | { ok: false; error: string
 }
 
 /**
+ * Borra TODOS los datos de negocio de un tenant, en orden de FK.
+ *
+ * SQL crudo y no los `schema.ts` de cada módulo, a propósito: importar las
+ * tablas de 20 módulos desde un script rompería la regla de caja negra
+ * (`AGENTS.md` #2) mucho más de lo que la rompe una lista de nombres de tabla
+ * en un script de andamiaje. Esto no es lógica de negocio: es tirar el
+ * andamio. Si mañana aparece una tabla nueva con `tenant_id`, este script
+ * falla ruidosamente por FK — que es lo correcto, mejor que borrar a medias.
+ *
+ * El orden es de las hojas al tronco. Cambiarlo rompe por FK, no en silencio.
+ */
+async function borrarNegocioDeTenant(tenantId: string) {
+  // Cada entrada: tabla y cómo llega hasta el tenant.
+  const porTenant = [
+    "eventos", "clientes", "canales_venta", "metodos_pago",
+    "producciones", "recetas", "insumos", "productos", "categorias_producto",
+    "gastos", "gastos_recurrentes", "categorias_gasto", "compras", "proveedores",
+    "pasivos", "activos", "simulaciones", "configuracion_simulaciones",
+  ];
+  const anidadas = [
+    // hijas -> por qué padre llegan al tenant
+    ["ajustes_venta", "venta_id", "ventas"],
+    ["pagos_venta", "venta_id", "ventas"],
+    ["detalles_venta", "venta_id", "ventas"],
+    ["producciones_ajuste", "produccion_id", "producciones"],
+    ["vinculaciones_producto_receta", "receta_id", "recetas"],
+    ["receta_insumos", "receta_id", "recetas"],
+    ["movimientos_insumo", "insumo_id", "insumos"],
+    ["stock_insumo", "insumo_id", "insumos"],
+    ["movimientos_stock", "producto_id", "productos"],
+    ["stock", "producto_id", "productos"],
+    ["pagos_gasto", "gasto_id", "gastos"],
+    ["pagos_compra", "compra_id", "compras"],
+    ["compras_ajuste", "compra_id", "compras"],
+    ["pagos_pasivo", "pasivo_id", "pasivos"],
+    ["permisos_especiales_por_usuario", "usuario_id", "usuarios"],
+  ] as const;
+
+  for (const [hija, fk, padre] of anidadas) {
+    await db.execute(
+      sql.raw(
+        `delete from "${hija}" where "${fk}" in (select id from "${padre}" where tenant_id = '${tenantId}')`
+      )
+    );
+  }
+  await db.execute(sql.raw(`delete from "ventas" where tenant_id = '${tenantId}'`));
+  for (const tabla of porTenant) {
+    await db.execute(sql.raw(`delete from "${tabla}" where tenant_id = '${tenantId}'`));
+  }
+  // Roles y sus permisos, después los usuarios que los referencian.
+  await db.execute(
+    sql.raw(
+      `delete from "permisos_especiales_por_rol" where rol_id in (select id from "roles" where tenant_id = '${tenantId}')`
+    )
+  );
+  await db.execute(
+    sql.raw(
+      `delete from "permisos" where rol_id in (select id from "roles" where tenant_id = '${tenantId}')`
+    )
+  );
+  await db.execute(sql.raw(`delete from "usuarios" where tenant_id = '${tenantId}'`));
+  await db.execute(sql.raw(`delete from "roles" where tenant_id = '${tenantId}'`));
+  await db.execute(sql.raw(`delete from "sucursales" where tenant_id = '${tenantId}'`));
+  await db.execute(sql.raw(`delete from "tenants" where id = '${tenantId}'`));
+}
+
+/** Los 4 owners del escenario. Lista cerrada y escrita a mano a propósito:
+ * `--reset` borra por esta lista, no por un patrón que alguien pueda ampliar
+ * sin darse cuenta. */
+const OWNERS_DEMO = [
+  "aurora@ceom-erp.test",
+  "bertoni@ceom-erp.test",
+  "cruz@ceom-erp.test",
+  "dalmiro@ceom-erp.test",
+] as const;
+
+const CORREOS_INSTITUCION_DEMO = [
+  "incubadora@ceom-erp.test",
+  "universidad@ceom-erp.test",
+] as const;
+
+/**
+ * `--reset`: borra el escenario demo entero para poder volver a sembrarlo
+ * desde cero.
+ *
+ * **Por qué hace falta y no alcanzaba `--force`.** El bloque de instituciones
+ * está guardado por existencia (si la Incubadora ya está, se saltea), así que
+ * `--force` volvía a correr los negocios pero nunca el canje. Resultado: el
+ * seed que existe para hacer observable lo inobservable tenía **una rama que
+ * nunca se ejecutó** — justo la del canje autenticado, que es el cierre de
+ * H-42. Y con el arranque real por delante —proyecto de Supabase nuevo,
+ * migraciones desde cero, siembra desde cero— sembrar sobre base limpia deja
+ * de ser hipotético: es el caso real.
+ *
+ * **Alcance deliberadamente cerrado.** Borra solo los tenants de los 4 owners
+ * de `OWNERS_DEMO` y las instituciones del escenario, por lista explícita. No
+ * hay patrón "todo lo que diga (demo)" ni parámetro para ampliarlo: un script
+ * que borra tenants no debe poder apuntar a uno real por un typo.
+ *
+ * El orden es el de las FKs, de las hojas al tronco. `DELETE` físico y no
+ * soft delete a propósito: esto no es una operación de negocio, es tirar un
+ * andamio.
+ */
+async function resetearEscenarioDemo(): Promise<string[]> {
+  const hechos: string[] = [];
+
+  const filasOwner = await db
+    .select()
+    .from(usuarios)
+    .where(inArray(usuarios.email, [...OWNERS_DEMO]));
+  const tenantIds = [...new Set(filasOwner.map((u) => u.tenantId))];
+
+  const filasInstitucion = await db
+    .select()
+    .from(instituciones)
+    .where(inArray(instituciones.email, [...CORREOS_INSTITUCION_DEMO]));
+  // La Fundación no tiene correo (H-43): se resuelve por nombre, que es el
+  // único identificador que tiene.
+  const fundacion = await db
+    .select()
+    .from(instituciones)
+    .where(like(instituciones.nombre, "Fundación Tejido%"));
+  const institucionIds = [...filasInstitucion, ...fundacion].map((i) => i.id);
+
+  if (tenantIds.length === 0 && institucionIds.length === 0) {
+    return ["nada que resetear — el escenario no estaba sembrado"];
+  }
+
+  // 1. Consentimiento (referencia tenants, instituciones y códigos).
+  if (institucionIds.length) {
+    await db
+      .delete(aprobacionesTenant)
+      .where(inArray(aprobacionesTenant.institucionId, institucionIds));
+    await db
+      .delete(carteraInstitucional)
+      .where(inArray(carteraInstitucional.institucionId, institucionIds));
+    await db
+      .delete(solicitudesSeguimiento)
+      .where(inArray(solicitudesSeguimiento.institucionId, institucionIds));
+  }
+  for (const tenantId of tenantIds) {
+    await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
+    await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
+    await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
+    await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
+  }
+  if (institucionIds.length) {
+    await db.delete(instituciones).where(inArray(instituciones.id, institucionIds));
+    hechos.push(`${institucionIds.length} institución(es) del escenario borradas`);
+  }
+
+  // 2. Datos de negocio de cada tenant, en orden de FK.
+  for (const tenantId of tenantIds) {
+    await borrarNegocioDeTenant(tenantId);
+  }
+  if (tenantIds.length) hechos.push(`${tenantIds.length} negocio(s) demo borrados por completo`);
+
+  // 3. Los usuarios de Supabase Auth (owners + instituciones vinculadas).
+  const admin = adminSupabase();
+  for (const u of filasOwner) {
+    await admin.auth.admin.deleteUser(u.id).catch(() => {});
+  }
+  for (const i of [...filasInstitucion, ...fundacion]) {
+    if (i.authUserId) await admin.auth.admin.deleteUser(i.authUserId).catch(() => {});
+  }
+  hechos.push("usuarios de Supabase Auth del escenario borrados");
+
+  return hechos;
+}
+
+/**
  * "¿Hay que poblar este negocio?" — se pregunta por los DATOS, no por si el
  * tenant se acaba de crear. Si el script falla a mitad (paso, y ya pasó: la
  * primera corrida creó los 4 tenants y murió en la producción), una segunda
@@ -266,10 +449,11 @@ async function limpiarInstitucionDelOperador(): Promise<string[]> {
 async function main() {
   const args = process.argv.slice(2);
   const force = args.includes("--force");
+  const reset = args.includes("--reset");
   const emailCeomAdmin = args.find((a) => !a.startsWith("--"));
 
   if (!emailCeomAdmin) {
-    console.error("Uso: pnpm seed:instituciones <emailCeomAdmin> [--force]");
+    console.error("Uso: pnpm seed:instituciones <emailCeomAdmin> [--force] [--reset]");
     process.exitCode = 1;
     return;
   }
@@ -303,13 +487,19 @@ async function main() {
   }
   const ceomAdmin: UsuarioConRol = { ...filaAdmin.usuario, rol: filaAdmin.rol };
 
+  if (reset) {
+    console.log("🧨 --reset: borrando el escenario demo para sembrarlo de cero…");
+    for (const hecho of await resetearEscenarioDemo()) console.log(`   · ${hecho}`);
+  }
+
   const yaSembrado = await consentimientoRepo.obtenerInstitucionPorEmail(
     "incubadora@ceom-erp.test"
   );
   if (yaSembrado && !force) {
     console.error(
       "El escenario de instituciones ya está sembrado (existe 'incubadora@ceom-erp.test').\n" +
-        "Corré con --force si querés agregar otra pasada encima."
+        "Corré con --reset para borrarlo y volver a sembrarlo desde cero (es lo que ejercita\n" +
+        "la rama del canje autenticado), o con --force para agregar otra pasada encima."
     );
     process.exitCode = 1;
     return;
@@ -981,6 +1171,8 @@ CÓMO ENTRAR AL PORTAL COMO LA INCUBADORA (sin bandeja de correo real)
   por qué generateLink() no sirve para simularlo).
 ────────────────────────────────────────────────────────────────────────
 `);
+
+  await informarEstadoDelEntorno();
 }
 
 main()
