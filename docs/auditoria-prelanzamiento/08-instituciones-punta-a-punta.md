@@ -741,8 +741,8 @@ para que la verificación de la tanda N no dependa de nada de la N+1.
 
 | Tanda | Qué cierra | Estado |
 |---|---|---|
-| **3.1** | Cruce con sucursales verificado · decisiones registradas · seed observable | En curso (2026-07-27) |
-| **3.2** | H-42 (canje autenticado) + atomicidad + TTL de códigos + rate limiting | Pendiente |
+| **3.1** | Cruce con sucursales verificado · decisiones registradas · seed observable | ✅ Cerrada (2026-07-27) |
+| **3.2** | H-42 (canje autenticado) + atomicidad + TTL de códigos + rate limiting | ✅ Cerrada (2026-07-27) |
 | **3.3** | Que lo que se ve sea verdad: X-01, X-02, X-03, G-14, G-15 | Pendiente |
 | **3.4** | Coherencia de la revocación: G-05, G-17, G-06, G-07 | Pendiente |
 | **3.5** | Superficie de datos: G-13, G-16, G-04 (log institucional) | Pendiente |
@@ -775,6 +775,21 @@ función (`canjearCodigoAcceso`) y separarlas obligaría a tocarla tres veces.
   está en producción, y `03-seguridad.md` lo marcó como previo a cualquier despliegue.
 - **Verificable por:** una institución con sesión canjea un segundo código y ve dos negocios; test que
   inyecta un fallo en `crearAprobacionTenant` y afirma que el código sigue `activo`.
+
+> **✅ Cerrada el 2026-07-27.** Los 6 puntos, más G-17 verificado explícitamente (no asumido).
+> Migraciones `0047` (TTL + backfill) y `0048` (`intentos_canje`). 5 tests nuevos, dos de ellos rotos
+> a propósito para confirmar que detectan la regresión. Verificado en navegador: la Incubadora, ya
+> autenticada, canjeó un código de un cuarto negocio y su cartera pasó de 3 a 4; con un código
+> revocado muestra el mensaje y el botón vuelve a "Canjear" en vez de colgarse.
+>
+> **Tres cosas que aparecieron en el camino y quedaron registradas:**
+> 1. `drizzle-kit migrate` **saltea una migración e imprime éxito** si su `when` del journal es menor
+>    que el de la anterior. Pasó con `0047`, casi vuelve a pasar con `0048`. Documentado en
+>    `docs/dev-practices/dev-practices.md` §7.1.1.
+> 2. `esCorreoDeInstitucionDuplicado()` en su primera versión miraba solo el error externo, pero
+>    Drizzle envuelve el `PostgresError` en `cause`. Compilaba y no atrapaba nada; lo detectó el test.
+> 3. La tabla `intentos_canje` **crece sin límite** — pendiente conocido anotado en el esquema, no
+>    silencioso. Irrelevante a escala de piloto, hace falta una purga antes de producción.
 
 ### Tanda 3.3 — Que lo que se ve sea verdad (X-01, X-02, X-03, G-14, G-15) — **la de mayor consecuencia**
 - **X-01** — propagar `ingresosSinCostoConocido` hasta la pantalla de la institución, con al menos la

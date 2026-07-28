@@ -109,26 +109,30 @@ describe.skipIf(!hasCredenciales)("Modulo 10 - Gateway de Consentimiento (integr
       .from(instituciones)
       .where(like(instituciones.nombre, `%${sufijo}`));
 
+    // SECUENCIAL, no en paralelo. Hasta la tanda 3.2 los dos grupos eran
+    // disjuntos (la institución principal por id vs. las "Consultora
+    // Canjeada" por nombre) y podían correr a la vez. Al ampliar el patrón a
+    // `%${sufijo}` dejaron de serlo: el mismo registro cae en los dos, y el
+    // borrado de `instituciones` de un grupo compite con el de
+    // `aprobaciones_tenant`/`cartera_institucional` del otro. Da violación de
+    // FK de forma intermitente — detectado al correr el archivo aislado
+    // después de ampliar el patrón.
     await limpiarConAuthGarantizada(
       async () => {
-        await limpiarEnParalelo([
-          async () => {
-            await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
-            await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
-            await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
-            await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
-            await db.delete(instituciones).where(eq(instituciones.id, institucionId));
-          },
-          async () => {
-            await db
-              .delete(aprobacionesTenant)
-              .where(inArray(aprobacionesTenant.institucionId, institucionesCanjeadas));
-            await db
-              .delete(carteraInstitucional)
-              .where(inArray(carteraInstitucional.institucionId, institucionesCanjeadas));
-            await db.delete(instituciones).where(like(instituciones.nombre, `%${sufijo}`));
-          },
-        ]);
+        // Primero todo lo que REFERENCIA instituciones/códigos…
+        await db.delete(aprobacionesTenant).where(eq(aprobacionesTenant.tenantId, tenantId));
+        await db
+          .delete(aprobacionesTenant)
+          .where(inArray(aprobacionesTenant.institucionId, institucionesCanjeadas));
+        await db.delete(codigosAcceso).where(eq(codigosAcceso.tenantId, tenantId));
+        await db.delete(solicitudesSeguimiento).where(eq(solicitudesSeguimiento.tenantId, tenantId));
+        await db.delete(carteraInstitucional).where(eq(carteraInstitucional.tenantId, tenantId));
+        await db
+          .delete(carteraInstitucional)
+          .where(inArray(carteraInstitucional.institucionId, institucionesCanjeadas));
+        // …y recién después las instituciones (el patrón incluye la
+        // principal, `Incubadora Test ${sufijo}`).
+        await db.delete(instituciones).where(like(instituciones.nombre, `%${sufijo}`));
 
         await db.delete(usuarios).where(eq(usuarios.tenantId, tenantId));
         await db.delete(roles).where(eq(roles.tenantId, tenantId));
