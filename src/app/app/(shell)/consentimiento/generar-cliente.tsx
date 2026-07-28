@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ClipboardList,
   Copy,
+  Eye,
   Inbox,
   KeyRound,
   Lock,
@@ -43,13 +44,17 @@ export const MODULOS_VEEDOR_INFO: Record<
 export function NavConsentimiento({
   activo,
 }: {
-  activo: "generar" | "codigos" | "aprobaciones" | "solicitudes";
+  activo: "generar" | "codigos" | "aprobaciones" | "solicitudes" | "accesos";
 }) {
   const items = [
     { href: "/app/consentimiento", key: "generar", label: "Generar Código", icon: KeyRound },
     { href: "/app/consentimiento/codigos", key: "codigos", label: "Códigos Generados", icon: ClipboardList },
     { href: "/app/consentimiento/aprobaciones", key: "aprobaciones", label: "Aprobaciones", icon: ShieldCheck },
     { href: "/app/consentimiento/solicitudes", key: "solicitudes", label: "Solicitudes", icon: Inbox },
+    // D-1: va al lado de Aprobaciones a propósito — es el dato que vuelve
+    // informada la revocación. Antes de esta tanda, el Owner revocaba sin
+    // saber si la institución había mirado sus números alguna vez.
+    { href: "/app/consentimiento/accesos", key: "accesos", label: "Quién miró", icon: Eye },
   ] as const;
   return (
     <div className="flex flex-wrap gap-2">

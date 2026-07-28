@@ -10,6 +10,7 @@
 // Institución en ese portal es UI futura, fuera de este alcance.
 import {
   listarCarteraPropia,
+  registrarAccesoInstitucion,
   tieneConsentimiento,
 } from "@/modules/consentimiento/actions";
 import type { ModuloVeedor } from "@/modules/consentimiento/actions";
@@ -166,6 +167,9 @@ export async function tendenciaVentas(
   if (!(await tieneConsentimiento(institucionId, tenantId, "financiero"))) {
     return { ok: true, data: { autorizado: false, motivo: "sin_consentimiento" } };
   }
+  // D-1: falla CERRADO — si no se puede dejar constancia, no se sirve el dato.
+  // Ver la justificación completa en registrarAccesoInstitucion().
+  await registrarAccesoInstitucion(institucionId, tenantId, "financiero");
   const solicitante = await solicitanteGateway();
   const res = await consultarIngresosPeriodo(solicitante, tenantId, periodo);
   if (!res.ok) return res;
@@ -225,6 +229,7 @@ export async function detalleFinanciero(
   if (!(await tieneConsentimiento(institucionId, tenantId, "financiero"))) {
     return { ok: true, data: { autorizado: false, motivo: "sin_consentimiento" } };
   }
+  await registrarAccesoInstitucion(institucionId, tenantId, "financiero");
   const solicitante = await solicitanteGateway();
   const [flujoRes, resultadosRes, costoFijoRes] = await Promise.all([
     flujoCaja(solicitante, tenantId, periodo),
@@ -274,6 +279,7 @@ export async function detalleOperativo(
   if (!(await usaModuloOperativo(tenantId))) {
     return { ok: true, data: { autorizado: false, motivo: "modulo_no_aplica" } };
   }
+  await registrarAccesoInstitucion(institucionId, tenantId, "operativo");
   const solicitante = await solicitanteGateway();
   const [produccionesRes, mermaRes] = await Promise.all([
     listarProducciones(solicitante, tenantId),
@@ -317,6 +323,7 @@ export async function detalleInventarioOperativo(
   if (!(await usaModuloOperativo(tenantId))) {
     return { ok: true, data: { autorizado: false, motivo: "modulo_no_aplica" } };
   }
+  await registrarAccesoInstitucion(institucionId, tenantId, "inventario_operativo");
   const solicitante = await solicitanteGateway();
   const res = await listarInsumos(solicitante, tenantId);
   if (!res.ok) return res;

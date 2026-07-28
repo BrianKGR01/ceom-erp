@@ -8,6 +8,7 @@ import {
   canjearCodigoAccesoAutenticada,
   obtenerInstitucionActual,
   registrarIntentoCanjeYVerificarLimite,
+  resumenAccesosPropios,
   solicitarMagicLinkInstitucion,
 } from "@/modules/consentimiento/actions";
 import type { DatosInstitucion } from "@/modules/consentimiento/actions";
@@ -126,6 +127,13 @@ export async function detalleOperativoAction(
   if (!institucion)
     return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
   return detalleOperativo(institucion.id, tenantId, periodo);
+}
+
+export async function resumenAccesosPropiosAction(tenantId: string) {
+  const institucion = await obtenerInstitucionActual();
+  if (!institucion)
+    return { ok: false as const, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  return resumenAccesosPropios(institucion.id, tenantId);
 }
 
 export async function detalleInventarioOperativoAction(tenantId: string) {

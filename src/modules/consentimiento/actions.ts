@@ -1,4 +1,4 @@
-import { instanteDeDiaLocal, sumarDias, ZONA_HORARIA_NEGOCIO } from "@/lib/periodo";
+import { hoyLocal, instanteDeDiaLocal, sumarDias, ZONA_HORARIA_NEGOCIO, zonaHorariaTenant } from "@/lib/periodo";
 import { randomBytes } from "node:crypto";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import { obtenerEstadoAccesoTenant, obtenerTenantPorId } from "@/modules/identidad/actions";
@@ -642,6 +642,89 @@ export async function listarCodigosAcceso(
   const bloqueo = requiereOwnerDelTenant(solicitante, tenantId);
   if (bloqueo) return bloqueo;
   return { ok: true, data: await repo.listarCodigosAccesoPorTenant(tenantId) };
+}
+
+// --- Registro de acceso institucional (D-1, tanda 3.3b) ---------------------------------------------------------
+
+/**
+ * Deja constancia de que una Institución consultó un módulo de un negocio.
+ *
+ * **Se llama DESPUÉS de que `tieneConsentimiento()` dio verdadero y ANTES de
+ * servir el dato** — el orden importa y está explicado abajo.
+ *
+ * ### Por qué falla CERRADO
+ *
+ * Si el registro no se puede escribir, **la lectura no se sirve**. Es la
+ * decisión menos cómoda de las tres de esta tanda y la que más se defiende:
+ *
+ * - **El daño es asimétrico.** Una lectura que falla es una molestia visible y
+ *   reintentable para la institución. Una fila de registro que falta es un
+ *   hueco **silencioso y permanente** en la respuesta que recibe el negocio —
+ *   y el negocio *le cree* al registro. Un log de auditoría que sub-reporta es
+ *   peor que no tener log, porque induce una conclusión falsa ("nunca miró")
+ *   con la autoridad de un dato.
+ * - **Es el principio rector #7 aplicado.** "Marcar el hueco, nunca estimarlo".
+ *   Acá no se puede marcar un hueco que nadie sabe que existe, así que la única
+ *   salida honesta es no crearlo.
+ * - **Es el precedente de `solicitanteGateway()`**, que lanza ruidoso en vez de
+ *   servir números incompletos (`identidad/actions.ts`). Mismo criterio, otro
+ *   eje: preferimos cortar visible a servir algo cuyo significado se degradó.
+ * - **El punto de falla nuevo es chico.** Es un UPSERT a una tabla con dos FKs
+ *   y sin más constraints; si eso falla, la base está en un estado donde la
+ *   lectura de negocio probablemente también falle.
+ *
+ * La alternativa (registrar best-effort y tragarse el error) deja al producto
+ * afirmando algo que no puede sostener. Es exactamente la clase de defecto que
+ * la Etapa 3 se pasó cinco tandas eliminando.
+ */
+export async function registrarAccesoInstitucion(
+  institucionId: string,
+  tenantId: string,
+  modulo: ModuloVeedor
+): Promise<void> {
+  // Día local del NEGOCIO observado, no del servidor ni de la institución —
+  // mismo criterio que la zona de la ficha del portal: quien lee el registro
+  // es el dueño, y "el 12 de julio" tiene que ser su 12 de julio.
+  const dia = hoyLocal(await zonaHorariaTenant(tenantId));
+  await repo.registrarAccesoInstitucion({ institucionId, tenantId, modulo, dia });
+}
+
+/**
+ * Lo que ve el Owner: quién consultó su negocio, qué y cuándo.
+ *
+ * Gate de Owner del propio tenant y no `tienePermiso()`: "consentimiento" no
+ * está en el enum `modulo_permiso` — mismo criterio que el resto de este
+ * módulo. Un colaborador no ve quién miró los números del negocio.
+ */
+export async function listarAccesosInstitucion(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarAccesosInstitucionPorTenant>>>> {
+  const bloqueo = requiereOwnerDelTenant(solicitante, tenantId);
+  if (bloqueo) return bloqueo;
+  return { ok: true, data: await repo.listarAccesosInstitucionPorTenant(tenantId) };
+}
+
+/**
+ * Lo que la propia Institución ve sobre su actividad en un negocio.
+ *
+ * **Por qué existe** (la tercera decisión de la tanda, y la que no era
+ * obligatoria): es lo que hace que esto sea **transparencia simétrica** y no
+ * vigilancia. Si el negocio ve lo que la institución miró, la institución tiene
+ * que poder ver lo mismo — y saber que es visible.
+ *
+ * Tiene además un efecto de privacidad concreto sobre el negocio: una
+ * institución que *sabe* que cada consulta queda registrada y a la vista del
+ * dueño consulta distinto. La disuasión es parte del mecanismo, no un efecto
+ * secundario, y solo funciona si se le dice.
+ *
+ * Sin `solicitante`, mismo criterio que el resto del camino institucional.
+ */
+export async function resumenAccesosPropios(
+  institucionId: string,
+  tenantId: string
+): Promise<Resultado<{ consultas: number; dias: number }>> {
+  return { ok: true, data: await repo.resumenAccesosDeInstitucion(institucionId, tenantId) };
 }
 
 // --- Log de Acceso Admin CEOM (Modulo_11 seccion 4, regla 5) ---------------------------------------------------------

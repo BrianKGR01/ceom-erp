@@ -344,6 +344,13 @@
       "when": 1785203400005,
       "tag": "0048_intentos_canje",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1785246768682,
+      "tag": "0049_logs_acceso_institucion",
+      "breakpoints": true
     }
   ]
 }
