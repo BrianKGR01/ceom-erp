@@ -197,10 +197,32 @@ export async function obtenerTenantParaVeedor(tenantId: string): Promise<
     nichoId: string | null;
     planId: string | null;
     estadoAcceso: EstadoAcceso;
+    /**
+     * **Cobertura del dato** (X-02 / D-9, tanda 3.3a). Cuántas sucursales
+     * tiene el negocio y cuántas de ésas pueden registrar operaciones hoy.
+     *
+     * Una sucursal congelada **no es una sucursal cerrada**: el local puede
+     * seguir operando en la vida real, lo que no puede es **registrarse en
+     * CEOM**. Así que cuando estos dos números difieren, lo que un tercero
+     * está mirando no es un negocio que se achicó — es un negocio del que se
+     * está registrando una parte, y el resumen que ve cubre esa parte.
+     *
+     * Es un **marcador de completitud** en el sentido del principio rector #9,
+     * no un aviso de estado: declara sobre qué se calculó el número. Por eso
+     * son dos conteos y **no** el motivo del congelamiento ni el plan — eso es
+     * información comercial entre el negocio y CEOM, y no corresponde
+     * publicarla a un tercero.
+     */
+    sucursalesTotales: number;
+    sucursalesOperables: number;
   }>
 > {
   const tenant = await repo.obtenerTenantPorId(tenantId);
   if (!tenant) return { ok: false, error: "No encontramos el negocio." };
+  const [sucursales, operables] = await Promise.all([
+    repo.listarSucursalesPorTenant(tenantId),
+    repo.contarSucursalesOperables(tenantId),
+  ]);
   return {
     ok: true,
     data: {
@@ -209,6 +231,8 @@ export async function obtenerTenantParaVeedor(tenantId: string): Promise<
       nichoId: tenant.nichoId,
       planId: tenant.planId,
       estadoAcceso: calcularEstadoAcceso(tenant),
+      sucursalesTotales: sucursales.length,
+      sucursalesOperables: operables,
     },
   };
 }

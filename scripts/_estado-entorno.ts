@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 // sobre un entorno completo. Un chequeo de estado que miente es peor que no
 // tenerlo — habría mandado a alguien a re-sembrar algo que ya estaba.
 import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID } from "@/modules/identidad/constants";
+import { BUCKET_TENANT_UPLOADS } from "@/lib/supabase/storage-config";
 
 /**
  * Qué le falta al entorno para estar completo, medido contra la base.
@@ -27,6 +28,18 @@ import { CEOM_OPS_TENANT_ID, ROL_CEOM_ADMIN_ID } from "@/modules/identidad/const
  * de depender de que alguien lo recuerde.
  */
 export async function informarEstadoDelEntorno(): Promise<void> {
+  // El bucket de Storage se chequea aparte porque NO es una tabla de negocio:
+  // vive en `storage.buckets`, lo crea `pnpm storage:setup` y **ninguna
+  // migración lo crea** (Drizzle no modela buckets). Pero las policies de
+  // `storage.objects` para ese bucket SÍ son migración real (`0024`), y esa
+  // asimetría es justamente la trampa: en un proyecto nuevo, tras `migrate`
+  // las policies existen y el bucket no, así que toda subida de imagen falla
+  // con un error de Storage que no menciona nada de esto. Hallazgo 🔴 de
+  // docs/auditoria-prelanzamiento/09-arranque-desde-cero.md §3.
+  const [bucket] = (await db.execute(sql`
+    select count(*) as existe from storage.buckets where id = ${BUCKET_TENANT_UPLOADS}
+  `)) as unknown as Array<{ existe: number }>;
+
   const [fila] = (await db.execute(sql`
     select
       (select count(*) from usuarios u
@@ -47,17 +60,24 @@ export async function informarEstadoDelEntorno(): Promise<void> {
   const faltantes: string[] = [];
   if (Number(fila.admins) === 0)
     faltantes.push("  1. pnpm seed:admin <email>                    ← no hay ningún ceom_admin");
+  if (Number(bucket.existe) === 0)
+    faltantes.push(
+      `  2. pnpm storage:setup                         ← falta el bucket "${BUCKET_TENANT_UPLOADS}"\n` +
+        "     (ninguna migración lo crea, pero las policies de storage.objects SÍ:\n" +
+        "      sin él, toda subida de imagen falla y el error no menciona el bucket)"
+    );
   if (Number(fila.negocios) === 0)
-    faltantes.push("  2. pnpm seed:tenant <admin> <negocio> …       ← no hay ningún negocio");
+    faltantes.push("  3. pnpm seed:tenant <admin> <negocio> …       ← no hay ningún negocio");
   if (Number(fila.productos) === 0)
-    faltantes.push("  3. pnpm seed:demo [emailOwner]                ← ningún negocio tiene datos");
+    faltantes.push("  4. pnpm seed:demo [emailOwner]                ← ningún negocio tiene datos");
   if (Number(fila.instituciones) === 0)
-    faltantes.push("  4. pnpm seed:instituciones <admin>            ← no hay NINGUNA institución");
+    faltantes.push("  5. pnpm seed:instituciones <admin>            ← no hay NINGUNA institución");
 
   if (faltantes.length === 0) {
     console.log(
       `\n✅ Entorno completo: ${fila.admins} admin(s), ${fila.negocios} negocio(s), ` +
-        `${fila.instituciones} institución(es), ${fila.codigos} código(s) de acceso.`
+        `${fila.instituciones} institución(es), ${fila.codigos} código(s) de acceso, ` +
+        `bucket "${BUCKET_TENANT_UPLOADS}" creado.`
     );
     return;
   }

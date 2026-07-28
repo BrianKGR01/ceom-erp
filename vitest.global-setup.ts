@@ -26,6 +26,25 @@ import postgres from "postgres";
  * Ctrl-C, Postgres lo libera solo al cerrarse la conexión. No hay candados
  * huérfanos que limpiar a mano — que era el otro modo de falla posible, y
  * sería peor que el problema original.
+ *
+ * ⚠️ **Y por eso este archivo usa `DIRECT_URL`, no `DATABASE_URL`.** La primera
+ * versión usaba `DATABASE_URL`, que apunta al **pooler de Supabase (Supavisor,
+ * puerto 6543) en modo transacción**. Ahí la sesión del cliente NO está
+ * pineada a un backend: `pg_try_advisory_lock` toma el lock en el backend que
+ * atendió esa sentencia, y **queda tomado después de que el proceso termina**,
+ * porque el pooler mantiene ese backend vivo.
+ *
+ * O sea: la primera versión creaba exactamente los candados huérfanos que este
+ * comentario decía que no podían existir. Se detectó en vivo — una corrida
+ * legítima murió con el mensaje de "ya hay otra corrida" y el dueño del lock
+ * resultó ser `application_name = 'Supavisor'`, ocioso, sin ningún vitest
+ * corriendo. `DIRECT_URL` (puerto 5432, modo sesión) es la única conexión
+ * donde la semántica de sesión que este mecanismo necesita se cumple de
+ * verdad.
+ *
+ * Si algún día `DIRECT_URL` deja de existir, este candado hay que rehacerlo
+ * con otra técnica (una fila con TTL, por ejemplo) — **no** volver a
+ * `DATABASE_URL`.
  */
 
 // Constante arbitraria y estable. Solo tiene que no chocar con otro advisory
@@ -44,7 +63,9 @@ export default async function setup() {
     // sin .env.local: seguimos, y el chequeo de abajo se encarga.
   }
 
-  const url = process.env.DATABASE_URL;
+  // DIRECT_URL y no DATABASE_URL — ver el porqué arriba. El fallback existe
+  // solo para entornos donde no esté definida; ahí el candado es best-effort.
+  const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
   // Sin base no hay nada que proteger: los tests de integración se saltean
   // solos (`describe.skipIf(!hasCredenciales)`) y los unitarios no la tocan.
   if (!url) return;

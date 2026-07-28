@@ -18,6 +18,8 @@ import {
 } from "@/modules/consentimiento/schema";
 import { crearGastoManual, crearCategoriaGasto } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
+import { asignarNicho, solicitanteGateway } from "@/modules/identidad/actions";
+import { estadoResultados } from "@/modules/financiero/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
 import { roles, sucursales, tenants, usuarios } from "@/modules/identidad/schema";
@@ -40,14 +42,18 @@ import {
 } from "@/modules/operativo/nichos/nicho-1/schema";
 import { crearActivo, crearPasivo, registrarPagoPasivo } from "@/modules/patrimonio/actions";
 import { activos, pagosPasivo, pasivos } from "@/modules/patrimonio/schema";
-import { crearProducto } from "@/modules/productos/actions";
+import { crearProducto,
+  registrarAjusteManualStock,
+} from "@/modules/productos/actions";
 import { movimientosStock, productos, stock } from "@/modules/productos/schema";
 import { registrarCompra, registrarPagoCompra } from "@/modules/proveedores/actions";
 import { compras, pagosCompra } from "@/modules/proveedores/schema";
 import { crearPlan } from "@/modules/suscripcion/actions";
 import { planes } from "@/modules/suscripcion/schema";
 import { crearCanalVenta, registrarVenta } from "@/modules/ventas/actions";
-import { canalesVenta, detallesVenta, ventas } from "@/modules/ventas/schema";
+import { canalesVenta, detallesVenta, ventas,
+  pagosVenta,
+} from "@/modules/ventas/schema";
 import {
   detalleFinanciero,
   detalleInventarioOperativo,
@@ -132,6 +138,16 @@ describe.skipIf(!hasCredenciales)(
       });
       tenantId = tenant.id;
       sucursalId = sucursal.id;
+
+      // G-14 (tanda 3.3a): este tenant tiene producciones e insumos, así que
+      // es de Nicho 1 — hay que decirlo. Sin `nicho_id`, `detalleOperativo`/
+      // `detalleInventarioOperativo` devuelven ahora `modulo_no_aplica`, que
+      // es el comportamiento CORRECTO: un negocio sin nicho no usa el Módulo
+      // Operativo. El test lo detectó al agregar el chequeo, y la que estaba
+      // mal era la fixture, no el código.
+      const ownerParaNicho = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+      const nicho = await asignarNicho(ownerParaNicho!, "nicho_1");
+      if (!nicho.ok) throw new Error(`setup fallo: asignarNicho — ${nicho.error}`);
 
       const institucion = await crearInstitucion(
         { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
@@ -313,21 +329,34 @@ describe.skipIf(!hasCredenciales)(
               await db.delete(stockInsumo).where(eq(stockInsumo.insumoId, insumoId));
               await db.delete(insumos).where(eq(insumos.tenantId, tenantId));
 
-              await db.delete(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
-              await db.delete(ventas).where(eq(ventas.id, ventaId));
-              await db.delete(canalesVenta).where(eq(canalesVenta.id, canalVentaId));
+              // POR TENANT y no por id, desde la tanda 3.3a. Antes se
+              // borraban `ventaId`, `productoVentaId` y `productoProduccionId`
+              // uno por uno, así que **cualquier fixture nueva rompía la
+              // limpieza**: el test de X-01 agregó un producto sin costo y su
+              // venta, los 10 tests pasaron, y el archivo quedó en rojo por el
+              // afterAll. El invariante real es "no sobrevive ninguna fila de
+              // este tenant", no "no sobreviven estas tres filas".
+              const ventaIds = db
+                .select({ id: ventas.id })
+                .from(ventas)
+                .where(eq(ventas.tenantId, tenantId));
+              await db.delete(detallesVenta).where(inArray(detallesVenta.ventaId, ventaIds));
+              await db.delete(pagosVenta).where(inArray(pagosVenta.ventaId, ventaIds));
+              await db.delete(ventas).where(eq(ventas.tenantId, tenantId));
+              await db.delete(canalesVenta).where(eq(canalesVenta.tenantId, tenantId));
 
               await db.delete(pagosCompra).where(eq(pagosCompra.compraId, compraId));
-              await db.delete(compras).where(eq(compras.id, compraId));
+              await db.delete(compras).where(eq(compras.tenantId, tenantId));
 
               // Recién acá es seguro borrar productos/activos -- todo lo que
               // los referenciaba ya salió arriba.
-              await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoVentaId));
-              await db.delete(stock).where(eq(stock.productoId, productoVentaId));
-              await db.delete(movimientosStock).where(eq(movimientosStock.productoId, productoProduccionId));
-              await db.delete(stock).where(eq(stock.productoId, productoProduccionId));
-              await db.delete(productos).where(eq(productos.id, productoVentaId));
-              await db.delete(productos).where(eq(productos.id, productoProduccionId));
+              const productoIds = db
+                .select({ id: productos.id })
+                .from(productos)
+                .where(eq(productos.tenantId, tenantId));
+              await db.delete(movimientosStock).where(inArray(movimientosStock.productoId, productoIds));
+              await db.delete(stock).where(inArray(stock.productoId, productoIds));
+              await db.delete(productos).where(eq(productos.tenantId, tenantId));
               // Pasivos antes que activos por la FK opcional pasivo->activo.
               // Desde H-27, este test registra un pago de pasivo real.
               const pasivoIds = db
@@ -607,5 +636,176 @@ describe.skipIf(!hasCredenciales)(
       },
       20000
     );
+
+    // --- Tanda 3.3a: que lo que ve la institucion sea verdad ---------------
+
+    describe("tanda 3.3a — marcadores de completitud y estados explicitos", () => {
+      it("X-01: el marcador de H-15 llega a la institucion con su valor EXACTO, distinto de cero", async () => {
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+
+        // Una venta SIN costo conocido, sembrada aca a proposito.
+        //
+        // La primera version de este test comparaba el marcador servido contra
+        // el del origen sin sembrar nada — y como el tenant de esta fixture no
+        // tenia ninguna venta sin costo, comparaba CERO contra CERO. Rompiendo
+        // la proyeccion a proposito (forzando el marcador a 0) el test seguia
+        // en verde: era una tautologia. Es el mismo error que este proyecto ya
+        // documento en PLAN-RLS-BACKSTOP §13.11 — un assert que no distingue
+        // "legitimamente cero" de "el camino se rompio".
+        //
+        // Producto sin costo, entrada por ajuste manual (una compra de reventa
+        // le escribiria el costo y anularia el caso), y una venta de 3 x 50.
+        const sinCosto = await crearProducto(owner!, tenantId, {
+          nombre: `Producto Sin Costo X01 ${sufijo}`,
+          unidadVenta: "unidad",
+          precioVenta: 50,
+        });
+        if (!sinCosto.ok) throw new Error("setup fallo: crearProducto sin costo");
+        const entrada = await registrarAjusteManualStock(owner!, tenantId, {
+          productoId: sinCosto.data.productoId,
+          sucursalId,
+          tipo: "entrada_ajuste_manual",
+          cantidad: 10,
+          motivo: "Carga sin costo (X-01)",
+        });
+        if (!entrada.ok) throw new Error("setup fallo: ajuste manual");
+        const ventaSinCosto = await registrarVenta(owner!, tenantId, {
+          sucursalId,
+          canalVentaId,
+          fechaVenta: "2025-06-03",
+          lineas: [{ productoId: sinCosto.data.productoId, cantidad: 3 }],
+        });
+        if (!ventaSinCosto.ok) throw new Error("setup fallo: venta sin costo");
+
+        const solicitud = await crearSolicitudSeguimiento(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+        );
+        if (!solicitud.ok) throw new Error("setup fallo");
+        const aprobacion = await aprobarSolicitud(owner!, solicitud.data.solicitudId, {
+          modulosAprobados: ["financiero"],
+        });
+        if (!aprobacion.ok) throw new Error("setup fallo");
+
+        // El numero crudo del modulo dueño de la regla.
+        const gateway = await solicitanteGateway();
+        const crudo = await estadoResultados(gateway, tenantId, periodo);
+        expect(crudo.ok).toBe(true);
+        if (!crudo.ok) return;
+        // Valor EXACTO: 3 unidades x 50 = 150 de ingresos sin costo conocido.
+        expect(crudo.data.ingresosSinCostoConocido).toBe(150);
+
+        // Y el que se le sirve a la institucion: el mismo 150, no "un numero"
+        // y no cero. Hasta la tanda 3.3a el campo se descartaba en la
+        // proyeccion y la institucion veia el resultado como completo.
+        const servido = await detalleFinanciero(institucionId, tenantId, periodo);
+        expect(servido.ok).toBe(true);
+        if (!servido.ok || !servido.data.autorizado) return;
+        expect(servido.data.detalle.ingresosSinCostoConocido).toBe(150);
+        expect(servido.data.detalle.estadoResultados).toBe(crudo.data.estadoResultados);
+      });
+
+      it("X-02: la cobertura por sucursal viaja, y refleja el congelamiento real", async () => {
+        const antes = await estadoTenant(institucionId, tenantId);
+        expect(antes.ok).toBe(true);
+        if (!antes.ok) return;
+        // Una sola sucursal, operable: totales == operables, sin señal.
+        expect(antes.data.sucursalesTotales).toBe(1);
+        expect(antes.data.sucursalesOperables).toBe(1);
+
+        // Congelar la Principal por la via de datos (no hay accion de negocio
+        // que congele la Principal: cambiarPlanTenant la excluye a proposito).
+        await db
+          .update(sucursales)
+          .set({ congeladaEn: new Date(), congeladaMotivo: "Test X-02" })
+          .where(eq(sucursales.id, sucursalId));
+        try {
+          const despues = await estadoTenant(institucionId, tenantId);
+          expect(despues.ok).toBe(true);
+          if (!despues.ok) return;
+          expect(despues.data.sucursalesTotales).toBe(1);
+          expect(despues.data.sucursalesOperables).toBe(0);
+        } finally {
+          await db
+            .update(sucursales)
+            .set({ congeladaEn: null, congeladaMotivo: null })
+            .where(eq(sucursales.id, sucursalId));
+        }
+      });
+
+      it("G-14: un negocio de otro nicho da 'modulo_no_aplica', NO el mismo vacio que 'sin actividad'", async () => {
+        // Se aprueba "operativo" ACA y no se confia en el orden de los tests:
+        // crearAprobacionTenant() revoca la aprobacion previa del mismo par,
+        // asi que cualquier test anterior que apruebe otro conjunto de modulos
+        // deja a este sin consentimiento. Bug real de este mismo archivo,
+        // detectado al escribirlo.
+        const ownerG14 = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const solG14 = await crearSolicitudSeguimiento(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { institucionId, tenantId, modulosSolicitados: ["operativo"] }
+        );
+        if (!solG14.ok) throw new Error("setup fallo");
+        const aprG14 = await aprobarSolicitud(ownerG14!, solG14.data.solicitudId, {
+          modulosAprobados: ["operativo"],
+        });
+        if (!aprG14.ok) throw new Error("setup fallo");
+
+        // El tenant de este describe es nicho_1 y tiene una produccion real:
+        // con consentimiento, autoriza.
+        const conNicho = await detalleOperativo(institucionId, tenantId, periodo);
+        expect(conNicho.ok).toBe(true);
+        if (!conNicho.ok) return;
+        expect(conNicho.data.autorizado).toBe(true);
+
+        // Se le saca el nicho por la via de datos (asignarNicho es de un solo
+        // sentido) para reproducir un negocio que no usa el Modulo Operativo.
+        await db.update(tenants).set({ nichoId: null }).where(eq(tenants.id, tenantId));
+        try {
+          const sinNicho = await detalleOperativo(institucionId, tenantId, periodo);
+          expect(sinNicho.ok).toBe(true);
+          if (!sinNicho.ok) throw new Error("detalleOperativo fallo");
+          // `expect` ANTES de estrechar, y `throw` en vez de `return` para
+          // estrechar: con `if (...) return` —el idiom que usa el resto de
+          // este archivo— deshabilitar el chequeo de nicho hacia que
+          // `autorizado` fuera true, la guarda cortaba, y el test pasaba EN
+          // VACIO sin ejecutar ninguna afirmacion. Verificado: rompiendo el
+          // chequeo a proposito, la primera version de este test seguia en
+          // verde.
+          expect(sinNicho.data.autorizado).toBe(false);
+          if (sinNicho.data.autorizado) throw new Error("inalcanzable");
+          // Lo que importa: NO es "sin_consentimiento". El consentimiento
+          // esta; lo que no aplica es el modulo.
+          expect(sinNicho.data.motivo).toBe("modulo_no_aplica");
+        } finally {
+          await db.update(tenants).set({ nichoId: "nicho_1" }).where(eq(tenants.id, tenantId));
+        }
+      });
+
+      it("G-14: el chequeo de consentimiento corta ANTES que el de nicho — no filtra el rubro", async () => {
+        // Institucion SIN consentimiento sobre este tenant.
+        const otra = await crearInstitucion(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { nombre: `Sin Consentimiento G14 ${sufijo}`, tipo: "organizacion" }
+        );
+        if (!otra.ok) throw new Error("setup fallo");
+
+        await db.update(tenants).set({ nichoId: null }).where(eq(tenants.id, tenantId));
+        try {
+          const res = await detalleOperativo(otra.data.institucionId, tenantId, periodo);
+          expect(res.ok).toBe(true);
+          if (!res.ok) throw new Error("detalleOperativo fallo");
+          expect(res.data.autorizado).toBe(false);
+          if (res.data.autorizado) throw new Error("inalcanzable");
+          // Aunque el modulo NO aplique, a quien no tiene consentimiento se le
+          // dice "sin_consentimiento": decirle "este negocio no usa este
+          // modulo" le filtraria el rubro del negocio.
+          expect(res.data.motivo).toBe("sin_consentimiento");
+        } finally {
+          await db.update(tenants).set({ nichoId: "nicho_1" }).where(eq(tenants.id, tenantId));
+          await db.delete(instituciones).where(eq(instituciones.id, otra.data.institucionId));
+        }
+      });
+    });
+
   }
 );

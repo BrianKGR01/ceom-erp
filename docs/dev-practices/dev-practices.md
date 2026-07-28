@@ -178,10 +178,20 @@ costo, `auth.users`, sucursales, instituciones).
 
 ```bash
 pnpm seed:admin <email> ["Nombre completo"]           # 1. primer ceom_admin (resuelve el candado circular)
-pnpm seed:tenant <emailAdmin> <negocio> <emailOwner> <"Owner">   # 2. primer tenant real
-pnpm seed:demo [emailOwner]                           # 3. datos de negocio de ESE tenant
-pnpm seed:instituciones <emailAdmin>                  # 4. instituciones, códigos y consentimiento
+pnpm storage:setup                                    # 2. bucket "tenant-uploads" — NINGUNA migración lo crea
+pnpm seed:tenant <emailAdmin> <negocio> <emailOwner> <"Owner">   # 3. primer tenant real
+pnpm seed:demo [emailOwner]                           # 4. datos de negocio de ESE tenant
+pnpm seed:instituciones <emailAdmin>                  # 5. instituciones, códigos y consentimiento
 ```
+
+**Por qué `storage:setup` está en la lista y es fácil de olvidar.** Drizzle no modela *buckets* —
+viven en el sistema de Storage de Supabase, no en tablas— así que **ninguna migración crea
+`tenant-uploads`**. Pero las policies de `storage.objects` para ese bucket **sí** son una migración
+real (`0024_storage_tenant_uploads_rls.sql`). Esa asimetría es la trampa: en un proyecto nuevo, tras
+`migrate` las **policies del bucket existen y el bucket no**, así que toda subida de imagen (logo del
+negocio, foto de producto) falla con un error de Storage que no menciona nada de esto. Encontrado
+como hallazgo 🔴 en
+[`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/09-arranque-desde-cero.md) §3.
 
 **`seed:demo` no llama a `seed:instituciones`, a propósito**, aunque el hallazgo que originó el
 cuarto comando fuera justamente "el seed de demo no crea ninguna institución". Son dos cosas de

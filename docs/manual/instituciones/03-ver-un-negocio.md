@@ -22,23 +22,45 @@ actual, sin período.
 
 ---
 
-## Las pestañas con candado
+## Las cuatro cosas que puede decirte una pestaña
 
-**Siempre vas a ver las cuatro pestañas**, incluso las que no te aprobaron. Una pestaña sin permiso
-aparece con un candado y, al abrirla, dice explícitamente que ese negocio todavía no aprobó ese tipo
-de información para tu institución.
+**Siempre vas a ver las cuatro pestañas**, incluso las que no te aprobaron. Lo que cambia es qué
+encontrás al abrirlas, y son cuatro estados distintos que conviene no confundir:
 
-**Es deliberado y conviene entender por qué.** La alternativa —ocultar la pestaña o mostrarla vacía—
-haría imposible distinguir dos situaciones muy distintas:
+| Lo que ves | Qué significa |
+|---|---|
+| 🔒 **Con candado** — *"Este negocio no aprobó…"* | El negocio **tiene** esos datos y decidió no compartirlos. Puede cambiar de opinión cuando quiera. |
+| ⊖ **"Este negocio no usa este módulo"** | Por su rubro, ese módulo no forma parte de su operación. **No hay nada que registrar**, ni ahora ni nunca. Un comercio que revende no produce: su pestaña de Producción no está vacía, es inaplicable. |
+| **Una tabla vacía**, sin candado ni aviso | Tenés acceso, el módulo aplica, y ese negocio **realmente no registró actividad** en el período. |
+| ⚠️ **Un aviso amarillo** junto a los números | Los datos están, pero **hay algo que cambia cómo se leen**. Ver abajo. |
 
-- **"No tengo permiso"** — el negocio existe, tiene datos, y decidió no compartirlos.
-- **"No hay datos"** — el negocio tiene el permiso otorgado pero no cargó nada en ese período.
+**Es deliberado que los cuatro se vean distinto.** Si "no me dieron permiso", "no aplica" y "no hubo
+actividad" se vieran igual, sacarías conclusiones opuestas del mismo cuadro vacío — y la más
+peligrosa es leer un "no aplica" como "este negocio no produjo nada".
 
-Con el candado, la diferencia es visible. Una tabla vacía sin candado significa que sí tenés acceso y
-que ese negocio realmente no registró actividad.
+**Nunca vas a ver datos parciales sin que te lo digan.** Cada pestaña devuelve todo o nada, y cuando
+lo que hay no cubre todo el negocio, **te lo avisa**.
 
-**Nunca vas a ver datos parciales.** Cada pestaña devuelve todo o nada: no hay medias tintas ni
-información recortada sin avisar.
+---
+
+## ⚠️ Los avisos que cambian cómo se lee un número
+
+Son la parte más importante de esta pantalla. No corrigen el número: te dicen **sobre qué está
+calculado**, que es lo que necesitás para no leerlo de más.
+
+**"X de los ingresos de este período son de productos sin costo cargado."** Esa parte de las ventas
+se está contando **sin restarle su costo**, porque el negocio todavía no lo cargó. El resultado que
+ves es, entonces, **un techo**: el real es menor. Es el aviso más frecuente y el más fácil de pasar
+por alto, porque el número de arriba se ve perfectamente normal.
+
+> Es exactamente el mismo aviso que ve el dueño en su propia aplicación. La diferencia es que él
+> puede ir a cargar los costos que faltan; vos no. Por eso acá no hay ningún botón — solo la
+> advertencia de cómo leerlo.
+
+**"Este negocio tiene N sucursales y solo M están registrando operaciones."** Todo lo que ves cubre
+esa parte. **No significa que las otras hayan cerrado**: significa que su operación no se está
+registrando en CEOM. Si ves que la actividad de un negocio bajó y aparece este aviso, la explicación
+probablemente sea ésta y no una caída de ventas.
 
 ---
 
@@ -62,12 +84,11 @@ esto:
 
 **El resultado que muestra el estado de resultados tiende a ser mejor que el real**, aunque menos que
 antes: las comisiones de canal (H-24) y las correcciones de compra al alza (H-31) ya se descuentan
-solas. Quedan dos cosas que no:
+solas, y **el costo faltante ahora te lo avisa la propia pantalla** (ver arriba). Queda una que no:
 
 | No se descuenta | Cuándo aplica |
 |---|---|
 | Las **cuotas** de sus deudas | Si tiene deudas cargadas (H-27) |
-| El **costo de los productos sin costo cargado** | Muy frecuente en negocios que recién arrancan (H-15) |
 
 Un detalle de comparabilidad: las comisiones se descuentan **desde** que se corrigió H-24. Las ventas
 registradas antes de esa corrección no generaron su gasto de comisión, así que los períodos viejos
@@ -85,7 +106,8 @@ en vez de restar (H-30).
   vía** y contrastá. No porque el sistema mienta, sino porque depende enteramente de qué tan completo
   esté cargado.
 - **Un negocio con mucha venta y poco costo cargado no es un negocio rentable**: es un negocio con
-  los costos sin cargar. Es el patrón más común y el más fácil de malinterpretar.
+  los costos sin cargar. Es el patrón más común y el más fácil de malinterpretar — por eso ahora la
+  pantalla te lo dice con el monto exacto en vez de dejártelo a vos.
 
 ---
 
