@@ -312,6 +312,14 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
       "canjear un código en nombre de otra institución.",
   },
   "app/portal/actions.ts::listarCarteraAction": { nivel: "autenticado", verificacion: "estatica" },
+  "app/portal/actions.ts::resumenAccesosPropiosAction": {
+    nivel: "autenticado",
+    verificacion: "estatica",
+    nota:
+      "D-1. Devuelve SOLO el resumen de la propia institución sobre ese negocio (cuántas " +
+      "consultas, cuántos días), resuelto desde su sesión. Es la mitad simétrica del registro " +
+      "que ve el Owner: no expone nada del negocio ni de otras instituciones.",
+  },
   "app/portal/actions.ts::estadoTenantAction": {
     nivel: "por-recurso",
     verificacion: "estatica",

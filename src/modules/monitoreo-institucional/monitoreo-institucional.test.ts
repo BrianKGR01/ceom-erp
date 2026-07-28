@@ -19,6 +19,12 @@ import {
 import { crearGastoManual, crearCategoriaGasto } from "@/modules/gastos/actions";
 import { categoriasGasto, gastos, pagosGasto } from "@/modules/gastos/schema";
 import { asignarNicho, solicitanteGateway } from "@/modules/identidad/actions";
+import {
+  listarAccesosInstitucion,
+  registrarAccesoInstitucion,
+  resumenAccesosPropios,
+} from "@/modules/consentimiento/actions";
+import { logsAccesoInstitucion } from "@/modules/consentimiento/schema";
 import { estadoResultados } from "@/modules/financiero/actions";
 import { ROL_CEOM_ADMIN_ID, ROL_OWNER_ID } from "@/modules/identidad/constants";
 import * as identidadRepo from "@/modules/identidad/repository";
@@ -319,6 +325,11 @@ describe.skipIf(!hasCredenciales)(
         async () => {
           await limpiarEnParalelo([
             async () => {
+              // D-1 (tanda 3.3b): referencia tenant_id e institucion_id, así
+              // que sale antes que cualquiera de los dos.
+              await db
+                .delete(logsAccesoInstitucion)
+                .where(eq(logsAccesoInstitucion.tenantId, tenantId));
               await db.delete(producciones).where(eq(producciones.tenantId, tenantId));
               await db
                 .delete(vinculacionesProductoReceta)
@@ -804,6 +815,150 @@ describe.skipIf(!hasCredenciales)(
           await db.update(tenants).set({ nichoId: "nicho_1" }).where(eq(tenants.id, tenantId));
           await db.delete(instituciones).where(eq(instituciones.id, otra.data.institucionId));
         }
+      });
+    });
+
+
+    // --- Tanda 3.3b: D-1, registro de acceso institucional ------------------
+
+    describe("tanda 3.3b — D-1: el registro de acceso institucional", () => {
+      /** Deja consentimiento de `financiero` y borra el registro previo, para
+       * que cada caso arranque de un estado conocido. */
+      async function prepararFinanciero() {
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const sol = await crearSolicitudSeguimiento(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+        );
+        if (!sol.ok) throw new Error("setup fallo");
+        const apr = await aprobarSolicitud(owner!, sol.data.solicitudId, {
+          modulosAprobados: ["financiero"],
+        });
+        if (!apr.ok) throw new Error("setup fallo");
+        await db
+          .delete(logsAccesoInstitucion)
+          .where(eq(logsAccesoInstitucion.tenantId, tenantId));
+      }
+
+      it("cuenta las consultas del dia: 3 lecturas dan consultas=3, no 1 ni 0", async () => {
+        await prepararFinanciero();
+
+        // TRES lecturas, no una: el valor esperado (3) tiene que ser
+        // distinguible del que daria cada falla posible — 0 si no se registra
+        // nada, 1 si el UPSERT re-inserta en vez de incrementar, y 3 filas en
+        // vez de 1 si la constraint de unicidad no existe.
+        // (dev-practices §6.1: el valor esperado no puede ser el valor de la
+        // falla.)
+        for (let i = 0; i < 3; i++) {
+          const r = await detalleFinanciero(institucionId, tenantId, periodo);
+          expect(r.ok).toBe(true);
+        }
+
+        const filas = await db
+          .select()
+          .from(logsAccesoInstitucion)
+          .where(eq(logsAccesoInstitucion.tenantId, tenantId));
+        expect(filas).toHaveLength(1);
+        expect(filas[0].consultas).toBe(3);
+        expect(filas[0].modulo).toBe("financiero");
+        // primera != ultima: prueba que el UPSERT movio una y conservo la otra.
+        expect(filas[0].ultimaConsultaEn.getTime()).toBeGreaterThan(
+          filas[0].primeraConsultaEn.getTime()
+        );
+      });
+
+      it("una ficha completa deja UNA fila por modulo consentido, no una por lectura", async () => {
+        await prepararFinanciero();
+
+        // `financiero` esta consentido y cubre DOS funciones (tendencia +
+        // detalle). `operativo`/`inventario_operativo` no estan consentidos.
+        await tendenciaVentas(institucionId, tenantId, periodo);
+        await detalleFinanciero(institucionId, tenantId, periodo);
+        await detalleOperativo(institucionId, tenantId, periodo);
+        await detalleInventarioOperativo(institucionId, tenantId);
+
+        const filas = await db
+          .select()
+          .from(logsAccesoInstitucion)
+          .where(eq(logsAccesoInstitucion.tenantId, tenantId));
+        // 1 fila (un modulo consentido), con 2 consultas (las dos funciones
+        // que lo usan). Si la deduplicacion por dia no funcionara serian 2
+        // filas; si se registrara sin consentimiento serian 3.
+        expect(filas).toHaveLength(1);
+        expect(filas[0].consultas).toBe(2);
+      });
+
+      it("NO registra un acceso que el consentimiento rechazo", async () => {
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const sol = await crearSolicitudSeguimiento(
+          { rolId: ROL_CEOM_ADMIN_ID, rol: { esRolSistema: true } },
+          { institucionId, tenantId, modulosSolicitados: ["financiero"] }
+        );
+        if (!sol.ok) throw new Error("setup fallo");
+        // Aprobar SOLO financiero revoca cualquier aprobacion previa, asi que
+        // operativo queda sin consentimiento.
+        const apr = await aprobarSolicitud(owner!, sol.data.solicitudId, {
+          modulosAprobados: ["financiero"],
+        });
+        if (!apr.ok) throw new Error("setup fallo");
+        await db
+          .delete(logsAccesoInstitucion)
+          .where(eq(logsAccesoInstitucion.tenantId, tenantId));
+
+        const res = await detalleOperativo(institucionId, tenantId, periodo);
+        expect(res.ok).toBe(true);
+        if (!res.ok) throw new Error("detalleOperativo fallo");
+        expect(res.data.autorizado).toBe(false);
+
+        const filas = await db
+          .select()
+          .from(logsAccesoInstitucion)
+          .where(eq(logsAccesoInstitucion.tenantId, tenantId));
+        expect(filas).toHaveLength(0);
+      });
+
+      it("falla CERRADO: si el registro no se puede escribir, la funcion propaga en vez de tragarse el error", async () => {
+        // El contrato de D-1 es que un acceso sin constancia NO se sirve. A
+        // nivel de unidad eso significa: `registrarAccesoInstitucion` NO
+        // captura sus propios errores. Con una institucion inexistente el FK
+        // rechaza, y lo que se afirma es que ESO SALE — no que devuelva algo.
+        const inexistente = "00000000-0000-4000-8000-0000000000ff";
+        await expect(
+          registrarAccesoInstitucion(inexistente, tenantId, "financiero")
+        ).rejects.toThrow();
+      });
+
+      it("el Owner ve el registro de su negocio; un colaborador no", async () => {
+        await prepararFinanciero();
+        await detalleFinanciero(institucionId, tenantId, periodo);
+
+        const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);
+        const visto = await listarAccesosInstitucion(owner!, tenantId);
+        expect(visto.ok).toBe(true);
+        if (!visto.ok) throw new Error("listarAccesosInstitucion fallo");
+        expect(visto.data).toHaveLength(1);
+        expect(visto.data[0].consultas).toBe(1);
+
+        // Mismo tenant, pero sin esOwner: el registro de quien miro los
+        // numeros del negocio es del dueño, no del equipo.
+        const colaborador = { ...owner!, esOwner: false };
+        const rechazado = await listarAccesosInstitucion(colaborador, tenantId);
+        expect(rechazado.ok).toBe(false);
+      });
+
+      it("la institucion ve su propio resumen, con los mismos numeros que el Owner", async () => {
+        await prepararFinanciero();
+        await detalleFinanciero(institucionId, tenantId, periodo);
+        await tendenciaVentas(institucionId, tenantId, periodo);
+
+        const resumen = await resumenAccesosPropios(institucionId, tenantId);
+        expect(resumen.ok).toBe(true);
+        if (!resumen.ok) throw new Error("resumenAccesosPropios fallo");
+        // 2 consultas en 1 dia. No es "un numero": es exactamente lo que el
+        // Owner ve del otro lado, que es lo que vuelve simetrica la
+        // transparencia.
+        expect(resumen.data.consultas).toBe(2);
+        expect(resumen.data.dias).toBe(1);
       });
     });
 

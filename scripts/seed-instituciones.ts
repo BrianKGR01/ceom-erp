@@ -202,6 +202,13 @@ async function asegurarTenant(
   const siembra = await sembrarCategoriasGastoDefault(ceomAdmin, tenant.id);
   if (!siembra.ok) throw new Error(`sembrarCategoriasGastoDefault: ${siembra.error}`);
 
+  // Sin esto el Owner cae en el wizard de onboarding cada vez que entra a
+  // /app, y ninguna pantalla del negocio es alcanzable en una verificacion de
+  // navegador. Descubierto al verificar la pantalla de D-1: el seed creaba
+  // negocios que un humano no podia usar. `asignarNicho` (mas abajo) cubre el
+  // paso 1 del wizard; esto cierra el resto.
+  await identidadRepo.completarOnboardingTenant(tenant.id);
+
   return { owner, tenantId: tenant.id, sucursalPrincipalId: sucursal.id, nuevo: true };
 }
 

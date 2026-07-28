@@ -20,6 +20,7 @@ import {
   detalleFinancieroAction,
   detalleInventarioOperativoAction,
   detalleOperativoAction,
+  resumenAccesosPropiosAction,
   tendenciaVentasAction,
 } from "../../actions";
 
@@ -274,6 +275,10 @@ export function FichaTenantCliente({
   const [inventario, setInventario] = useState<Cargando<ConAutorizacion<{ insumos: Insumo[] }>>>(
     CARGANDO
   );
+  const [resumenAccesos, setResumenAccesos] = useState<{
+    consultas: number;
+    dias: number;
+  } | null>(null);
 
   // G-15: el `else` de cada `.then` es lo que faltaba. Antes, un `{ok:false}`
   // dejaba el estado en `null` y la pestaña en "Cargando..." para siempre.
@@ -307,6 +312,16 @@ export function FichaTenantCliente({
       vigente = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, presetId]);
+
+  useEffect(() => {
+    let vigente = true;
+    resumenAccesosPropiosAction(tenantId).then((r) => {
+      if (vigente && r.ok) setResumenAccesos(r.data);
+    });
+    return () => {
+      vigente = false;
+    };
   }, [tenantId, presetId]);
 
   useEffect(() => {
@@ -498,6 +513,28 @@ export function FichaTenantCliente({
               ))}
           </div>
         </div>
+
+        {/* D-1 — la mitad simétrica del registro de acceso.
+            El negocio ve qué consultó esta institución y cuándo; decírselo a la
+            institución es lo que vuelve esto TRANSPARENCIA y no vigilancia. Y
+            tiene un efecto concreto de privacidad para el negocio: una
+            institución que sabe que cada consulta queda a la vista del dueño
+            consulta distinto. La disuasión es parte del mecanismo, no un efecto
+            secundario — y solo funciona si se dice. */}
+        <p className="mt-4 text-xs text-text-muted">
+          El dueño de este negocio puede ver qué tipo de información consultaste y en qué días
+          {resumenAccesos !== null && resumenAccesos.consultas > 0 ? (
+            <>
+              {" "}
+              — hasta ahora, <strong>{resumenAccesos.consultas}</strong>{" "}
+              {resumenAccesos.consultas === 1 ? "consulta" : "consultas"} en{" "}
+              <strong>{resumenAccesos.dias}</strong> {resumenAccesos.dias === 1 ? "día" : "días"}.
+            </>
+          ) : (
+            "."
+          )}{" "}
+          No ve los números que viste, ni qué pestaña miraste más.
+        </p>
       </div>
     </div>
   );

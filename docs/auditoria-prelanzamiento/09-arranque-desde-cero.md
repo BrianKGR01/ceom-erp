@@ -227,6 +227,7 @@ La verificación adversarial tumbó 7 candidatos. Se dejan escritos para que nad
 | **7** | **NO tocar** *Confirm signup* ni *Magic Link* | Quedan de fábrica | `pnpm auth:config` → ✅ (por defecto) en las dos |
 | **8** | **Auth → Providers → Email**: permitir signup | Habilitado | `pnpm auth:config` → `disable_signup: false` |
 | **9** | **Auth → Password Security**: leaked password protection | Habilitado | Advisors sin `auth_leaked_password_protection` |
+| **9-bis** | *(en el proyecto ACTUAL, hoy)* — el mismo toggle | Habilitado | Ídem. **Sigue deshabilitado**: verificado contra los advisors el 2026-07-28. Es gratis, no rompe nada de lo ya cargado (solo aplica a contraseñas nuevas) y `03-seguridad.md` ya lo listaba como previo a cualquier despliegue |
 | **10** | **Auth → Rate Limits** | Subir el cupo de correos por encima del de fábrica | `pnpm auth:config` → `rate_limit_email_sent` |
 | **11** | `pnpm drizzle-kit migrate` | 49 migraciones | El esquema vivo coincide con el último snapshot ([§1](#1-migraciones--confiable-pero-recién-desde-ahora)) |
 | **12** | `pnpm seed:admin <correo real>` | — | **Llega el correo y el clic aterriza en `/app/definir-contrasena`** ← prueba 3+5 juntos |

@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   date,
   index,
+  integer,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -276,6 +277,66 @@ export const intentosCanje = pgTable(
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("intentos_canje_huella_creado_en").on(table.huella, table.creadoEn)]
+).enableRLS();
+
+// Que consulto cada Institucion, de que negocio y cuando (D-1, tanda 3.3b).
+//
+// El proposito NO es cumplir una formalidad de auditoria: es que el
+// consentimiento deje de ser una decision a ciegas. Hasta esta tanda, el Owner
+// revocaba sin saber si la institucion habia mirado sus numeros alguna vez, ni
+// cuando, ni que — y si preguntaba "¿que vio la incubadora?", no habia
+// respuesta posible. Es el unico punto de privacidad de la plataforma
+// (CEOM_Arquitectura.md §6.9).
+//
+// A DIFERENCIA de logs_acceso_admin_ceom (deny total, "no visible para el
+// tenant" es literal), esta tabla lleva la policy estandar por tenant: **el
+// negocio la ve**. Es lo que la vuelve util — un registro que el dueño no
+// puede leer no informa ninguna decision.
+//
+// GRANULARIDAD: una fila por (institucion, tenant, modulo, DIA), no por
+// lectura. Abrir una ficha dispara 4 lecturas y recargarla dispara 4 mas; eso
+// son 8 filas de la misma verdad. La pregunta que el registro contesta —"¿que
+// vio y cuando?"— se responde a nivel de dia, y `consultas` conserva el
+// "cuantas veces" sin una fila por vez. Dos consecuencias: el crecimiento
+// queda acotado (3 modulos x 365 dias x pares, ~16k filas/año para una
+// incubadora de 15 negocios) y la pantalla del dueño se puede leer, en vez de
+// ser una manguera.
+export const logsAccesoInstitucion = pgTable(
+  "logs_acceso_institucion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    institucionId: uuid("institucion_id")
+      .notNull()
+      .references(() => instituciones.id),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    modulo: moduloVeedorEnum("modulo").notNull(),
+    /** Dia local del NEGOCIO observado, no de la institucion que mira ni del
+     * servidor — mismo criterio que la zona de la ficha del portal. */
+    dia: date("dia").notNull(),
+    consultas: integer("consultas").notNull().default(1),
+    primeraConsultaEn: timestamp("primera_consulta_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    ultimaConsultaEn: timestamp("ultima_consulta_en", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Es lo que hace posible el UPSERT: sin esta constraint, `onConflictDoUpdate`
+    // no tiene sobre que resolver y cada lectura volveria a insertar.
+    uniqueIndex("logs_acceso_institucion_dia_unico").on(
+      table.institucionId,
+      table.tenantId,
+      table.modulo,
+      table.dia
+    ),
+    ...crudPolicy(
+      "logs_acceso_institucion",
+      sql`${table.tenantId} = (select current_tenant_id())`
+    ),
+  ]
 ).enableRLS();
 
 // Traza interna de acceso del equipo CEOM (Modulo_11 seccion 4, regla 5) —

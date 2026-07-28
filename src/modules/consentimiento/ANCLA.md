@@ -318,6 +318,41 @@ FKs desde 3 tablas que hacen inviable un cascade manual sin tocar auditoría rea
   completa el login. Ver el bullet "✅ Validado end-to-end" arriba para el detalle.
 
 
+## Última actualización: 2026-07-28 — Etapa 3 / tanda 3.3b: D-1, registro de acceso institucional
+
+**Tabla nueva `logs_acceso_institucion`** (migración `0049`) + 3 funciones públicas
+(`registrarAccesoInstitucion`, `listarAccesosInstitucion`, `resumenAccesosPropios`) + pantalla
+`/app/consentimiento/accesos`.
+
+**Las tres decisiones, y por qué no revertirlas:**
+
+- **Falla CERRADO.** Si el registro no se puede escribir, la lectura **no se sirve**. El daño es
+  asimétrico: una lectura que falla es una molestia visible y reintentable para la institución; una
+  fila que falta es un hueco **silencioso y permanente** en la respuesta que recibe el negocio — y el
+  negocio *le cree* al registro. Un log de auditoría que sub-reporta induce "nunca miró" con la
+  autoridad de un dato. Es el principio rector #7 y el precedente de `solicitanteGateway()`.
+  **No convertirlo en best-effort "para que la ficha no falle nunca"**: hay un test que lo afirma
+  (`rejects.toThrow()`), y romperlo lo detecta.
+- **Una fila por (institución, tenant, módulo, DÍA), no por lectura.** Abrir una ficha dispara 4
+  lecturas; recargarla, 4 más. `consultas` conserva el "cuántas veces" sin una fila por vez. Sostiene
+  el UPSERT el índice único `logs_acceso_institucion_dia_unico` — sin esa constraint,
+  `onConflictDoUpdate` no tiene sobre qué resolver y cada lectura re-inserta. Crecimiento acotado
+  (~16k filas/año para una incubadora de 15 negocios): **a diferencia de `intentos_canje`, este no
+  necesita purga urgente.** Retención decidida: 24 meses, sin job todavía.
+- **RLS estándar por tenant, no deny total.** Es la diferencia deliberada con
+  `logs_acceso_admin_ceom`: **el negocio la ve**. Un registro que el dueño no puede leer no informa
+  ninguna decisión.
+- **`primera_consulta_en` no se toca en el `set` del UPSERT** — es el único dato que un UPDATE ciego
+  perdería, y el que contesta "¿desde cuándo?".
+- **La institución ve su propio resumen** y la ficha se lo dice. No era obligatorio: es lo que hace
+  que esto sea transparencia simétrica y no vigilancia, y tiene un efecto concreto de privacidad
+  para el negocio — una institución que sabe que cada consulta queda a la vista consulta distinto.
+  La disuasión es parte del mecanismo y **solo funciona si se dice**.
+
+**Gap del seed corregido en el camino:** `seed-instituciones.ts` creaba tenants sin
+`onboarding_completado_en`, así que el Owner caía en el wizard y **ninguna pantalla del negocio era
+alcanzable** en una verificación de navegador. Descubierto al verificar esta misma pantalla.
+
 ## Última actualización: 2026-07-27 (3) — Etapa 3 / tanda 3.2: ciclo de vida del Código de Acceso (H-42, G-02, G-03, G-04, G-17, D-7)
 
 **Cambio de contrato — dos funciones nuevas y una firma modificada:**

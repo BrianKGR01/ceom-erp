@@ -7,6 +7,7 @@ import {
   instituciones,
   intentosCanje,
   logsAccesoAdminCeom,
+  logsAccesoInstitucion,
   solicitudesSeguimiento,
 } from "./schema";
 
@@ -17,6 +18,8 @@ export type NuevaSolicitudSeguimiento = typeof solicitudesSeguimiento.$inferInse
 export type NuevaAprobacionTenant = typeof aprobacionesTenant.$inferInsert;
 export type NuevoCodigoAcceso = typeof codigosAcceso.$inferInsert;
 export type NuevoLogAccesoAdminCeom = typeof logsAccesoAdminCeom.$inferInsert;
+export type NuevoLogAccesoInstitucion = typeof logsAccesoInstitucion.$inferInsert;
+export type LogAccesoInstitucion = typeof logsAccesoInstitucion.$inferSelect;
 
 // --- Instituciones ---------------------------------------------------------
 
@@ -430,6 +433,68 @@ export async function contarIntentosCanjeDesde(huella: string, desde: Date) {
     .from(intentosCanje)
     .where(and(eq(intentosCanje.huella, huella), gte(intentosCanje.creadoEn, desde)));
   return Number(fila.total);
+}
+
+// --- Registro de acceso institucional (D-1, tanda 3.3b) ---------------------------------------------------------
+
+/**
+ * UPSERT por (institucion, tenant, modulo, dia): la primera consulta del dia
+ * inserta, las siguientes incrementan `consultas` y mueven
+ * `ultima_consulta_en`.
+ *
+ * `primera_consulta_en` NO se toca en el update — es el unico dato que se
+ * perderia con un UPDATE ciego, y es el que contesta "¿desde cuando?".
+ */
+export async function registrarAccesoInstitucion(data: {
+  institucionId: string;
+  tenantId: string;
+  modulo: NuevoLogAccesoInstitucion["modulo"];
+  dia: string;
+}) {
+  const [fila] = await db
+    .insert(logsAccesoInstitucion)
+    .values(data)
+    .onConflictDoUpdate({
+      target: [
+        logsAccesoInstitucion.institucionId,
+        logsAccesoInstitucion.tenantId,
+        logsAccesoInstitucion.modulo,
+        logsAccesoInstitucion.dia,
+      ],
+      set: {
+        consultas: sql`${logsAccesoInstitucion.consultas} + 1`,
+        ultimaConsultaEn: new Date(),
+      },
+    })
+    .returning();
+  return fila;
+}
+
+/** Lo que ve el Owner: quien consulto su negocio, que y cuando. */
+export async function listarAccesosInstitucionPorTenant(tenantId: string) {
+  return db
+    .select()
+    .from(logsAccesoInstitucion)
+    .where(eq(logsAccesoInstitucion.tenantId, tenantId))
+    .orderBy(desc(logsAccesoInstitucion.ultimaConsultaEn));
+}
+
+/** Lo que ve la propia Institucion sobre un negocio de su cartera — la mitad
+ * simetrica de la transparencia (ver la decision en actions.ts). */
+export async function resumenAccesosDeInstitucion(institucionId: string, tenantId: string) {
+  const [fila] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${logsAccesoInstitucion.consultas}), 0)`,
+      dias: sql<string>`count(distinct ${logsAccesoInstitucion.dia})`,
+    })
+    .from(logsAccesoInstitucion)
+    .where(
+      and(
+        eq(logsAccesoInstitucion.institucionId, institucionId),
+        eq(logsAccesoInstitucion.tenantId, tenantId)
+      )
+    );
+  return { consultas: Number(fila.total), dias: Number(fila.dias) };
 }
 
 // --- Log de Acceso Admin CEOM ---------------------------------------------------------

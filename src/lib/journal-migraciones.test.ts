@@ -132,6 +132,45 @@ describe("journal de migraciones", () => {
     );
   });
 
+  /**
+   * El candado de suite (`vitest.global-setup.ts`) tiene que tomar el advisory
+   * lock sobre la conexión **directa**, no sobre el pooler.
+   *
+   * No hace falta un test que mate un proceso: eso ya se verificó a mano
+   * contra `pg_locks` (corrida normal → 0 candados; corrida MATADA a mitad →
+   * 0 también). Lo que sí hace falta es blindar **el invariante del que todo
+   * eso depende**: `DATABASE_URL` apunta al pooler de Supabase en modo
+   * transacción (:6543), donde la sesión del cliente NO está pineada a un
+   * backend — el lock queda tomado después de que el proceso muere, y el
+   * candado pasa de proteger a bloquear. Pasó de verdad: una corrida legítima
+   * murió con "ya hay otra corrida" y el dueño del lock era `Supavisor`,
+   * ocioso.
+   *
+   * Es un chequeo de una línea contra el cambio de una línea que rompe todo lo
+   * demás — exactamente el tipo de "simplificación" razonable que alguien haría
+   * al ver dos variables de conexión y elegir la más usada.
+   */
+  it("el candado de suite se toma sobre DIRECT_URL, no sobre el pooler de DATABASE_URL", () => {
+    const setup = readFileSync(join(process.cwd(), "vitest.global-setup.ts"), "utf8");
+    const lineaDeConexion = setup
+      .split("\n")
+      .find((l) => l.includes("const url =") && l.includes("process.env"));
+
+    expect(lineaDeConexion, "No encontré de dónde saca la URL vitest.global-setup.ts").toBeDefined();
+    expect(
+      lineaDeConexion,
+      "El candado tiene que preferir DIRECT_URL (sesión, :5432). Con DATABASE_URL " +
+        "(pooler en modo transacción, :6543) el lock sobrevive al proceso y deja huérfanos."
+    ).toMatch(/process\.env\.DIRECT_URL/);
+    // Y DIRECT_URL tiene que venir PRIMERO: `DATABASE_URL ?? DIRECT_URL` compila
+    // igual y reintroduce el bug entero.
+    expect(
+      lineaDeConexion!.indexOf("DIRECT_URL") < lineaDeConexion!.indexOf("DATABASE_URL") ||
+        !lineaDeConexion!.includes("DATABASE_URL"),
+      "DIRECT_URL tiene que ser la primera opción, no el fallback."
+    ).toBe(true);
+  });
+
   it("cada .sql tiene su entrada en el journal", () => {
     const tags = new Set(journal.entries.map((e) => e.tag));
     const huerfanos = readdirSync(DIR)
