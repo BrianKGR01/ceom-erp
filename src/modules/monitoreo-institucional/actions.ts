@@ -66,6 +66,9 @@ export async function listarCartera(institucionId: string): Promise<
       nichoId: string | null;
       planId: string | null;
       estadoAcceso: string;
+      /** X-02: cobertura del dato — ver obtenerTenantParaVeedor(). */
+      sucursalesTotales: number;
+      sucursalesOperables: number;
     }>
   >
 > {
@@ -100,6 +103,9 @@ export async function estadoTenant(
     nichoId: string | null;
     planId: string | null;
     estadoAcceso: string;
+    /** X-02: cobertura del dato — ver obtenerTenantParaVeedor(). */
+    sucursalesTotales: number;
+    sucursalesOperables: number;
   }>
 > {
   if (!(await estaEnCartera(institucionId, tenantId))) {

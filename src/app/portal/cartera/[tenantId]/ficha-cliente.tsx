@@ -90,6 +90,46 @@ function MarcadorSinCosto({ monto }: { monto: number }) {
   );
 }
 
+/**
+ * X-02 — la cobertura del resumen, cuando el negocio tiene sucursales que ya no
+ * pueden registrar (D-9, tanda 3.3a).
+ *
+ * **El encuadre importa y define qué dice este cartel.** Una sucursal congelada
+ * no es una sucursal cerrada: el local puede seguir operando, lo que no puede
+ * es registrarse en CEOM. Así que esto NO explica una caída de actividad — dice
+ * **sobre qué parte del negocio está calculado todo lo que hay en esta ficha**.
+ * Es un marcador de completitud, hermano del de H-15, sobre otro eje.
+ *
+ * Por eso no menciona el plan, ni el downgrade, ni el motivo: eso es
+ * información comercial entre el negocio y CEOM. Lo único publicable a un
+ * tercero es la cobertura del dato.
+ *
+ * Va arriba de las pestañas y no dentro de una: alcanza a las cuatro.
+ */
+function CoberturaDeSucursales({
+  totales,
+  operables,
+}: {
+  totales: number;
+  operables: number;
+}) {
+  if (totales <= operables) return null;
+  return (
+    <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-bg p-3">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+      <p className="text-xs text-text-body">
+        <span className="font-medium text-warning-text">
+          Este negocio tiene {totales} sucursales y {operables === 1 ? "solo 1 está" : `solo ${operables} están`}{" "}
+          registrando operaciones.
+        </span>{" "}
+        Todo lo que ves en esta ficha cubre esa parte: el histórico de las demás sigue contado, pero
+        no suman actividad nueva. No quiere decir que hayan cerrado — quiere decir que su operación
+        no se está registrando acá.
+      </p>
+    </div>
+  );
+}
+
 function NoAutorizado({ modulo }: { modulo: string }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-2xl bg-card py-16 text-center shadow-card">
@@ -110,7 +150,13 @@ export function FichaTenantCliente({
   zona,
 }: {
   tenantId: string;
-  tenant: { nombreNegocio: string; estadoAcceso: string };
+  tenant: {
+    nombreNegocio: string;
+    estadoAcceso: string;
+    /** X-02: cobertura del dato. */
+    sucursalesTotales: number;
+    sucursalesOperables: number;
+  };
   /** Zona horaria del negocio OBSERVADO, no la de la institucion que mira. */
   zona: string;
 }) {
@@ -187,6 +233,11 @@ export function FichaTenantCliente({
           </div>
           <Badge variant={estado.variant}>{estado.label}</Badge>
         </div>
+
+        <CoberturaDeSucursales
+          totales={tenant.sucursalesTotales}
+          operables={tenant.sucursalesOperables}
+        />
 
         <div className="mt-6 rounded-2xl bg-card shadow-card">
           <div className="flex items-center gap-1 overflow-x-auto border-b border-gray-border px-4">
