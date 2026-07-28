@@ -22,6 +22,7 @@
 | [06-costo-ausente-y-cuota-de-pasivo.md](06-costo-ausente-y-cuota-de-pasivo.md) | Los dos últimos huecos entre el dato operativo y el resultado: la cuota de deuda que no genera gasto (H-27) y el producto sin costo que se cuenta como ganancia pura (H-15) |
 | [07-sucursales-multiples.md](07-sucursales-multiples.md) | Diagnóstico y diseño técnico de sucursales múltiples (H-02): mapa de impacto completo, modelo de stock por sucursal, control por plan, downgrade, migración y plan de tests |
 | [08-instituciones-punta-a-punta.md](08-instituciones-punta-a-punta.md) | El subsistema de consentimiento de punta a punta (H-42): causa raíz y alcance real del defecto, ciclo de vida de código y consentimiento con sus 17 huecos, si el modelo soporta institución-con-cartera, estado del aislamiento (RLS + aplicación), revocación, plan de sub-etapas y de tests |
+| [09-arranque-desde-cero.md](09-arranque-desde-cero.md) | ¿Se puede levantar el sistema entero desde una base vacía? Los 7 pasos del arranque real, los 2 que dependen de una bandeja de correo, el que no está en ninguna lista (`storage:setup`), y qué falta medir antes |
 
 ---
 
