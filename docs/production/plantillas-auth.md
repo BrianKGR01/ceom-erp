@@ -98,17 +98,53 @@ El token es un **Personal Access Token de la cuenta**
 API es otra superficie. Deliberadamente no se lee de `.env.local` — es credencial de cuenta, no de
 proyecto.
 
-> **Estado al 2026-07-28: no verificado.** No hay token de Management API en este entorno ni CLI de
-> Supabase instalada, así que **no pude leer las plantillas del proyecto**. Lo que dice el registro:
-> `docs/decisiones/recuperacion-de-acceso.md` §11.5 (2026-07-23) las lista como **pendientes** — "el
-> único paso bloqueante" — y **nada posterior dice que se hayan aplicado**.
->
-> Ojo con una lectura fácil y equivocada: §11.1 del mismo documento dice "**el correo ya funciona**",
-> pero eso es sobre **entrega** (hay SMTP propio con Resend, y la evidencia citada es "invitación a
-> las 15:33:20, clic a las 15:34:27"). Entrega y clic **no** son lo mismo que "el clic aterrizó bien
-> en la app" — y el propio §11.5 lo dice al listar como pendiente "el clic real desde una bandeja de
-> entrada… **después del paso 1**".
->
-> **Correr `pnpm auth:config` es lo que cierra la pregunta.** Que no se haya podido correr todavía es
-> el hallazgo, no un detalle: la configuración de la que depende el alta de todo negocio real hoy no
-> es legible desde el repo.
+## Estado al 2026-07-28: **mixto y desconocido** — que es peor que cualquiera de los dos extremos
+
+**No pude leer las plantillas**: no hay token de Management API en este entorno ni CLI de Supabase
+instalada. Lo que sigue es lo que se puede afirmar desde el registro y desde la base, y **no
+alcanza**.
+
+**Evidencia de que al menos una parte está aplicada:**
+
+- `/portal` figura como *"magic link de reingreso, verificado con **click real de email**"*
+  (`consentimiento/ANCLA.md`, 2026-07-18) — con el detalle del `auth_user_id` vinculado y
+  `last_sign_in_at` poblado ~1 minuto después del `created_at`.
+- La institución *"institucion prueva"* tiene un `auth.users` real con `last_sign_in_at` del
+  **2026-07-25**. **Un `last_sign_in_at` no se produce si el enlace no aterrizó.**
+- **H-05** (recuperación de contraseña) figura cerrado como completo el **2026-07-23**.
+
+**Evidencia de que al menos una parte está pendiente:**
+
+- `docs/decisiones/recuperacion-de-acceso.md` §11.5 (2026-07-23) lista las dos plantillas de `/app`
+  como **"el único paso bloqueante"**, y lista como pendiente *"el clic real desde una bandeja de
+  entrada… **después del paso 1**"*.
+- **Nada posterior en el repo dice que se hayan aplicado.**
+
+**Y una lectura fácil que hay que evitar:** §11.1 del mismo documento dice *"el correo ya
+funciona"*, pero eso es sobre **entrega** (hay SMTP propio con Resend; la evidencia citada es
+"invitación a las 15:33:20, clic a las 15:34:27"). Entrega y clic **no** son lo mismo que "el clic
+aterrizó bien en la app".
+
+### Por qué "mixto y desconocido" es el peor estado
+
+Las dos evidencias conviven sin contradecirse, porque **son de flujos distintos**: `/portal` (PKCE,
+plantillas de fábrica) puede estar sano mientras `/app` (implícito, plantillas custom) no lo está —
+es exactamente la asimetría de este documento.
+
+Lo que **nadie sabe hoy** es cuál de los cuatro flujos está sano:
+
+| Flujo | Plantilla | ¿Hay evidencia de que funcione? |
+|---|---|---|
+| Institución entra a `/portal` | Magic Link / Confirm signup (fábrica) | ✅ `last_sign_in_at` real del 2026-07-25 |
+| Recuperar contraseña en `/app` | Reset password (custom) | 🟡 H-05 cerrado el 23/07, pero §11.5 lo lista pendiente el mismo día |
+| Invitación de Owner / colaborador | Invite user (custom) | ❌ Ninguna |
+| Alta del primer `ceom_admin` | Invite user (custom) | ❌ Ninguna |
+
+Un estado mixto y no medido es peor que "todo pendiente" (que se resuelve aplicando la lista) y peor
+que "todo hecho" (que se resuelve no tocando nada): **invita a asumir que lo que anda para uno anda
+para todos**, que es justo la conclusión que la asimetría de este documento desmiente.
+
+> **`pnpm auth:config` es lo que cierra la pregunta**, y su salida se commitea como
+> `docs/production/auth-config.snapshot.json`. Hasta entonces, **el runbook de
+> [`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/09-arranque-desde-cero.md) §3.2 describe
+> valores que nadie puede verificar** — y eso, no la redacción de las plantillas, es el hallazgo.
