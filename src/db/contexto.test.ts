@@ -143,13 +143,12 @@ describe("db/contexto — blindaje de la Etapa 0", () => {
       );
       if (importaClienteCrudo) violaciones.push(archivo.relPath);
     }
-    if (violaciones.length > 0) {
-      throw new Error(
+    expect(
+      violaciones,
         `Archivo(s) de un módulo ya migrado a contexto.ts que igual importan "db"/"client" crudo — ` +
           `deben recibir un Ejecutor (tx) por parámetro en cambio (docs/security/PLAN-RLS-BACKSTOP.md ` +
           `§2.2):\n  - ${violaciones.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 
   it("solo el allowlist explícito importa las funciones de contexto (no sus tipos)", () => {
@@ -164,13 +163,12 @@ describe("db/contexto — blindaje de la Etapa 0", () => {
         violaciones.push(archivo.relPath);
       }
     }
-    if (violaciones.length > 0) {
-      throw new Error(
+    expect(
+      violaciones,
         `Archivo(s) que importan @/db/contexto sin estar en ALLOWLIST_IMPORTA_CONTEXTO de este test ` +
           `— si es una migración nueva y deliberada, agregalo a la lista; si no, el repository.ts ` +
           `debería recibir un Ejecutor por parámetro en vez de abrir su propio contexto:\n  - ${violaciones.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 
   it("comoSistema() solo se llama desde el allowlist de call-sites", () => {
@@ -181,11 +179,10 @@ describe("db/contexto — blindaje de la Etapa 0", () => {
       const permitido = ALLOWLIST_COMO_SISTEMA_PREFIJOS.some((prefijo) => archivo.relPath.startsWith(prefijo));
       if (!permitido) violaciones.push(archivo.relPath);
     }
-    if (violaciones.length > 0) {
-      throw new Error(
+    expect(
+      violaciones,
         `comoSistema() (bypass total de RLS) llamado fuera del allowlist de call-sites — este escape ` +
           `hatch no debe usarse desde cualquier lado solo porque compila:\n  - ${violaciones.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 });

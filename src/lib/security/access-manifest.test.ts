@@ -297,22 +297,20 @@ describe("access-manifest — cobertura", () => {
 
   it("toda función exportada de un archivo \"use server\" tiene entrada en el manifiesto", () => {
     const faltantes = [...funcionesReales.keys()].filter((clave) => !(clave in ACCESS_MANIFEST));
-    if (faltantes.length > 0) {
-      throw new Error(
+    expect(
+      faltantes,
         `Endpoint(s) sin clasificar en access-manifest.ts — agregá una entrada para cada uno ` +
           `(ver src/lib/security/README.md):\n  - ${faltantes.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 
   it("toda entrada del manifiesto corresponde a una función real (sin entradas obsoletas/typos)", () => {
     const obsoletas = Object.keys(ACCESS_MANIFEST).filter((clave) => !funcionesReales.has(clave));
-    if (obsoletas.length > 0) {
-      throw new Error(
+    expect(
+      obsoletas,
         `Entrada(s) de access-manifest.ts que ya no corresponden a ninguna función "use server" real ` +
           `(renombrada, eliminada, o typo en la clave):\n  - ${obsoletas.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 
   it("ningún endpoint \"use server\" recibe identidad/permisos/tenant ya resueltos por parámetro", () => {
@@ -325,8 +323,8 @@ describe("access-manifest — cobertura", () => {
         violaciones.push(`${clave} — parámetros: (${fn.parametrosTexto})`);
       }
     }
-    if (violaciones.length > 0) {
-      throw new Error(
+    expect(
+      violaciones,
         `Endpoint(s) "use server" que reciben un objeto de identidad/permisos/tenant YA RESUELTO ` +
           `como parámetro — Next.js asigna un action ID real a TODA función exportada de un archivo ` +
           `"use server" sin importar si algún Client Component la usa (confirmado en .next/server/**/` +
@@ -334,8 +332,7 @@ describe("access-manifest — cobertura", () => {
           `forjado (ej. { esOwner: true, tenantId: "<otro-tenant>" }), evadiendo toda la capa de ` +
           `autorización de una sola vez. Resolvé el usuario/institución internamente con ` +
           `obtenerUsuarioActual()/obtenerInstitucionActual() en vez de recibirlo por parámetro:\n  - ${violaciones.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 
   it("toda entrada 'manual' documenta por qué en `nota`", () => {
@@ -359,14 +356,13 @@ describe("access-manifest — cobertura", () => {
         sinEvidencia.push(`${clave} (nivel "${entrada.nivel}")`);
       }
     }
-    if (sinEvidencia.length > 0) {
-      throw new Error(
+    expect(
+      sinEvidencia,
         `No se encontró evidencia textual del guard esperado para estas entradas "estatica" ` +
           `(el análisis busca hasta 2 saltos de delegación/imports/helpers locales). Si el código ` +
           `realmente no gatea así, es un hallazgo real: corregilo o, si el análisis estático ` +
           `genuinamente no alcanza para este caso, cambiá verificacion a "manual" con una nota ` +
           `explicando por qué:\n  - ${sinEvidencia.join("\n  - ")}`
-      );
-    }
+    ).toEqual([]);
   });
 });

@@ -138,6 +138,79 @@ Convención de archivos: `src/modules/<módulo>/<archivo>.test.ts` para unitario
 
 **La prueba de caja negra ya definida en cada `docs/modules/Modulo_XX.md` es el punto de partida del test unitario de ese módulo** — no hay que inventar casos nuevos desde cero, hay que traducir la prueba ya diseñada a código.
 
+### 6.1 Las dos formas de que un test pase sin probar nada
+
+Un test en verde no es evidencia. **Un test que falla cuando rompés el código a propósito, sí.** Este
+proyecto se comió las dos formas de fallar en eso, las dos el mismo día (Etapa 3, tanda 3.3a), en
+código recién escrito y con la disciplina fresca. Están acá porque el segundo caso **no lo detecta
+ninguna herramienta**.
+
+#### (a) El test que no ejecuta ninguna afirmación — cerrado por mecanismo ✅
+
+```ts
+const res = await detalleOperativo(...);
+if (!res.ok || res.data.autorizado) return;   // ← al romper el código, esto se cumple
+expect(res.data.motivo).toBe("modulo_no_aplica");  // ← y esto NUNCA corre
+```
+
+El `if (...) return` para estrechar tipos es un idiom legítimo y está por todo el repo. El problema
+es que **convierte el test en un no-op justo el día en que el comportamiento cambia** — o sea, el día
+en que hacía falta que fallara.
+
+**Ya no puede pasar:** `vitest.setup.ts` tiene un `expect.hasAssertions()` global. Un test que sale
+sin llamar a `expect` ni una vez es rojo. Cuando necesites estrechar un tipo, **poné el `expect`
+antes y estrechá con `throw`**:
+
+```ts
+expect(res.data.autorizado).toBe(false);        // esto sí falla si el código cambia
+if (res.data.autorizado) throw new Error("inalcanzable");
+expect(res.data.motivo).toBe("modulo_no_aplica");
+```
+
+#### (b) El valor esperado indistinguible del valor de la falla — NO hay mecanismo 🔴
+
+```ts
+// La afirmación CORRE y PASA. Y no prueba nada.
+expect(servido.ingresosSinCostoConocido).toBe(crudo.ingresosSinCostoConocido);
+```
+
+La fixture no tenía ninguna venta sin costo, así que los dos lados valían **cero**. Forzando el campo
+a `0` en el código de producción, el test seguía en verde. Era una tautología.
+
+> ### La convención
+>
+> **El valor esperado tiene que ser distinguible del valor que produciría la falla.** Cero, vacío,
+> `null` y "el valor por defecto" **no sirven como valor esperado**, salvo que el test afirme antes
+> que la fixture produce algo distinto.
+
+La versión arreglada siembra el caso y afirma el número exacto:
+
+```ts
+// 3 unidades x 50 = 150. Si la proyección descarta el campo, da 0 y falla.
+expect(crudo.data.ingresosSinCostoConocido).toBe(150);
+expect(servido.data.detalle.ingresosSinCostoConocido).toBe(150);
+```
+
+**Por qué ninguna herramienta puede cerrar esto:** ningún hook sabe qué valor es *degenerado* en cada
+caso. `0` es la respuesta correcta para "merma de un negocio sin producción" y es la respuesta del
+bug para "ingresos sin costo de un negocio que sí tiene ventas sin costo". Solo lo sabe quien escribe
+el test — por eso es una convención con nombre, revisable en un diff, y no un chequeo automático.
+
+Este proyecto ya había nombrado el mismo problema desde otro ángulo:
+`docs/security/PLAN-RLS-BACKSTOP.md` §13.11 — `coalesce(sum(...), 0)` hace **indistinguible "RLS
+filtró todas las filas" de "legítimamente cero"**, y por eso ahí se afirma el **delta exacto** contra
+el valor previo en vez del valor suelto. Es la misma regla aplicada a agregados.
+
+#### La ironía que conviene recordar
+
+Al activar el mecanismo de (a) sobre los 377 tests, los **únicos 7** que salieron rojos eran los dos
+guardianes por AST del proyecto (`db/contexto.test.ts` y `lib/security/access-manifest.test.ts`) —
+que usaban `throw` en vez de `expect` y por lo tanto no afirmaban nada cuando no había violaciones.
+Y el modo de falla realmente peligroso de esos dos —que el scanner devuelva cero archivos y el test
+pase diciendo "todo clasificado"— **ya estaba cubierto** por un test de sanidad dedicado en cada
+archivo, escrito por quien los hizo. Se convirtieron a `expect(violaciones).toEqual([])`, sin
+excepciones al mecanismo: la primera excepción es la que lo vuelve poco confiable.
+
 ---
 
 ## 7. Migraciones con Drizzle
