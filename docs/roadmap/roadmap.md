@@ -1,124 +1,217 @@
-# CEOM-ERP — Roadmap
+# CEOM-ERP — Roadmap general (v2, 2026-07-30)
 
-> **Qué es este documento:** el plan de construcción, de principio a fin, con casillas para ir marcando avance. Es un documento **vivo** — se actualiza a medida que se cierran fases, no se reescribe desde cero. La razón de cada decisión (por qué este stack, por qué este orden de módulos) vive en `docs/architecture/CEOM_Arquitectura.md`; acá solo está el plan de ejecución.
+> **Qué es este documento:** el plan vigente de principio a fin, con casillas para ir marcando.
+> Reemplaza al [roadmap de construcción original](antiguo/roadmap.md) (cuya Fase 1 —los 14
+> módulos, 14/14— sigue siendo el registro histórico válido). La evidencia de cada ítem vive en
+> la [auditoría de prelanzamiento v2](../auditoria-prelanzamiento/README.md); acá solo el plan.
 >
-> Convención: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado y verificado.
+> Convención: `[ ]` pendiente · `[~]` parcial/en curso · `[x]` cerrado y verificado (con fecha).
+>
+> **La regla que ordena este roadmap: las fases son consecutivas por diseño.** Cada fase deja
+> algo que las siguientes usan, y ninguna fase obliga a volver a tocar lo que una anterior cerró:
+> el entorno y CI se endurecen **antes** de escribir más código (todo lo posterior corre
+> protegido); las decisiones de producto se toman **antes** de las correcciones (para codificar
+> una sola vez); lo funcional se cierra **antes** de la pasada de UI (para no re-pulir pantallas
+> dos veces); la UI se cierra **antes** de los e2e (para no reescribir selectores); los e2e
+> existen **antes** del despliegue real (para desplegar protegido); y el piloto ocurre **antes**
+> de endurecer lo que solo el uso real prioriza.
 
 ---
 
-## Fase 0 — Setup del repositorio
+## Fase 0 — Base limpia y acceso de prueba
 
-- [x] Repo creado en GitHub, monorepo único (Next.js full-stack).
-- [x] `AGENTS.md` en la raíz con las reglas globales.
-- [ ] `CLAUDE.md` como symlink a `AGENTS.md` (`ln -s AGENTS.md CLAUDE.md`).
-- [x] Estructura de `docs/` con `modules/`, `architecture/`, `dev-practices/` (pendiente de redactar), `production/` (pendiente), `roadmap/` (este archivo).
-- [x] Proyecto Next.js inicializado (App Router, TypeScript) con `pnpm`.
-- [x] Proyecto Supabase Cloud creado (entorno de desarrollo).
-- [x] Drizzle configurado contra ese proyecto (`drizzle.config.ts`, conexión, primer `drizzle-kit generate` de prueba).
-- [x] Vitest + Testing Library configurados, un test trivial corriendo en CI.
-- [x] Playwright configurado, un test e2e trivial (ej. "la página de login carga").
-- [x] GitHub Actions: workflow mínimo que corre `pnpm typecheck && pnpm lint && pnpm test` en cada PR.
-- [ ] Proyecto conectado a Vercel (deploy de preview automático por PR) — pendiente: conexión manual desde el dashboard de Vercel (la hace el dueño del proyecto, no un agente).
-- [x] `docs/dev-practices/` redactado (siguiente documento después de este roadmap).
+*Por qué primero: los datos de prueba actuales se crearon a mitad de la construcción y no pasaron
+por los flujos completos — ensucian cada verificación. Además, vaciar Auth invalida la credencial
+de QA que quedó commiteada en un repo público (crítico №1 de la auditoría).*
 
-**Criterio de salida de la Fase 0:** un PR de prueba (ej. "página de inicio en blanco") pasa CI, se previsualiza en Vercel, y un agente puede levantar el entorno local siguiendo solo `AGENTS.md` sin preguntas adicionales.
+- [ ] **0.1** Vaciar todos los datos de negocio, Auth y Storage de la base de desarrollo,
+      **preservando las filas de sistema que las migraciones sembraron** (tenant CEOM Ops, roles
+      de sistema Owner/CEOM Admin/Gateway, plan Básico, usuario Gateway bloqueado — migraciones
+      `0005`/`0007`/`0034`). El journal de migraciones no se toca.
+- [ ] **0.2** Crear el `ceom_admin` de QA nuevo por Admin API con contraseña directa (sin depender
+      de plantillas de correo). La credencial se comparte por canal directo — **nunca más
+      commiteada en un doc**.
+- [ ] **0.3** Quitar la credencial vieja de `src/modules/consentimiento/ANCLA.md` (queda inerte
+      por el vaciado, pero no debe seguir escrita) y barrer otros secretos en docs.
+- [ ] **0.4** Verificar el arranque sobre base limpia: `pnpm storage:setup` (idempotente) y la
+      suite completa en verde contra la base vacía.
 
----
+**Criterio de salida:** suite 384+ en verde sobre base limpia; ningún secreto vigente commiteado.
 
-## Fase 1 — Desarrollo módulo por módulo (entorno de desarrollo: Supabase Cloud + Vercel)
+## Fase 1 — Contención del entorno y red mínima de CI
 
-Orden de construcción, basado en la matriz de dependencias de `CEOM_Arquitectura.md` (sección 7). Cada módulo se da por cerrado cuando pasa su "prueba de caja negra" ya definida en su `docs/modules/Modulo_XX.md`, y su `ANCLA.md` queda actualizado.
+*Por qué acá: son horas de trabajo que protegen todo lo que viene después. Nada de las fases
+siguientes las invalida.*
 
-- [x] **1. Identidad, Tenants, Roles, Autorización** (`Modulo_01`) — base literal de todo lo demás: `tenant_id`, usuario, rol, motor de autorización, RLS. Backend cerrado (schema+RLS+motor de autorización+Server Actions+tests, ver `src/modules/identidad/ANCLA.md`). Pantallas de onboarding del Owner (Configurar negocio, Elegir rubro/nicho, checklist de bienvenida) construidas y verificadas end-to-end — cerró los gaps de `actualizarTenant()`/`asignarNicho()`/tracking de onboarding documentados en `docs/ui/pantallas.md`. La FK de `plan_id` ya se resolvió (ítem 2). **Cerrado del todo (2026-07-18):** Colaboradores/Roles/Capacidades Especiales (`/app/mi-negocio/`) — último bloque pendiente del módulo, ver `docs/ui/pantallas.md` sección 1. Incluyó cerrar un bug real (`tieneCapacidadEspecial()` sin bypass de Owner) y un gap de seguridad real (`invitarUsuario`/`cambiarRolUsuario` no validaban contra asignar un rol de sistema), ambos documentados en `src/modules/identidad/ANCLA.md`.
-- [x] **2. Suscripción / Panel Administrativo — versión mínima** (`Modulo_11`) — catálogo de Planes (`src/modules/suscripcion/`) con FK real desde `tenants.plan_id`, plan "Básico" sembrado (precio placeholder en 0, pendiente de definir el valor real), `crearTenant()` de Identidad ya lo valida/defaultea. El resto del Módulo 11 (Panel Admin CEOM, Instituciones, Gateway, Código de Acceso) queda para el ítem #10 de este roadmap, ver `src/modules/suscripcion/ANCLA.md`.
-- [x] **3. Patrimonio / Activos** (`Modulo_05`) — `Activo`, `Pasivo` y `Pago de Pasivo` (`src/modules/patrimonio/`), depreciación y saldo derivados bajo demanda, refinanciación con trazabilidad, gateado por el motor de autorización real (`"patrimonio"` ya está en el catálogo de permisos, a diferencia de Identidad). Pendiente documentado: `proveedor_id` sin FK (Módulo 8 no existe), y la generación automática de Gasto/Pago hacia Costos y Gastos (Módulo 4) — ver `src/modules/patrimonio/ANCLA.md`.
-- [x] **4. Proveedores / Compras** (`Modulo_08`) — `Proveedor`, `Compra`, `Pago de Compra` y `Compra de Ajuste` (`src/modules/proveedores/`), costo unitario derivado, estado de pago pendiente/parcial/pagado, corrección vía Compra de Ajuste (nunca se edita la Compra). Se amplió el catálogo de permisos con `"proveedores"` (mismo criterio que `"patrimonio"`). Pendiente documentado: `item_id` sin FK (Módulos 2/6 no existen), evento `compra_registrada` sin consumidores todavía, Landed Cost/Órdenes de Compra formales quedan para Nicho 4 — ver `src/modules/proveedores/ANCLA.md`.
-- [x] **5. Productos e Inventario** (`Modulo_02`) — `Categoria de Producto`, `CategoriaSugerida`, `Producto`, `Stock` (por sucursal) y `Movimiento de Stock` (`src/modules/productos/`), ledger append-only con `cantidad_actual` recalculado por transacción, permisos separados `"productos"`/`"inventario"` (ambos ya estaban en el enum de Módulo 1), `vender_sin_stock` real. Verificada la prueba de caja negra en "modo punto de venta puro", sin nicho. Pendiente documentado: `enviarProductoAOperaciones` no valida Nicho activo (Identidad no expone esa consulta todavía), `compras.item_id` (Proveedores) sigue sin FK a propósito — ver `src/modules/productos/ANCLA.md`.
-- [x] **6. Módulo Operativo — Nicho 1 (Alimentos/Bebidas por Lotes)** (`Modulo_06`) — `Insumo`, `Movimiento de Insumo`, `StockInsumo`, `Receta`, `Receta-Insumo`, `Vinculación Producto-Receta`, `Producción` y `Producción de Ajuste` (`src/modules/operativo/nichos/nicho-1/`), costo promedio ponderado real, costo operativo con merma incorporada, Capacidad Operativa de solo lectura. `registrarProduccion` acredita de verdad stock/costo en Productos e Inventario (primera integración cross-módulo real vía `actions.ts`). Pendiente documentado: gap de atomicidad cruzada entre la transacción de insumos y la acreditación en Módulo 2 (aceptado a propósito), `registrarEntradaCompraInsumo` sin caller real (Proveedores no dispara `compra_registrada` todavía) — ver `src/modules/operativo/nichos/nicho-1/ANCLA.md`.
-- [x] **7. Ventas + Clientes** (`Modulo_03`) — `Cliente`, `CanalVenta`, `MetodoPago`, `Evento`, `Venta` (sin `eliminado_en`), `Detalle de Venta`, `Ajuste de Venta` y `Pago de Venta` (`src/modules/ventas/`), snapshot doble real, comisión automática por canal/evento persistida en la Venta. `registrarVenta`/`registrarAjusteVenta` descuentan/devuelven stock real en Productos e Inventario. `importarVentaHistorica` (sección 6.2) implementada completa. Pendiente documentado: comisión sin consumidor real (Módulo 4 no existe), gap de atomicidad cruzada con Módulo 2 (aceptado) — ver `src/modules/ventas/ANCLA.md`.
-- [x] **8. Egresos y Gastos** (`Modulo_04`) — `CategoriaGasto`, `CategoriaGastoSugerida`, `GastoRecurrente`, `Gasto` y `Pago de Gasto` (`src/modules/gastos/`), reutiliza el enum `frecuencia_cuota` de Patrimonio en vez de duplicarlo. `generarGastoCuotaPasivo`/`generarGastoComisionVenta` cierran de verdad dos pendientes cruzados: decrementan el saldo real de un Pasivo (Patrimonio) y consumen la comisión ya persistida en una Venta (Ventas). Pendiente documentado: sin scheduler real que dispare la auto-generación periódicamente, pre-carga de categorías default fuera de alcance (sin onboarding UI) — ver `src/modules/gastos/ANCLA.md`.
-- [x] **9. Financiero** (`Modulo_07`) — `src/modules/financiero/`, **sin tablas propias** (solo `actions.ts`): `flujoCaja` (base caja), `estadoResultados` (base devengado), `margenPorProducto`, `costoFijoTotal` (reutiliza `consultarTotalCostosFijos` de Módulo 4 sin duplicar). Requirió agregar agregados de solo lectura por período a Ventas/Gastos/Proveedores (`consultarIngresosPeriodo`, `consultarPagosVentaEnPeriodo`, `consultarAjustesVentaEnPeriodo`, `consultarPagosGastoEnPeriodo`, `consultarTotalGastosEnPeriodo`, `consultarPagosCompraEnPeriodo`), ninguno con tablas ni comportamiento nuevo. Ver `src/modules/financiero/ANCLA.md`.
-- [x] **10. Gateway de Consentimiento** — `Institución`, `Cartera Institucional`, `Solicitud de Seguimiento`, `Aprobación de Tenant`, `Código de Acceso` y `LogAccesoAdminCEOM` (`src/modules/consentimiento/`). Granularidad por `moduloVeedorEnum` (financiero/operativo/inventario_operativo, ya existente en Suscripción), no por función individual — decisión del plan, ver `src/modules/consentimiento/ANCLA.md`. `tieneConsentimiento()` es el Gateway real; `generarCodigoAcceso` valida de verdad contra el plan del tenant (cerró un gap documentado desde Módulo 2/6: se agregó `obtenerTenantPorId`/`obtenerEstadoAccesoTenant` a Identidad). Pendiente documentado: sin hook automático de `LogAccesoAdminCEOM` desde el resto de los módulos.
-- [x] **11. Monitoreo Institucional + Panel Admin CEOM** (a nivel básico) — dos módulos separados por distinto consumidor: `src/modules/monitoreo-institucional/` (Institución externa, gateado por `tieneConsentimiento()`; requirió agregar `obtenerTenantParaVeedor`/`solicitanteGateway` a Identidad y `listarCarteraPropia` al Gateway) y `src/modules/panel-admin-ceom/` (`ceom_admin`, gate directo por rol, no pasa por el Gateway; requirió agregar `listarTenants` a Identidad). `panel-admin-ceom` cierra parcialmente el hook pendiente de `registrarAccesoAdminCeom` desde Módulo 10 (acotado a sus propias lecturas). Pendiente documentado: % onboarding completado y % retención de "salud agregada" (Módulo_11 sección 2.2) sin implementar — no hay datos reales todavía; varias consultas de detalle (capacidad operativa, stock de insumo, margen por producto) quedaron fuera por necesitar IDs que ningún módulo veedor-seguro expone hoy (`activoId`, `sucursalId`, `productoId`) — ver `src/modules/monitoreo-institucional/ANCLA.md` y `src/modules/panel-admin-ceom/ANCLA.md`.
-- [x] **12. Módulo Operativo — Nicho 4 (Comercio Minorista y Distribución)** — sin `docs/modules/Modulo_XX.md` propio (a diferencia de los otros 10 ítems); el diseño vivía solo como "dirección de diseño, no cerrada" en `Modulo_08_proveedores_compras.md` sección 6, cerrada recién en esta tarea con el usuario. Landed Cost y Orden de Compra se implementaron **extendiendo Proveedores** (Módulo 8), no como entidades nuevas: `Compra` ganó `estado` (`pedido`/`recibido`) + `costoAdicionalTraslado`, y `recibirCompra()` dispara de verdad `registrarEntradaCompraReventa`/`registrarEntradaCompraInsumo` — cierra el pendiente de `compra_registrada` documentado desde Módulo 2/6/8. También se cerró `compras.item_id` sin FK (ahora `insumoId`/`productoId` tipados + CHECK). `src/modules/operativo/nichos/nicho-4/` quedó mínimo (solo `consultarCapacidadAlmacenamientoUsada`, sin simetría completa de Strategy Pattern con Nicho 1 porque el dominio no tiene el mismo shape — decisión confirmada, no un olvido). Ver `src/modules/proveedores/ANCLA.md` y `src/modules/operativo/nichos/nicho-4/ANCLA.md`.
-- [x] **13. Simulaciones** (`Modulo_09`) — `src/modules/simulaciones/`, Simular Precio + Punto de Equilibrio fusionados bajo un mismo módulo con un único motor matemático (`unidadesParaCubrir`). Costo automático por defecto (nunca manual por defecto — lección explícita del prototipo anterior). Requirió agregar `consultarUnidadesVendidasPeriodo` a Ventas (rotación por producto/período, no existía). Comparativo multi-SKU: decisión confirmada con el usuario de que el "precio sugerido" por fila usa el margen % promedio del catálogo (el doc no lo especificaba). Ver `src/modules/simulaciones/ANCLA.md`.
-- [x] **14. Reportes** (`Modulo_10`) — `src/modules/reportes/`, capa de agregación de solo lectura sobre todo lo anterior, cero tablas propias, cero lógica de negocio propia (principio rector explícito del doc). De las 8 vistas, 5 ya existían (Financiero, Gastos, y `consultarMermaPeriodo` — este último ya se había construido en Módulo 6 anticipando exactamente esta adenda); solo hicieron falta 3 funciones nuevas en Ventas (`rankingProductos`, `historicoVentas`, `margenPorCanalYProducto`). Exportación PDF/Excel (sección 6 del doc) queda explícitamente fuera de esta tarea — depende de UI, que todavía no existe. Ver `src/modules/reportes/ANCLA.md`.
+- [ ] **1.1** Activar **Deployment Protection** en Vercel: la URL pública deja de servir la base
+      de desarrollo hasta que exista producción real (se quita en la Fase 6).
+- [ ] **1.2** Activar **leaked password protection** en Supabase Auth (toggle; único WARN real).
+- [ ] **1.3** Correr `pnpm auth:config` con `SUPABASE_ACCESS_TOKEN` y commitear el snapshot;
+      corregir las 2 plantillas custom si el veredicto da ❌ (sin tocar las 2 PKCE — el script lo
+      verifica). ⚠️ Requiere un token de Management API que solo el dueño puede generar.
+- [ ] **1.4** CI: agregar trigger `push` a `main` (y a `dev`), y `SUPABASE_SECRET_KEY` como
+      secret para que las ~15 suites de integración dejen de saltearse en CI.
+- [ ] **1.5** Verificar un alta de Owner de punta a punta con correo real (invitación → clic →
+      contraseña → `/app`) — es la prueba viva de 1.3.
 
-> **Nota:** este orden es el punto de partida validado en `CEOM_Arquitectura.md`. Si al construir un módulo aparece una dependencia no prevista, se ajusta el orden acá mismo y se anota por qué, para no perder el razonamiento.
+**Criterio de salida:** URL pública protegida; un push a `main` no puede desplegar sin tests; el
+flujo de invitación probado con un correo real.
 
-**Criterio de salida de la Fase 1:** los 14 puntos anteriores en `[x]`, con sus tests pasando y sus `ANCLA.md` al día. **Estado real (2026-07-16): 14 de 14 en `[x]`** — backend + tests completos en los 14, y el ítem #1 (Identidad) cerró también sus pantallas de onboarding (ver arriba). **Fase 1 cerrada.**
+## Fase 2 — Decisiones de producto e higiene de los registros
 
-**Construcción de UI (no es una fase numerada aparte — vive dentro/después de esta Fase 1):** el inventario completo de pantallas, con seguimiento de cuáles están construidas y el orden sugerido para las que faltan, vive en `docs/ui/pantallas.md`. Resumen: el "camino dorado" (Login → Onboarding → Catálogo → Punto de Venta → Dashboard) está **5/5 construido y cerrado** — el MVP es navegable de punta a punta con datos reales (`pnpm seed:demo`). Las ~96 pantallas/modales restantes (de 116 trackeados) se construyen por tandas, cada una con referencia visual del usuario antes de implementar — ver la sección "Próxima tanda sugerida" de ese documento.
+*Por qué acá: varias correcciones de la Fase 3 dependen de estas decisiones (codificar una vez,
+no dos), y la pasada de higiene evita re-trabajar cosas ya cerradas.*
 
----
+- [ ] **2.1** Sesión de decisiones del dueño (una sola, con acta en este archivo):
+      **D1** precio real del plan Básico · **D3** roles por defecto (sí/no a la propuesta) ·
+      **D4** política de costeo de reventa · **D6** semántica de "pausada" + downgrade vs.
+      consentimientos (H-47) · **D7** config de plan letra muerta (¿aplicarla o quitarla?) ·
+      **D8** regenerar o no los 5 pagos históricos (Bs 10.700) y las 2 ventas a las 00:00Z ·
+      anotar **D5 = sí** (piloto con instituciones, decidida de facto).
+- [ ] **2.2** Pasada de higiene documental (media jornada): `hallazgos.md` y `deuda-aplazada.md`
+      al estado real (10 corregidos/31 abiertos, DA-01/03 cerrados, DA-04 parcial), los 4 ANCLA
+      desactualizados, `Modulo_01/04/07/08/11`, tracker de pantallas, tabla de tandas del doc 08,
+      y los 3 docs que aún dicen "Vercel: cero". Detalle completo:
+      [02-transversales.md §4](../auditoria-prelanzamiento/02-transversales.md).
 
-## Fase 2 — Integración y pruebas end-to-end
+**Criterio de salida:** cero decisiones bloqueantes; los registros de deuda son confiables para
+planificar.
 
-- [ ] Flujo completo Nicho 1: alta de tenant → carga de insumos → producción de un lote → venta → impacto en Financiero, verificado de punta a punta (no solo por módulo aislado).
-- [ ] Flujo completo Nicho 4: alta de tenant → orden de compra → landed cost → venta → impacto en Financiero.
-- [ ] Flujo completo Modo Básico: alta de tenant sin nicho → carga manual de producto → venta → Financiero.
-- [ ] Flujo de consentimiento: institución solicita seguimiento → tenant aprueba función por función → el panel institucional muestra solo lo aprobado (con mocks del resto en `false`, para probar que la privacidad "por función" se respeta de verdad).
-- [ ] Suite de Playwright cubriendo estos 4 flujos como tests e2e reales (no solo unitarios con mocks).
-- [ ] Carga de datos de referencia (seed) representativa de un tenant real, para pruebas manuales y demos.
+## Fase 3 — Correcciones funcionales: los números y avisos dicen la verdad
 
-**Criterio de salida de la Fase 2:** los 4 flujos completos corren en CI sin intervención manual.
+*Por qué acá: es el grueso del P0 funcional. Se hace después de decidir (Fase 2) y antes de la
+pasada de UI (Fase 4), porque varios de estos cambios agregan piezas de interfaz que la Fase 4
+pulirá una sola vez. Evidencia por ítem:
+[01-estado-por-modulo.md](../auditoria-prelanzamiento/01-estado-por-modulo.md).*
 
----
+- [ ] **3.1** H-33 — designar/reasignar Owner por `ceom_admin` con auditoría (diseño ya aprobado
+      en `docs/decisiones/recuperacion-de-acceso.md` §5-B; función nueva con `tenantId` explícito,
+      no un bypass de `transferirOwner`). El único 🔴 del sistema.
+- [ ] **3.2** Familia "el aviso se calcula y se descarta" (un solo patrón, cuatro lugares):
+      `entradaStock` al registrar/recibir compra (DA-24/C4), `acreditacionOk` de producción,
+      `avisosStock` del POS (H-37, incluyendo stock visible por producto), `ajusteStock` del
+      ajuste de venta. Test por cada uno con el caso de permisos cruzados.
+- [ ] **3.3** H-26 — los ajustes de venta afectan el total derivado y recalculan `estado_pago`
+      (espejo del patrón ya resuelto en Proveedores con H-31).
+- [ ] **3.4** Validaciones de pertenencia al tenant: evento abierto y propio, canal propio y
+      `clienteId` propio en `registrarVenta` (hoy hay escritura cross-tenant de
+      `ultima_compra_en`); lo mismo en `importarVentaHistorica` (M2, incl. sucursal congelada);
+      sucursal destino en `consolidarStockDeSucursal`. Cierra M1/M2.
+- [ ] **3.5** Familia H-49 residual + consistencia de derivados: fecha del gasto de comisión por
+      día local del tenant; vencimiento de insumo desde `fecha_compra` (día local); formato del
+      historial de simulaciones con TZ fija; `flujoCaja` sin pagos de gastos soft-eliminados;
+      validaciones de `registrarPagoPasivo` a nivel módulo; validación server-side de
+      simulaciones (los zod hoy muertos).
+- [ ] **3.6** DA-06 — el filtro de sucursal dice la verdad: propagar `sucursalId` a
+      `rankingProductos`/`historicoVentas`/`margenPorCanalYProducto`/`distribucionGastos`/
+      `controlMerma`, o avisar en el Dashboard qué tarjetas no lo respetan.
+- [ ] **3.7** `/admin` con la proyección institucional tipada: marcador H-15, estados
+      error/no-aplica y cobertura por sucursal en la Ficha de Tenant (cierra la violación de las
+      reglas #9/#10; reutiliza `lib/proyeccion-institucional.ts`).
+- [ ] **3.8** Institucional P0: H-43 correo de institución obligatorio (con aviso), RLS de
+      `logs_acceso_institucion` a solo-SELECT, D-4 parte 2 (validar módulos veedor contra el
+      nicho al generar código).
+- [ ] **3.9** El cron único (Vercel Cron ya viable): transición `activa→vencida` (H-45),
+      generación de recurrentes y cuota periódica (H-10/DA-04), purga de `intentos_canje` y
+      retención de logs D-1. Si se decide diferirlo: escribir la rutina manual (O5) en
+      `docs/production/` — una de las dos, no ninguna.
+- [ ] **3.10** Implementar lo decidido en 2.1: roles por defecto + filtrado por sucursal
+      (`usuarios.sucursalId`, Etapa 5 de H-02) + menú según permisos/rubro (H-08) + alta de
+      `ceom_admin` desde `/admin` (H-14); política de costeo aplicada o documentada (D4);
+      config de plan aplicada o retirada (D7); regeneración de históricos si D8 = sí.
 
-## Fase 3 — Endurecimiento (seguridad, backups, observabilidad)
+**Criterio de salida:** suite en verde con tests nuevos por ítem; `hallazgos.md` actualizado al
+cierre de cada uno (no al final).
 
-- [ ] Auditoría de políticas RLS: cada tabla de negocio tiene su política y un test que confirma que un tenant no puede leer datos de otro.
-- [ ] Revisión de permisos especiales (`vender_sin_stock`, `importar_historico`, `gestionar_eventos`) — confirmar que están bloqueados por defecto y auditados.
-- [ ] Manejo de errores y logging estructurado en Server Actions / Route Handlers.
-- [ ] Definir estrategia de backups (frecuencia, retención, dónde se guardan) — se detalla en `docs/production/` cuando se redacte.
-- [ ] Rate limiting / protección básica en endpoints públicos (login, invitación).
-- [ ] Revisión de variables de entorno y secretos (nada de claves de servicio en el cliente).
-- [ ] Pull request de "auditoría de seguridad" revisado explícitamente por vos (no solo por el agente), antes de avanzar a producción.
+## Fase 4 — Consistencia de UI: una sola pasada, con todo lo funcional ya adentro
 
-**Criterio de salida de la Fase 3:** checklist de seguridad completo y revisado por vos, no solo generado.
+*Por qué acá: las primitivas ya existen (Fases A/B de la auditoría de UI); esta es la migración
+mecánica que quedó pendiente, hecha una vez y sobre pantallas ya funcionalmente completas.
+Detalle: [02-transversales.md §3](../auditoria-prelanzamiento/02-transversales.md) y
+`docs/ui/AUDITORIA-UI-UX.md` §6.*
 
----
+- [ ] **4.1** Integrar `/app/mi-negocio/sucursales` al submenú del sidebar **antes** de borrar
+      los subnav duplicados (hoy son su única navegación).
+- [ ] **4.2** Un solo `formatMoneda` (el de `lib/format.ts`) con símbolo de moneda en **todos**
+      los montos: eliminar las 10 copias locales y los 21 `toLocaleString` crudos.
+- [ ] **4.3** Anchos según la tabla de `max-w` de `design-system.md` §7; subnav de Mi Negocio
+      centralizado (borrar las 6 copias); migrar consumidores a Tabs/ToggleGroup/EmptyState.
+- [ ] **4.4** Lote responsive móvil (UI-011 compras, UI-041/UI-043 del shell).
+- [ ] **4.5** Restos de H-15 en UI: la tarjeta del Dashboard deja de pintar `null` como "0%";
+      H-34 según lo decidido (campos de capacidad en el form de Activo, o quitar la pantalla).
+- [ ] **4.6** Actualizar `docs/ui/pantallas.md` y `AUDITORIA-UI-UX.md` al cierre (tachar lo
+      hecho, registrar pantallas nuevas).
 
-## Fase 4 — Provisión del VPS y self-host de Supabase
+**Criterio de salida:** verificación en navegador de una muestra de pantallas por módulo; ningún
+monto sin símbolo de moneda; cero copias de subnav.
 
-Detalle completo en `docs/production/` (a redactar). Acá solo el resumen de alto nivel:
+## Fase 5 — Verificación end-to-end
 
-- [ ] VPS Contabo contratado (mínimo recomendado: 4 vCPU / 8 GB RAM para correr Supabase self-hosted + frontend).
-- [ ] Docker + Docker Compose instalados.
-- [ ] Supabase self-hosted desplegado vía Docker en el VPS.
-- [ ] Traefik configurado con TLS (Let's Encrypt) para el dominio de Supabase self-hosted y el del frontend.
-- [ ] Backups automatizados configurados **antes** de mover cualquier dato real.
-- [ ] Frontend Next.js desplegado en el mismo VPS (o confirmar si se mantiene en Vercel para producción — decisión a revisar en `docs/production/`).
+*Por qué acá: los specs se escriben sobre una UI ya estable (Fase 4) y protegen el despliegue
+(Fase 6). Detalle: [02-transversales.md §2](../auditoria-prelanzamiento/02-transversales.md).*
 
-**Criterio de salida de la Fase 4:** un Supabase self-hosted vacío, funcionando, con TLS y backups verificados — sin datos reales todavía.
+- [ ] **5.1** Decidir el aislamiento de datos para e2e (extender el advisory lock a Playwright,
+      base dedicada, o proyecto efímero) — **antes** de escribir los specs.
+- [ ] **5.2** Los 4 flujos e2e: Modo Básico, Nicho 1, Nicho 4, consentimiento institucional —
+      con seed + `storageState` de login en el setup.
+- [ ] **5.3** `test:e2e` corriendo en CI (browsers incluidos).
+- [ ] **5.4** Extender `tenant-aislamiento.test.ts` a Ventas, Gastos, Productos e Identidad, y
+      los 2 tests faltantes de panel-admin-ceom (prerequisito del checklist RLS).
 
----
+**Criterio de salida:** los 4 flujos corren en CI sin intervención manual (criterio literal de la
+Fase 2 del roadmap original, por fin cumplido).
 
-## Fase 5 — Migración de datos y corte (cutover)
+## Fase 6 — Despliegue real
 
-- [ ] `pg_dump` del esquema y datos desde Supabase Cloud.
-- [ ] Migración del schema `auth` con `JWT_SECRET` coincidente entre ambos entornos.
-- [ ] Migración de Storage (los archivos no viajan con `pg_dump`, se migran aparte por bucket).
-- [ ] Verificación de conteos de filas por tabla, post-migración.
-- [ ] Ventana de corte planificada (mantenimiento breve) y comunicada.
-- [ ] DNS / variables de entorno apuntando al VPS.
-- [ ] Rollback plan explícito por si el corte falla (volver a Supabase Cloud sin pérdida de datos).
+*Por qué acá: desplegar protegido por los e2e, sobre una base de producción virgen. El ensayo del
+arranque y la creación de producción son el mismo acto. Detalle:
+[03-operacion-y-comercial.md](../auditoria-prelanzamiento/03-operacion-y-comercial.md).*
 
-**Criterio de salida de la Fase 5:** CEOM-ERP corriendo en producción sobre el VPS, con el entorno de Supabase Cloud + Vercel apagado o degradado a solo staging.
+- [ ] **6.1** Crear el proyecto Supabase de **producción** ejecutando el runbook de 17 pasos tal
+      cual está escrito ([antiguo/09 §3.2](../auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md));
+      cada desvío se anota como hallazgo del runbook.
+- [ ] **6.2** Reapuntar las 6 variables de Vercel Production al proyecto nuevo; quitar la
+      Deployment Protection de 1.1. Dev/preview siguen contra la base de desarrollo.
+- [ ] **6.3** Captura de errores (Sentry o equivalente) + probar que un error forzado llega al
+      canal del equipo.
+- [ ] **6.4** Confirmar retención de backups del plan de Supabase Cloud + **una restauración de
+      prueba**; healthcheck/uptime mínimo sobre la URL de producción.
+- [ ] **6.5** Precio real cargado en el plan Básico (decidido en 2.1; el formulario ya existe).
 
----
+**Criterio de salida:** el checklist "listo para lanzar" de
+[04-roadmap-lanzamiento.md §5](../auditoria-prelanzamiento/04-roadmap-lanzamiento.md) completo.
 
-## Fase 6 — Operación
+## Fase 7 — Piloto (3-10 negocios asistidos)
 
-- [ ] Monitoreo básico (¿están los contenedores `healthy`? ¿responde el endpoint?).
-- [ ] Rutina de backups verificada periódicamente (no solo configurada — probada con una restauración real).
-- [ ] Proceso de actualización de versión de Supabase self-hosted documentado.
-- [ ] Canal para reportar incidentes / bugs de producción.
+- [ ] **7.1** Primer tenant real: el caso validado SanttiCampo, alta asistida por `ceom_admin`.
+- [ ] **7.2** Rutina semanal escrita y en uso: errores (6.3), feedback, ciclo de suscripción
+      (hasta que 3.9 lo automatice del todo).
+- [ ] **7.3** Un tenant piloto completa el camino dorado sin asistencia posterior al alta.
+- [ ] **7.4** Backlog del piloto: lo que los usuarios griten ordena la Fase 8.
+
+## Fase 8 — Endurecimiento post-piloto
+
+- [ ] Tandas institucionales 3.4–3.6 (revocación coherente, RLS de `instituciones` D-2, G-16,
+      G-09/G-10) y **G-12** (backstop de RLS del Gateway en Ventas/Gastos/Financiero/Nicho 1).
+- [ ] Migración RLS módulo por módulo (checklist ya escrito) + `FORCE` en Patrimonio; al
+      completar, eliminar el export crudo `db` (Etapa 6 del plan de backstop).
+- [ ] M3/M5/M6 residuales de la auditoría de autorización; costo promedio multi-sucursal
+      (decidir alcance); DA-10 (índice único de vinculaciones); DA-12.
+- [ ] Exportación de reportes PDF/Excel (DA-05/H-20) — según demanda real del piloto.
+- [ ] Resto del P2 histórico (paginación, FKs de performance, DA-38, etc.).
+
+## Fase 9 — Self-hosting (la visión de infraestructura completa)
+
+- [ ] Fases 4–6 del [roadmap original](antiguo/roadmap.md) con el runbook existente
+      (`docs/production/produccion.md`), migración ensayada con los datos reales del piloto.
 
 ---
 
 ## Cómo se actualiza este documento
 
-- Marcar casillas a medida que se cierran, no al final de la fase.
-- Si el orden de un módulo cambia respecto a lo planeado, anotarlo en la Fase 1 con una línea de motivo — no borrar el original silenciosamente.
-- Cuando se redacten `docs/dev-practices/` y `docs/production/`, este roadmap pasa a referenciarlos en vez de repetir su contenido.
+- Marcar casillas **al cerrar cada ítem, con fecha** — no al final de la fase.
+- Si un ítem cambia de fase o aparece uno nuevo, anotarlo acá con una línea de motivo (nunca
+  borrar en silencio) — igual que el roadmap original.
+- Al cerrar cada ítem funcional, actualizar en el mismo cambio su rastro en
+  `docs/manual/hallazgos.md` / `docs/deuda-aplazada.md` (lección de la auditoría v2: los
+  registros que corren detrás del código hacen re-trabajar lo cerrado).

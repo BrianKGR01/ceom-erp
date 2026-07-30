@@ -1,5 +1,10 @@
 # Roadmap al lanzamiento — 2ª edición (2026-07-29)
 
+> **📌 Nota (2026-07-30):** el tracker vivo del proyecto es ahora
+> [`docs/roadmap/roadmap.md`](../roadmap/roadmap.md), que reorganiza estas etapas en fases
+> consecutivas con casillas. Este documento queda como el detalle/evidencia de la auditoría que
+> lo originó — las casillas se marcan allá, no acá.
+>
 > Parte de la [auditoría de prelanzamiento, 2ª edición](README.md). Reemplaza a
 > [`antiguo/04-camino-al-lanzamiento.md`](antiguo/04-camino-al-lanzamiento.md). Documento de
 > acción: primero el cierre contable del plan anterior (qué se hizo de verdad), después el plan
