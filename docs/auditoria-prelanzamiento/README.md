@@ -86,9 +86,11 @@ Detalle y evidencia en [03-operacion-y-comercial.md](03-operacion-y-comercial.md
 1. **La "producción" de Vercel sirve la base de desarrollo, es pública, y el repo público tiene
    una credencial de `ceom_admin` commiteada.** `https://ceom-erp.vercel.app` responde 200 sin
    protección; sus 6 variables apuntan al único proyecto Supabase existente (el de dev, el mismo
-   que la suite puebla y limpia); y `src/modules/consentimiento/ANCLA.md:288` publica
-   `ceomadmin-qa@ceom-erp.test / QaAdmin123!`, válida contra esa base. Cualquiera puede iniciar
-   sesión como admin de la plataforma. **Es la acción №1 del roadmap.**
+   que la suite puebla y limpia); y `src/modules/consentimiento/ANCLA.md:288` publicaba una
+   credencial de `ceom_admin` de QA válida contra esa base — cualquiera podía iniciar sesión como
+   admin de la plataforma. **Era la acción №1 del roadmap.** *(✅ Neutralizado el 2026-07-30 —
+   Fase 0: base vaciada, credencial rotada y retirada de los docs; la Deployment Protection queda
+   para la Fase 1.)*
 2. **Las plantillas de correo de Auth siguen en estado "mixto y desconocido" con producción viva.**
    El script `pnpm auth:config` que cierra la pregunta existe y nunca se corrió (el snapshot no
    está en ninguna rama). Si la plantilla de invitación sigue de fábrica, el Owner de un negocio

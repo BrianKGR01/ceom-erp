@@ -18,9 +18,11 @@
    **la suite de tests puebla y limpia** y contra la que corren los seeds.
 3. `https://ceom-erp.vercel.app/login` responde **HTTP 200 público**, sin deployment protection.
 4. El repo de GitHub es **público** (`githubRepoVisibility: "public"`), y
-   `src/modules/consentimiento/ANCLA.md:288` tiene commiteada la credencial QA
-   `ceomadmin-qa@ceom-erp.test / QaAdmin123!` — **válida contra esa base**. Cualquier persona
-   puede iniciar sesión como `ceom_admin` de la plataforma en la URL pública.
+   `src/modules/consentimiento/ANCLA.md:288` tenía commiteada una credencial QA de `ceom_admin`
+   **válida contra esa base**: cualquier persona podía iniciar sesión como admin de la
+   plataforma en la URL pública. *(✅ Neutralizado el 2026-07-30 — Fase 0 del roadmap: base
+   vaciada por completo, credencial rotada y retirada de los docs, y la contraseña del seed de
+   instituciones movida a variable de entorno.)*
 
 **Consecuencia:** no es solo "datos de prueba visibles". Es una superficie admin real, pública,
 con credencial publicada, sobre la base que todo el equipo usa para desarrollar. Una corrida de la

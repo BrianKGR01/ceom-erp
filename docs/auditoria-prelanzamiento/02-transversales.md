@@ -39,7 +39,7 @@
 | Rate limits de Auth (login/recovery/magic link) | ⚪ no verificable | Delegados a Supabase; el snapshot que los capturaría (`pnpm auth:config`) nunca se corrió |
 | RLS de `instituciones` (G-13/D-2) | 🔴 alta | `USING(true)` sin REVOKE de columna: toda sesión autenticada lee correos y `auth_user_id` de todas las instituciones vía PostgREST, incluidas las borradas. Decidida, sin ejecutar |
 | 🆕 RLS de `logs_acceso_institucion` | 🆕 media | `crudPolicy` estándar da al tenant `modify`/`delete` sobre su propio log de auditoría; D-1 pedía solo lectura |
-| 🆕 **Credencial de `ceom_admin` commiteada en repo público** | 🔴 **crítica** | `src/modules/consentimiento/ANCLA.md:288` publica `ceomadmin-qa@ceom-erp.test / QaAdmin123!`, válida contra la base que la URL pública de producción sirve (ver [03-operacion-y-comercial.md](03-operacion-y-comercial.md) §1). Rotar la clave y borrar la credencial del doc es la acción №1 del roadmap |
+| 🆕 **Credencial de `ceom_admin` commiteada en repo público** | ✅ **neutralizada (2026-07-30)** | `src/modules/consentimiento/ANCLA.md:288` publicaba una credencial de QA válida contra la base que la URL pública sirve (ver [03-operacion-y-comercial.md](03-operacion-y-comercial.md) §1). Fase 0 del roadmap: base vaciada, credencial rotada y retirada de los docs; la contraseña del seed de instituciones pasó a `SEED_DEMO_PASSWORD` en `.env.local` |
 
 ## 2. Red de verificación (tests, CI, e2e) — la dimensión que más maduró
 

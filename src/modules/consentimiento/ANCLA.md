@@ -285,7 +285,7 @@
 ## Última actualización: 2026-07-17 (2) — UI completa, Módulo 10 al 9/9 (`/app` + `/portal` + `/admin`), agrega `obtenerInstitucionPorId()` sin gate; verificación explícita de revocación inmediata en DB. Datos de prueba dejados a propósito en el tenant `owner@ceom.local` (no hay forma de borrarlos vía UI, entidades append-only por diseño):
 - Institución **"Universidad QA Test"** con una Aprobación vigente (`financiero`) y una revocada, más una Solicitud aprobada y su Cartera vinculada a `owner@ceom.local`.
 - 2 Códigos de Acceso (`MDAPU5TV` canjeado, `F4PF7RGF` revocado).
-- Usuario `ceom_admin` de QA (`ceomadmin-qa@ceom-erp.test` / `QaAdmin123!`) — reutilizable para futuras tandas de `/admin` (Monitoreo Institucional, Panel Admin CEOM).
+- Usuario `ceom_admin` de QA — reutilizable para futuras tandas de `/admin` (Monitoreo Institucional, Panel Admin CEOM). La credencial NO se escribe acá (el repo es público — lección de la auditoría v2, Fase 0.3): se comparte por canal directo y rota con cada reset de la base. El usuario original de esta entrada quedó invalidado por el vaciado de la base del 2026-07-30.
 - El plan "Básico" (compartido, no exclusivo del tenant de prueba) quedó con los 3 módulos veedor habilitados en `modulosVeedorPermitidos` — antes estaba `[]`; se dejó así para que Generar Código de Acceso sea probable a simple vista.
 - **`owner@ceom.local` no tenía `planId` asignado** (se le asignó el plan "Básico" recién arriba) — gap real del script `seed-demo-data.ts`, no de este módulo; no se investigó más a fondo, queda anotado acá para quien la retome.
 - La sesión de `owner@ceom.local` se perdió a mitad de la verificación porque el login del

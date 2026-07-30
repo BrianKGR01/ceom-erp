@@ -86,7 +86,18 @@ import { crearCanalVenta, crearMetodoPago, registrarVenta } from "@/modules/vent
 
 // Contraseña unica de todo lo que siembra este script — datos de desarrollo,
 // nunca de produccion. Se imprime al final para poder entrar de verdad.
-const PASSWORD_DEMO = "SeedDemo123!";
+// Viene de .env.local (SEED_DEMO_PASSWORD), NUNCA hardcodeada: el repo es
+// publico y la base de desarrollo quedo servida por la URL de "produccion"
+// de Vercel — una credencial commiteada acá es una credencial publicada
+// (hallazgo crítico №1 de la auditoría v2, Fase 0.3 del roadmap).
+const PASSWORD_DEMO = process.env.SEED_DEMO_PASSWORD ?? "";
+if (!PASSWORD_DEMO) {
+  console.error(
+    "Falta SEED_DEMO_PASSWORD en .env.local — elegí una contraseña de demo " +
+      "local y agregala ahí (no se commitea; .env* está gitignoreado)."
+  );
+  process.exit(1);
+}
 const SUFIJO = "(demo)";
 
 const DIA_MS = 24 * 60 * 60 * 1000;

@@ -24,19 +24,27 @@
 por los flujos completos — ensucian cada verificación. Además, vaciar Auth invalida la credencial
 de QA que quedó commiteada en un repo público (crítico №1 de la auditoría).*
 
-- [ ] **0.1** Vaciar todos los datos de negocio, Auth y Storage de la base de desarrollo,
-      **preservando las filas de sistema que las migraciones sembraron** (tenant CEOM Ops, roles
-      de sistema Owner/CEOM Admin/Gateway, plan Básico, usuario Gateway bloqueado — migraciones
-      `0005`/`0007`/`0034`). El journal de migraciones no se toca.
-- [ ] **0.2** Crear el `ceom_admin` de QA nuevo por Admin API con contraseña directa (sin depender
-      de plantillas de correo). La credencial se comparte por canal directo — **nunca más
-      commiteada en un doc**.
-- [ ] **0.3** Quitar la credencial vieja de `src/modules/consentimiento/ANCLA.md` (queda inerte
-      por el vaciado, pero no debe seguir escrita) y barrer otros secretos en docs.
-- [ ] **0.4** Verificar el arranque sobre base limpia: `pnpm storage:setup` (idempotente) y la
-      suite completa en verde contra la base vacía.
+- [x] **0.1** *(2026-07-30)* Vaciar todos los datos de negocio, Auth y Storage de la base de
+      desarrollo, **preservando las filas de sistema que las migraciones sembraron** (tenant CEOM
+      Ops, roles de sistema Owner/CEOM Admin/Gateway, plan Básico con `max_sucursales=1` según el
+      backfill de la 0045, usuario Gateway bloqueado — migraciones `0005`/`0007`/`0034`). El
+      journal de migraciones no se tocó. Storage: 21 objetos eliminados vía API (el borrado por
+      SQL está bloqueado por trigger de Supabase).
+- [x] **0.2** *(2026-07-30)* `ceom_admin` de QA nuevo (`admin-qa@ceom-erp.test`) creado por Admin
+      API con contraseña directa y `email_confirm` (sin depender de plantillas de correo). La
+      credencial se compartió por canal directo — **nunca más commiteada en un doc**.
+- [x] **0.3** *(2026-07-30)* Credencial vieja retirada de `src/modules/consentimiento/ANCLA.md` y
+      de los 3 docs de auditoría que la citaban (además quedó inválida por el vaciado); la
+      contraseña del seed de instituciones pasó de hardcodeada a `SEED_DEMO_PASSWORD` obligatoria
+      en `.env.local`. Nota: la credencial vieja sigue visible en el historial de git — inocua
+      porque el usuario ya no existe.
+- [x] **0.4** *(2026-07-30)* Verificado el arranque sobre base limpia: `pnpm storage:setup`
+      confirma el bucket existente (idempotente) y la suite completa pasó **46 archivos /
+      384/384 tests** contra la base vacía (9,1 min) — los tests crean y limpian sus propias
+      fixtures, ninguno dependía de los datos viejos.
 
-**Criterio de salida:** suite 384+ en verde sobre base limpia; ningún secreto vigente commiteado.
+**Criterio de salida:** ✅ cumplido el 2026-07-30 — suite 384/384 en verde sobre base limpia;
+ningún secreto vigente commiteado.
 
 ## Fase 1 — Contención del entorno y red mínima de CI
 
