@@ -399,7 +399,7 @@ describe.skipIf(!hasCredenciales)(
 
     // H-02: sucursales multiples. Reusa sucursalId (Principal) y
     // sucursalDestinoId (segunda sucursal insertada directo en el beforeAll
-    // de este archivo) — ver docs/auditoria-prelanzamiento/
+    // de este archivo) — ver docs/auditoria-prelanzamiento/antiguo/
     // 07-sucursales-multiples.md seccion 9.2.
     it("el stock por sucursal suma exactamente el stock general del producto", async () => {
       const owner = await identidadRepo.obtenerUsuarioConRolPorId(ownerId);

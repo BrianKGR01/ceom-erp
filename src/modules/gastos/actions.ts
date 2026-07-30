@@ -160,7 +160,7 @@ export async function desactivarCategoriaGastoSugerida(
 /**
  * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio (H-02,
  * completando el freeze en los 6 módulos que escriben con sucursal_id — ver
- * docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección 6.3
+ * docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md sección 6.3
  * hueco 6). `gastos.sucursalId`/`gastos_recurrentes.sucursalId` son
  * nullable — null/undefined salta el chequeo, nunca lo rechaza.
  */

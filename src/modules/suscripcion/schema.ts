@@ -37,7 +37,7 @@ export const planes = pgTable(
     // matematicamente "tope = 1", igual semantica que incluye_sucursales=false
     // tenia antes). N>1 = "hasta N sucursales". NULL = ilimitadas. Nunca 0 (la
     // Principal siempre existe) — ver CHECK en la migracion. Ver
-    // identidad/ANCLA.md y docs/auditoria-prelanzamiento/07-sucursales-
+    // identidad/ANCLA.md y docs/auditoria-prelanzamiento/antiguo/07-sucursales-
     // multiples.md seccion 5 para el diseño completo.
     maxSucursales: integer("max_sucursales"),
     permiteMultiplesOwners: boolean("permite_multiples_owners")

@@ -306,7 +306,7 @@ puede crear un plan específico de nicho, que es justamente para lo que existe l
 **Resuelto junto con H-02.** `planes.incluyeSucursales` (boolean) se reemplazó por
 `planes.maxSucursales` (tope estructurado) y `crearSucursal()` lo valida server-side antes de
 insertar. Diagnóstico y diseño completos en
-[07-sucursales-multiples.md](auditoria-prelanzamiento/07-sucursales-multiples.md).
+[07-sucursales-multiples.md](auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md).
 
 ---
 

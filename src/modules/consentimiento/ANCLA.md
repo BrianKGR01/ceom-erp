@@ -400,7 +400,7 @@ Siembra 4 negocios y 3 instituciones, e incluye a propósito los **estados degen
 sin correo, institución sin vincular, negocio sin consentir a nadie, negocio de otro nicho con
 `operativo` consentido, negocio con sucursal congelada, negocio con ingresos sin costo, códigos en los
 3 estados—. Detalle completo y números exactos:
-`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md` §6.
+`docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md` §6.
 
 **Dos cosas que un agente futuro debe saber:**
 
@@ -429,4 +429,4 @@ anterior.
 filtrar sin elegir tenant, y si la zona fuera por negocio dos filas del mismo listado se cortarían
 con días distintos.
 
-Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.
+Contexto completo: `docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`.

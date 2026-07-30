@@ -3,7 +3,7 @@
 // institucion, un solo codigo de acceso ni una sola aprobacion:
 // `pnpm seed:demo` puebla UN tenant con datos de negocio y no toca nada de
 // consentimiento. Consecuencia medida sobre la base de desarrollo antes de
-// escribir este script (docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md §6):
+// escribir este script (docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md §6):
 //
 //   - 7 instituciones vivas, MAXIMO 1 negocio en cartera cada una -> el caso
 //     del piloto (una incubadora con varios emprendimientos) nunca existio.
@@ -403,7 +403,7 @@ async function necesitaDatos(t: { owner: UsuarioConRol; tenantId: string }): Pro
 // --- Limpieza previa: la fila de G-16 sembrada por accidente ----------------
 
 /**
- * `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md` §4.5:
+ * `docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md` §4.5:
  * existe una Institucion con el correo del OPERADOR de CEOM
  * (`admin@ceom.lat`) y una aprobacion vigente. Es una trampa real: el dia que
  * esa persona pida un enlace magico desde /portal, el vinculo perezoso ata su

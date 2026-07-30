@@ -161,7 +161,7 @@ paso: se encuentra mirando, no siguiendo la guía.
 
 > **Corregido el 2026-07-27.** El diagnóstico completo (mapa de impacto módulo por módulo, modelo de
 > stock, control por plan, downgrade y migración) está en
-> [`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`](../auditoria-prelanzamiento/07-sucursales-multiples.md).
+> [`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`](../auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md).
 > Lo que cambió:
 >
 > - **Existe el ABM.** `/app/mi-negocio/sucursales` — crear y editar sucursales, gateado a Owner.
@@ -462,7 +462,7 @@ esto, y es raro que la única instrucción para un usuario sea "pedile a alguien
 > costo, así que este escenario no se reproducía nunca en datos de prueba y toda la QA visual de
 > reportes se había hecho sobre un catálogo perfecto.
 >
-> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md).
 > El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** `costoOperativoVigente` es opcional (`modules/productos/validation.ts:15`). Se puede
@@ -496,7 +496,7 @@ visual, produce lecturas cruzadas erróneas. Hasta el 2026-07-27 el impacto real
 existía una sucursal — **con H-02 corregido, un negocio ya puede tener varias sucursales de verdad,
 así que esto pasó de ser un riesgo hipotético a un defecto de datos activo.** No se corrigió en la
 misma tanda que H-02 — queda priorizado para la próxima, ver
-[07-sucursales-multiples.md](../auditoria-prelanzamiento/07-sucursales-multiples.md) sección "Estado
+[07-sucursales-multiples.md](../auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md) sección "Estado
 de implementación".
 
 ---
@@ -702,7 +702,7 @@ append-only, que está bien: alcanza con que la pantalla lo refleje.
 > **scheduler** (H-10) — el gasto de la cuota se genera cuando alguien registra el pago, no "cada
 > período" como pide `Modulo_05` §2.
 >
-> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md).
 > El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** El enum de origen de un gasto tiene tres valores: `manual`,
@@ -1064,7 +1064,7 @@ capítulo de CEOM: **poner "vencida" sin fecha bloquea al negocio en el acto.**
 > podía canjearlo, **revocar era irreversible desde `/app`** (G-17). Al cerrar H-42 se cierra eso, y
 > hay un test que lo afirma explícitamente en vez de asumirlo.
 >
-> Diagnóstico completo: `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`.
+> Diagnóstico completo: `docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md`.
 
 
 **Qué pasa.** El asistente de canje del portal **siempre** manda `institucionNueva` y nunca
@@ -1275,4 +1275,4 @@ instantes ya resueltos. La escritura se arregló **antes** que la lectura — `p
 habría contado un día antes, en silencio. 10 filas ya cargadas se reanclaron con la migración `0043`.
 
 Desarrollo completo, inventario de los 11 lugares y plan de pruebas en
-[`docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/05-dia-local-y-reportes.md).
+[`docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md).

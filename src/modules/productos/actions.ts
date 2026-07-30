@@ -459,7 +459,7 @@ async function requireProductoDelTenant(
  * Hermano de requireProductoDelTenant, mismo motivo (auditoría de
  * autorización, H-02): ata el sucursal_id controlado por el cliente al
  * tenant ya autorizado, y ADEMAS rechaza si esa sucursal esta congelada por
- * el plan (docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección
+ * el plan (docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md sección
  * 3.1/6.1). Antes de esta tarea, ninguna de las 5 funciones que escriben al
  * ledger de stock validaba que sucursal_id perteneciera al tenant — mismo
  * tipo de hueco que ya se había cerrado en ventas/registrarVenta
@@ -708,7 +708,7 @@ export async function registrarTransferenciaStock(
  * par de movimientos ligados (salida_transferencia/entrada_transferencia)
  * que ya usa el traspaso de uso general, ledger append-only real, sin tabla
  * ni lógica nueva. El costo_operativo_vigente de cada producto es
- * tenant-wide (no por sucursal, ver docs/auditoria-prelanzamiento/
+ * tenant-wide (no por sucursal, ver docs/auditoria-prelanzamiento/antiguo/
  * 07-sucursales-multiples.md sección 3.3) — no hay nada que ponderar al
  * mover cantidad de una sucursal a otra.
  *

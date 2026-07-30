@@ -264,7 +264,7 @@
       `ROL_CEOM_ADMIN_ID` directo) — "Consolidar" se compone en
       `admin/tenants/actions.ts` (Identidad + Productos, ver Decisiones).
       Diagnóstico completo, decisiones abiertas y verificación en
-      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+      `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -585,14 +585,14 @@
   DELIBERADAMENTE INACTIVO. El filtrado real por sucursal (que un
   colaborador solo vea/opere en su propia sucursal) es una segunda
   dimensión de autorización que se construye recién en la Etapa 5
-  (roles por defecto, H-35/D3 de `docs/auditoria-prelanzamiento/
+  (roles por defecto, H-35/D3 de `docs/auditoria-prelanzamiento/antiguo/
   04-camino-al-lanzamiento.md`), junto con el modelo de roles — no antes.**
   Motivo: hoy `tienePermiso()`/`recursoPerteneceAlTenant()` no tienen la
   dimensión sucursal, no existe una tabla puente `usuario_sucursal` (M:N,
   preferible a la columna nullable actual — "null = todas" es ambiguo con
   "no configurado todavía"), y construirla sin un tenant real que la pida
   sería invertir esfuerzo en un requisito no validado. Ver el análisis
-  completo (Track A vs. Track B) en `docs/auditoria-prelanzamiento/
+  completo (Track A vs. Track B) en `docs/auditoria-prelanzamiento/antiguo/
   07-sucursales-multiples.md` sección 4. **No agregar el filtrado sin
   releer esa sección primero** — la anotación gemela vive en el comentario
   de `usuarios.sucursalId` en `schema.ts`.
@@ -634,7 +634,7 @@ freeze atómico en downgrade. **Cambio de contrato:** `cambiarPlanTenant` devuel
 `crearSucursal`, `actualizarSucursal`, `desbloquearSucursal`, `eliminarSucursal`. `usuarios.sucursalId`
 agregada pero deliberadamente sin uso — el filtrado real queda para la Etapa 5 (roles). Ver detalle
 completo en "Estado actual" y "Decisiones" más arriba, y el diagnóstico en
-`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
 
 ## Última actualización: 2026-07-23 — la identidad del Gateway deja de ser administrable desde la app
 (OBS-10 de `docs/ui/observaciones-de-uso.md`). **Sin cambio de contrato**: ninguna firma cambia, no

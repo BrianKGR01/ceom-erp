@@ -469,7 +469,7 @@ export async function crearTenant(
  * tope de sucursales menor al numero de sucursales activas del tenant, el
  * excedente se congela automaticamente en la MISMA transaccion que el cambio
  * de plan (repo.actualizarPlanTenantConCongelamiento — atomico a proposito,
- * ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 6.3
+ * ver docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md seccion 6.3
  * hueco 1). `sucursalesCongeladas` devuelve los ids para que la UI de
  * /admin pueda avisar explicitamente cuales quedaron congeladas — nunca un
  * cambio de plan silencioso. Callers existentes que solo miraban `.ok` (el
