@@ -1,5 +1,16 @@
 # Auditoría de prelanzamiento — CEOM-ERP (2ª edición)
 
+> **📌 Esto es evidencia, no el plan.** La **única fuente de verdad** del estado del proyecto es
+> [`docs/roadmap/roadmap.md`](../roadmap/roadmap.md) (v3, 2026-08-06). Los documentos de esta
+> carpeta son la evidencia fechada que lo sostiene: **son fotos del 2026-07-29 y no se actualizan**,
+> salvo por notas de corrección explícitas donde una afirmación resultó falsa.
+>
+> **Cambios de nomenclatura que aplican a todo lo de acá** (fijados en la R-2.2 — tabla completa en
+> el [Anexo A del roadmap](../roadmap/roadmap.md#anexo-a--nomenclatura)):
+> `D1`…`D8` ⇒ `DP-01`…`DP-08` · `D-1`…`D-10` ⇒ `DD-01`…`DD-10` · `tanda 3.x` ⇒ `TI-3.x` ·
+> `M1`…`M6` ⇒ `M-01`…`M-06` · las etapas `A`–`G` de [04-roadmap-lanzamiento.md](04-roadmap-lanzamiento.md)
+> quedan retiradas en favor de los ítems `R-N.M` del roadmap.
+>
 > **Qué es esta carpeta.** El resultado de la segunda auditoría integral del proyecto, hecha el
 > **2026-07-29** sobre la rama `dev`. La primera auditoría (2026-07-27) y sus 5 diagnósticos
 > profundos viven en [`antiguo/`](antiguo/README.md) — siguen siendo referencia válida de diseño
@@ -74,7 +85,7 @@
 | 6 | CI (GitHub Actions) | ✅ Verde en los últimos 8 PRs (~2 min) — pero solo corre en `pull_request`, nunca en `push`, y ~15 suites de integración se saltean por falta de secrets |
 | 7 | Advisors de seguridad de Supabase | 5 WARN (4 = riesgo aceptado documentado de las funciones RLS; 1 real: leaked password protection) + 2 INFO esperados (deny-all deliberado) |
 | 8 | Advisors de performance | 81 FKs sin índice, 57 policies permisivas múltiples (sin cambios, no urge) |
-| 9 | Hallazgos del manual: estado real contra código | **10 corregidos, 4 parciales, 31 abiertos (1 🔴: H-33)** — el doc declara 7/38, corre detrás del código |
+| 9 | Hallazgos del manual: estado real contra código | **10 corregidos, 4 parciales, 31 abiertos (1 🔴: H-33)** — el doc declaraba 7/38 y corría detrás del código. *(✅ `hallazgos.md` actualizado el 2026-08-06 en la R-2.2; este número se confirmó exacto.)* |
 | 10 | Precio real del producto | **Sigue sin definir** (Bs 0 en la base viva, verificado por SQL; "Precio a convenir" en Mi Plan es maquillaje) |
 
 ## Los 5 hallazgos críticos de esta edición

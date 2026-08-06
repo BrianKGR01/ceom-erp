@@ -37,7 +37,7 @@
 | G-12 — Gateway sin piso de RLS | 🔴 alta | 3 de 4 pestañas del portal institucional (Ventas, Gastos/Financiero, Nicho 1) leen con bypass total, apoyadas solo en `tieneConsentimiento()` de TS. El plan lo declaró "el próximo incremento, no opcional" |
 | M1-M6 de la auditoría de autorización | 🔴/🟡 | M1, M2, M3, M5, M6 abiertos tal como se documentó. **M4 se cerró ⅔ de rebote con H-02** (sucursales validadas; `proveedorId` no) — ningún doc lo registra, quien retome M1-M6 re-verificará trabajo hecho. Esta auditoría amplió M1/M2: `clienteId` produce **escritura** cross-tenant (`ultima_compra_en`), e `importarVentaHistorica` no valida ni sucursal congelada |
 | Rate limits de Auth (login/recovery/magic link) | ⚪ no verificable | Delegados a Supabase; el snapshot que los capturaría (`pnpm auth:config`) nunca se corrió |
-| RLS de `instituciones` (G-13/D-2) | 🔴 alta | `USING(true)` sin REVOKE de columna: toda sesión autenticada lee correos y `auth_user_id` de todas las instituciones vía PostgREST, incluidas las borradas. Decidida, sin ejecutar |
+| RLS de `instituciones` (G-13/**DD-02**) | 🔴 alta | `USING(true)` sin REVOKE de columna: toda sesión autenticada lee correos y `auth_user_id` de todas las instituciones vía PostgREST, incluidas las borradas. Decidida, sin ejecutar. 🔀 **Movida a R-3.8 el 2026-08-06 (era Fase 8, después del piloto)**: el piloto incluye instituciones, así que quedaba abierta justo cuando la tabla pasa a tener correos reales de terceros |
 | 🆕 RLS de `logs_acceso_institucion` | 🆕 media | `crudPolicy` estándar da al tenant `modify`/`delete` sobre su propio log de auditoría; D-1 pedía solo lectura |
 | 🆕 **Credencial de `ceom_admin` commiteada en repo público** | ✅ **neutralizada (2026-07-30)** | `src/modules/consentimiento/ANCLA.md:288` publicaba una credencial de QA válida contra la base que la URL pública sirve (ver [03-operacion-y-comercial.md](03-operacion-y-comercial.md) §1). Fase 0 del roadmap: base vaciada, credencial rotada y retirada de los docs; la contraseña del seed de instituciones pasó a `SEED_DEMO_PASSWORD` en `.env.local` |
 
@@ -65,7 +65,7 @@
 | Ítem | Estado | Detalle |
 |---|---|---|
 | 🆕 **CI solo corre en `pull_request`** | 🔴 alta | Un push directo a `main` llega a producción sin lint ni un test (el build de Vercel solo typechequea). `dev` tampoco tiene CI en push: los ~35 commits recientes corrieron sin red hasta el PR. Fix: trigger `push` a `main` (y idealmente `dev`), o proteger `main` a solo-PR |
-| 🆕 El verde de CI es un **subconjunto** del verde local | 🟡 media | Sin `SUPABASE_SECRET_KEY` como secret, ~15 suites de integración se saltean en CI (Ventas, Identidad, Consentimiento, Financiero…). Una regresión de integración solo se detecta si alguien corre la suite local |
+| 🆕 El verde de CI es un **subconjunto** del verde local | 🟡 media | Sin `SUPABASE_SECRET_KEY` como secret, ~15 suites de integración se saltean en CI (Ventas, Identidad, Consentimiento, Financiero…). Una regresión de integración solo se detecta si alguien corre la suite local. ⚠️ **Corrección del 2026-08-06 (R-2.2): agregar ese secret NO alcanza — rompe CI.** Auth quedaría en el Supabase real y los datos en el contenedor efímero, con la FK `usuarios_id_users_id_fk` en el medio (`23503`). Es la misma pregunta que la "D-1" de la Etapa D, y por eso subió a **R-1.4** |
 | Fase 2 del roadmap: 0/4 flujos e2e | 🔴 alta | Ni Modo Básico, ni Nicho 1, ni Nicho 4, ni consentimiento tienen spec; CI no tiene paso de Playwright ni browsers. V1 (spec de home) sí quedó cerrado |
 | V3 — seed no integrado a e2e | 🔴 media | `playwright.config.ts` solo levanta `pnpm dev`; sin globalSetup, sin storageState |
 | 🆕 El e2e futuro correría contra la base compartida **sin candado** | 🆕 media | El advisory lock es exclusivo de vitest. Decidir el aislamiento (extender el lock, base dedicada o proyecto efímero) **antes** de escribir los 4 specs — si no, se recrea el incidente de conteos falsos del 27/07 |
@@ -112,5 +112,18 @@ va a re-trabajar cosas cerradas y subestimar lo abierto.
 | `AUDITORIA-AUTORIZACION.md` | M4 abierto; layout `/admin` sin gate | M4 ⅔ cerrado por H-02; el layout sí gatea. También UI-044/UI-038 sin tachar en `AUDITORIA-UI-UX.md` |
 
 **Recomendación:** una sola pasada de higiene (media jornada) que actualice los 2 registros, los 4
-ANCLA, los 3 docs de módulo, el tracker de pantallas y la tabla de tandas — está en la Etapa B del
-[roadmap](04-roadmap-lanzamiento.md) porque ordena todas las priorizaciones siguientes.
+ANCLA, los 3 docs de módulo, el tracker de pantallas y la tabla de tandas — porque ordena todas las
+priorizaciones siguientes.
+
+> ✅ **Hecha el 2026-08-06 como R-2.2.** Y esta tabla se quedó corta en cuatro puntos, que conviene
+> registrar porque son la misma clase de error que denuncia:
+>
+> | Lo que decía §4 | Lo verificado el 2026-08-06 |
+> |---|---|
+> | "3 docs sobre Vercel" | **4 lugares.** Faltaba `antiguo/02-arquitectura-y-calidad.md:50`, que la propia `antiguo/09:181` ya señalaba. Las referencias `roadmap.md:21` quedaron obsoletas al mover el roadmap el 30/07 |
+> | Tracker: "declara 119/119 al 2026-07-25" | Declaraba **117/117 al 2026-07-20**, y le faltan **5** pantallas nuevas, no 3 |
+> | "El conteo real de rutas es 75 `page.tsx`" | **74** |
+> | No mencionaba `AUDITORIA-UI-UX.md` §6 | El plan de Fase C seguía pidiendo priorizar **UI-044**, la única Alta de seguridad de esa auditoría, **estando cerrada** |
+>
+> Ninguno cambia el diagnóstico —los registros sí corrían detrás del código— pero confirma que
+> **una lista de drift también hay que verificarla contra lo vivo antes de trabajar desde ella**.
