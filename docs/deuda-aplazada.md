@@ -7,6 +7,37 @@ corregido a propósito"*, y variantes.
 
 **Fecha del barrido:** 2026-07-22. **Estado del repo:** `dev` @ `a208853`.
 **Alcance:** solo el mapa. No se arregló nada.
+**Reconciliado contra el código vivo el 2026-08-06** (R-2.2 del [roadmap](roadmap/roadmap.md)).
+
+---
+
+## Estado real — 2026-08-06
+
+Este registro venía declarando **1 cerrado de 44** (DA-13). La reconciliación de la R-2.2 verificó
+los 44 contra el código:
+
+| Estado | Cuántos | Cuáles |
+|---|---|---|
+| ✅ **Cerrados** | **3** | **DA-01**, **DA-03**, DA-13 |
+| 🟨 **Parciales** | **1** | DA-04 (la integración funciona; falta solo el disparador periódico) |
+| 📝 **Cerrables sin código** | **2** | DA-14 y DA-15 son notas de ANCLA que ya no son ciertas — su propio ítem dice *"corregir la nota. No hay trabajo de código"*. Se corrigieron en esta misma pasada, ver abajo |
+| ⬜ **Abiertos** | **38** | el resto |
+
+**Lo que la lista prioritaria decía mal.** [§7 "Si hay que elegir cinco"](#7-si-hay-que-elegir-cinco)
+encabezaba con **DA-03** llamándolo *"el único de la lista que corrompe un número contable de forma
+permanente y silenciosa"* — **está resuelto desde el cierre de H-24**:
+`generarGastoComisionVenta()` tiene llamador de producción real dentro de `registrarVenta`
+(`ventas/actions.ts:596`), con test de valor exacto y un guard anti-código-muerto. Un lector que
+planificara desde §7 habría empezado por un trabajo ya hecho. La lista corregida está al final de
+esa sección.
+
+**DA-01** también está cerrado: `sembrarCategoriasGastoDefault()` se invoca desde el alta de tenant
+(`app/admin/(shell)/tenants/actions.ts:128`). Su gemelo **DA-02 sigue abierto** — nunca se escribió
+`sembrarCanalesVentaDefault()`, así que la familia H-01/H-32 está cerrada a medias, exactamente el
+patrón que este barrido existía para detectar.
+
+**DA-14 y DA-15 corregidos en el origen** (2026-08-06): las dos notas de ANCLA que afirmaban lo
+falso ya dicen lo que el código hace. Ver `suscripcion/ANCLA.md` y `financiero/ANCLA.md`.
 
 ---
 
@@ -57,7 +88,12 @@ visible** (decisión de producto, no de contexto) → **vigente + interna** (dej
 > Se aplazaron por un motivo que hoy es falso, y el usuario los choca. Son los que
 > conviene retomar primero: el costo de arreglarlos ya no tiene el blocker que los frenó.
 
-### DA-01 · Pre-carga de `CategoriaGasto` al crear el tenant 🔴 ❌
+### DA-01 · Pre-carga de `CategoriaGasto` al crear el tenant ✅ CERRADO (verificado 2026-08-06)
+
+> **Cerrado.** `sembrarCategoriasGastoDefault()` dejó de tener cero llamadores: el alta de tenant
+> desde `/admin` la invoca (`src/app/admin/(shell)/tenants/actions.ts:18,128`). Un negocio nuevo
+> nace con sus categorías. **Su gemelo DA-02 sigue abierto** — ver la nota ahí.
+
 **Dónde:** [gastos/ANCLA.md:60](../src/modules/gastos/ANCLA.md#L60)
 **Cuándo:** construcción del Módulo 4 (≈2026-07-14)
 **Se aplazó porque:** *"fuera de esta tarea — **no hay onboarding UI todavía**; se expone
@@ -110,7 +146,16 @@ Gastos al menos quedó la función lista; acá hay que escribirla.
 
 ---
 
-### DA-03 · Comisión de venta que nunca se convierte en `Gasto` 🔴 ❌
+### DA-03 · Comisión de venta que nunca se convierte en `Gasto` ✅ CERRADO (verificado 2026-08-06)
+
+> **Cerrado con H-24.** `generarGastoComisionVenta()` se llama desde `registrarVenta`
+> (`ventas/actions.ts:12,596`) — la flecha se invirtió (Gastos consume la comisión ya persistida en
+> la Venta) y quedó cubierta por un test de valor exacto más el guard anti-código-muerto
+> `auto-generacion-conectada.test.ts`, que hace fallar la suite si alguna `generarGasto*` vuelve a
+> quedarse sin llamador de producción.
+>
+> **Corrige a [§7](#7-si-hay-que-elegir-cinco), que todavía lo listaba como el #1 a elegir.**
+
 **Dónde:** [ventas/ANCLA.md:88-94](../src/modules/ventas/ANCLA.md#L88)
 **Se aplazó porque:** originalmente *"Módulo 4 no existe todavía"*. Hoy el ANCLA reconoce
 que sí existe, y lo redujo a: *"Sigue sin un trigger automático que la llame justo después
@@ -310,19 +355,20 @@ insertar. Diagnóstico y diseño completos en
 
 ---
 
-### DA-14 · `modulos_veedor_permitidos` "hoy nadie consume" ⚪ ❌
-**Dónde:** [suscripcion/ANCLA.md:87-88](../src/modules/suscripcion/ANCLA.md#L87)
+### DA-14 · `modulos_veedor_permitidos` "hoy nadie consume" 📝 NOTA CORREGIDA (2026-08-06)
+**Dónde:** [suscripcion/ANCLA.md](../src/modules/suscripcion/ANCLA.md)
 **Ya no es cierto:** `generarCodigoAcceso` valida de verdad contra
-`plan.modulos_veedor_permitidos`
-([consentimiento/ANCLA.md:51-53](../src/modules/consentimiento/ANCLA.md#L51)).
-**Acción:** corregir la nota. No hay trabajo de código.
+`plan.modulos_veedor_permitidos` (`consentimiento/actions.ts:471`), y el formulario de
+`/admin/planes` lo edita. Es, de hecho, el atributo de plan con más efecto del sistema.
+**Hecho:** la nota del ANCLA se corrigió en la R-2.2. No había trabajo de código.
 
 ---
 
-### DA-15 · Financiero: "Monitoreo Institucional/Gateway no existe todavía" ⚪ ❌
-**Dónde:** [financiero/ANCLA.md:60-64](../src/modules/financiero/ANCLA.md#L60)
-**Ya no es cierto:** ambos módulos existen y consumen Financiero (roadmap #10/#11 cerrados).
-**Acción:** corregir la nota. No hay trabajo de código.
+### DA-15 · Financiero: "Monitoreo Institucional/Gateway no existe todavía" 📝 NOTA CORREGIDA (2026-08-06)
+**Dónde:** [financiero/ANCLA.md](../src/modules/financiero/ANCLA.md)
+**Ya no es cierto:** ambos módulos existen y consumen Financiero (ítems #10/#11 del roadmap de
+construcción, cerrados).
+**Hecho:** la nota del ANCLA se corrigió en la R-2.2. No había trabajo de código.
 
 ---
 
@@ -334,7 +380,19 @@ hasta que se configuren, `identidad.test.ts` se salta en CI."*
 **Parcialmente caducado:** [`ci.yml`](../.github/workflows/ci.yml) ya levanta un contenedor
 `postgres:16` con `DATABASE_URL`/`DIRECT_URL` seteadas y corre las migraciones reales. Lo que
 falta es solo `SUPABASE_SECRET_KEY` (Auth real), que ese entorno no puede proveer.
-**Acción:** precisar la nota — hoy exagera el gap.
+
+> **Precisado el 2026-08-06 (R-2.2) — y es más grave de lo que decía.** *"Que ese entorno no puede
+> proveer"* no es una limitación blanda: **agregar `SUPABASE_SECRET_KEY` como secret, solo,
+> rompería CI**. Las ~15 suites gatean en `DATABASE_URL && SUPABASE_SECRET_KEY`; con las dos
+> presentes, `crearClienteAdmin()` crea el usuario de Auth en el **proyecto Supabase real** y
+> `crearTenantConOwner()` inserta `public.usuarios` en el **contenedor de CI** — dos bases
+> distintas, con la FK `usuarios_id_users_id_fk → auth.users(id)` en el medio (`0002`, línea 95).
+> Es un `23503` garantizado. Además `crearClienteAdmin()` también necesita
+> `NEXT_PUBLIC_SUPABASE_URL`, que CI tampoco tiene.
+>
+> La consecuencia de planificación está registrada en **R-1.4** del roadmap: para des-saltear esas
+> suites hay que decidir antes **contra qué base corre CI**, que es exactamente la decisión de
+> aislamiento que el plan tenía cuatro fases más tarde. Ese ítem ya está movido.
 
 ---
 
@@ -518,9 +576,9 @@ todos.** Esta tabla es, probablemente, el entregable más reutilizable del barri
 
 | # | Se aplazó hasta que… | Ese hito se cumplió | Estado |
 |---|---|---|---|
-| DA-01 | *"no hay onboarding UI todavía"* | Fase 1 UI — `src/app/app/onboarding/` | ❌ sin revisar |
-| DA-02 | *"la UI de onboarding no existe todavía"* | ídem | ❌ sin revisar |
-| DA-03 | *"Módulo 4 no existe todavía"* | Módulo 4 (`src/modules/gastos/`) | ❌ sin revisar |
+| DA-01 | *"no hay onboarding UI todavía"* | Fase 1 UI — `src/app/app/onboarding/` | ✅ cerrado (siembra cableada al alta de tenant) |
+| DA-02 | *"la UI de onboarding no existe todavía"* | ídem | ❌ sin revisar — **es el que quedó solo de la familia** |
+| DA-03 | *"Módulo 4 no existe todavía"* | Módulo 4 (`src/modules/gastos/`) | ✅ cerrado con H-24 |
 | DA-05 | *"mientras no exista UI en el proyecto"* | Reportes 9/9, 2026-07-17 | ❌ sin revisar |
 | DA-10 | *"cuando se construya la UI"* | Modal de vinculación, 2026-07-20 | ❌ sin revisar |
 | DA-11 | *"Identidad no expone `obtenerTenant`"* | `obtenerTenantPorId`, Módulo 10 | ❌ sin revisar |
@@ -537,22 +595,44 @@ terminado" que exija revisar los disparadores pendientes del módulo tocado.
 
 ## 7. Si hay que elegir cinco
 
+> ⚠️ **Lista corregida el 2026-08-06 (R-2.2).** La versión original encabezaba con **DA-03**, que
+> **ya está cerrado** — quien planificara desde acá empezaba por trabajo hecho. Se conserva la
+> lista original abajo, tachada, porque el razonamiento de por qué esos cinco sigue siendo válido
+> para los que quedan.
+
 Por relación impacto/costo, con el blocker original ya desaparecido:
 
-1. **DA-03** — comisiones que nunca se cobran. Es el único de la lista que **corrompe un
-   número contable de forma permanente y silenciosa**. La función existe y está probada.
-2. **DA-01 + DA-02 + DA-22** — la familia H-01/H-32 completa. Una tiene la función lista, las
-   otras dos son la misma tarea. Cerrarlas por separado es cómo llegamos acá.
-3. **DA-06 + DA-23** — los dos "el número se ve bien y está mal". El filtro de sucursal es el
-   más urgente porque el usuario lo *activa a propósito* y confía en él.
-4. **DA-08 + DA-09** — el segundo par de gemelos. Fix chico, conocido, escrito hace días en
-   ambos ANCLAs. Cerrar los dos en un commit y romper el ciclo.
-5. **DA-24 (Proveedores)** — el único aplazamiento de la lista cuya **justificación se
+1. **DA-24 (Proveedores)** — el único aplazamiento de la lista cuya **justificación se
    verificó falsa en el código**: se aceptó "el caller lo detecta" y en Proveedores nadie
-   detecta nada.
+   detecta nada. Es la cabeza de la familia "el aviso se calcula y se descarta" (R-3.2).
+2. **DA-06** — el filtro de sucursal del Dashboard miente en 3 de 5 tarjetas. Era hipotético con
+   una sucursal; con H-02 cerrado es un defecto activo, y el usuario lo *activa a propósito* y
+   confía en él. (R-3.6)
+3. **DA-02 + DA-22** — lo que queda de la familia H-01/H-32 después de cerrar DA-01. Cerrarlas por
+   separado es cómo llegamos acá; ahora quedan dos y una ni siquiera tiene la función escrita.
+4. **DA-04** — el disparador periódico. Es **una sola pieza** que cierra H-10, la mitad pendiente
+   de DA-04 y la transición de H-45, hoy documentados en cuatro lugares como si fueran cuatro
+   deudas. (R-3.9)
+5. **DA-08 + DA-09** — el par de gemelos "quitar imagen/logo". Fix chico, conocido, escrito hace
+   semanas en ambos ANCLAs. Cerrar los dos en un commit y romper el ciclo.
 
 **DA-07, DA-17 y DA-05** son buenos candidatos de relleno: funcionalidad ya construida a la
 que solo le falta la última capa.
+
+<details>
+<summary>Lista original del 2026-07-22 (desactualizada, se conserva por trazabilidad)</summary>
+
+1. ~~**DA-03** — comisiones que nunca se cobran. Es el único de la lista que **corrompe un
+   número contable de forma permanente y silenciosa**. La función existe y está probada.~~
+   → **cerrado con H-24.**
+2. ~~**DA-01** + DA-02 + DA-22 — la familia H-01/H-32 completa.~~ → **DA-01 cerrado**; quedan
+   DA-02 y DA-22.
+3. **DA-06** + ~~DA-23~~ — los dos "el número se ve bien y está mal". → DA-23 (`AjusteVenta` sin
+   fecha propia) sigue abierto pero bajó de prioridad frente a DA-06.
+4. **DA-08 + DA-09** — el segundo par de gemelos.
+5. **DA-24 (Proveedores)** — justificación verificada falsa en el código.
+
+</details>
 
 ---
 
