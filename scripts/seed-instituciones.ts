@@ -3,7 +3,7 @@
 // institucion, un solo codigo de acceso ni una sola aprobacion:
 // `pnpm seed:demo` puebla UN tenant con datos de negocio y no toca nada de
 // consentimiento. Consecuencia medida sobre la base de desarrollo antes de
-// escribir este script (docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md §6):
+// escribir este script (docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md §6):
 //
 //   - 7 instituciones vivas, MAXIMO 1 negocio en cartera cada una -> el caso
 //     del piloto (una incubadora con varios emprendimientos) nunca existio.
@@ -86,7 +86,18 @@ import { crearCanalVenta, crearMetodoPago, registrarVenta } from "@/modules/vent
 
 // Contraseña unica de todo lo que siembra este script — datos de desarrollo,
 // nunca de produccion. Se imprime al final para poder entrar de verdad.
-const PASSWORD_DEMO = "SeedDemo123!";
+// Viene de .env.local (SEED_DEMO_PASSWORD), NUNCA hardcodeada: el repo es
+// publico y la base de desarrollo quedo servida por la URL de "produccion"
+// de Vercel — una credencial commiteada acá es una credencial publicada
+// (hallazgo crítico №1 de la auditoría v2, Fase 0.3 del roadmap).
+const PASSWORD_DEMO = process.env.SEED_DEMO_PASSWORD ?? "";
+if (!PASSWORD_DEMO) {
+  console.error(
+    "Falta SEED_DEMO_PASSWORD en .env.local — elegí una contraseña de demo " +
+      "local y agregala ahí (no se commitea; .env* está gitignoreado)."
+  );
+  process.exit(1);
+}
 const SUFIJO = "(demo)";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -403,7 +414,7 @@ async function necesitaDatos(t: { owner: UsuarioConRol; tenantId: string }): Pro
 // --- Limpieza previa: la fila de G-16 sembrada por accidente ----------------
 
 /**
- * `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md` §4.5:
+ * `docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md` §4.5:
  * existe una Institucion con el correo del OPERADOR de CEOM
  * (`admin@ceom.lat`) y una aprobacion vigente. Es una trampa real: el dia que
  * esa persona pida un enlace magico desde /portal, el vinculo perezoso ata su

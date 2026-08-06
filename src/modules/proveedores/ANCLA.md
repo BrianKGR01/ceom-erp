@@ -273,4 +273,4 @@ colando las últimas 4 horas de la noche anterior a `desde`. Ahora recibe `(inic
 columna `date`, un día calendario sin instante ni huso, y su `lte` es correcto. Queda documentado en
 el código para que nadie lo migre por simetría.
 
-Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.
+Contexto completo: `docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`.

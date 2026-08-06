@@ -75,7 +75,7 @@ Un **marcador de completitud** es cualquier dato que responde *"¿sobre qué par
 
 El caso concreto que hay que evitar: `estadoResultados` e `ingresos` ya viajan al portal. Dividir uno por otro para mostrar un margen es una línea de código — y produce exactamente el número del que el dueño está protegido, porque la regla real vive en `margenAfirmable()` (`src/modules/reportes/actions.ts`), que devuelve `null` cuando hay ingresos sin costo conocido. **Un indicador derivado hereda la incompletitud de sus insumos sin heredar su marcador.** Por eso la regla es que el margen (o el ratio, o el costo unitario) se pide a la acción pública del módulo dueño de la regla, y esa acción decide si hay número o `null`.
 
-Diagnóstico completo del caso que originó este principio: [`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.6-4.8.
+Diagnóstico completo del caso que originó este principio: [`docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md) §4.6-4.8.
 
 ---
 

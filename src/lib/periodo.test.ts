@@ -13,7 +13,7 @@ import {
 // quiere probar, asi que dan lo mismo a las 09:00 que a las 21:00 y en
 // cualquier huso donde corra CI — que es el requisito de H-49, porque el modo
 // de falla original era justamente "el numero cambia segun la hora en que se
-// mira". Ver docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md, seccion 9.1.
+// mira". Ver docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md, seccion 9.1.
 
 const LA_PAZ = "America/La_Paz";
 

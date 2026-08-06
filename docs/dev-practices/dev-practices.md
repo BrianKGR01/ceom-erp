@@ -264,7 +264,7 @@ real (`0024_storage_tenant_uploads_rls.sql`). Esa asimetría es la trampa: en un
 `migrate` las **policies del bucket existen y el bucket no**, así que toda subida de imagen (logo del
 negocio, foto de producto) falla con un error de Storage que no menciona nada de esto. Encontrado
 como hallazgo 🔴 en
-[`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/09-arranque-desde-cero.md) §3.
+[`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md) §3.
 
 **`seed:demo` no llama a `seed:instituciones`, a propósito**, aunque el hallazgo que originó el
 cuarto comando fuera justamente "el seed de demo no crea ninguna institución". Son dos cosas de

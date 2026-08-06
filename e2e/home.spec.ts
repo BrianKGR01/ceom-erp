@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 // Landing publica real (src/components/landing/landing.tsx, PR #25) — el spec
 // anterior esperaba el placeholder de create-next-app, que la landing
-// reemplazo hace tiempo (docs/auditoria-prelanzamiento/02-arquitectura-y-calidad.md).
+// reemplazo hace tiempo (docs/auditoria-prelanzamiento/antiguo/02-arquitectura-y-calidad.md).
 test("la landing publica carga con el contenido real", async ({ page }) => {
   await page.goto("/");
 

@@ -59,6 +59,14 @@
   atómicamente el excedente de sucursales del tenant si el plan nuevo tiene
   un tope menor). Caller existente (`admin/tenants/actions.ts`) solo miraba
   `.ok`, no se rompió.
+  **Registrado el 2026-08-06 (R-2.2):** `recursoPerteneceAlTenant(solicitante,
+  tenantIdDelRecurso)` (`actions.ts:139`) también es parte del contrato
+  público y faltaba en esta lista. Es la **guarda de pertenencia** que todo
+  módulo debe usar antes de operar sobre un id que llegó por parámetro — hoy
+  la usan 8 call sites de Identidad y la cita el manifiesto de acceso
+  (`src/lib/security/access-manifest.ts`). No es un helper interno: es la
+  respuesta canónica a "¿este id es de mi tenant?", y reimplementarla a mano
+  es cómo nacieron los huecos M-01/M-02.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -78,6 +86,14 @@
       que `monitoreo-institucional` (una Institución externa, no un
       `UsuarioConRol`) lea nombre/nicho/plan/estado_acceso mínimos de un
       tenant que ya tiene en su Cartera Institucional.
+      **Cambio de contrato de la tanda TI-3.3a, registrado el 2026-08-06
+      (R-2.2):** devuelve además `sucursalesTotales` y `sucursalesOperables`
+      (`actions.ts:200-237`). Es **X-02/DD-09** — un marcador de completitud
+      en el sentido del principio rector #9, no un aviso de estado: declara
+      sobre qué se calculó el número que el tercero está viendo. Son dos
+      conteos y deliberadamente **no** el motivo del congelamiento ni el
+      plan, que son información comercial entre el negocio y CEOM. Quien
+      consuma esta función y descarte esos dos campos viola la regla #9.
 - [x] `listarTenants(solicitante)` (roadmap ítem #11) — listado cross-tenant
       completo, gateado a `ceom_admin` directo (mismo bypass que ya usa
       `tienePermiso()` para ese rol). Consumido por `panel-admin-ceom` para
@@ -264,7 +280,7 @@
       `ROL_CEOM_ADMIN_ID` directo) — "Consolidar" se compone en
       `admin/tenants/actions.ts` (Identidad + Productos, ver Decisiones).
       Diagnóstico completo, decisiones abiertas y verificación en
-      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+      `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
 
 ## Dónde está cada cosa
 - Esquema de BD (Drizzle): `src/modules/identidad/schema.ts`
@@ -584,15 +600,18 @@
 - **H-02 (2026-07-27) — `usuarios.sucursalId` está estructurado pero
   DELIBERADAMENTE INACTIVO. El filtrado real por sucursal (que un
   colaborador solo vea/opere en su propia sucursal) es una segunda
-  dimensión de autorización que se construye recién en la Etapa 5
-  (roles por defecto, H-35/D3 de `docs/auditoria-prelanzamiento/
-  04-camino-al-lanzamiento.md`), junto con el modelo de roles — no antes.**
+  dimensión de autorización que se construye junto con el modelo de roles
+  por defecto, no antes.** Ese trabajo es hoy **R-3.10** del
+  [roadmap](../../../docs/roadmap/roadmap.md), y depende de la decisión
+  **DP-03** (antes "D3"). *(Referencia actualizada el 2026-08-06 en la
+  R-2.2: apuntaba a la "Etapa 5" y a `04-camino-al-lanzamiento.md`, un plan
+  ya reemplazado dos veces.)*
   Motivo: hoy `tienePermiso()`/`recursoPerteneceAlTenant()` no tienen la
   dimensión sucursal, no existe una tabla puente `usuario_sucursal` (M:N,
   preferible a la columna nullable actual — "null = todas" es ambiguo con
   "no configurado todavía"), y construirla sin un tenant real que la pida
   sería invertir esfuerzo en un requisito no validado. Ver el análisis
-  completo (Track A vs. Track B) en `docs/auditoria-prelanzamiento/
+  completo (Track A vs. Track B) en `docs/auditoria-prelanzamiento/antiguo/
   07-sucursales-multiples.md` sección 4. **No agregar el filtrado sin
   releer esa sección primero** — la anotación gemela vive en el comentario
   de `usuarios.sucursalId` en `schema.ts`.
@@ -634,7 +653,7 @@ freeze atómico en downgrade. **Cambio de contrato:** `cambiarPlanTenant` devuel
 `crearSucursal`, `actualizarSucursal`, `desbloquearSucursal`, `eliminarSucursal`. `usuarios.sucursalId`
 agregada pero deliberadamente sin uso — el filtrado real queda para la Etapa 5 (roles). Ver detalle
 completo en "Estado actual" y "Decisiones" más arriba, y el diagnóstico en
-`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
 
 ## Última actualización: 2026-07-23 — la identidad del Gateway deja de ser administrable desde la app
 (OBS-10 de `docs/ui/observaciones-de-uso.md`). **Sin cambio de contrato**: ninguna firma cambia, no

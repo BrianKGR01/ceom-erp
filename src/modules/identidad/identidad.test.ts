@@ -727,7 +727,7 @@ describe.skipIf(!hasCredenciales)("Modulo 1 - Identidad (integracion)", () => {
 // Tenant y plan dedicados, separados del describe de arriba, para no
 // interferir con tests que asumen "esta cuenta tiene una sola sucursal" ni
 // pisar la limpieza del `Plan QA ${sufijo}` que ya usan otros tests de este
-// archivo — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+// archivo — ver docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md
 // seccion 9 (H-02).
 describe.skipIf(!hasCredenciales)("Modulo 1 - Sucursales multiples (H-02, integracion)", () => {
   let admin: ReturnType<typeof crearClienteAdmin>;

@@ -280,7 +280,7 @@ export interface DatosActualizarTenant {
  * menor al numero de sucursales activas no congeladas, congela el excedente
  * en la MISMA transaccion (H-02) — evita reproducir el patron de H-47
  * ("downgrade que no reconcilia nada") un nivel mas abajo, ver
- * docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 6.3,
+ * docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md seccion 6.3,
  * hueco (1) encontrado en la revision adversarial.
  *
  * Criterio de congelamiento: mas nuevas primero por creado_en. La sucursal

@@ -6,7 +6,7 @@
 // ese borde cortaba a las 20:00 del dia anterior y el dia en curso nunca
 // entraba en ningun reporte. El diagnostico completo, con el inventario de
 // los 11 lugares afectados y la demostracion del modo de falla, esta en
-// docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md.
+// docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md.
 //
 // Las dos reglas que este modulo hace cumplir:
 //

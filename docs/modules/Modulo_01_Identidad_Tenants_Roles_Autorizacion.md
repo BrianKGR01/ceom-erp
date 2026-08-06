@@ -103,11 +103,11 @@ El Owner tiene automáticamente todos los permisos, en todos los módulos, y esa
 | `id` | uuid | PK |
 | `nombre` | text | Ej. "Básico", "Pro con sucursales" |
 | `nicho_id` | uuid, nullable | Permite precio distinto por nicho |
-| `incluye_sucursales` | boolean | |
-| `permite_multiples_owners` | boolean | Habilita el caso de cofundadores (ver 6.2). Por defecto `false` en el plan Básico |
-| `permite_downgrade_autogestionado` | boolean | Si es `false` (default sugerido), un downgrade solo lo ejecuta CEOM Admin manualmente, aunque exista pasarela de pago. Ver sección 12 |
-| `duracion_invitacion_dias` | integer | Días de validez de una invitación a colaborador antes de vencer. Default confirmado: 7 días |
-| `duracion_etapa_solo_lectura_dias` | integer | Días en modo solo lectura/exportación antes de pasar a bloqueo total al vencer la suscripción. `0` = salta directo a bloqueo total. Configurable desde el Panel CEOM; default confirmado: 3 días |
+| ~~`incluye_sucursales`~~ → **`max_sucursales`** | integer, nullable | **Corregido 2026-08-06 (R-2.2).** El boolean **no existe**: H-02 lo reemplazó por un tope estructurado (migraciones `0045`/`0046`, backfill `incluye_sucursales=false → 1`). `1` = sin sucursales adicionales · `N` = tope · `null` = ilimitadas. `crearSucursal()` lo valida server-side y un downgrade **congela** el excedente en vez de borrarlo |
+| `permite_multiples_owners` | boolean | Habilita el caso de cofundadores (ver 6.2). Por defecto `false` en el plan Básico. ⚠️ **Sin efecto hoy** (H-36) |
+| `permite_downgrade_autogestionado` | boolean | Si es `false` (default sugerido), un downgrade solo lo ejecuta CEOM Admin manualmente, aunque exista pasarela de pago. Ver sección 12. ⚠️ **Sin efecto hoy** (H-36) |
+| `duracion_invitacion_dias` | integer | Días de validez de una invitación a colaborador antes de vencer. Default confirmado: 7 días. ⚠️ **Letra muerta hoy:** el formulario de `/admin/planes` lo edita y **nadie lo lee** (los 9 call sites verificados). Decisión pendiente **DP-07** |
+| `duracion_etapa_solo_lectura_dias` | integer | Días en modo solo lectura/exportación antes de pasar a bloqueo total al vencer la suscripción. `0` = salta directo a bloqueo total. Configurable desde el Panel CEOM; default confirmado: 3 días. ⚠️ **Letra muerta hoy:** `calcularEstadoAcceso()` usa siempre la constante `3` (`identidad/constants.ts:22`), ignorando este campo. Decisión pendiente **DP-07** |
 | `modulos_veedor_permitidos` | enum[] | **Adenda originada en el Módulo 11.** Qué módulos puede un tenant optar por compartir con una entidad veedora externa mediante Código de Acceso (`financiero`, `operativo`, `inventario_operativo`), según el paquete contratado |
 | `precio_mensual` | numeric | |
 | `moneda` | text | |

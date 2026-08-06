@@ -7,7 +7,19 @@ Es el punto de entrada de datos para todo lo que el negocio le compra a terceros
 **Deslinde deliberado:**
 - Este módulo **no decide el costo operativo** de un producto terminado — eso lo calcula el Módulo Operativo (Nicho) o se carga directo en Modo Básico.
 - Este módulo **no es un gasto operativo** (eso es Costos y Gastos, Módulo 4) **ni un costo de venta** (eso es Ventas/Financiero vía COGS).
-- **Fuera de alcance por ahora:** Órdenes de Compra formales y Landed Cost (prorrateo de flete) son funcionalidades específicas de Nicho 4 (Comercio Minorista), que no está en el roadmap actual — el foco sigue siendo Nicho 1 (SanttiCampo). Se documentan cuando se aborde ese Nicho, con la dirección de diseño que dejo esbozada en la sección 7.
+- ~~**Fuera de alcance por ahora:** Órdenes de Compra formales y Landed Cost (prorrateo de flete) son funcionalidades específicas de Nicho 4 (Comercio Minorista), que no está en el roadmap actual — el foco sigue siendo Nicho 1 (SanttiCampo). Se documentan cuando se aborde ese Nicho, con la dirección de diseño que dejo esbozada en la sección 7.~~
+  > ✅ **YA NO ESTÁ FUERA DE ALCANCE — corregido el 2026-08-06 (R-2.2).** Las dos se
+  > implementaron con el Nicho 4 (ítem #12 del roadmap de construcción), y **exactamente como la
+  > sección 7 las propuso**: no como entidades nuevas, sino extendiendo `Compra`.
+  > - **Landed cost** = `compras.costo_adicional_traslado` (numeric nullable). Si se completa, el
+  >   costo unitario se prorratea solo. El usuario nunca ve la palabra "landed cost".
+  > - **Orden de compra** = `compras.estado` (`pedido` → `recibido`), un estado más de la misma
+  >   Compra. `recibirCompra()` es lo que dispara la entrada de stock real, y con eso cerró además
+  >   el pendiente de `compra_registrada` que arrastraban los Módulos 2/6/8.
+  >
+  > Este párrafo estuvo mintiendo semanas y es el caso más caro de drift de esta clase: `CLAUDE.md`
+  > manda leer `docs/modules/` **antes** de tocar código, así que un agente que empezara por acá
+  > podía concluir que tenía que construir desde cero algo que ya existe y está probado.
 
 ---
 
@@ -139,7 +151,7 @@ Esto es una dirección de diseño, no una implementación cerrada — se retoma 
 ## 7. Confirmaciones de esta ronda
 
 1. **Adenda al Módulo 7:** confirmada — ya aplicada, ver sección 3.1 y el Módulo 7 actualizado.
-2. **Landed Cost y Órdenes de Compra formales:** quedan fuera de este módulo, con la dirección de diseño simple/intuitiva propuesta en la sección 7 como guía para cuando se retome Nicho 4.
+2. ~~**Landed Cost y Órdenes de Compra formales:** quedan fuera de este módulo~~ → **implementados** (2026-08-06, R-2.2: se corrige la afirmación). Se construyeron extendiendo `Compra` tal como proponía la sección 7 — `costo_adicional_traslado` y `estado` (`pedido`/`recibido`). Ver la nota de §0.
 3. **Corrección de una Compra ya registrada:** confirmado el patrón de "Compra de Ajuste" (regla 3.3), igual que Ventas y Producción.
 
 Con esto, el Módulo 8 queda cerrado.
