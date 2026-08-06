@@ -735,6 +735,22 @@ autorizó.
 > sucursales múltiples, **Etapa 3 = instituciones (este documento)**, Etapa 4 = segundo Owner. Las
 > sub-divisiones de este plan se llaman **tandas 3.1 a 3.6**. La numeración de tandas **no se corre**
 > aunque dos se fusionen. Usar esta nomenclatura en commits, PR y documentos.
+>
+> ⚠️ **Revisado el 2026-08-06 (R-2.2).** Esta convención sobrevive **con un prefijo**: las tandas
+> pasan a llamarse **`TI-3.1` … `TI-3.6`** (Tanda Institucional). El número no cambia, así que
+> `grep "3.3b"` sigue encontrando todo el rastro en ANCLA, tests y comentarios de código.
+>
+> El prefijo hace falta porque "3.4" pasó a significar **dos cosas**: la tanda de revocación de
+> este documento, y el ítem 3.4 del roadmap vigente (validaciones de pertenencia al tenant). Lo
+> mismo con 3.5 y 3.6. Peor todavía: el roadmap vigente decía literalmente *"Tandas institucionales
+> 3.4–3.6"* dentro de un archivo donde 3.4, 3.5 y 3.6 ya eran ítems suyos.
+>
+> Y la palabra **"Etapa"** ya no distingue nada — llegó a significar cuatro cosas a la vez: la
+> numeración del proyecto que fija este párrafo (Etapa 3 = instituciones), las etapas A–F/A–G de
+> los dos planes de lanzamiento, las etapas 1–6 del backstop de RLS (`4.a`, `4.b.0`, `4.b.1`), y la
+> "Etapa 5" de H-02. **No usarla más sin calificarla.** El esquema completo y la tabla de
+> equivalencia con los nombres viejos están en el
+> [Anexo A del roadmap](../../roadmap/roadmap.md#anexo-a--nomenclatura).
 
 Cada tanda se puede mergear sola, en verde, y deja el sistema mejor que antes. El orden está elegido
 para que la verificación de la tanda N no dependa de nada de la N+1.
@@ -921,7 +937,19 @@ misma sesión.
 
 ---
 
-## 9. Decisiones — todas cerradas (2026-07-27)
+## 9. Decisiones de diagnóstico — todas cerradas (2026-07-27)
+
+> **Renombradas `DD-01` … `DD-10` el 2026-08-06 (R-2.2).** Se llamaban `D-1` … `D-10` y eso
+> colisionaba con **otras dos** familias que usan la misma letra: las **decisiones de producto**
+> del dueño (`D1` precio, `D3` roles, `D4` costeo…) y los **ítems de la Etapa D** del plan de
+> lanzamiento (`D-1` = decidir el aislamiento de datos para e2e). Tres cosas distintas se llamaban
+> "D-1": el precio del plan Básico, el registro de acceso institucional, y la decisión de
+> aislamiento de e2e.
+>
+> **Los anclas HTML de esta sección no se tocaron** (`#d-1--se-registra-lo-que-lee-una-institución`
+> sigue resolviendo), y los comentarios de código que dicen `D-1`, `D-7`, `D-9`, `D-10` siguen
+> siendo válidos: la equivalencia es `D-N` ⇒ `DD-0N`, sin excepciones. Tabla completa en el
+> [Anexo A del roadmap](../../roadmap/roadmap.md#anexo-a--nomenclatura).
 
 > **Estado: cerradas.** Las ocho decisiones abiertas de la versión original de este documento fueron
 > resueltas por el dueño del producto el **2026-07-27**, en la tanda 3.1, más dos nuevas (D-9, D-10)
@@ -930,16 +958,22 @@ misma sesión.
 
 | # | Decisión | Resolución | Dónde se implementa |
 |---|---|---|---|
-| D-1 | Log de acceso institucional | **Sí**, y el negocio lo ve | Tanda 3.5 |
-| D-2 | Superficie de `instituciones` | `REVOKE` de columna + filtrar `eliminado_en`; **sin policy nueva** | Tanda 3.5 |
-| D-3 | Cartera al revocar | **Opción (c)** — marcada "acceso revocado"; se ocultan plan y estado | Tanda 3.4 |
-| D-4 | Módulos veedor fuera del nicho | **Las dos**, pero el estado en la ficha es lo obligatorio y va primero | Tanda 3.3 |
-| D-5 | Backstop fino por institución | **Se difiere 4.b.1**; el próximo incremento es G-12; se adopta el test SQL↔TS | Tanda 3.3 (test) |
-| D-6 | Correo al borrar institución | **Se libera** | Tanda 3.4 |
-| D-7 | Vencimiento de códigos | **Vencen, con TTL por defecto, no opcional** | Tanda 3.2 |
-| D-8 | ¿Alcanza el camino 2? | **No** — se implementa el canje autenticado | Tanda 3.2 |
-| D-9 | Cobertura parcial por sucursal (X-02) | Señal de **cobertura del dato**, no de plan | Tanda 3.3 |
-| D-10 | Detectar el descarte de un campo (X-03) | **Propuesta pendiente de aprobación** | Tanda 3.3 |
+| Nuevo ID | Era | Decisión | Resuelta en | Estado hoy (2026-08-06) |
+|---|---|---|---|---|
+| **DD-01** | D-1 | Log de acceso institucional: **sí**, y el negocio lo ve | TI-3.5 → adelantada a **TI-3.3b** | ✅ implementada |
+| **DD-02** | D-2 | Superficie de `instituciones`: `REVOKE` de columna + filtrar `eliminado_en`; **sin policy nueva** | TI-3.5 | 🔴 **decidida, sin ejecutar** — es G-13, hoy en R-3.8 |
+| **DD-03** | D-3 | Cartera al revocar: **Opción (c)** — marcada "acceso revocado"; se ocultan plan y estado | TI-3.4 | 🔴 decidida, sin ejecutar (G-05) |
+| **DD-04** | D-4 | Módulos veedor fuera del nicho: **las dos**, con el estado en la ficha primero | TI-3.3 | 🟨 parte 1 ✅ (G-14); **parte 2 abierta** (validar contra el nicho al generar código) — R-3.8 |
+| **DD-05** | D-5 | Backstop fino por institución: **se difiere**; el próximo incremento es G-12; se adopta el test SQL↔TS | TI-3.3 (test) | ✅ test dorado existe; G-12 sigue abierto |
+| **DD-06** | D-6 | Correo al borrar institución: **se libera** | TI-3.4 | 🔴 decidida, sin ejecutar (G-07) |
+| **DD-07** | D-7 | Vencimiento de códigos: **vencen, TTL por defecto, no opcional** | TI-3.2 | ✅ implementada |
+| **DD-08** | D-8 | ¿Alcanza el camino 2? **No** — se implementa el canje autenticado | TI-3.2 | ✅ implementada (cerró H-42 y, de rebote, G-17) |
+| **DD-09** | D-9 | Cobertura parcial por sucursal (X-02): señal de **cobertura del dato**, no de plan | TI-3.3 | ✅ implementada |
+| **DD-10** | D-10 | Detectar el descarte de un campo (X-03) | TI-3.3 | ✅ implementada (`lib/proyeccion-institucional.ts`) |
+
+*Columna "Estado hoy" agregada el 2026-08-06 (R-2.2): la tabla decía "todas cerradas" refiriéndose
+a que la **decisión** estaba tomada, y se leía como que el **trabajo** estaba hecho. Cuatro
+decisiones siguen sin ejecutarse.*
 
 ### D-1 — ¿Se registra lo que lee una institución?
 Hoy no existe ninguna traza de acceso institucional (G-04). `logs_acceso_admin_ceom` solo cubre al equipo

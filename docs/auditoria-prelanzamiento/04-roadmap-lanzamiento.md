@@ -5,6 +5,24 @@
 > consecutivas con casillas. Este documento queda como el detalle/evidencia de la auditoría que
 > lo originó — las casillas se marcan allá, no acá.
 >
+> ⚠️ **Sus identificadores están RETIRADOS (2026-08-06, R-2.2).** Las etapas y los ítems de este
+> documento (`A1`–`A5`, `B1`–`B2`, `C1`–`C9`, `D-1`–`D-3`, `E1`–`E5`) **no se citan más**: se
+> citan los ítems `R-N.M` del roadmap vigente. El motivo no es estético — este documento y el que
+> reemplazó **reusan las mismas letras para cosas distintas**, y las dos versiones convivieron:
+>
+> | Sigla | Acá significa | En el plan anterior significaba |
+> |---|---|---|
+> | **C1** | H-33, designar Owner | H-24, comisión → gasto |
+> | **C4** | validaciones de pertenencia al tenant en Ventas | leer `entradaStock` al recibir compra (DA-24) |
+> | **Etapa C** | números y avisos honestos | red de verificación (e2e) |
+> | **Etapa D** | red de verificación | desplegar |
+> | **D-1** | decidir el aislamiento de datos para e2e | *(no existía; `D1` era el precio del Básico)* |
+>
+> La colisión de **C4** llegó a estar viva dentro del roadmap vigente, que citaba "DA-24/C4"
+> apuntando al C4 **viejo** mientras el C4 nuevo era otra cosa. La tabla de equivalencia completa
+> ítem por ítem está en el
+> [Anexo A del roadmap](../roadmap/roadmap.md#anexo-a--nomenclatura).
+>
 > Parte de la [auditoría de prelanzamiento, 2ª edición](README.md). Reemplaza a
 > [`antiguo/04-camino-al-lanzamiento.md`](antiguo/04-camino-al-lanzamiento.md). Documento de
 > acción: primero el cierre contable del plan anterior (qué se hizo de verdad), después el plan
@@ -120,8 +138,13 @@ a un número.*
 
 ### Etapa D — Red de verificación (antes del piloto, no después)
 
-- [ ] **D-1.** Decidir el aislamiento de datos para e2e (extender el advisory lock a Playwright,
-      base dedicada, o proyecto Supabase efímero) — **antes** de escribir los specs.
+> ⚠️ **La decisión de aislamiento (ex `D-1` de esta etapa) SE ADELANTÓ a la Fase 1** del roadmap
+> vigente — es **R-1.4** — porque un ítem de esa fase (dar `SUPABASE_SECRET_KEY` a CI) no se puede
+> ejecutar sin haberla tomado. Ver el motivo verificado en R-1.4.
+
+- [ ] ~~**D-1.**~~ → **R-1.4** Decidir el aislamiento de datos para e2e **y para CI** (extender el
+      advisory lock a Playwright, base dedicada, o proyecto Supabase efímero) — **antes** de
+      escribir los specs *y antes de tocar el workflow de CI*.
 - [ ] **D-2.** Los 4 flujos e2e de la Fase 2 (Modo Básico, Nicho 1, Nicho 4, consentimiento) con
       seed + storageState en el setup (V3), y el paso `test:e2e` en CI con browsers.
 - [ ] **D-3.** Extender `tenant-aislamiento.test.ts` a Ventas, Gastos, Productos e Identidad
@@ -131,7 +154,15 @@ a un número.*
 ### Etapa E — Desplegar de verdad (si A2 fue la opción (a), acá va la (b))
 
 - [ ] **E1.** Proyecto Supabase de producción creado ejecutando el runbook de 17 pasos tal cual
-      está escrito — **el ensayo es el arranque**; cada desvío se anota como hallazgo del runbook.
+      está escrito; cada desvío se anota como hallazgo del runbook.
+      > ⚠️ **"El ensayo es el arranque" está RETIRADO (2026-08-06, R-2.2).** Contradecía al
+      > requisito de cierre registrado en
+      > [`antiguo/09-arranque-desde-cero.md` §5](antiguo/09-arranque-desde-cero.md#5-el-ensayo--requisito-de-cierre-de-la-etapa-3),
+      > que dice lo contrario y con un motivo que sigue en pie: *"el arranque real debe ser la
+      > repetición de algo que ya salió bien, no un estreno"*. **Gana el requisito de §5**, porque
+      > la premisa que justificaba fusionarlos (que un segundo proyecto costaba plata o cupo)
+      > resultó falsa: la organización está en **plan Free**, que da **2 proyectos** y cobra **$0**
+      > por el segundo — verificado en vivo el 2026-08-06. El ensayo es gratis. Ver **R-6.1**.
 - [ ] **E2.** Reapuntar las 6 variables de Vercel Production; `dev`/preview siguen contra la base
       de desarrollo.
 - [ ] **E3.** Captura de errores (Sentry o equivalente) + probar que un error forzado llega al

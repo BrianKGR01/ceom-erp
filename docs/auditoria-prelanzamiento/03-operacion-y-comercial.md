@@ -34,8 +34,14 @@ suite altera lo que "producción" muestra; un tercero con la credencial puede cr
   commiteadas (el barrido de esta auditoría encontró esa).
 - Decidir de inmediato una de dos: **(a)** activar Deployment Protection de Vercel (la URL deja
   de ser pública) mientras no exista el Supabase de producción, o **(b)** crear ya el proyecto de
-  producción y reapuntar las 6 variables (runbook §3.2 paso 16) — la opción (b) es además el
-  ensayo del arranque que la Etapa 3 exige (§5 del doc de arranque).
+  producción y reapuntar las 6 variables (runbook §3.2 paso 16). ~~La opción (b) es además el
+  ensayo del arranque que la Etapa 3 exige.~~
+  > ⚠️ **Corregido el 2026-08-06 (R-2.2): la (b) NO es el ensayo.** El requisito de
+  > [`antiguo/09` §5](antiguo/09-arranque-desde-cero.md#5-el-ensayo--requisito-de-cierre-de-la-etapa-3)
+  > pide que el arranque real sea la repetición de algo que ya salió bien; si el primer proyecto
+  > que se crea es producción, el ensayo no existió. Con el plan Free (2 proyectos, $0 el segundo,
+  > los pausados no cuentan) el ensayo se hace contra un proyecto descartable y no cuesta nada.
+  > Ver **R-6.1** del roadmap.
 - Activar **leaked password protection** (toggle, WARN vivo).
 
 ## 2. 🔴 CRÍTICO — Plantillas de Auth: "mixto y desconocido", con el alta real en juego
@@ -74,7 +80,7 @@ Sin el token de Management API en el entorno, nada de esto puede cerrarse.
 | Ítem del plan anterior | Estado | Detalle |
 |---|---|---|
 | O3 — Captura de errores | 🔴 en cero | Sin Sentry ni equivalente, sin `instrumentation.ts`, sin logger (grep vacío). Con producción viva, los errores son invisibles salvo mirar logs a mano |
-| O4 — Backups | 🔴 sin confirmar | Ninguna evidencia de retención confirmada ni restauración probada; lo único escrito es para el self-hosting futuro |
+| O4 — Backups | 🔴 **confirmado que NO hay** | ⚠️ **Verificado el 2026-08-06 (R-2.2) y es peor que "sin confirmar": la organización está en plan Free, y Supabase hace backups automáticos diarios solo desde Pro.** La doc oficial le recomienda al plan Free *exportar los datos con `supabase db dump` y mantener copias off-site*. O sea que "confirmar la retención del plan y probar una restauración" **no se puede hacer** tal como está escrito: no hay nada que confirmar ni backup que restaurar. Es una decisión de plata, no de trabajo — ver R-6.4 |
 | Monitoreo | 🔴 en cero | Ni healthcheck ni uptime check para el entorno YA desplegado; una caída se descubre si un usuario avisa |
 | O5 — Rutina del ciclo de suscripción | 🔴 sin escribir | La mecánica del diálogo está documentada; la rutina (quién revisa, qué días, con qué preaviso) no existe en ningún doc |
 | Ensayo del arranque contra proyecto nuevo | 🔴 no ejecutado | El runbook existe pero nunca se probó; hasta que corra, el arranque real es un estreno. (Detalle menor: dice "49 migraciones" y ya son 50) |
