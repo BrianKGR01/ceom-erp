@@ -1234,7 +1234,9 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 - **Esfuerzo:** S.
 - **Depende de:** ninguno.
 
-### [UI-038] Copy desactualizado en `/portal` — dice que una funcionalidad "está por construirse" cuando ya existe
+### [UI-038] ✅ CERRADO — Copy desactualizado en `/portal` — dice que una funcionalidad "está por construirse" cuando ya existe
+> **Cerrado en código, tachado acá el 2026-08-06 (R-2.2).** El texto ya no existe;
+> `canjear-cliente.tsx:106` conserva el comentario que explica por qué se quitó.
 - **Severidad:** Media
 - **Categoría:** Copy
 - **Alcance:** `/portal` (pantalla de confirmación tras canjear un código de acceso).
@@ -1359,7 +1361,11 @@ submenú de sidebar**, solo los de uso heterogéneo diario:
 - **Depende de:** ninguno. Preexistente a la Fase A — no lo introdujo el trabajo de submenús de A.4,
   solo se hizo visible al volver a probar el sidebar completo en los tres anchos.
 
-### [UI-044] Seguridad: la ruta `/app/mi-negocio/plan` no tiene chequeo `esOwner` server-side — cualquier colaborador autenticado puede leer los datos de facturación del tenant
+### [UI-044] ✅ CERRADO — Seguridad: la ruta `/app/mi-negocio/plan` no tiene chequeo `esOwner` server-side — cualquier colaborador autenticado puede leer los datos de facturación del tenant
+> **Cerrado en código, tachado acá el 2026-08-06 (R-2.2).** `plan/page.tsx:75` hace
+> `if (!usuario.esOwner) redirect("/app")`, igual que sus tres hermanos del submenú.
+> Era el único ítem de la auditoría de UI con severidad **Alta de seguridad**, y estaba cerrado
+> hace semanas sin tachar — el doc seguía pidiendo priorizarlo "antes que cualquier otro ítem".
 - **Severidad:** Alta
 - **Categoría:** Datos / Seguridad
 - **Alcance:** `src/app/app/(shell)/mi-negocio/plan/page.tsx:58-60` y
@@ -1537,10 +1543,15 @@ que afecta a un archivo distinto en cada corrida — no tiene relación con esta
 **Objetivo:** aplicar las fundaciones y componentes de A/B a las 117 pantallas existentes, módulo por
 módulo (mismo orden en que se construyeron originalmente es razonable, para no perder contexto).
 
-> **UI-044 (seguridad, Alta) no es parte de este orden — priorizarlo antes que cualquier otro ítem
-> de esta tabla.** Es una brecha de autorización real (falta `esOwner` server-side en `/app/mi-negocio/plan`),
-> no una inconsistencia de UI — encontrada por revisión adversarial durante A.4, preexistente y sin
-> relación con el submenú de sidebar.
+> ~~**UI-044 (seguridad, Alta) no es parte de este orden — priorizarlo antes que cualquier otro ítem
+> de esta tabla.**~~ ✅ **Ya está cerrado** (verificado el 2026-08-06, R-2.2): `plan/page.tsx:75`
+> tiene el `esOwner` server-side. UI-038 también está cerrado. **Ninguno de los dos bloquea nada
+> de esta fase.**
+>
+> ⚠️ **Lo que sí bloquea, y hay que hacer primero:** integrar `/app/mi-negocio/sucursales` al
+> submenú del sidebar **antes** de borrar las copias de `SubnavMiNegocio`. Esas copias son hoy la
+> única navegación a esa pantalla; ejecutar esta fase tal como está escrita la deja inalcanzable.
+> Es **R-4.1** del roadmap, y va antes que R-4.3.
 
 | ID | Descripción |
 |---|---|

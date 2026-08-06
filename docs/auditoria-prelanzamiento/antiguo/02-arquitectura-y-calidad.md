@@ -47,7 +47,7 @@ pausó a conciencia (`docs/security/PLAN-RLS-BACKSTOP.md`).
 | `pnpm lint` | ✅ 0 errores; 13 warnings, todos `react-hooks/incompatible-library` (Base UI `SelectTrigger` dentro de forms — cosmético, no funcional) |
 | `pnpm test` | Ver §4 |
 | CI (GitHub Actions) | ✅ Las últimas 5 corridas en verde (~1m50s). Corre typecheck + lint + tests contra un Postgres 16 con las migraciones reales aplicadas |
-| Build de Vercel | — No existe: cero proyectos conectados |
+| Build de Vercel | ~~— No existe: cero proyectos conectados~~ ⚠️ **Falso desde el 2026-07-27** (corregido acá el 2026-08-06, R-2.2): el proyecto `ceom-erp` existe, con producción desde `main` y previews por PR. **Este renglón es el que la propia 2ª auditoría no incluyó** en su lista de "3 docs que dicen Vercel: cero" — eran 4 lugares, no 3 |
 
 ## 4. Estado de los tests — la brecha real es de *nivel*, no de cantidad
 

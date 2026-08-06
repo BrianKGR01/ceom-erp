@@ -98,12 +98,16 @@
   Identidad — el módulo de Nicho no existe todavía. Cuando se construya,
   hay que revisar ambos pendientes juntos.
 - `modulos_veedor_permitidos` es un `pgEnum[]` (`financiero`, `operativo`,
-  `inventario_operativo`) que hoy nadie consume — está en el schema porque
-  Módulo 1 sección 1.6 ya lo especifica como parte de `Plan`, pero el
-  Código de Acceso que lo usaría es trabajo futuro. Ojo: agregar valores a
-  este enum más adelante requiere `ALTER TYPE ... ADD VALUE`, que en
-  Postgres **no puede ir en la misma transacción** que otro DDL — separar
-  esa migración cuando llegue el momento.
+  `inventario_operativo`). ⚠️ **Corregido el 2026-08-06 (R-2.2 / DA-14):**
+  este archivo decía *"hoy nadie consume"* y **es falso desde hace semanas** —
+  es, de hecho, el atributo de plan con más efecto del sistema:
+  `generarCodigoAcceso` valida contra él qué módulos puede otorgar un Código
+  de Acceso (`consentimiento/actions.ts:471`), y el formulario de
+  `/admin/planes` lo edita (`planes-cliente.tsx`). Cambiar este arreglo en un
+  plan cambia qué puede ver una institución. Ojo: agregar valores a este enum
+  más adelante requiere `ALTER TYPE ... ADD VALUE`, que en Postgres **no puede
+  ir en la misma transacción** que otro DDL — separar esa migración cuando
+  llegue el momento.
 - Los tests de este módulo (y los de Identidad) corren contra el rol
   `postgres` (bypassea RLS por completo, vía `DATABASE_URL`/`DIRECT_URL`) —
   no validan la policy de `authenticated` de verdad. Es una limitación ya

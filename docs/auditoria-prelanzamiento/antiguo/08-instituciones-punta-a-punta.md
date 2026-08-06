@@ -743,10 +743,28 @@ para que la verificación de la tanda N no dependa de nada de la N+1.
 |---|---|---|
 | **3.1** | Cruce con sucursales verificado · decisiones registradas · seed observable | ✅ Cerrada (2026-07-27) |
 | **3.2** | H-42 (canje autenticado) + atomicidad + TTL de códigos + rate limiting | ✅ Cerrada (2026-07-27) |
-| **3.3** | Que lo que se ve sea verdad: X-01, X-02, X-03, G-14, G-15 | Pendiente |
-| **3.4** | Coherencia de la revocación: G-05, G-17, G-06, G-07 | Pendiente |
-| **3.5** | Superficie de datos: G-13, G-16, G-04 (log institucional) | Pendiente |
+| **3.3a** | Que lo que se ve sea verdad: X-01, X-02, X-03, G-14, G-15 | ✅ Cerrada (2026-07-27) — commits `1f68bea`/`1f8a8fd`/`12ec263` |
+| **3.3b** | D-1 adelantada desde la 3.5: registro de acceso institucional, visible para el negocio | ✅ Cerrada (2026-07-28) — commit `77e77ab` |
+| **3.4** | Coherencia de la revocación: G-05, ~~G-17~~, G-06, G-07 | 🟨 **G-17 cerrado**, los otros 3 abiertos |
+| **3.5** | Superficie de datos: G-13, G-16, ~~G-04~~, ~~D-1~~ | 🟨 **G-04 y D-1 cerrados** (en 3.2 y 3.3b); **G-13 y G-16 abiertos** |
 | **3.6** | Escala del piloto: G-09, G-10 | Pendiente, opcional |
+
+> **Tabla actualizada el 2026-08-06 (R-2.2).** Marcaba la 3.3 como "Pendiente" estando mergeada
+> desde el 27/07, partida en 3.3a + 3.3b. Los tres cierres que ninguna tabla registraba:
+>
+> - **G-17** (revocar es irreversible desde `/app`) **está cerrado desde la tanda 3.2** y tiene
+>   test propio: `consentimiento.test.ts:640` — *"G-17: revocar y volver a otorgar — el acceso
+>   vuelve, sin duplicar la cartera"*. El canje autenticado lo resolvió: el Owner genera un código
+>   nuevo y la institución, ya con sesión, lo canjea. El índice único parcial
+>   `aprobaciones_tenant_vigente_unica` (`0037`) es lo que garantiza que no se duplique la cartera.
+>   **Lo único que queda de G-17 es decirlo en la pantalla**, y eso es copy, no mecanismo.
+> - **G-04** (rate limit del canje) se cerró en la 3.2, no en la 3.5 donde esta tabla lo listaba.
+> - **D-1** se adelantó de la 3.5 a la 3.3b.
+>
+> Con eso, **lo que de verdad queda abierto del subsistema institucional son 5 huecos**: G-05,
+> G-06, G-07 (revocación), G-13 y G-16 (superficie de datos), más G-09/G-10 opcionales y G-12
+> (backstop de RLS). Están nombrados uno por uno en el
+> [roadmap vigente](../../roadmap/roadmap.md) — G-13 en R-3.8 y el resto en la Fase 8.
 
 ### Tanda 3.1 — Hacer el flujo observable (habilita todo lo demás)
 Sin esto, ninguna tanda siguiente se puede verificar de punta a punta.

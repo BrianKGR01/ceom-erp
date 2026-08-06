@@ -23,6 +23,28 @@
   `tieneConsentimiento()`, devuelven `{autorizado:false}` sin filtrar nada
   si no está aprobado).
 
+### Tres cambios de contrato de las tandas TI-3.3a/TI-3.3b
+*(registrados el 2026-08-06 en la R-2.2 — el código los tenía desde el 27/07 y este
+archivo describía todavía el contrato anterior)*
+
+1. **`autorizado:false` ya no es un booleano suelto: viene con `motivo`.**
+   El tipo es `{ autorizado: false; motivo: "sin_consentimiento" |
+   "modulo_no_aplica" }` (`actions.ts:61`). El segundo valor es G-14/DD-04:
+   distingue "el negocio no te autorizó" de "este negocio no usa este
+   módulo". **La UI tiene que distinguirlos** — mostrar un candado donde
+   corresponde "no aplica" vuelve a mentirle a la institución.
+2. **Toda lectura autorizada deja constancia, y falla CERRADO.**
+   `registrarAccesoInstitucion()` se llama **antes** de servir el dato en
+   `tendenciaVentas`, `detalleFinanciero`, `detalleOperativo` y
+   `detalleInventarioOperativo` (`actions.ts:172,232,282,326`). Si no se
+   puede dejar constancia, **no se sirve el dato** — es D-1/DD-01, y es
+   deliberado: un registro de acceso que se puede saltear no es un registro
+   de acceso. No convertirlo en best-effort.
+3. **`listarCartera`/`estadoTenant` declaran cobertura del dato por
+   sucursal** (X-02/DD-09): el campo viene de `obtenerTenantParaVeedor()` y
+   dice cuántas sucursales están congeladas. No es una señal de plan; es un
+   marcador de completitud y cae bajo la regla #9 de `CLAUDE.md`.
+
 ## Estado actual
 - [x] `actions.ts` con las 6 funciones del contrato, sin `schema.ts` ni
       `repository.ts` (mismo criterio que Financiero — compone, no
@@ -119,7 +141,12 @@
   aprobado — no es un error, es un estado legítimo que la UI debe poder
   distinguir de una falla real.
 
-## Última actualización: 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
+## Última actualización: 2026-08-06 — R-2.2: se registraron los 3 cambios de contrato
+de las tandas TI-3.3a/TI-3.3b (`motivo` en el no-autorizado, registro de acceso que falla
+cerrado, cobertura por sucursal) que el código tenía desde el 2026-07-27 y este archivo no.
+No cambió código.
+
+Actualización previa el 2026-07-21 — Etapa 4.a del backstop de RLS: `solicitanteGateway()`
 (Identidad) dejó de ser un objeto sintético — ver `identidad/ANCLA.md` y
 `docs/security/PLAN-RLS-BACKSTOP.md` §13/§15 para el detalle completo. Este módulo no cambió
 código propio (sigue llamando a `solicitanteGateway()` igual que antes); el rediseño vive

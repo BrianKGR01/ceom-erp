@@ -36,8 +36,9 @@
    manual de usuario completo y una landing pública. Es un logro real: todo esto se construyó en
    **dos semanas** (primer commit 2026-07-13, 216 commits).
 2. **La preparación para el lanzamiento está aproximadamente al 60%**, y el 40% restante no es más
-   construcción: es **desplegar** (hoy no existe ningún entorno fuera de la máquina local — Vercel
-   tiene cero proyectos), **verificar los flujos completos** (la Fase 2 del roadmap está 0/6, el
+   construcción: es **desplegar** (~~hoy no existe ningún entorno fuera de la máquina local — Vercel
+   tiene cero proyectos~~ — **falso desde el 2026-07-27**: el proyecto `ceom-erp` despliega
+   producción desde `main`; corregido el 2026-08-06, R-2.2), **verificar los flujos completos** (la Fase 2 del roadmap está 0/6, el
    único test e2e está roto), **cerrar 5 defectos críticos conocidos** y **decidir ~6 cuestiones de
    producto** que solo el dueño puede decidir (precio, sucursales, roles por defecto, entre otras).
 3. **El riesgo más caro no es un bug: es la promesa central del producto.** "Todo dato operativo
@@ -56,7 +57,7 @@
 | Consistencia y pulido de UI | **~75%** | 8 problemas transversales de `docs/ui/AUDITORIA-UI-UX.md` (moneda ausente en montos, componentes duplicados, anchos sin regla) |
 | Verificación end-to-end (Fase 2) | **~5%** | 0/6 ítems del roadmap; un solo spec de Playwright, y está roto (busca texto del placeholder de Next.js que ya no existe) |
 | Seguridad (Fase 3, parcial) | **~70%** | Auditoría de autorización cerrada (27 críticos corregidos + manifiesto con test por AST sobre 152 funciones); RLS backstop solo 2/10 módulos; sin rate limiting; 4 WARN de advisors abiertos |
-| Infraestructura y operación (Fases 4-6) | **~5%** | Runbook de producción escrito y bueno; nada ejecutado; **cero despliegues en Vercel**; sin backups propios, monitoreo ni logging estructurado |
+| Infraestructura y operación (Fases 4-6) | **~5%** | Runbook de producción escrito y bueno; nada ejecutado; ~~**cero despliegues en Vercel**~~ (falso desde el 2026-07-27 — corregido el 2026-08-06, R-2.2); sin backups propios, monitoreo ni logging estructurado |
 | Ciclo comercial de la suscripción | **~25%** | Catálogo de planes funciona; precio del plan Básico en Bs 0, sin cobro, sin vencimiento automático, sin avisos (H-45/DA-18) |
 | Documentación | **~95%** | Arquitectura, 11 módulos, manual de usuario (20 capítulos, 3 actores), runbook, 4 auditorías internas previas — sobresaliente |
 
