@@ -87,7 +87,7 @@ export function SolicitudesCliente({ filas }: { filas: FilaSolicitud[] }) {
                   <p className="font-medium text-navy">{fila.institucionNombre}</p>
                   <Badge variant="warning">Pendiente</Badge>
                 </div>
-                <p className="mt-0.5 text-xs text-text-muted">
+                <p className="mt-1 text-xs text-text-muted">
                   Solicita: {fila.modulosSolicitados.map((m) => MODULOS_VEEDOR_INFO[m].label).join(", ")} ·{" "}
                   {formatoFecha(fila.creadoEn)}
                 </p>
@@ -131,7 +131,7 @@ export function SolicitudesCliente({ filas }: { filas: FilaSolicitud[] }) {
                       <p className="font-medium text-navy">{fila.institucionNombre}</p>
                       <Badge variant={badge.variant}>{badge.label}</Badge>
                     </div>
-                    <p className="mt-0.5 text-xs text-text-muted">
+                    <p className="mt-1 text-xs text-text-muted">
                       Solicitó: {fila.modulosSolicitados.map((m) => MODULOS_VEEDOR_INFO[m].label).join(", ")} ·{" "}
                       {formatoFecha(fila.creadoEn)}
                     </p>

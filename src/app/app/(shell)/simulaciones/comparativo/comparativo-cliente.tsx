@@ -99,7 +99,7 @@ export function ComparativoCliente({ datosIniciales }: { datosIniciales: Resulta
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-card shadow-card">
           {datos.margenPromedioCatalogo !== null && (
-            <p className="border-b border-gray-border px-5 py-3 text-xs text-text-muted">
+            <p className="border-b border-gray-border px-4 py-3 text-xs text-text-muted">
               Margen promedio del catálogo: <span className="font-medium text-navy">{datos.margenPromedioCatalogo.toFixed(0)}%</span> — se
               resaltan los productos que se alejan más de {datos.umbralMargenAlertaPct} puntos porcentuales de este promedio.
             </p>
@@ -107,17 +107,17 @@ export function ComparativoCliente({ datosIniciales }: { datosIniciales: Resulta
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-border text-left text-[11px] tracking-wide text-text-muted uppercase">
-                <th className="px-5 py-3 font-medium">Producto</th>
-                <th className="px-5 py-3 text-right font-medium">Costo</th>
-                <th className="px-5 py-3 text-right font-medium">Precio Actual</th>
-                <th className="px-5 py-3 text-right font-medium">Margen %</th>
-                <th className="px-5 py-3 text-right font-medium">Precio Sugerido</th>
+                <th className="px-4 py-3 font-medium">Producto</th>
+                <th className="px-4 py-3 text-right font-medium">Costo</th>
+                <th className="px-4 py-3 text-right font-medium">Precio Actual</th>
+                <th className="px-4 py-3 text-right font-medium">Margen %</th>
+                <th className="px-4 py-3 text-right font-medium">Precio Sugerido</th>
               </tr>
             </thead>
             <tbody>
               {filas.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-text-muted">
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-text-muted">
                     No hay productos cargados todavía.
                   </td>
                 </tr>
@@ -127,17 +127,17 @@ export function ComparativoCliente({ datosIniciales }: { datosIniciales: Resulta
                     key={fila.productoId}
                     className={cn("border-b border-gray-border last:border-0", fila.alerta && "bg-warning-bg/40")}
                   >
-                    <td className="px-5 py-3 font-medium text-navy">
+                    <td className="px-4 py-3 font-medium text-navy">
                       {fila.nombre}
                       {fila.alerta && (
                         <AlertTriangle className="ml-1.5 inline size-3.5 text-warning-text" />
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right text-text-body">
+                    <td className="px-4 py-3 text-right text-text-body">
                       {fila.costo !== null ? formatoMoneda(fila.costo) : "Sin costo"}
                     </td>
-                    <td className="px-5 py-3 text-right text-text-body">{formatoMoneda(fila.precioVenta)}</td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="px-4 py-3 text-right text-text-body">{formatoMoneda(fila.precioVenta)}</td>
+                    <td className="px-4 py-3 text-right">
                       {fila.margenPct !== null ? (
                         <span
                           className={cn(
@@ -151,7 +151,7 @@ export function ComparativoCliente({ datosIniciales }: { datosIniciales: Resulta
                         <span className="text-xs text-text-muted">—</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right font-medium text-navy">
+                    <td className="px-4 py-3 text-right font-medium text-navy">
                       {fila.precioSugerido !== null ? (
                         <span className="inline-flex items-center gap-1">
                           {fila.precioSugerido > fila.precioVenta && (
@@ -232,7 +232,7 @@ function UmbralAlertaDialog({
             resaltan como &ldquo;atención requerida&rdquo;.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="umbral">Umbral (puntos porcentuales)</Label>
           <div className="relative">
             <Input

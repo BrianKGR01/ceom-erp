@@ -10,8 +10,8 @@ export default async function AprobacionesPage() {
   const resultado = await consultarAprobacionesPorTenant(usuario, usuario.tenantId);
   if (!resultado.ok) {
     return (
-      <div className="min-h-screen bg-gray-bg p-6">
-        <div className="mx-auto max-w-3xl py-6">
+      <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
+        <div className="mx-auto max-w-4xl py-6">
           <p className="text-sm text-error-text">{resultado.error}</p>
         </div>
       </div>
@@ -57,8 +57,8 @@ export default async function AprobacionesPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-3xl space-y-4 py-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
+      <div className="mx-auto max-w-4xl space-y-4 py-6">
         <AprobacionesCliente filas={filas} />
       </div>
     </div>

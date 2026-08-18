@@ -146,7 +146,7 @@ function RecibirDialog({
           <DialogDescription>La mercadería entra al inventario recién al confirmar.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="fechaRecepcion">Fecha de recepción</Label>
           <Input
             id="fechaRecepcion"
@@ -213,8 +213,8 @@ function RegistrarPagoDialog({
           <DialogDescription>Se suma al historial y actualiza el saldo pendiente.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="monto">Monto a pagar</Label>
             <Input
               id="monto"
@@ -226,12 +226,12 @@ function RegistrarPagoDialog({
               onChange={(e) => setMonto(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaPago">Fecha de pago</Label>
             <Input id="fechaPago" type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} />
           </div>
 
-          <div className="space-y-1.5 rounded-xl bg-gray-bg p-3 text-sm">
+          <div className="space-y-2 rounded-xl bg-gray-bg p-4 text-sm">
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Resumen financiero</p>
             <div className="flex items-center justify-between">
               <span className="text-text-muted">Saldo actual</span>
@@ -370,8 +370,8 @@ function AjusteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="tipo">Tipo de ajuste</Label>
             <Select
               items={Object.fromEntries(TIPOS_AJUSTE.map((t) => [t.value, t.label]))}
@@ -392,12 +392,12 @@ function AjusteDialog({
           </div>
 
           {soloAFavor ? (
-            <p className="rounded-xl bg-pastel-blue-bg p-3 text-xs text-text-body">
+            <p className="rounded-xl bg-pastel-blue-bg p-4 text-xs text-text-body">
               Este tipo de ajuste siempre va <strong>a favor del negocio</strong>: baja lo que le
               debés al proveedor.
             </p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="direccion">¿En qué dirección?</Label>
               <Select
                 items={{
@@ -420,7 +420,7 @@ function AjusteDialog({
             </div>
           )}
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="monto">Monto del ajuste</Label>
             <Input
               id="monto"
@@ -434,7 +434,7 @@ function AjusteDialog({
           </div>
 
           {puedeDevolverStock && (
-            <div className="space-y-2 rounded-xl border border-gray-border p-3">
+            <div className="space-y-2 rounded-xl border border-gray-border p-4">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -446,7 +446,7 @@ function AjusteDialog({
               </label>
               {devuelveStock ? (
                 <>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label htmlFor="cantidadDevuelta">Unidades que salen del stock</Label>
                     <Input
                       id="cantidadDevuelta"
@@ -473,7 +473,7 @@ function AjusteDialog({
             </div>
           )}
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="motivo">Motivo</Label>
             <Textarea
               id="motivo"
@@ -483,7 +483,7 @@ function AjusteDialog({
             />
           </div>
 
-          <div className="space-y-1 rounded-xl bg-gray-bg p-3 text-sm">
+          <div className="space-y-1 rounded-xl bg-gray-bg p-4 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-text-muted">La compra vale hoy</span>
               <span className="text-text-body">{formatMoneda(compra.montoTotalEfectivo)}</span>
@@ -515,7 +515,7 @@ function AjusteDialog({
         )}
         {error && <p className="text-xs text-error-text">{error}</p>}
         {aviso && (
-          <p className="rounded-xl bg-warning-bg p-3 text-xs text-warning-text">{aviso}</p>
+          <p className="rounded-xl bg-warning-bg p-4 text-xs text-warning-text">{aviso}</p>
         )}
 
         <DialogFooter>

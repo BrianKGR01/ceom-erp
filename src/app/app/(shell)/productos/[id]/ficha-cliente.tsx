@@ -410,27 +410,27 @@ export function FichaCliente({
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-text-muted uppercase">Categoría</p>
-              <p className="mt-0.5 text-text-body">{categoriaNombre ?? "Sin categoría"}</p>
+              <p className="mt-1 text-text-body">{categoriaNombre ?? "Sin categoría"}</p>
             </div>
             <div>
               <p className="text-xs text-text-muted uppercase">Unidad de venta</p>
-              <p className="mt-0.5 text-text-body">{UNIDADES_LABEL[unidadVenta] ?? unidadVenta}</p>
+              <p className="mt-1 text-text-body">{UNIDADES_LABEL[unidadVenta] ?? unidadVenta}</p>
             </div>
             {origenCosto !== "manual" && (
               <div>
                 <p className="text-xs text-text-muted uppercase">Origen del costo</p>
-                <p className="mt-0.5 text-text-body">{ORIGEN_COSTO_LABEL[origenCosto] ?? origenCosto}</p>
+                <p className="mt-1 text-text-body">{ORIGEN_COSTO_LABEL[origenCosto] ?? origenCosto}</p>
               </div>
             )}
             <div>
               <p className="text-xs text-text-muted uppercase">Última actualización</p>
-              <p className="mt-0.5 text-text-body">{ultimaActualizacion}</p>
+              <p className="mt-1 text-text-body">{ultimaActualizacion}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="relative overflow-hidden">
           <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
           <CardContent className="relative space-y-1 pt-6">
@@ -610,9 +610,9 @@ export function FichaCliente({
               Para corregir por conteo físico, merma no registrada, u otro motivo.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {sucursales.length > 1 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Sucursal</Label>
                 <Select
                   items={sucursalItems}
@@ -632,14 +632,14 @@ export function FichaCliente({
                 </Select>
               </div>
             )}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Tipo de ajuste</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setAjusteTipo("entrada_ajuste_manual")}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-4 transition-colors",
                     ajusteTipo === "entrada_ajuste_manual"
                       ? "border-primary bg-pastel-blue-bg"
                       : "border-gray-border hover:border-primary/50"
@@ -654,7 +654,7 @@ export function FichaCliente({
                   type="button"
                   onClick={() => setAjusteTipo("salida_ajuste_manual")}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-4 transition-colors",
                     ajusteTipo === "salida_ajuste_manual"
                       ? "border-primary bg-pastel-blue-bg"
                       : "border-gray-border hover:border-primary/50"
@@ -667,7 +667,7 @@ export function FichaCliente({
                 </button>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Cantidad</Label>
               <Input
                 type="number"
@@ -682,7 +682,7 @@ export function FichaCliente({
                 </p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Motivo</Label>
               <Textarea
                 placeholder="Ej. Conteo físico — diferencia por merma"
@@ -709,9 +709,9 @@ export function FichaCliente({
           <DialogHeader>
             <DialogTitle>Transferir stock entre sucursales</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="flex-1 space-y-1.5">
+              <div className="flex-1 space-y-2">
                 <Label>Desde</Label>
                 <Select items={sucursalItems} value={origenId} onValueChange={(v) => v && setOrigenId(v)}>
                   <SelectTrigger className="w-full">
@@ -726,8 +726,8 @@ export function FichaCliente({
                   </SelectContent>
                 </Select>
               </div>
-              <ArrowRight className="mt-5 size-4 text-text-muted" />
-              <div className="flex-1 space-y-1.5">
+              <ArrowRight className="mt-6 size-4 text-text-muted" />
+              <div className="flex-1 space-y-2">
                 <Label>Hacia</Label>
                 <Select items={sucursalItems} value={destinoId} onValueChange={(v) => v && setDestinoId(v)}>
                   <SelectTrigger className="w-full">
@@ -743,7 +743,7 @@ export function FichaCliente({
                 </Select>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Cantidad</Label>
               <Input
                 type="number"
@@ -808,10 +808,10 @@ export function FichaCliente({
               Todavía no creaste ninguna Receta. Cargá una primero desde Producción.
             </p>
           ) : vinculo ? (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-gray-border p-3 text-sm">
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-border p-4 text-sm">
                 <p className="text-xs text-text-muted uppercase">Receta vinculada</p>
-                <p className="mt-0.5 font-medium text-navy">{vinculo.recetaNombre}</p>
+                <p className="mt-1 font-medium text-navy">{vinculo.recetaNombre}</p>
                 <p className="text-xs text-text-muted">
                   Consume {vinculo.cantidadBaseConsumidaPorUnidad} por unidad vendida.
                 </p>
@@ -819,8 +819,8 @@ export function FichaCliente({
               {vinculoError && <p className="text-xs text-error-text">{vinculoError}</p>}
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
+            <div className="space-y-4">
+              <div className="space-y-2">
                 <Label>Receta</Label>
                 <Select
                   items={Object.fromEntries(recetas.map((r) => [r.id, r.nombre]))}
@@ -839,7 +839,7 @@ export function FichaCliente({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Cantidad de receta consumida por unidad vendida</Label>
                 <Input
                   type="number"

@@ -77,7 +77,7 @@ export function GastoForm({
   return (
     <form onSubmit={form.handleSubmit(handleSubmit)} className="mx-auto max-w-2xl">
       <div className="space-y-5 rounded-2xl bg-card p-6 shadow-card">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Tipo de Gasto</Label>
           <div className="grid grid-cols-3 gap-2">
             {TIPOS.map((t) => (
@@ -97,7 +97,7 @@ export function GastoForm({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="categoriaId">Categoría</Label>
               {onCrearCategoria && (
@@ -130,7 +130,7 @@ export function GastoForm({
               <p className="text-xs text-error-text">{form.formState.errors.categoriaId.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="monto">Monto del gasto</Label>
             <Input
               id="monto"
@@ -147,14 +147,14 @@ export function GastoForm({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaGasto">Fecha</Label>
             <Input id="fechaGasto" type="date" {...form.register("fechaGasto")} />
             {form.formState.errors.fechaGasto && (
               <p className="text-xs text-error-text">{form.formState.errors.fechaGasto.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
             <Select
               items={Object.fromEntries(proveedores.map((p) => [p.id, p.nombre]))}
@@ -175,7 +175,7 @@ export function GastoForm({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="descripcion">Descripción o notas (opcional)</Label>
           <Textarea
             id="descripcion"

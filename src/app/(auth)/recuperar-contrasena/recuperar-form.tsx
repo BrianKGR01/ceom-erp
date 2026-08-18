@@ -49,7 +49,7 @@ export function RecuperarForm() {
       </p>
 
       <form action={formAction} className="mt-6 space-y-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label
             htmlFor="email"
             className="text-[11px] font-normal tracking-wide text-text-muted uppercase"

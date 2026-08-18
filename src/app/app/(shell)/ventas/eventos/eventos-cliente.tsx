@@ -112,8 +112,8 @@ function NuevoEventoDialog({
           <DialogDescription>Cargá una feria o pop-up para vender ahí.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" placeholder="Ej. Feria Gastronómica Centro" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
@@ -121,7 +121,7 @@ function NuevoEventoDialog({
             )}
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="sucursalId">Sucursal</Label>
             <Select
               items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -144,8 +144,8 @@ function NuevoEventoDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="canalVentaId">Canal de venta</Label>
               <Select
                 items={Object.fromEntries(canales.map((c) => [c.id, c.nombre]))}
@@ -167,7 +167,7 @@ function NuevoEventoDialog({
                 <p className="text-xs text-error-text">{form.formState.errors.canalVentaId.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="porcentajeComision">Comisión %</Label>
               <Input
                 id="porcentajeComision"
@@ -181,15 +181,15 @@ function NuevoEventoDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="fechaInicio">Inicio</Label>
               <Input id="fechaInicio" type="date" {...form.register("fechaInicio")} />
               {form.formState.errors.fechaInicio && (
                 <p className="text-xs text-error-text">{form.formState.errors.fechaInicio.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaFin">Fin</Label>
               <Input id="fechaFin" type="date" {...form.register("fechaFin")} />
               {form.formState.errors.fechaFin && (

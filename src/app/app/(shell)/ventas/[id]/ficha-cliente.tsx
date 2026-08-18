@@ -207,7 +207,7 @@ export function FichaVentaCliente({
             <CardTitle>Artículos</CardTitle>
             <CardDescription>{detalles.length} items</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {detalles.map((linea) => (
               <div key={linea.id} className="flex items-center gap-3">
                 <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-pastel-blue-bg">
@@ -292,7 +292,7 @@ export function FichaVentaCliente({
           <CardHeader>
             <CardTitle>Resumen</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-text-muted">Subtotal</span>
               <span className="text-text-body">{totalVenta.toFixed(2)}</span>
@@ -347,8 +347,8 @@ export function FichaVentaCliente({
               <DialogDescription>Monto restante de esta venta: {saldoPendiente.toFixed(2)}</DialogDescription>
             )}
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label>Monto a pagar</Label>
               <Input
                 type="number"
@@ -358,10 +358,10 @@ export function FichaVentaCliente({
                 onChange={(e) => setPagoMonto(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Método de pago</Label>
               {metodos.length > 0 ? (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {metodos.map((metodo) => (
                     <button
                       key={metodo.id}
@@ -406,7 +406,7 @@ export function FichaVentaCliente({
                 </Select>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Fecha de pago</Label>
               <Input type="date" value={pagoFecha} onChange={(e) => setPagoFecha(e.target.value)} />
             </div>
@@ -428,15 +428,15 @@ export function FichaVentaCliente({
           <DialogHeader>
             <DialogTitle>Ajuste de venta</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex items-start gap-2 rounded-lg bg-info-bg p-3 text-xs text-info-text">
-              <Info className="mt-0.5 size-4 shrink-0" />
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 rounded-lg bg-info-bg p-4 text-xs text-info-text">
+              <Info className="mt-1 size-4 shrink-0" />
               <p>
                 Ninguna venta se edita directamente — este ajuste queda registrado como un
                 movimiento aparte, con motivo obligatorio.
               </p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Tipo</Label>
               <Select
                 items={LABEL_TIPO_AJUSTE}
@@ -459,7 +459,7 @@ export function FichaVentaCliente({
                 1.3). Para los otros tres tipos no se pregunta nada: reducen
                 siempre, y el signo lo pone la pantalla. */}
             {ajusteTipo === "correccion" && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>¿Qué corrige?</Label>
                 <ToggleGroup
                   value={correccionSuma ? "suma" : "resta"}
@@ -471,7 +471,7 @@ export function FichaVentaCliente({
                 />
               </div>
             )}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="ajuste-monto">
                 {ajusteSuma ? "Monto a sumar a la venta" : "Monto a descontar de la venta"}
               </Label>
@@ -505,7 +505,7 @@ export function FichaVentaCliente({
                 )}
               </p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>¿Devuelve stock? (opcional)</Label>
               <Select
                 items={{
@@ -538,7 +538,7 @@ export function FichaVentaCliente({
                 />
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Motivo</Label>
               <Textarea
                 placeholder="Describí brevemente la razón del ajuste (obligatorio)"

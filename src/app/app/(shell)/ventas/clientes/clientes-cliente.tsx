@@ -94,19 +94,19 @@ function ClienteFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" placeholder="Ej. Martín Arispe" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="telefono">Teléfono (opcional)</Label>
             <Input id="telefono" placeholder="+54 9 11 ..." {...form.register("telefono")} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="email">Correo electrónico (opcional)</Label>
             <Input id="email" type="email" placeholder="cliente@ejemplo.com" {...form.register("email")} />
             {form.formState.errors.email && (

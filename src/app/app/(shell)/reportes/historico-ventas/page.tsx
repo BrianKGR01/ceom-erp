@@ -13,7 +13,7 @@ export default async function HistoricoVentasPage() {
   const resultado = await historicoVentas(usuario, usuario.tenantId, periodo, { incluirEventos: true });
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <HistoricoVentasCliente datosIniciales={resultado} zona={zona} />
       </div>

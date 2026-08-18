@@ -148,14 +148,14 @@ export function CanjearCliente() {
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
             <KeyRound className="size-5" />
           </span>
-          <h1 className="mt-3 text-center font-heading text-lg font-extrabold text-navy">
+          <h1 className="mt-4 text-center font-heading text-lg font-extrabold text-navy">
             Ingresar Código
           </h1>
           <p className="mt-1 text-center text-sm text-text-muted">
             Ingresá el código de acceso único para continuar.
           </p>
 
-          <div className="mt-6 space-y-1.5">
+          <div className="mt-6 space-y-2">
             <Label
               htmlFor="codigo"
               className="text-[11px] font-normal tracking-wide text-text-muted uppercase"
@@ -203,14 +203,14 @@ export function CanjearCliente() {
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
             <Mail className="size-5" />
           </span>
-          <h1 className="mt-3 text-center font-heading text-lg font-extrabold text-navy">
+          <h1 className="mt-4 text-center font-heading text-lg font-extrabold text-navy">
             Iniciar con tu email
           </h1>
           <p className="mt-1 text-center text-sm text-text-muted">
             Te enviamos un enlace de acceso único a tu correo — sin contraseña.
           </p>
 
-          <div className="mt-6 space-y-1.5">
+          <div className="mt-6 space-y-2">
             <Label
               htmlFor="email-reingreso"
               className="text-[11px] font-normal tracking-wide text-text-muted uppercase"
@@ -274,7 +274,7 @@ export function CanjearCliente() {
           </button>
 
           <div className="mt-6 space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="nombre">Nombre de la institución</Label>
               <Input
                 id="nombre"
@@ -284,7 +284,7 @@ export function CanjearCliente() {
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="tipo">Tipo</Label>
               <Select
                 items={Object.fromEntries(TIPOS_INSTITUCION.map((t) => [t.value, t.label]))}
@@ -303,7 +303,7 @@ export function CanjearCliente() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="email">Correo electrónico</Label>
               <Input
                 id="email"
@@ -316,7 +316,7 @@ export function CanjearCliente() {
                 Lo vas a usar para volver a entrar más adelante, sin el código.
               </p>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="contacto">Otro contacto (opcional)</Label>
               <Input
                 id="contacto"

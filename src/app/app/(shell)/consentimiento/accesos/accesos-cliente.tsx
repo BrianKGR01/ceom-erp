@@ -83,7 +83,7 @@ export function AccesosCliente({ filas, error }: { filas: FilaAcceso[]; error?: 
             <div key={fila.id} className="flex flex-wrap items-center gap-3 p-4 text-sm">
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-navy">{fila.institucion}</p>
-                <p className="mt-0.5 text-xs text-text-muted">
+                <p className="mt-1 text-xs text-text-muted">
                   {MODULOS_VEEDOR_INFO[fila.modulo].label} · {formatoDia(fila.dia)}
                 </p>
               </div>

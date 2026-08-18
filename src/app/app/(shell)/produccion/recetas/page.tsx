@@ -26,7 +26,7 @@ export default async function RecetasPage() {
   const insumoPorId = new Map(insumos.map((i) => [i.id, i]));
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-6xl py-6">
         <RecetasCliente
           recetas={recetas.map((r, index) => {

@@ -85,15 +85,15 @@ function CanalFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" placeholder="Ej. PedidosYa" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="porcentajeComisionDefault">Comisión por defecto % (opcional)</Label>
             <Input
               id="porcentajeComisionDefault"
@@ -178,7 +178,7 @@ export function CanalesCliente({ canales }: { canales: CanalListado[] }) {
           description="Agregá dónde vendés (local físico, delivery, redes) para poder elegirlo al registrar una venta."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {canales.map((canal) => (
             <Card key={canal.id}>
               <CardHeader>

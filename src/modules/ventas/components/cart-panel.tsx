@@ -31,7 +31,7 @@ export function CartPanel({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="space-y-2">
         {lineas.map((linea) => (
           <div key={linea.productoId} className="flex items-center gap-2 text-sm">

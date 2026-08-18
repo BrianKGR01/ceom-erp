@@ -96,8 +96,8 @@ export function CapacidadCliente({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-4 shadow-card sm:grid-cols-3">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-4 shadow-card md:grid-cols-3">
+        <div className="space-y-2">
           <Label>Equipo</Label>
           <Select
             items={Object.fromEntries(activos.map((a) => [a.id, a.nombre]))}
@@ -116,11 +116,11 @@ export function CapacidadCliente({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="desde">Desde</Label>
           <Input id="desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="hasta">Hasta</Label>
           <Input id="hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
         </div>
@@ -130,9 +130,9 @@ export function CapacidadCliente({
       {error && <p className="text-xs text-error-text">{error}</p>}
 
       {capacidad && !cargando && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-card p-5 shadow-card">
-            <div className="mb-3 flex items-center gap-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-2xl bg-card p-6 shadow-card">
+            <div className="mb-4 flex items-center gap-2">
               <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Factory className="size-4" />
               </span>
@@ -142,7 +142,7 @@ export function CapacidadCliente({
               <span className="text-text-muted">Producción real del período</span>
               <span className="font-semibold text-navy">{capacidad.produccion.produccionReal}</span>
             </div>
-            <div className="mb-3 flex items-baseline justify-between text-sm">
+            <div className="mb-4 flex items-baseline justify-between text-sm">
               <span className="text-text-muted">Capacidad del período</span>
               <span className="font-semibold text-navy">
                 {capacidad.produccion.capacidadPeriodo !== null
@@ -153,8 +153,8 @@ export function CapacidadCliente({
             <BarraCapacidad porcentaje={capacidad.produccion.porcentajeUsado} />
           </div>
 
-          <div className="rounded-2xl bg-card p-5 shadow-card">
-            <div className="mb-3 flex items-center gap-2">
+          <div className="rounded-2xl bg-card p-6 shadow-card">
+            <div className="mb-4 flex items-center gap-2">
               <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Archive className="size-4" />
               </span>
@@ -164,7 +164,7 @@ export function CapacidadCliente({
               <span className="text-text-muted">Stock actual total</span>
               <span className="font-semibold text-navy">{capacidad.almacenamiento.stockActualTotal}</span>
             </div>
-            <div className="mb-3 flex items-baseline justify-between text-sm">
+            <div className="mb-4 flex items-baseline justify-between text-sm">
               <span className="text-text-muted">Capacidad de almacenamiento</span>
               <span className="font-semibold text-navy">
                 {capacidad.almacenamiento.capacidadAlmacenamientoCantidad ?? "Sin definir"}

@@ -18,7 +18,7 @@ export default async function ProduccionPage() {
   const productoPorId = new Map(productos.map((p) => [p.id, p.nombre]));
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <ProduccionesCliente
           producciones={producciones

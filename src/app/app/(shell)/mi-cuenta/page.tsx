@@ -20,20 +20,20 @@ export default async function MiCuentaPage() {
       />
 
       <Card>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Nombre</p>
-            <p className="mt-0.5 text-sm text-navy">{usuario.nombreCompleto}</p>
+            <p className="mt-1 text-sm text-navy">{usuario.nombreCompleto}</p>
           </div>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">
               Correo electrónico
             </p>
-            <p className="mt-0.5 text-sm text-navy">{usuario.email}</p>
+            <p className="mt-1 text-sm text-navy">{usuario.email}</p>
           </div>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Rol</p>
-            <p className="mt-0.5 text-sm text-navy">{nombreRolVisible(usuario.rol.nombre)}</p>
+            <p className="mt-1 text-sm text-navy">{nombreRolVisible(usuario.rol.nombre)}</p>
           </div>
         </CardContent>
       </Card>

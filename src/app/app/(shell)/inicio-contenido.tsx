@@ -133,7 +133,7 @@ export function InicioContenido({
       {/* H-15: el paso que faltaba. Cargar el producto es la mitad — sin el
           costo, la primera venta ya nace mal contada. Se dice acá, que es
           cuando el usuario está más dispuesto a completar datos. */}
-      <p className="mt-3 text-xs text-text-muted">
+      <p className="mt-4 text-xs text-text-muted">
         Cargale también el <span className="font-medium text-navy">costo</span>: es lo que
         permite calcular tu margen. Sin él, cada venta se cuenta como ganancia pura — y el
         costo de una venta ya registrada no se puede corregir después.

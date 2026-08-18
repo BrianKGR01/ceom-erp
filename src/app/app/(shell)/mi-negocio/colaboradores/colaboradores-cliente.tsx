@@ -134,22 +134,22 @@ function InvitarColaboradorDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombreCompleto">Nombre completo</Label>
             <Input id="nombreCompleto" placeholder="Ej. Carlos Gómez" {...form.register("nombreCompleto")} />
             {form.formState.errors.nombreCompleto && (
               <p className="text-xs text-error-text">{form.formState.errors.nombreCompleto.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="email">Correo electrónico</Label>
             <Input id="email" type="email" placeholder="colaborador@correo.com" {...form.register("email")} />
             {form.formState.errors.email && (
               <p className="text-xs text-error-text">{form.formState.errors.email.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="rolId">Rol</Label>
             <Select
               items={Object.fromEntries(roles.map((r) => [r.id, r.nombre]))}
@@ -227,8 +227,8 @@ function EditarRolDialog({
           <DialogDescription>El nuevo rol se aplica de inmediato.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="rolId-editar">Rol</Label>
             <Select
               items={Object.fromEntries(roles.map((r) => [r.id, r.nombre]))}
@@ -319,8 +319,8 @@ function TransferirOwnerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="destino-owner">Transferir a</Label>
             <Select
               items={Object.fromEntries(candidatos.map((c) => [c.id, `${c.nombreCompleto} (${nombreRolVisible(c.rol.nombre)})`]))}
@@ -344,7 +344,7 @@ function TransferirOwnerDialog({
               </p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="rol-saliente">Tu nuevo rol</Label>
             <Select
               items={Object.fromEntries(rolesElegibles.map((r) => [r.id, nombreRolVisible(r.nombre)]))}
@@ -418,7 +418,7 @@ export function ColaboradoresCliente({
   }
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader
         title="Colaboradores"
@@ -450,9 +450,9 @@ export function ColaboradoresCliente({
       {filtrados.length === 0 ? (
         <p className="mt-10 text-center text-sm text-text-muted">Ningún colaborador coincide con esta búsqueda.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtrados.map((c) => (
-            <div key={c.id} className="rounded-2xl bg-card p-5 shadow-card">
+            <div key={c.id} className="rounded-2xl bg-card p-6 shadow-card">
               <div className="flex items-start justify-between">
                 <Avatar nombre={c.nombreCompleto} size="lg" />
                 <div className="flex flex-col items-end gap-1">
@@ -460,7 +460,7 @@ export function ColaboradoresCliente({
                   <Badge variant={c.activo ? "success" : "error"}>{c.activo ? "Activo" : "Suspendido"}</Badge>
                 </div>
               </div>
-              <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{c.nombreCompleto}</h2>
+              <h2 className="mt-4 font-heading text-base font-extrabold text-navy">{c.nombreCompleto}</h2>
               <p className="text-xs text-text-muted">{c.email}</p>
               <p className="mt-2 text-sm text-navy">{nombreRolVisible(c.rol.nombre)}</p>
 

@@ -19,7 +19,7 @@ export default async function GastosRecurrentesPage() {
   const categoriaPorId = new Map(categorias.map((c) => [c.id, c.nombre]));
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <Breadcrumb items={[{ label: "Gastos", href: "/app/gastos" }, { label: "Gastos Recurrentes" }]} />
         <PageHeader

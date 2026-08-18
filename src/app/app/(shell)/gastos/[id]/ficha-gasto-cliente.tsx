@@ -118,8 +118,8 @@ function RegistrarPagoDialog({
           <DialogDescription>Se suma al historial y actualiza el saldo pendiente.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="monto">Monto a pagar</Label>
             <Input
               id="monto"
@@ -131,12 +131,12 @@ function RegistrarPagoDialog({
               onChange={(e) => setMonto(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaPago">Fecha de pago</Label>
             <Input id="fechaPago" type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} />
           </div>
 
-          <div className="space-y-1.5 rounded-xl bg-gray-bg p-3 text-sm">
+          <div className="space-y-2 rounded-xl bg-gray-bg p-4 text-sm">
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Resumen financiero</p>
             <div className="flex items-center justify-between">
               <span className="text-text-muted">Saldo actual</span>
@@ -244,7 +244,7 @@ export function FichaGastoCliente({
 
       {error && <p className="text-xs text-error-text">{error}</p>}
 
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-card p-5 shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-card p-6 shadow-card">
         <div className="flex items-center gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-pastel-blue-bg text-primary">
             <Receipt className="size-5" />
@@ -257,11 +257,11 @@ export function FichaGastoCliente({
         <div className="flex flex-wrap items-center gap-6 text-sm">
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Categoría</p>
-            <p className="mt-0.5 text-text-body">{gasto.categoriaNombre}</p>
+            <p className="mt-1 text-text-body">{gasto.categoriaNombre}</p>
           </div>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Fecha</p>
-            <p className="mt-0.5 text-text-body">{formatFecha(gasto.fechaGasto)}</p>
+            <p className="mt-1 text-text-body">{formatFecha(gasto.fechaGasto)}</p>
           </div>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Estado</p>
@@ -271,8 +271,8 @@ export function FichaGastoCliente({
       </div>
 
       {!esManual && (
-        <div className="flex items-start gap-2 rounded-xl bg-info-bg p-3 text-sm text-info-text">
-          <Info className="mt-0.5 size-4 shrink-0" />
+        <div className="flex items-start gap-2 rounded-xl bg-info-bg p-4 text-sm text-info-text">
+          <Info className="mt-1 size-4 shrink-0" />
           <p>
             <span className="font-medium">Gasto automático.</span> Este gasto se generó automáticamente
             desde otro módulo y no se puede editar ni eliminar manualmente acá.
@@ -280,26 +280,26 @@ export function FichaGastoCliente({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl bg-card p-5 shadow-card">
-          <h2 className="mb-3 font-heading text-base font-extrabold text-navy">Detalles de la operación</h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
+          <h2 className="mb-4 font-heading text-base font-extrabold text-navy">Detalles de la operación</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-text-muted uppercase">Proveedor</p>
-              <p className="mt-0.5 text-text-body">{gasto.proveedorNombre ?? "Sin proveedor"}</p>
+              <p className="mt-1 text-text-body">{gasto.proveedorNombre ?? "Sin proveedor"}</p>
             </div>
             <div>
               <p className="text-xs text-text-muted uppercase">Tipo de gasto</p>
-              <p className="mt-0.5 text-text-body">{LABEL_TIPO[gasto.tipo]}</p>
+              <p className="mt-1 text-text-body">{LABEL_TIPO[gasto.tipo]}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-text-muted uppercase">Método de registro</p>
-              <p className="mt-0.5 text-text-body">{LABEL_ORIGEN[gasto.origen]}</p>
+              <p className="mt-1 text-text-body">{LABEL_ORIGEN[gasto.origen]}</p>
             </div>
             {gasto.descripcion && (
               <div className="col-span-2 border-t border-gray-border pt-3">
                 <p className="text-xs text-text-muted uppercase">Descripción</p>
-                <p className="mt-0.5 text-text-body">{gasto.descripcion}</p>
+                <p className="mt-1 text-text-body">{gasto.descripcion}</p>
               </div>
             )}
           </div>
