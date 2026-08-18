@@ -418,7 +418,7 @@ export function ColaboradoresCliente({
   }
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader
         title="Colaboradores"
@@ -450,7 +450,7 @@ export function ColaboradoresCliente({
       {filtrados.length === 0 ? (
         <p className="mt-10 text-center text-sm text-text-muted">Ningún colaborador coincide con esta búsqueda.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filtrados.map((c) => (
             <div key={c.id} className="rounded-2xl bg-card p-6 shadow-card">
               <div className="flex items-start justify-between">

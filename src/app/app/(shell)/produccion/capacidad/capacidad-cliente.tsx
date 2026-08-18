@@ -96,7 +96,7 @@ export function CapacidadCliente({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-4 shadow-card sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-4 shadow-card md:grid-cols-3">
         <div className="space-y-2">
           <Label>Equipo</Label>
           <Select
@@ -130,7 +130,7 @@ export function CapacidadCliente({
       {error && <p className="text-xs text-error-text">{error}</p>}
 
       {capacidad && !cargando && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-2xl bg-card p-6 shadow-card">
             <div className="mb-4 flex items-center gap-2">
               <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">

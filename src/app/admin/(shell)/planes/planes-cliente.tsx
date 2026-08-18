@@ -350,7 +350,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
   }
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-navy">Planes</h1>
@@ -365,7 +365,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
       {planesIniciales.length === 0 ? (
         <p className="mt-10 text-center text-sm text-text-muted">Todavía no creaste ningún plan.</p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {planesIniciales.map((plan) => (
             <div key={plan.id} className={cn("rounded-2xl bg-card p-6 shadow-card", !plan.activo && "opacity-60")}>
               <div className="flex items-start justify-between">

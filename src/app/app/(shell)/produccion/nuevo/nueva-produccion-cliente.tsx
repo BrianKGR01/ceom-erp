@@ -187,7 +187,7 @@ export function NuevaProduccionCliente({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {filtrados.map((p) => (
                 <button
                   key={p.id}
@@ -223,7 +223,7 @@ export function NuevaProduccionCliente({
             <Calendar className="size-4 text-primary" />
             Equipo y Fecha
           </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="activoId">Activo / Equipo de Producción</Label>
               <Select

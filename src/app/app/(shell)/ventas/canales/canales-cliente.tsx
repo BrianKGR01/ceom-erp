@@ -178,7 +178,7 @@ export function CanalesCliente({ canales }: { canales: CanalListado[] }) {
           description="Agregá dónde vendés (local físico, delivery, redes) para poder elegirlo al registrar una venta."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {canales.map((canal) => (
             <Card key={canal.id}>
               <CardHeader>

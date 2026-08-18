@@ -21,7 +21,7 @@ export default async function ReportesPage() {
   const sucursales = sucursalesRes.ok ? sucursalesRes.data : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <ResumenFinancieroCliente
           datosIniciales={{ estado: estadoRes, flujo: flujoRes, patrimonio: patrimonioRes }}

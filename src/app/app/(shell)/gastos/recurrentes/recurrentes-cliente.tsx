@@ -347,7 +347,7 @@ export function RecurrentesCliente({
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card>
               <CardContent className="flex items-center gap-3 pt-4">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
@@ -383,7 +383,7 @@ export function RecurrentesCliente({
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {recurrentes.map((r) => {
               const proxima = proximaFechaPorId.get(r.id);
               return (

@@ -242,7 +242,7 @@ export function CapacidadesCliente({
   }
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader title="Permisos especiales" description="Configura los permisos globales por cada rol de tu negocio." />
 
@@ -326,7 +326,7 @@ export function CapacidadesCliente({
             : "Ningún colaborador coincide con esta búsqueda."}
         </p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           {filtrados.map((c) => (
             <div key={c.id} className="rounded-2xl bg-card p-6 shadow-card">
               <div className="flex items-center gap-3">

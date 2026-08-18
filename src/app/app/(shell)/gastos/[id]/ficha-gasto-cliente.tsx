@@ -280,7 +280,7 @@ export function FichaGastoCliente({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-2xl bg-card p-6 shadow-card">
           <h2 className="mb-4 font-heading text-base font-extrabold text-navy">Detalles de la operación</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">

@@ -635,7 +635,7 @@ export function FichaTenantAdminCliente({
   const estadoSuscripcion = ESTADO_INFO[tenant.estadoSuscripcion] ?? ESTADO_INFO.bloqueado;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <Link href="/admin/tenants" className="flex w-fit items-center gap-1.5 text-xs font-medium text-text-muted hover:text-navy">
         <ArrowLeft className="size-3.5" />
         Volver a Negocios
@@ -732,13 +732,13 @@ export function FichaTenantAdminCliente({
         <div className="p-4">
           {tabActivo === "financiero" &&
             (financiero === null ? (
-              <div role="status" aria-label="Cargando datos financieros" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div role="status" aria-label="Cargando datos financieros" className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <SkeletonStatCard />
                 <SkeletonStatCard />
                 <SkeletonStatCard />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.flujoCaja)} />
                 <StatCard label="Estado de Resultados" valor={formatoMoneda(financiero.estadoResultados)} />
                 <StatCard label="Costo Fijo Total" valor={formatoMoneda(financiero.costoFijoTotal)} />

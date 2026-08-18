@@ -73,7 +73,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             <Building2 className="size-4 text-primary" />
             <h2 className="font-heading text-base font-extrabold text-navy">Datos del Negocio</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="nombreNegocio">Nombre del negocio</Label>
               <Input
@@ -115,7 +115,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
           {planes.length === 0 ? (
             <p className="text-sm text-text-muted">No hay planes activos disponibles.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {planes.map((plan) => (
                 <button
                   key={plan.id}
@@ -161,7 +161,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             <h2 className="font-heading text-base font-extrabold text-navy">Dueño inicial</h2>
           </div>
           <p className="mb-4 text-sm text-text-muted">La persona que va a administrar este negocio.</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ownerNombreCompleto">Nombre completo</Label>
               <Input

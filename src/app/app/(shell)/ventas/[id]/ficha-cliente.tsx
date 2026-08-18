@@ -361,7 +361,7 @@ export function FichaVentaCliente({
             <div className="space-y-2">
               <Label>Método de pago</Label>
               {metodos.length > 0 ? (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {metodos.map((metodo) => (
                     <button
                       key={metodo.id}

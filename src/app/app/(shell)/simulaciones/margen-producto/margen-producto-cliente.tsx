@@ -122,7 +122,7 @@ export function MargenProductoCliente({
       <PageHeader title="Margen por Producto" description="Margen real de un producto en un período, con ajustes de venta incluidos." />
       <NavSimulaciones activo="margen" />
 
-      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-6 shadow-card sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 rounded-2xl bg-card p-6 shadow-card md:grid-cols-2">
         <div className="space-y-2">
           <p className="text-xs font-medium text-text-body">Producto</p>
           <Select
@@ -166,7 +166,7 @@ export function MargenProductoCliente({
       {!productoId ? (
         <p className="text-sm text-text-muted">No hay productos cargados todavía.</p>
       ) : (
-        <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-3 transition-opacity", cargando && "opacity-60")}>
+        <div className={cn("grid grid-cols-1 gap-4 md:grid-cols-3 transition-opacity", cargando && "opacity-60")}>
           {resultado && !resultado.ok ? (
             <p className="col-span-3 text-sm text-error-text">{resultado.error}</p>
           ) : (

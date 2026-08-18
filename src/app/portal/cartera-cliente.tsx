@@ -276,7 +276,7 @@ export function CarteraCliente({
         ) : filtrados.length === 0 ? (
           <p className="mt-10 text-center text-sm text-text-muted">Ningún negocio coincide con esta búsqueda.</p>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filtrados.map((fila) => {
               const estado = ESTADO_INFO[fila.estadoAcceso as EstadoAcceso] ?? ESTADO_INFO.bloqueado;
               const IconoNicho = (fila.nichoId && NICHO_ICONO[fila.nichoId]) || Building2;

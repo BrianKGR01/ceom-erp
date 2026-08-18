@@ -150,7 +150,7 @@ export function DashboardResumen({
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Resumen del período</CardTitle>
@@ -250,7 +250,7 @@ export function DashboardResumen({
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle>Productos más vendidos</CardTitle>

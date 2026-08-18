@@ -579,7 +579,7 @@ export function FichaInsumoCliente({
 
       {error && <p className="text-xs text-error-text">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Información general</CardTitle>

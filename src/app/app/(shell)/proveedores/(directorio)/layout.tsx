@@ -28,7 +28,7 @@ export default async function ProveedoresLayout({
   );
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto flex max-w-6xl gap-4 py-6">
         <DirectorioCliente
           proveedores={proveedores.map((p, i) => ({

@@ -13,8 +13,8 @@ export default async function MetodosPagoPage() {
   const metodos = metodosResultado.ok ? metodosResultado.data : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-3xl space-y-4 py-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
+      <div className="mx-auto max-w-4xl space-y-4 py-6">
         <Breadcrumb items={[{ label: "Ventas", href: "/app/ventas" }, { label: "Métodos de pago" }]} />
         <PageHeader
           title="Métodos de pago"

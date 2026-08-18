@@ -430,7 +430,7 @@ export function FichaTenantCliente({
               (ventas.estado !== "listo" || !ventas.dato.autorizado ? (
                 <SinDato seccion={ventas} modulo="Ventas y finanzas" />
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <StatCard label="Ingresos del período" valor={formatoMoneda(ventas.dato.detalle.ingresos)} />
                 </div>
               ))}
@@ -440,7 +440,7 @@ export function FichaTenantCliente({
                 <SinDato seccion={financiero} modulo="Ventas y finanzas" />
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <StatCard label="Flujo de Caja" valor={formatoMoneda(financiero.dato.detalle.flujoCaja)} />
                     <StatCard label="Estado de Resultados" valor={formatoMoneda(financiero.dato.detalle.estadoResultados)} />
                     <StatCard label="Costo Fijo Total" valor={formatoMoneda(financiero.dato.detalle.costoFijoTotal)} />

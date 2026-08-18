@@ -19,7 +19,7 @@ export default async function InstitucionesPage() {
   const tenants = tenantsRes.ok ? tenantsRes.data : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <InstitucionesCliente
         institucionesIniciales={instituciones.map((i) => ({
           id: i.id,

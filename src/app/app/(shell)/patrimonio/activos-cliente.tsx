@@ -124,7 +124,7 @@ export function ActivosCliente({
               Ningún activo coincide con esta búsqueda.
             </p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filtrados.map((activo) => {
                 const Icono = ICONO_TIPO[activo.tipo];
                 const badge = BADGE_ESTADO[activo.estado];
@@ -162,7 +162,7 @@ export function ActivosCliente({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Archive className="size-4" />

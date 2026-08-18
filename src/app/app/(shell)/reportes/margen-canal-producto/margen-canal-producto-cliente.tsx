@@ -288,7 +288,7 @@ export function MargenCanalProductoCliente({
         </div>
 
         {analisis.productos.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-card p-4 shadow-card">
               <span className="flex size-9 items-center justify-center rounded-lg bg-success-bg text-success-text">
                 <Award className="size-4" />

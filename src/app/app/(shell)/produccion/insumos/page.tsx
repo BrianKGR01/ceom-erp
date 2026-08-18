@@ -16,7 +16,7 @@ export default async function InsumosPage() {
   const insumos = resultado.ok ? resultado.data : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-6xl space-y-6 py-6">
         <PageHeader
           title="Catálogo de Insumos"

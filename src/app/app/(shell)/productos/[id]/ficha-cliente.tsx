@@ -430,7 +430,7 @@ export function FichaCliente({
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="relative overflow-hidden">
           <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
           <CardContent className="relative space-y-1 pt-6">

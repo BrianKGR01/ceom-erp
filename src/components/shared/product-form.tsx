@@ -143,7 +143,7 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+    <form onSubmit={form.handleSubmit(handleSubmit)} className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:items-start">
       <div className="space-y-5">
         <Card>
           <CardHeader>

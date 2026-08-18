@@ -16,7 +16,7 @@ export default async function OnboardingPage() {
   const tenant = tenantResultado.data;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-2xl py-10">
         <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium">
           <span className="text-navy">Negocio</span>

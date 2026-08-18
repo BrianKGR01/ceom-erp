@@ -208,7 +208,7 @@ export function SucursalesCliente({
   const limiteAlcanzado = maxSucursales !== null && operables >= maxSucursales;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio />
       <PageHeader
         title="Sucursales"
@@ -230,7 +230,7 @@ export function SucursalesCliente({
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sucursales.map((s) => (
           <div key={s.id} className="rounded-2xl bg-card p-6 shadow-card">
             <div className="flex items-start justify-between">

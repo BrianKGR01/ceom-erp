@@ -198,7 +198,7 @@ export function PosCliente({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {categorias.length > 0 && (
@@ -425,7 +425,7 @@ export function PosCliente({
             <div className="space-y-2">
               <Label>Pago inicial (opcional)</Label>
               {metodos.length > 0 && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {metodos.map((metodo) => (
                     <button
                       key={metodo.id}

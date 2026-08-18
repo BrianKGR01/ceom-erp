@@ -279,7 +279,7 @@ export function SimuladorCliente({
 
       {productoId && (
         <div className={cn("space-y-4 transition-opacity", cargandoPreview && "opacity-60")}>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <KpiCard
               icon={RefreshCcw}
               label={`Rotación (${PERIODOS_PRESET.find((p) => p.id === periodoId)?.label.toLowerCase()})`}
@@ -321,7 +321,7 @@ export function SimuladorCliente({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

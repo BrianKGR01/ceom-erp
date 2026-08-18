@@ -11,7 +11,7 @@ export default async function NuevoInsumoPage() {
   if (!usuario) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-2xl space-y-4 py-6">
         <Breadcrumb
           items={[{ label: "Insumos", href: "/app/produccion/insumos" }, { label: "Nuevo" }]}

@@ -355,7 +355,7 @@ export function RolesCliente({
   const rolesPersonalizados = roles.filter((r) => !r.esRolSistema);
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader
         title="Gestión de Roles"
@@ -368,7 +368,7 @@ export function RolesCliente({
         }
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {roles.map((rol) => (
           <button
             key={rol.id}

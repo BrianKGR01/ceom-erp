@@ -30,7 +30,7 @@ export default async function ComprasPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <Breadcrumb items={[{ label: "Proveedores", href: "/app/proveedores" }, { label: "Compras" }]} />
         <PageHeader title="Compras" description="Gestioná tus órdenes, recepciones y pagos a proveedores." />
