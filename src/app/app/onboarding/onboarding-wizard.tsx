@@ -107,7 +107,7 @@ function PasoRubro({
     const rubro = OPCIONES_RUBRO.find((r) => r.valor === nichoElegido);
     return (
       <div className="space-y-1 text-center">
-        <h2 className="font-heading text-lg font-semibold text-navy">Tu rubro ya está elegido</h2>
+        <h2 className="font-heading text-lg font-extrabold text-navy">Tu rubro ya está elegido</h2>
         <p className="text-sm text-text-muted">
           Elegiste <span className="font-medium text-navy">{rubro?.nombre}</span> — esta
           elección no se puede cambiar.
@@ -139,7 +139,7 @@ function PasoRubro({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-heading text-lg font-semibold text-navy">¿Cuál es el rubro de tu negocio?</h2>
+        <h2 className="font-heading text-lg font-extrabold text-navy">¿Cuál es el rubro de tu negocio?</h2>
         <p className="mt-1 text-sm text-text-muted">
           Elegí la opción que más se parece a lo que hacés — una vez elegida, no se puede
           cambiar.

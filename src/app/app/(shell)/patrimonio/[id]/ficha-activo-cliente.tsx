@@ -304,7 +304,7 @@ export function FichaActivoCliente({
               <div className="flex items-center gap-3 rounded-xl bg-pastel-blue-bg p-4">
                 <div>
                   <p className="text-[11px] tracking-wide text-text-muted uppercase">Valor actual estimado</p>
-                  <p className="font-heading text-xl font-semibold text-navy">
+                  <p className="font-heading text-xl font-extrabold text-navy">
                     {formatMoneda(activo.valorActual)}
                   </p>
                 </div>

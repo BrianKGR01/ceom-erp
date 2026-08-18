@@ -1,144 +1,357 @@
 # Sistema de Diseño — CEOM
 
-> Documento de referencia visual para desarrollo (uso como contexto para Claude Code).
-> Aún no hay nada construido en la capa de UI — este documento define el estilo a seguir desde cero.
+> **Versión 1.0 — rebranding de 2026-08-18.** Fuente original:
+> `docs/ui/CEOM Design System.html` (tokens y reglas) y `docs/ui/CEOM ERP.html`
+> (prototipo de módulos). Este documento es la transcripción normativa de esos dos
+> archivos: si hay diferencia entre lo que dice acá y lo que hace el código, manda
+> este documento.
+>
+> **Qué reemplazó.** La versión anterior (navy `#0E2A47`, azul `#2176BD`, Poppins +
+> Quicksand, radios de 8/12–14px) quedó sin efecto. Al final hay un mapa de
+> migración de tokens: los nombres viejos siguen existiendo en el CSS como alias
+> hacia el token nuevo, así que ninguna pantalla quedó con la paleta anterior.
 
 ---
 
 ## 1. Estilo general
 
-**Categoría:** ERP / dashboard SaaS moderno, con componentes tipo tarjeta y relieve casi imperceptible (no plano, pero tampoco skeuomórfico ni cargado de degradados).
+**Categoría:** ERP / dashboard SaaS de alta densidad de datos.
 
 Principios visuales:
 
-- **Sidebar fijo a la izquierda**, en tono navy oscuro con un degradado vertical muy sutil (de `#0E2A47` a `#0B2038`), nunca protagonista — el contenido central es lo que debe captar la atención.
-- **Contenido principal en tarjetas (cards)** blancas, esquinas redondeadas (12–14px), con sombra muy suave (`box-shadow: 0 1px 4px rgba(9,49,84,0.05)` a `0 2px 8px rgba(9,49,84,0.06)`) — suficiente para separar la card del fondo, sin que se note como efecto decorativo.
-- **Sin degradados decorativos en botones ni barras** — colores sólidos (`#2176BD` para acciones primarias, navy para elementos oscuros). El único degradado permitido es el del sidebar.
-- **Iconografía lineal simple** dentro de badges cuadrados con esquinas redondeadas (7–8px) y fondo de color pastel (ej. azul pastel para info, rojo pastel para alerta).
-- **Badges de estado** tipo pill (bordes muy redondeados, ~20px), fondo pastel + texto en el tono fuerte correspondiente.
-- **Barras de progreso** delgadas (6px), fondo gris claro, relleno sólido en azul.
-- **Mucho espacio en blanco**, jerarquía clara, un dato protagonista por card (número grande, etiqueta pequeña arriba).
+- **Sidebar fijo a la izquierda con el degradado de marca** (azul, no navy), 240px
+  expandido y 64px colapsado. Es la única superficie del producto —junto con las
+  cabeceras de marca— donde el degradado está permitido.
+- **Contenido sobre `#F6F7F9`**, con tarjetas blancas de radio 16px y sombra de
+  1px. La sombra separa el plano; no es un efecto decorativo.
+- **El radio comunica jerarquía**: cuanto más contenedor es el elemento, más
+  redondeado. Input 6px → botón 10px → tarjeta anidada 12px → tarjeta 16px →
+  badge 9999px.
+- **Todo espaciado es múltiplo de 8px.** El paso de 4px queda reservado a ajustes
+  ópticos internos de controles pequeños.
+- **Badges tipo pill** de 10px en peso 700, siempre con el par completo de color
+  semántico (fondo + texto).
+- **Dos familias tipográficas, sin excepciones**, y ninguna serif en el producto.
 
 ---
 
 ## 2. Paleta de colores
 
-| Uso | Color | Hex |
+Ningún tono fuera de esta paleta puede introducirse en pantallas de producto.
+
+### Marca
+
+| Token | Hex | Uso |
 |---|---|---|
-| Azul primario / Títulos | Azul marino oscuro | `#094979` |
-| Sidebar (más oscuro que el azul de marca, para dar contraste con el contenido) | Navy | `#0E2A47` → `#0B2038` (degradado vertical) |
-| Azul secundario / Botones y acentos interactivos | Azul medio | `#2176BD` |
-| Azul claro / Fondos suaves de badges e íconos | Azul pastel | `#ABD8FF` / `#EAF3FD` |
-| Gris neutro / Bordes, separadores, barras vacías | Gris claro | `#D9D9D9` / `#EAEDF1` |
-| Fondo base / Cards | Blanco | `#FFFFFF` |
-| Texto de contenido | Gris oscuro | `#545454` / `#6B7280` |
+| `--brand-primary` | `#1A76FD` | CTA principal, estados activos, selecciones y enlaces. |
+| `--brand-dark` | `#1356B9` | Sidebar, encabezados de módulo y bordes de contenedor oscuro. |
+| `--brand-deep` | `#0C3E88` | Parada final del degradado de marca; bloques de código. |
+| `--brand-accent` | `#F7941D` | Alertas de stock bajo, advertencias y badges de atención. |
+| `--brand-info` | `#37B3D9` | Badges informativos, estados neutros activos y acentos secundarios. |
 
-**Colores de estado** (confirmados, sin observaciones del cliente):
+### Superficies y bordes
 
-| Estado | Fondo pastel | Texto |
+| Token | Hex | Uso |
 |---|---|---|
-| Éxito / Activo / Completado / Pagado | `#E7F6EC` | `#227A44` |
-| Advertencia / Pendiente | `#FCF3D9` | `#8A6D1D` |
-| Error / Bloqueado / Requiere atención | `#FCEBEA` | `#D64545` |
-| Información | `#EAF3FD` | `#2176BD` |
+| `--brand-bg` | `#F6F7F9` | Fondo general de la aplicación y superficies neutras. |
+| `--surface-white` | `#FFFFFF` | Tarjetas, modales, tablas y contenedores de trabajo. |
+| `--border-subtle` | `#E2E8F0` | Divisores de tabla, bordes de tarjetas e inputs. |
+| `--border-strong` | `#CBD5E1` | Bordes de énfasis y pulgar de scrollbar. |
+| `--primary-tint` | `#EAF2FF` | Fondo suave de marca: ícono en badge, fila seleccionada, botón tonal. |
+| `--stripe` | `#EEF2F7` | Zebra de tabla. |
+| `--overlay` | `rgba(15,23,42,.45)` | Fondo del drawer móvil y de modales a pantalla completa. |
 
-**Reglas de aplicación:**
-- El navy domina solo el sidebar.
-- El azul medio (`#2176BD`) es el único color de acción (botones primarios, links, barra de progreso rellena, ítem activo del menú).
-- El azul pastel se usa solo como fondo de apoyo (íconos, badges), nunca como texto ni botón.
-- No introducir tonos de azul fuera de esta escala.
+### Texto
+
+| Token | Hex | Uso |
+|---|---|---|
+| `--text-main` | `#0F172A` | Títulos, encabezados de tabla y textos de alto contraste. |
+| `--text-muted` | `#64748B` | Subtítulos, labels secundarios y breadcrumbs. |
+| `--text-placeholder` | `#94A3B8` | Placeholders de input y estados deshabilitados. |
+| `--text-inverse` | `#FFFFFF` | Texto sobre sidebar, CTA primario y cabeceras de marca. |
+
+### Semánticos — se usan SIEMPRE de a pares
+
+Un badge, una nota o un estado nunca aplica solo el fondo o solo el texto.
+
+| Estado | Fondo | Texto | Borde | Ejemplos |
+|---|---|---|---|---|
+| Éxito / Óptimo | `#E6F4EA` | `#137333` | `#BFE0C8` | Activo, Pagado, Óptimo |
+| Advertencia | `#FEF7E0` | `#B06000` | `#F7E3A8` | Bajo Stock, En Mantenimiento, Pendiente |
+| Peligro | `#FCE8E6` | `#C5221F` | `#F5C6C3` | Sin Stock, Dado de Baja, Vencido |
+| Informativo | `#E0F2FA` | `#0E7490` | — | En curso, kg, Unidad |
+
+### Degradados
+
+Reservados a navegación y cabeceras de marca. **Nunca sobre tarjetas, tablas ni
+formularios.**
+
+| Token | Valor | Uso |
+|---|---|---|
+| `--brand-gradient` | `linear-gradient(180deg,#1A76FD 0%,#1356B9 46%,#0C3E88 100%)` | Sidebar (navegación global vertical). |
+| `--brand-gradient-header` | `linear-gradient(135deg,#1A76FD 0%,#1356B9 48%,#0C3E88 100%)` | Portadas, headers de marca y estados vacíos. |
+| — | `#1356B9` sólido | Alternativa plana configurable para bajo contraste o impresión. |
+
+### Escala de rentabilidad (heatmap de márgenes)
+
+Cinco pasos, para el cruce Canal × Producto × Margen. Es una escala **secuencial**
+(qué tan bueno es el margen), no categórica.
+
+| Paso | Fondo | Texto | Rango |
+|---|---|---|---|
+| `--margen-1-*` | `rgba(19,115,51,.18)` | `#0F5132` | ≥ 50% — margen alto |
+| `--margen-2-*` | `rgba(19,115,51,.09)` | `#137333` | 40–49% — margen sano |
+| `--margen-3-*` | `rgba(55,179,217,.12)` | `#0F172A` | 30–39% — aceptable |
+| `--margen-4-*` | `rgba(247,148,29,.16)` | `#B06000` | 20–29% — requiere revisión |
+| `--margen-5-*` | `rgba(197,34,31,.13)` | `#C5221F` | < 20% — margen crítico |
+
+### Paleta de gráficas (no la define el design system)
+
+El sistema no trae una rampa **categórica**. La que usa la app vive en
+`src/lib/dataviz.ts`: arranca en `--brand-primary` y sigue con cinco separadores
+elegidos por distinguibilidad para daltonismo (CVD ΔE mínimo 16.2). Esos cinco no
+son colores de marca y no se recolorean "para que combinen" — eso rompe la
+validación sin ganar nada.
 
 ---
 
 ## 3. Tipografía
 
-| Rol | Fuente |
-|---|---|
-| Cuerpo de texto (por defecto, en toda la interfaz) | **Poppins** |
-| Acentos puntuales (citas, tips, callouts destacados — uso ocasional, no estructural) | **Quicksand** |
+Dos familias, sin excepciones. **Regla absoluta: ninguna fuente serif en el producto.**
 
-Jerarquía sugerida:
-- Título de página (H1): 18–20px, Poppins 600, navy
-- Subtítulo de página: 12–13px, Poppins 400, gris
-- Título de card / dato protagonista: 16–18px, Poppins 600, navy
-- Etiqueta pequeña sobre un dato: 10–11px, Poppins 400, gris
-- Cuerpo general: 12–13px, Poppins 400, gris oscuro
+| Rol | Familia | Pesos |
+|---|---|---|
+| Títulos, cifras de KPI, totales y montos destacados | **Gogh**, con `Archivo` como sustituto | 800 |
+| Cuerpo, labels, inputs, celdas de tabla y botones | **Verdana**, Geneva | 400 / 700 |
 
----
+> **Gogh todavía no fue entregada por la marca.** El stack declarado es
+> `"Gogh", var(--font-archivo), Archivo, Verdana, sans-serif`: hoy resuelve a
+> Archivo ExtraBold (cargada con `next/font/google` en `src/app/layout.tsx`), y el
+> día que llegue el `woff2` de Gogh entra sola sin tocar ningún componente.
+> Verdana no se carga por webfont: viene con el sistema.
 
-## 4. Identidad de marca — logo e ícono
+### Escala
 
-- **Logo completo:** `CE` + ícono (tucán estilizado en dos tonos de azul) + `M` — texto en azul marino oscuro, ícono en azul medio/oscuro. Archivo: `public/logo-CEOM.svg`.
-- **Ícono solo** (para favicon, avatar de marca, estados colapsados de sidebar): el tucán solo, mismo tratamiento de dos tonos de azul. Archivo: `public/icono-CEOM.svg`.
-- Ambos archivos ya están en la carpeta `public` del repo (`CEOM-ERP/public/`).
-- **Regla:** usar siempre estos dos archivos SVG tal cual existen — no recrear el ícono ni generar una versión nueva. El logo completo va en el sidebar expandido y en la pantalla de login; el ícono solo va en espacios reducidos (sidebar colapsado, favicon, loaders).
+Cada paso de Tailwind está mapeado a exactamente un token del sistema, sin valores
+intermedios (`src/app/globals.css`, bloque `@theme inline`).
 
----
+| Token | Utilidad | Tamaño / peso / tracking | Uso |
+|---|---|---|---|
+| `display` | `text-3xl` | 42 / 800 / −1.4px | Cabecera de portada |
+| `kpi` | `text-2xl` | 30 / 800 / −1px | Cifra de KPI y totales |
+| `h1` | `text-xl` | 26 / 800 / −0.6px | Título de pantalla |
+| `h2` | `text-lg` | 20 / 800 / −0.5px | Título de sección o ficha |
+| `h3` | `text-base` | 16 / 800 / −0.3px | Encabezado de tarjeta |
+| `body` | `text-sm` | 13 / 400 / 1.7 | Cuerpo largo |
+| `base` | `text-xs` | 12 / 400 | Interfaz general (tablas, inputs, botones) |
+| `small` | `text-[11px]` | 11 / 400 | Apoyo secundario |
+| `label` | `.ds-label` | 10 / 400 / +1.2px, mayúsculas | Etiqueta sobre una cifra de KPI |
+| `mono` | `.ds-mono` | 10 / mono | SKU, folios y comprobantes |
 
-## 5. Componentes base
+`.ds-label`, `.ds-kpi` y `.ds-mono` están definidas en `globals.css`: son los tokens
+que no tienen un paso equivalente en la escala de Tailwind.
 
-### 5.1 Sidebar
-- Fondo con degradado navy sutil (sección 1).
-- Logo completo arriba (`logo-CEOM.svg`).
-- Botón principal de acción (ej. "+ Nuevo registro") en azul sólido `#2176BD`, sin degradado.
-- Ítems de navegación: icono + texto; el ítem activo tiene fondo `rgba(255,255,255,0.07)` sutil, no un color sólido fuerte.
-- No repetir estas opciones como cards en el contenido central.
-
-### 5.2 Cards de métrica (KPI)
-- Grid de 2 a 4 columnas.
-- Cada card: badge cuadrado de ícono (fondo pastel, esquinas 7–8px) → etiqueta pequeña gris → número grande en navy.
-- Sombra muy suave, sin borde visible.
-
-### 5.3 Cards de registro (activos, productos, proveedores)
-- Card blanca con sombra suave, imagen o bloque de color arriba, badge de estado tipo pill en la esquina superior derecha.
-- Debajo: nombre + metadata corta (ID, categoría).
-- Si aplica: barra de progreso delgada con etiqueta ("Capacidad usada", "Kilometraje mensual", etc.), relleno sólido azul.
-- Estas cards son la **vista principal** para catálogos y consulta rápida — la vista de lista queda como alternativa secundaria.
-
-### 5.4 Formularios multi-paso (wizard/stepper)
-- Para procesos con pasos secuenciales (ej. registrar producción): stepper horizontal numerado arriba, panel lateral derecho con resumen en vivo de lo que se está registrando.
-- Selección de opciones (ej. elegir receta/producto) como cards seleccionables, no como dropdown de lista — la card seleccionada se marca con borde azul + badge "Seleccionado".
-
-### 5.5 Listas (vista secundaria)
-- Fila simple: ícono/avatar circular + nombre + metadata + badge de estado + monto/acción a la derecha.
-- Se usa para historiales (ventas, movimientos) donde el volumen de datos hace más práctico el formato de lista que el de card — pero sigue llevando badges y espaciado generoso, nunca una tabla densa tipo spreadsheet.
-
-### 5.6 Cards de proveedor/cliente con panel de detalle
-- Grid de cards resumen a la izquierda + panel de detalle expandido a la derecha al seleccionar una card (patrón maestro-detalle).
-- El panel de detalle reutiliza los mismos badges y tipografía que el resto del sistema.
-
-### 5.7 Botones
-- Primario: fondo `#2176BD` sólido, texto blanco, radio 8px.
-- Secundario/outline: borde `#2176BD`, texto `#2176BD`, fondo transparente.
-- Destructivo: mismo estilo outline, en rojo de estado.
-- Sin sombras ni degradados en ningún botón.
-
-### 5.8 Login
-- Se toma como **referencia directa** la pantalla de login ya definida por el cliente (panel izquierdo navy con mensaje de marca + bullets de valor, panel derecho blanco con formulario en card centrada, ícono de candado circular arriba del formulario).
-- Ajustar únicamente para que los colores, tipografía (Poppins) y radios de esquina coincidan con este sistema de diseño — la estructura y composición general se mantienen tal como fueron aprobadas por el cliente.
+El componente `Label` de formulario va a 12px (`base`), **no** al token `label` de
+10px — ese está reservado a la etiqueta que corona una cifra de KPI.
 
 ---
 
-## 6. Principios de producto a respetar
+## 4. Espaciado, radios y elevación
+
+### Espaciado — base 8px
+
+| Token | px | Uso |
+|---|---|---|
+| `space-1` | 8 | Gap entre elementos internos de un control |
+| `space-2` | 16 | Gap de grillas de tarjetas y separación de campos |
+| `space-3` | 24 | Padding de tarjetas y del área de trabajo estándar |
+| `space-4` | 32 | Padding del área de trabajo en pantallas grandes |
+| `space-6` | 48 | Separación entre bloques mayores de una pantalla |
+| `space-8` | 64 | Separación entre secciones de documentación |
+
+### Radios
+
+| Utilidad | px | Uso |
+|---|---|---|
+| `rounded-md` | 6 | Inputs, selects, buscadores y celdas de selección |
+| `rounded-lg` | 10 | Todos los botones y controles accionables |
+| `rounded-xl` | 12 | Tarjeta anidada dentro de otra tarjeta |
+| `rounded-2xl` | 16 | Cards, paneles y contenedores de módulo |
+| `rounded-full` | 9999 | Badges, pastillas de filtro y avatares |
+
+### Elevación
+
+| Utilidad | Valor | Uso |
+|---|---|---|
+| `shadow-card` / `shadow-sm` | `0 1px 2px rgba(15,23,42,.05)` | Tarjetas simples y paneles en reposo |
+| `shadow-md` | `0 4px 16px rgba(15,23,42,.06)` | Menús flotantes, sub-navbar fija y paneles laterales |
+| `shadow-lg` | `0 8px 32px rgba(15,23,42,.18)` | Modales y drawer móvil |
+| `shadow-cta` | `0 8px 20px rgba(26,118,253,.32)` | Botón primario y CTA de confirmación |
+
+---
+
+## 5. Identidad de marca — logo e ícono
+
+- **Logo completo:** `public/logo-CEOM.svg`. Uso preferente sobre superficies blancas
+  o `--brand-bg`. Altura mínima 20px en pantalla.
+- **Ícono solo:** `public/icono-CEOM.svg`. Sidebar colapsado, favicon y avatares de
+  aplicación; tamaño mínimo 24px, siempre en lienzo cuadrado.
+- **Sobre el degradado de marca** el logo va dentro de un contenedor blanco de radio
+  12–14px. Nunca se recolorea ni se aplica sobre fotografía.
+- **Regla:** usar los archivos SVG tal cual existen — no recrear el ícono ni generar
+  una versión nueva.
+
+> Pendiente de la marca: logo en vectorial en sus tres versiones (completa, isotipo y
+> monocromática). Los archivos actuales siguen siendo los del branding anterior y
+> quedan explícitamente fuera de este rebranding.
+
+---
+
+## 6. Componentes base
+
+### 6.1 Sidebar
+- Fondo `--brand-gradient`, 240px expandido / 64px colapsado / drawer bajo 768px.
+- Logo completo arriba en contenedor blanco; ítem activo con fondo
+  `rgba(255,255,255,.14)`, radio 10px.
+- Ítem de navegación a 12px. En modo colapsado cada ícono conserva tooltip con el
+  nombre del módulo.
+- Sin capas decorativas encima del degradado.
+
+### 6.2 Botones — 40px de alto, radio 10px, texto 12px peso 700
+
+| Variante (código) | Sistema | Tratamiento |
+|---|---|---|
+| `default` | Primario | `--brand-primary`, texto blanco, `shadow-cta` |
+| `outline` | Secundario | Superficie blanca, borde sutil, peso normal |
+| `secondary` | Tonal | `--primary-tint` con borde de marca |
+| `warning` | Atención | `--brand-accent` sobre `#3D2200` |
+| `destructive` | Destructivo | Par completo de peligro (fondo + texto) |
+
+### 6.3 Campos de formulario
+- Alto 40px, radio 6px, padding lateral 12px, texto 12px.
+- Foco: borde de 1.5px en `--brand-primary`. Error: mismo borde en `--error-text`
+  más el mensaje debajo (componente `FormError`).
+- Placeholder en `--text-placeholder`.
+
+### 6.4 Cards de métrica (KPI)
+- Radio 16px, padding 20–24px, `shadow-card`, sin borde visible.
+- Etiqueta `.ds-label` arriba → cifra en el token `kpi` → delta con su par
+  semántico (verde si sube, rojo si baja).
+
+### 6.5 Badges de estado
+- Pill de radio 9999px, 10px peso 700, padding `3px 11px`.
+- Siempre el par completo fondo + texto. Variante `brand` (`--primary-tint` sobre
+  `--brand-primary`) para pastillas de filtro y contadores.
+
+### 6.6 Tablas
+- Cabecera sobre `--brand-bg`, divisores `--border-subtle`, fila de 48px.
+- **Sin sombra sobre las filas.** Zebra opcional con `--stripe`.
+
+### 6.7 Login
+- Se mantiene la estructura aprobada por el cliente (panel izquierdo de marca con
+  mensaje y bullets, panel derecho con formulario en card centrada). El rebranding
+  solo cambió color, tipografía, radios y sombras.
+
+---
+
+## 7. Principios de producto a respetar
 
 1. **No duplicar navegación** entre sidebar y contenido central.
-2. **Cards antes que listas/formularios largos** — la vista de cards es la principal; la lista es la alternativa para volumen o revisión masiva.
-3. **Relieve casi imperceptible** — sombra suave únicamente para separar planos, nunca degradados decorativos ni efectos marcados.
-4. **Un solo sidebar navy con degradado sutil**, nunca un color más llamativo que el contenido.
-5. **Consistencia de marca azul** — un solo azul oscuro, un solo azul medio, un solo azul pastel.
-6. **Mensajes vacíos, nunca errores** — si una sección no tiene datos, se muestra vacío/cero.
-7. **Modo claro únicamente** por ahora — no implementar modo oscuro en esta etapa.
-8. **Logo e ícono oficiales** (`public/logo-CEOM.svg`, `public/icono-CEOM.svg`) se usan tal cual existen, sin recrearlos.
+2. **Cards antes que listas/formularios largos** — la vista de cards es la principal;
+   la lista es la alternativa para volumen o revisión masiva.
+3. **Elevación con moderación** — nunca sobre filas de tabla ni dentro de una tarjeta
+   ya elevada.
+4. **El degradado de marca solo en sidebar y cabeceras de marca**, nunca sobre
+   tarjetas, tablas ni formularios.
+5. **No crear tonos nuevos fuera de la paleta** para diferenciar estados.
+6. **Un mismo nivel jerárquico usa siempre el mismo radio.**
+7. **El naranja de marca es solo advertencia/stock bajo**, no un color decorativo.
+8. **Gogh/Archivo 800 solo en títulos, KPIs y totales** — nunca en párrafos.
+9. **Ninguna fuente serif** (Times, Georgia, Garamond) en el producto.
+10. **Mensajes vacíos, nunca errores** — si una sección no tiene datos, se muestra
+    vacío/cero.
+11. **Modo claro únicamente** por ahora. El sistema ya define la paleta oscura
+    completa (ver abajo), pero la clase `.dark` no se aplica en ningún lado.
+12. **Logo e ícono oficiales** se usan tal cual existen, sin recrearlos.
 
 ---
 
-## 7. Layout de página estándar (Fase A del refactor de UI/UX, 2026-07-20)
+## 8. Layout y responsividad
+
+| Breakpoint | Ancho | Sidebar | Grid | Master-detail |
+|---|---|---|---|---|
+| Mobile | < 768px | Oculto · drawer con hamburguesa | 1 columna | Vista única apilada |
+| Tablet | 768–1024px | Colapsado a 64px con tooltips | 2 columnas | Alterna lista/detalle |
+| Desktop | 1024–1280px | Expandido 240px fijo | 3 columnas | Lista 320px + detalle flexible |
+| Desktop XL | > 1280px | Expandido 240px fijo | 4 columnas | Master-detail en paralelo, padding 32px |
+
+Anatomía de pantalla: sidebar 240px · top header 60px · sub-navbar contextual 52px.
+
+---
+
+## 9. Modo oscuro (definido, no activado)
+
+El design system entrega la paleta oscura completa. Queda documentada acá para que el
+día que se active no se invente: se aplican estos valores sobre los mismos tokens.
+
+| Token | Claro | Oscuro |
+|---|---|---|
+| `--brand-bg` | `#F6F7F9` | `#0B1220` |
+| `--surface-white` | `#FFFFFF` | `#141E33` |
+| `--stripe` | `#EEF2F7` | `#22304C` |
+| `--border-subtle` | `#E2E8F0` | `#27364F` |
+| `--border-strong` | `#CBD5E1` | `#3A4C6D` |
+| `--text-main` | `#0F172A` | `#E9EFF8` |
+| `--text-muted` | `#64748B` | `#94A5BE` |
+| `--text-placeholder` | `#94A3B8` | `#6C7E9B` |
+| `--brand-primary` (enlace) | `#1A76FD` | `#6BA8FF` |
+| `--primary-tint` | `#EAF2FF` | `rgba(26,118,253,.22)` |
+| `--success-bg` / `--success-text` | `#E6F4EA` / `#137333` | `rgba(45,180,95,.22)` / `#86DBA1` |
+| `--warning-bg` / `--warning-text` | `#FEF7E0` / `#B06000` | `rgba(247,148,29,.20)` / `#F2B968` |
+| `--error-bg` / `--error-text` | `#FCE8E6` / `#C5221F` | `rgba(232,74,68,.22)` / `#FF9E96` |
+| `--info-bg` / `--info-text` | `#E0F2FA` / `#0E7490` | `rgba(55,179,217,.20)` / `#74D6F0` |
+
+Sombras en oscuro: `sm 0 1px 2px rgba(0,0,0,.40)` · `md 0 4px 16px rgba(0,0,0,.45)` ·
+`lg 2px 0 24px rgba(0,0,0,.50)`.
+
+---
+
+## 10. Mapa de migración de tokens
+
+La app tenía ~1800 usos de utilidades con los nombres del sistema anterior. En vez de
+renombrarlos uno por uno, **los nombres viejos quedaron como alias apuntando al token
+nuevo** (`src/app/globals.css`). Por eso ninguna pantalla quedó con la paleta anterior
+aunque su código no haya cambiado.
+
+| Nombre heredado | Antes | Ahora apunta a |
+|---|---|---|
+| `navy` | `#094979` | `--text-main` `#0F172A` |
+| `text-body` | `#545454` | `--text-main` `#0F172A` |
+| `text-muted` | `#6B7280` | `#64748B` |
+| `pastel-blue-bg` | `#EAF3FD` | `--primary-tint` `#EAF2FF` |
+| `pastel-blue` | `#ABD8FF` | `#9CC6FF` (azul del sistema sobre fondo de marca) |
+| `gray-border` | `#D9D9D9` | `--border-subtle` `#E2E8F0` |
+| `gray-bg` | `#EAEDF1` | `--brand-bg` `#F6F7F9` |
+| `sidebar-from` / `-to` | `#0E2A47` / `#0B2038` | `#1A76FD` / `#0C3E88` |
+| `success-*`, `warning-*`, `error-*`, `info-*` | paleta anterior | pares semánticos de la sección 2 |
+| `primary` | `#2176BD` | `--brand-primary` `#1A76FD` |
+
+**Para código nuevo, usar los nombres canónicos** (`brand-primary`, `text-main`,
+`border-subtle`, `primary-tint`…). Los alias existen para que la migración no tuviera
+que tocar 210 archivos, no para seguir escribiéndolos.
+
+`bg-navy` era el único alias con dos sentidos —titular (269 usos de `text-navy`) y
+superficie oscura (8 usos)—; esos 8 se reescribieron a `bg-brand-dark` en la
+migración.
+
+---
+## 11. Layout de página estándar (Fase A del refactor de UI/UX, 2026-07-20)
 
 > Origen: `docs/ui/AUDITORIA-UI-UX.md`, hallazgo UI-009 — el ancho máximo del contenedor no seguía
 > ninguna regla (3 a 6 valores de `max-w` por módulo). Esta sección fija la regla, derivada de qué
 > valor ya usaba la mayoría de las pantallas que se ven bien — no se inventó ningún valor nuevo.
 
-### 7.1 Wrapper estándar
+### 11.1 Wrapper estándar
 
 Toda pantalla de `/app` y `/admin` (excepto `/login` y `/portal`, que tienen su propio layout de
 pantalla completa) usa exactamente:
@@ -155,7 +368,7 @@ pantalla completa) usa exactamente:
 porque agrupan secciones más grandes (varias cards por bloque) — mantenido tal cual, no es una
 inconsistencia a corregir.
 
-### 7.2 Tabla de `max-w` por tipo de pantalla
+### 11.2 Tabla de `max-w` por tipo de pantalla
 
 | Tipo de pantalla | `max-w` | Por qué este valor | Pantalla de referencia (ya aplicada) |
 |---|---|---|---|
@@ -173,12 +386,12 @@ directamente. Si una pantalla nueva no encaja claramente en ningún tipo, es se�
 necesitar descomponerse (¿es en realidad un formulario multi-columna disfrazado de ficha?) antes de
 inventar un noveno valor de ancho.
 
-## 8. Componentes compartidos (Fase A en adelante)
+## 12. Componentes compartidos (Fase A en adelante)
 
 > Cada primitiva nueva se documenta acá con su API real y cuándo usarla, a medida que se construye.
 > Ver `src/components/ui/*.tsx` para la implementación.
 
-### 8.1 `Tabs` (`src/components/ui/tabs.tsx`)
+### 12.1 `Tabs` (`src/components/ui/tabs.tsx`)
 Extraído del patrón de tab-bar persistente que ya usaban Consentimiento y Simulaciones (el mecanismo
 mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es el mismo con estado
 `activo` derivado de `usePathname()` en vez de pasado a mano por archivo.
@@ -201,7 +414,7 @@ mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es e
   tiene sub-rutas propias) — no recibe una prop `activo`, para que sea imposible que quede
   desincronizado como pasaba con `NavReportes`/`NavSimulaciones` copiados a mano.
 
-### 8.2 `Dialog` — prop `size`
+### 12.2 `Dialog` — prop `size`
 - Escala corta de 3 valores, **default `md`** (antes todo diálogo heredaba `sm:max-w-sm`, 384px,
   sin poder optar por otro ancho — causa raíz de UI-012/UI-018): `sm` (384px) para diálogos de 1-3
   campos simples (confirmar borrado, un solo input); `md` (576px, **default**) para la mayoría de
@@ -209,7 +422,7 @@ mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es e
   en `/admin/planes` sin tocar ese archivo; `lg` (768px) para diálogos con tabla o contenido ancho.
 - Ver detalle completo de props en el propio archivo.
 
-### 8.3 `PageHeader` — `title: ReactNode`
+### 12.3 `PageHeader` — `title: ReactNode`
 - Ahora acepta cualquier `ReactNode` como título, no solo `string` — permite poner un `<Badge>` de
   estado junto al nombre (Ficha de Gasto, Ficha de Producto, Ficha de Tenant) sin reimplementar el
   header a mano.
@@ -217,7 +430,7 @@ mejor resuelto de los 7 que documentaba UI-002) — no es un patrón nuevo, es e
   justify-between gap-4`) — corrige un overflow horizontal real encontrado en Colaboradores a 375px
   cuando el header tiene ≥2 botones de acción.
 
-### 8.4 `ToggleGroup` (`src/components/ui/toggle-group.tsx`)
+### 12.4 `ToggleGroup` (`src/components/ui/toggle-group.tsx`)
 Extraído de las pills de filtro reimplementadas a mano en Historial de Ventas, Compras, Catálogo de
 Productos, criterio de Ranking, etc. — ver UI-014.
 
@@ -237,7 +450,7 @@ Productos, criterio de Ranking, etc. — ver UI-014.
   ```
   Genérico en `T extends string` — `value`/`onValueChange` tipan contra los `value` de `options`.
 
-### 8.5 `OptionCard` (`src/components/ui/option-card.tsx`)
+### 12.5 `OptionCard` (`src/components/ui/option-card.tsx`)
 Extraído de los selectores tipo "radio visual" reimplementados a mano en `GastoForm` (tipo de gasto,
 horizontal) y `PasivoForm` (activo relacionado, vertical con ícono) — ver UI-014. Es la tarjeta
 individual; el consumidor arma su propio grid (`grid-cols-N`) alrededor, porque la cantidad de
@@ -258,7 +471,7 @@ columnas varía según cuántas opciones haya.
   />
   ```
 
-### 8.6 `Avatar` (`src/components/ui/avatar.tsx`)
+### 12.6 `Avatar` (`src/components/ui/avatar.tsx`)
 Extraído del círculo con inicial reimplementado con 3 tamaños distintos en Colaboradores
 (`size-11`), Capacidades Especiales (`size-10`) y el diálogo de invitar (`size-8`) — ver UI-021. Los
 3 tamaños ya existían en la práctica; se preservan como variantes en vez de forzar un único valor.
@@ -266,7 +479,7 @@ Extraído del círculo con inicial reimplementado con 3 tamaños distintos en Co
 - **API:** `<Avatar nombre={persona.nombreCompleto} size="sm" | "md" (default) | "lg" />` — muestra
   la primera letra del nombre en mayúscula sobre fondo `pastel-blue-bg`.
 
-### 8.7 `SearchInput` (`src/components/ui/search-input.tsx`)
+### 12.7 `SearchInput` (`src/components/ui/search-input.tsx`)
 Extraído del bloque ícono+`Input` reimplementado con valores ligeramente distintos en Tenants
 (`/admin`, `pl-8`/`left-2.5`) e Instituciones (`/admin`, `pl-9`/`left-3`, sin
 `pointer-events-none`) — ver UI-014.
@@ -274,19 +487,19 @@ Extraído del bloque ícono+`Input` reimplementado con valores ligeramente disti
 - **API:** `<SearchInput value={busqueda} onChange={setBusqueda} placeholder="Buscar..." className="sm:w-64" />`
   — el ancho queda a criterio del consumidor vía `className`, igual que antes.
 
-### 8.8 `FormError` (`src/components/ui/form-error.tsx`)
+### 12.8 `FormError` (`src/components/ui/form-error.tsx`)
 - **API:** `<FormError>{mensaje}</FormError>` — no renderiza nada si `children` es falsy. Agrega
   `role="alert"` (ausente en todas las copias manuales anteriores: `<p className="text-xs
   text-error-text">{error}</p>`), para que un lector de pantalla anuncie el error sin que el usuario
   tenga que encontrarlo visualmente.
 
-### 8.9 `Button` — prop `loading`
+### 12.9 `Button` — prop `loading`
 - `<Button loading={guardando}>Guardar</Button>` agrega un spinner (`Loader2` girando) antes del
   contenido y fuerza `disabled` mientras `loading` es `true`, sin que el consumidor tenga que
   combinar manualmente texto-en-gerundio + `disabled` (antes el único feedback de "esto está
   corriendo" en toda la app era ese combo, ni siquiera parejo entre botones) — ver UI-022.
 
-### 8.10 `SwitchRow` (`src/components/ui/switch-row.tsx`) — Fase B
+### 12.10 `SwitchRow` (`src/components/ui/switch-row.tsx`) — Fase B
 Fila "opción con interruptor". Extraída de las 4 superficies que resolvían **el mismo** concepto de
 negocio (elegir un subconjunto de Módulos Veedor) con 3 widgets distintos — ver UI-019/UI-020/UI-035.
 
@@ -317,7 +530,7 @@ negocio (elegir un subconjunto de Módulos Veedor) con 3 widgets distintos — v
   `id` que recibe `Switch` aterriza en ese input, que es lo que hace que el `<label htmlFor>`
   funcione. El tab-stop es el `<span>`, no el input.
 
-### 8.11 `Skeleton` (`src/components/ui/skeleton.tsx`) — Fase B
+### 12.11 `Skeleton` (`src/components/ui/skeleton.tsx`) — Fase B
 El componente existía desde el scaffolding inicial de shadcn pero no tenía **ningún** consumidor en
 toda la aplicación (UI-024). No cambió su implementación; lo que se agregó es la regla de uso.
 
@@ -337,7 +550,7 @@ toda la aplicación (UI-024). No cambió su implementación; lo que se agregó e
 
 ---
 
-## 9. Arquitectura de navegación — regla de los tres mecanismos (decisión 6)
+## 13. Arquitectura de navegación — regla de los tres mecanismos (decisión 6)
 
 > Origen: `docs/ui/AUDITORIA-UI-UX.md` UI-002, decisión 6 de la sección 7. Antes de esta regla
 > existían 7 mecanismos ad-hoc distintos para navegar entre las secciones de un mismo módulo. De
@@ -363,4 +576,12 @@ dos secciones hermanas de igual jerarquía — el mecanismo ad-hoc original que 
 
 ---
 
-*Este documento resume decisiones ya confirmadas con el cliente: paleta, tipografía (Poppins), intensidad de relieve, tratamiento del sidebar, preferencia de cards sobre listas, y referencia exacta de login. Las secciones 7, 8 y 9 se agregaron en la Fase A del refactor de UI/UX (2026-07-20, ver `docs/ui/AUDITORIA-UI-UX.md`); las subsecciones 8.10 y 8.11 se agregaron en la Fase B (2026-07-22) — no son parte del diseño visual original aprobado con el cliente, son reglas de consistencia técnica derivadas de él.*
+*Las secciones 1 a 10 son la transcripción del design system v1.0 entregado por la marca
+(`docs/ui/CEOM Design System.html` y `docs/ui/CEOM ERP.html`) y reemplazan por completo a las
+decisiones visuales de la etapa anterior (paleta navy, Poppins/Quicksand, radios de 8/12–14px).*
+
+*Las secciones 11, 12 y 13 vienen de la Fase A del refactor de UI/UX (2026-07-20, ver
+`docs/ui/AUDITORIA-UI-UX.md`) y la Fase B (2026-07-22): son reglas de consistencia técnica sobre
+anchos de contenedor, API de componentes compartidos y arquitectura de navegación. Sobrevivieron al
+rebranding porque no dependen de la paleta ni de la tipografía — pero sus ejemplos de estilo sí
+quedan subordinados a las secciones 1–10.*

@@ -36,7 +36,7 @@ export default async function PortalCanjearPage({
 
   return (
     <div className="flex min-h-screen">
-      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white lg:flex">
+      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-[image:var(--brand-gradient-header)] text-white lg:flex">
         <div
           aria-hidden
           className="pointer-events-none absolute -top-24 -right-24 size-80 rounded-full bg-pastel-blue/20 blur-3xl"
@@ -51,7 +51,7 @@ export default async function PortalCanjearPage({
         />
 
         <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-8 py-12">
-          <h2 className="font-heading text-3xl leading-tight font-semibold xl:text-4xl">
+          <h2 className="font-heading text-3xl leading-tight font-extrabold xl:text-4xl">
             Accedé al seguimiento de un emprendimiento.
           </h2>
           <p className="mt-4 max-w-sm text-base text-white/70">

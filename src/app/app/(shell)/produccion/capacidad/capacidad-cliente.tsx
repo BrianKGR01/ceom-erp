@@ -136,7 +136,7 @@ export function CapacidadCliente({
               <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Factory className="size-4" />
               </span>
-              <p className="font-heading text-sm font-semibold text-navy">Capacidad de producción</p>
+              <p className="font-heading text-sm font-extrabold text-navy">Capacidad de producción</p>
             </div>
             <div className="mb-2 flex items-baseline justify-between text-sm">
               <span className="text-text-muted">Producción real del período</span>
@@ -158,7 +158,7 @@ export function CapacidadCliente({
               <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Archive className="size-4" />
               </span>
-              <p className="font-heading text-sm font-semibold text-navy">Capacidad de almacenamiento</p>
+              <p className="font-heading text-sm font-extrabold text-navy">Capacidad de almacenamiento</p>
             </div>
             <div className="mb-2 flex items-baseline justify-between text-sm">
               <span className="text-text-muted">Stock actual total</span>

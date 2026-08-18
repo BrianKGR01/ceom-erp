@@ -247,7 +247,7 @@ export function SucursalesCliente({
                 )}
               </div>
             </div>
-            <h2 className="mt-3 font-heading text-base font-semibold text-navy">{s.nombre}</h2>
+            <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{s.nombre}</h2>
             <p className="text-xs text-text-muted">{s.direccion || "Sin dirección cargada"}</p>
             {s.congeladaEn && s.congeladaMotivo && (
               <p className="mt-2 text-xs text-warning-text">{s.congeladaMotivo}</p>

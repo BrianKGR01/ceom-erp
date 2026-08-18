@@ -251,7 +251,7 @@ export function FichaGastoCliente({
           </span>
           <div>
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Monto total</p>
-            <p className="font-heading text-2xl font-semibold text-navy">{formatMoneda(gasto.monto)}</p>
+            <p className="font-heading text-2xl font-extrabold text-navy">{formatMoneda(gasto.monto)}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-6 text-sm">
@@ -282,7 +282,7 @@ export function FichaGastoCliente({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl bg-card p-5 shadow-card">
-          <h2 className="mb-3 font-heading text-base font-semibold text-navy">Detalles de la operación</h2>
+          <h2 className="mb-3 font-heading text-base font-extrabold text-navy">Detalles de la operación</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-text-muted uppercase">Proveedor</p>
@@ -307,7 +307,7 @@ export function FichaGastoCliente({
 
         <div className="rounded-2xl bg-card shadow-card">
           <div className="flex items-center justify-between border-b border-gray-border p-4">
-            <h2 className="font-heading text-base font-semibold text-navy">Historial de pagos</h2>
+            <h2 className="font-heading text-base font-extrabold text-navy">Historial de pagos</h2>
             {esManual && gasto.estadoPago !== "pagado" && (
               <Button size="sm" onClick={() => setDialogoPago(true)}>
                 Registrar pago

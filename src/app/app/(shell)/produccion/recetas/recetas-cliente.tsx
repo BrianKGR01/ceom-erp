@@ -224,7 +224,7 @@ function RecetaDetalle({
   return (
     <div className="rounded-2xl bg-card p-5 shadow-card">
       <div className="mb-4 flex items-center justify-between border-b border-gray-border pb-4">
-        <h2 className="font-heading text-lg font-semibold text-navy">{receta.nombre}</h2>
+        <h2 className="font-heading text-lg font-extrabold text-navy">{receta.nombre}</h2>
         {confirmandoBaja ? (
           <div className="flex items-center gap-1.5">
             <Button variant="destructive" size="sm" onClick={confirmarEliminar} disabled={eliminando}>
@@ -266,7 +266,7 @@ function RecetaDetalle({
       </div>
 
       <div className="mt-5 space-y-3 border-t border-gray-border pt-4">
-        <h3 className="font-heading text-sm font-semibold text-navy">Composición de la Receta</h3>
+        <h3 className="font-heading text-sm font-extrabold text-navy">Composición de la Receta</h3>
 
         {composicion.length === 0 && (
           <p className="text-sm text-text-muted">Todavía no agregaste ningún insumo.</p>

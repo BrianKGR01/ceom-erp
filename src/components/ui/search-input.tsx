@@ -20,13 +20,13 @@ export function SearchInput({
 }) {
   return (
     <div className={cn("relative", className)}>
-      <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-muted" />
       <Input
         type="search"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="pl-8"
+        className="pl-9"
       />
     </div>
   );

@@ -71,7 +71,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-navy">Datos del Negocio</h2>
+            <h2 className="font-heading text-base font-extrabold text-navy">Datos del Negocio</h2>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -110,7 +110,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
         <div className="border-t border-gray-border pt-6">
           <div className="mb-3 flex items-center gap-2">
             <Building2 className="size-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-navy">Configuración de Plan</h2>
+            <h2 className="font-heading text-base font-extrabold text-navy">Configuración de Plan</h2>
           </div>
           {planes.length === 0 ? (
             <p className="text-sm text-text-muted">No hay planes activos disponibles.</p>
@@ -158,7 +158,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
         <div className="border-t border-gray-border pt-6">
           <div className="mb-1 flex items-center gap-2">
             <UserPlus className="size-4 text-primary" />
-            <h2 className="font-heading text-base font-semibold text-navy">Dueño inicial</h2>
+            <h2 className="font-heading text-base font-extrabold text-navy">Dueño inicial</h2>
           </div>
           <p className="mb-3 text-sm text-text-muted">La persona que va a administrar este negocio.</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

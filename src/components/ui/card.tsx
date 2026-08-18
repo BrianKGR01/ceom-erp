@@ -12,10 +12,10 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        // Card blanca, radio 12-14px y sombra "casi imperceptible" —
-        // design-system.md seccion 1: sin borde visible, la sombra sola
-        // separa el plano (nunca ring/border como el default de shadcn).
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl bg-card py-(--card-spacing) text-sm text-card-foreground shadow-card [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
+        // Card blanca, radio 16px (token "tarjeta") y shadow-sm del design
+        // system v1.0 seccion 05: sin borde visible, la sombra sola
+        // separa el plano. Padding 24px = space-3 (16px en size=sm).
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl bg-card py-(--card-spacing) text-sm text-card-foreground shadow-card [--card-spacing:--spacing(6)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
         className
       )}
       {...props}
@@ -42,8 +42,8 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="card-title"
       className={cn(
         // Titulo de card / dato protagonista — design-system.md seccion 3:
-        // 16-18px, Poppins 600, navy.
-        "font-heading text-base leading-snug font-semibold text-navy group-data-[size=sm]/card:text-sm",
+        // 16px / Gogh 800 / -0.3px (token h3 del design system v1.0).
+        "font-heading text-base leading-snug font-extrabold tracking-[-0.3px] text-navy group-data-[size=sm]/card:text-sm",
         className
       )}
       {...props}

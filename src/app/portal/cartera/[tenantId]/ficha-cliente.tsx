@@ -78,7 +78,7 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
   return (
     <div className="rounded-2xl bg-card p-4 shadow-card">
       <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">{label}</p>
-      <p className="mt-1 font-heading text-xl font-semibold text-navy">{valor}</p>
+      <p className="mt-1 font-heading text-xl font-extrabold text-navy">{valor}</p>
     </div>
   );
 }
@@ -162,7 +162,7 @@ function NoAutorizado({ modulo }: { modulo: string }) {
       <span className="flex size-12 items-center justify-center rounded-full bg-gray-bg text-text-muted">
         <Lock className="size-5" />
       </span>
-      <p className="font-heading text-sm font-semibold text-navy">No autorizado</p>
+      <p className="font-heading text-sm font-extrabold text-navy">No autorizado</p>
       <p className="max-w-xs text-xs text-text-muted">
         Este negocio no aprobó el módulo {modulo} para tu institución todavía.
       </p>
@@ -188,7 +188,7 @@ function ModuloNoAplica({ modulo }: { modulo: string }) {
       <span className="flex size-12 items-center justify-center rounded-full bg-gray-bg text-text-muted">
         <MinusCircle className="size-5" />
       </span>
-      <p className="font-heading text-sm font-semibold text-navy">Este negocio no usa este módulo</p>
+      <p className="font-heading text-sm font-extrabold text-navy">Este negocio no usa este módulo</p>
       <p className="max-w-sm text-xs text-text-muted">
         Por su rubro, {modulo} no forma parte de su operación. No es que no haya registrado nada:
         no hay nada que registrar acá.
@@ -204,7 +204,7 @@ function ErrorDePestana({ mensaje }: { mensaje: string }) {
       <span className="flex size-12 items-center justify-center rounded-full bg-error-bg text-error-text">
         <AlertTriangle className="size-5" />
       </span>
-      <p className="font-heading text-sm font-semibold text-navy">No pudimos cargar esta pestaña</p>
+      <p className="font-heading text-sm font-extrabold text-navy">No pudimos cargar esta pestaña</p>
       <p className="max-w-sm text-xs text-text-muted">{mensaje}</p>
     </div>
   );
@@ -368,7 +368,7 @@ export function FichaTenantCliente({
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="font-heading text-2xl font-semibold text-navy">{tenant.nombreNegocio}</h1>
+            <h1 className="font-heading text-2xl font-extrabold text-navy">{tenant.nombreNegocio}</h1>
             <p className="text-sm text-text-muted">Ficha de Tenant</p>
           </div>
           <Badge variant={estado.variant}>{estado.label}</Badge>

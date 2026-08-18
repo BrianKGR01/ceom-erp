@@ -29,14 +29,7 @@ import {
   type DatosDashboard,
 } from "./inicio-actions";
 import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
-
-// Primera vez que la app necesita una paleta de graficas — el design
-// system no define una (docs/design-system.md no tiene seccion de
-// dataviz). Validada con la skill de dataviz contra la superficie real de
-// las cards (--card: #ffffff): CVD ΔE minimo 16.2, banda de lightness y
-// chroma OK. Orden fijo, se asigna por orden estable de categoria, nunca
-// por rank de valor.
-const COLORES_CATEGORIA = ["#2176bd", "#1baf7a", "#eda100", "#4a3aa7", "#e34948", "#eb6834"];
+import { COLORES_CATEGORIA } from "@/lib/dataviz";
 
 function formatoMoneda(valor: number): string {
   return valor.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -182,7 +175,7 @@ export function DashboardResumen({
                     </div>
                     <div>
                       <p className="text-xs text-text-muted uppercase">Resultado neto</p>
-                      <p className="mt-0.5 text-2xl font-semibold text-navy">
+                      <p className="mt-0.5 font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
                         {formatoMoneda(resumen.estadoResultados)}
                       </p>
                       {deltaPct !== null && (
@@ -345,7 +338,7 @@ export function DashboardResumen({
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-xs text-text-muted uppercase">Costo total de merma</p>
-              <p className="text-2xl font-semibold text-navy">{formatoMoneda(mermaCostoTotal)}</p>
+              <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">{formatoMoneda(mermaCostoTotal)}</p>
               <div className="h-1.5 overflow-hidden rounded-full bg-gray-bg">
                 <div
                   className="h-full rounded-full bg-primary"
@@ -376,7 +369,7 @@ export function DashboardResumen({
                   </p>
                 ) : (
                   <>
-                    <p className="text-2xl font-semibold text-navy">
+                    <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
                       {Math.min(100, Math.round((capacidadAlmacenamiento.porcentajeUsado ?? 0) * 100))}%
                     </p>
                     <div className="h-1.5 overflow-hidden rounded-full bg-gray-bg">

@@ -61,7 +61,7 @@ function KpiCard({
     <div
       className={cn(
         "flex items-center gap-3 rounded-2xl p-4 shadow-card",
-        destacada ? "bg-navy text-white" : "bg-card"
+        destacada ? "bg-brand-dark text-white" : "bg-card"
       )}
     >
       <span

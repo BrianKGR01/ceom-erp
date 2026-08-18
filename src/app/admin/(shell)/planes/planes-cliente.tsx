@@ -353,7 +353,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy">Planes</h1>
+          <h1 className="font-heading text-2xl font-extrabold text-navy">Planes</h1>
           <p className="mt-1 text-sm text-text-muted">Catálogo de planes disponibles para los negocios.</p>
         </div>
         <Button onClick={abrirNuevo}>
@@ -374,7 +374,7 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
                 </span>
                 <Badge variant={plan.activo ? "success" : "outline"}>{plan.activo ? "Activo" : "Inactivo"}</Badge>
               </div>
-              <h2 className="mt-3 font-heading text-base font-semibold text-navy">{plan.nombre}</h2>
+              <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{plan.nombre}</h2>
               <p className="text-sm text-text-muted">
                 {Number(plan.precioMensual).toFixed(2)} {plan.moneda} / mes
               </p>

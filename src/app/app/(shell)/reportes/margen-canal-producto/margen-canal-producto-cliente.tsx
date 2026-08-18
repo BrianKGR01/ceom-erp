@@ -216,7 +216,7 @@ export function MargenCanalProductoCliente({
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>
         <div className="rounded-2xl bg-card p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-heading text-sm font-semibold text-navy">
+            <h2 className="flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
               <BarChart3 className="size-4 text-primary" />
               Margen Bruto (%)
             </h2>
@@ -296,7 +296,7 @@ export function MargenCanalProductoCliente({
               <p className="mt-2 text-[11px] tracking-wide text-text-muted uppercase">Producto Estrella</p>
               {analisis.productoEstrella ? (
                 <>
-                  <p className="font-heading text-sm font-semibold text-navy">
+                  <p className="font-heading text-sm font-extrabold text-navy">
                     {productoNombre.get(analisis.productoEstrella.productoId) ?? "Producto"}
                   </p>
                   <p className="mt-1 text-xs text-text-muted">
@@ -321,7 +321,7 @@ export function MargenCanalProductoCliente({
               <p className="mt-2 text-[11px] tracking-wide text-text-muted uppercase">Atención Requerida</p>
               {analisis.productoAtencion ? (
                 <>
-                  <p className="font-heading text-sm font-semibold text-navy">
+                  <p className="font-heading text-sm font-extrabold text-navy">
                     {productoNombre.get(analisis.productoAtencion.productoId) ?? "Producto"}
                   </p>
                   <p className="mt-1 text-xs text-text-muted">
@@ -343,7 +343,7 @@ export function MargenCanalProductoCliente({
               <p className="mt-2 text-[11px] tracking-wide text-text-muted uppercase">Mejor Canal</p>
               {analisis.mejorCanalGlobal ? (
                 <>
-                  <p className="font-heading text-sm font-semibold text-navy">
+                  <p className="font-heading text-sm font-extrabold text-navy">
                     {canalNombre.get(analisis.mejorCanalGlobal.canalId) ?? "Canal"}
                   </p>
                   <p className="mt-1 text-xs text-text-muted">

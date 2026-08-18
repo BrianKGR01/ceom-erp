@@ -111,7 +111,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           </span>
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Plan</p>
-            <p className="font-heading text-xl font-semibold text-navy">{plan.nombre}</p>
+            <p className="font-heading text-xl font-extrabold text-navy">{plan.nombre}</p>
             <p className="text-xs text-text-muted">
               {Number(plan.precioMensual) === 0
                 ? "Precio a convenir"
@@ -140,7 +140,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
               <p className="text-[11px] font-medium tracking-wide text-warning-text uppercase">
                 Fecha de próximo pago
               </p>
-              <p className="font-heading text-xl font-semibold text-warning-text">
+              <p className="font-heading text-xl font-extrabold text-warning-text">
                 {datos.fechaProximoPago ? formatFecha(datos.fechaProximoPago) : "—"}
               </p>
             </div>

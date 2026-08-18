@@ -195,7 +195,7 @@ export function CarteraCliente({
       <div className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="font-heading text-2xl font-semibold text-navy">Mi cartera de negocios</h1>
+            <h1 className="font-heading text-2xl font-extrabold text-navy">Mi cartera de negocios</h1>
             <p className="mt-1 text-sm text-text-muted">Seguí el estado de los negocios en tu cartera.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -237,7 +237,7 @@ export function CarteraCliente({
             </span>
             <div>
               <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total de negocios</p>
-              <p className="font-heading text-xl font-semibold text-navy">{cartera.length}</p>
+              <p className="font-heading text-xl font-extrabold text-navy">{cartera.length}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -246,7 +246,7 @@ export function CarteraCliente({
             </span>
             <div>
               <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Activos</p>
-              <p className="font-heading text-xl font-semibold text-navy">{conteos.activo}</p>
+              <p className="font-heading text-xl font-extrabold text-navy">{conteos.activo}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -255,7 +255,7 @@ export function CarteraCliente({
             </span>
             <div>
               <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Solo lectura</p>
-              <p className="font-heading text-xl font-semibold text-navy">{conteos.solo_lectura}</p>
+              <p className="font-heading text-xl font-extrabold text-navy">{conteos.solo_lectura}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -264,7 +264,7 @@ export function CarteraCliente({
             </span>
             <div>
               <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Bloqueados</p>
-              <p className="font-heading text-xl font-semibold text-navy">{conteos.bloqueado}</p>
+              <p className="font-heading text-xl font-extrabold text-navy">{conteos.bloqueado}</p>
             </div>
           </div>
         </div>
@@ -294,7 +294,7 @@ export function CarteraCliente({
                       </span>
                       <Badge variant={estado.variant}>{estado.label}</Badge>
                     </div>
-                    <h2 className="mt-3 font-heading text-base font-semibold text-navy">{fila.nombreNegocio}</h2>
+                    <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{fila.nombreNegocio}</h2>
                     <p className="text-xs text-text-muted">
                       Rubro: {fila.nichoId ? (NICHO_LABEL[fila.nichoId] ?? "Sin especificar") : "Modo Básico"}
                     </p>

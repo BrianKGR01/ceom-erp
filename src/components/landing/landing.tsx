@@ -27,9 +27,9 @@ import { VentanaPlataforma } from "./ventana-plataforma";
 //
 // **La capa visual de esta pagina no se construye con la libreria del ERP.**
 // El sistema prioriza densidad y consistencia; una landing prioriza impacto y
-// narrativa. Comparten la marca —logo, azules, Poppins— y nada mas: la escala
-// tipografica, las sombras, los radios y las animaciones viven en landing.css,
-// bajo `.ceom-landing`, y no se filtran a /app ni a /admin.
+// narrativa. Comparten la marca —logo, azules, Gogh/Archivo + Verdana— y nada
+// mas: la escala tipografica, las sombras, los radios y las animaciones viven
+// en landing.css, bajo `.ceom-landing`, y no se filtran a /app ni a /admin.
 //
 // El copy y el reparto de secciones vienen del PR #25 y estan verificados
 // contra el codigo (docs/manual/hallazgos.md): **no se reescriben acá**. Lo que
@@ -53,10 +53,11 @@ import { VentanaPlataforma } from "./ventana-plataforma";
 //   planes claro → cierre oscuro → pie.
 
 // Unica fuente que se suma a las del sistema, y solo en esta pagina: la letra
-// de la libreta. No hay forma de escribir "a mano" con Poppins, y la libreta
-// manuscrita es la pieza central del hero. Es una sola familia, un solo peso,
-// subset latino, y se carga aca (no en el layout raiz) para que ni /app ni
-// /admin la descarguen.
+// de la libreta. No hay forma de escribir "a mano" con Verdana ni con Archivo,
+// y la libreta manuscrita es la pieza central del hero. Es una sola familia,
+// un solo peso, subset latino, y se carga aca (no en el layout raiz) para
+// que ni /app ni /admin la descarguen. No contradice la regla de "ninguna
+// serif": Caveat es manuscrita, no serif, y no aparece en el producto.
 const caveat = Caveat({
   variable: "--l-fuente-mano",
   subsets: ["latin"],

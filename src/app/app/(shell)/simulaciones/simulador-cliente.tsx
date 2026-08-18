@@ -453,7 +453,7 @@ export function SimuladorCliente({
               </div>
 
               {tab === "simular_precio" ? (
-                <div className="rounded-2xl bg-navy p-5 text-white">
+                <div className="rounded-2xl bg-brand-dark p-5 text-white">
                   <p className="text-sm font-semibold">Proyección de Precio</p>
                   <p className="mt-3 text-[11px] tracking-wide text-white/60 uppercase">Precio Sugerido</p>
                   <p className="text-3xl font-bold">
@@ -482,7 +482,7 @@ export function SimuladorCliente({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-navy p-5 text-white">
+                <div className="rounded-2xl bg-brand-dark p-5 text-white">
                   <p className="text-sm font-semibold">Punto de Equilibrio</p>
                   {advertenciaPuntoEquilibrio ? (
                     <div className="mt-3 flex items-start gap-2 rounded-lg bg-warning-bg p-3 text-xs text-warning-text">

@@ -120,7 +120,7 @@ export function InstitucionesCliente({
     <div className="mx-auto flex max-w-6xl gap-4 py-6">
       <div className="w-72 shrink-0 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="font-heading text-lg font-semibold text-navy">Instituciones</h1>
+          <h1 className="font-heading text-lg font-extrabold text-navy">Instituciones</h1>
           <Button size="sm" onClick={() => setDialogoNueva(true)}>
             <Plus className="size-4" />
             Nueva
@@ -243,7 +243,7 @@ function InstitucionDetalle({
             <Icon className="size-6" />
           </span>
           <div>
-            <p className="font-heading text-lg font-semibold text-navy">{institucion.nombre}</p>
+            <p className="font-heading text-lg font-extrabold text-navy">{institucion.nombre}</p>
             <p className="text-xs text-text-muted">{LABEL_TIPO[institucion.tipo]}</p>
           </div>
         </div>
@@ -356,7 +356,7 @@ function CarteraTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="font-heading text-sm font-semibold text-navy">Negocios asignados</p>
+        <p className="font-heading text-sm font-extrabold text-navy">Negocios asignados</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setDialogoSolicitud(true)} disabled={!cartera || cartera.length === 0}>
             <Send className="size-4" />

@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
-import { Poppins, Quicksand } from "next/font/google";
+import { Archivo } from "next/font/google";
 import "./globals.css";
 
-// Cuerpo de texto por defecto en toda la interfaz (docs/design-system.md
-// seccion 3).
-const poppins = Poppins({
-  variable: "--font-poppins",
+// Familia de titulos del design system v1.0 (seccion 03): Gogh ExtraBold
+// para H1-H4, cifras de KPI y totales. La marca todavia no entrego los
+// archivos de Gogh, asi que el sustituto real es Archivo ExtraBold; el
+// stack declarado en globals.css pone "Gogh" primero para que entre sola
+// cuando llegue el woff2, sin tocar componentes.
+// El cuerpo de texto NO se carga por webfont: es Verdana, que ya viene con
+// el sistema (design system seccion 03, familia de texto).
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-// Acentos puntuales (citas, tips, callouts) — uso ocasional, no estructural.
-const quicksand = Quicksand({
-  variable: "--font-quicksand",
-  subsets: ["latin"],
-  weight: ["500", "600"],
+  weight: ["400", "600", "800"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${poppins.variable} ${quicksand.variable} h-full antialiased`}
+      className={`${archivo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { BarChart3, Landmark, ListOrdered, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { COLOR_SERIE_PRIMARIA, COLOR_SERIE_SECUNDARIA } from "@/lib/dataviz";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Select,
@@ -26,11 +27,11 @@ interface FilaVenta {
   montoTotal: number;
 }
 
-// Misma paleta categorica validada para daltonismo del Dashboard
-// (dashboard-resumen.tsx) — regulares = primer color, eventos = quinto
-// (mismo par usado ahi para contrastar dos series).
-const COLOR_REGULAR = "#2176bd";
-const COLOR_EVENTO = "#e34948";
+// Misma rampa categorica validada para daltonismo que usa el Dashboard,
+// centralizada en @/lib/dataviz: regulares = primer color, eventos =
+// quinto (mismo par usado ahi para contrastar dos series).
+const COLOR_REGULAR = COLOR_SERIE_PRIMARIA;
+const COLOR_EVENTO = COLOR_SERIE_SECUNDARIA;
 
 function NavReportes({ activo }: { activo: "financiero" | "margen" | "historico" | "ranking" }) {
   const items = [

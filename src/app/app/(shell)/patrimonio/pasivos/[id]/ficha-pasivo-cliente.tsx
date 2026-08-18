@@ -252,27 +252,27 @@ export function FichaPasivoCliente({
             </span>
             <div>
               <p className="text-[11px] tracking-wide text-text-muted uppercase">Monto original</p>
-              <p className="font-heading text-lg font-semibold text-navy">{formatMoneda(pasivo.montoTotal)}</p>
+              <p className="font-heading text-lg font-extrabold text-navy">{formatMoneda(pasivo.montoTotal)}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Cuota {LABEL_FRECUENCIA[pasivo.frecuenciaCuota]}</p>
-            <p className="font-heading text-lg font-semibold text-navy">{formatMoneda(pasivo.cuotaPeriodica)}</p>
+            <p className="font-heading text-lg font-extrabold text-navy">{formatMoneda(pasivo.cuotaPeriodica)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Saldo pendiente</p>
-            <p className="font-heading text-lg font-semibold text-primary">{formatMoneda(pasivo.saldoPendiente)}</p>
+            <p className="font-heading text-lg font-extrabold text-primary">{formatMoneda(pasivo.saldoPendiente)}</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="rounded-2xl bg-card shadow-card">
         <div className="flex items-center justify-between border-b border-gray-border p-4">
-          <h2 className="font-heading text-base font-semibold text-navy">Historial de pagos</h2>
+          <h2 className="font-heading text-base font-extrabold text-navy">Historial de pagos</h2>
         </div>
         {pagos.length === 0 ? (
           <p className="p-6 text-center text-sm text-text-muted">Todavía no se registró ningún pago.</p>

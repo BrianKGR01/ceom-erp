@@ -29,7 +29,7 @@ export function DirectorioCliente({ proveedores }: { proveedores: ProveedorDirec
   return (
     <aside className="w-72 shrink-0 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-heading text-sm font-semibold text-navy">
+        <h2 className="font-heading text-sm font-extrabold text-navy">
           Directorio <span className="text-xs font-normal text-text-muted">({proveedores.length})</span>
         </h2>
         <Button size="sm" onClick={() => setDialogoAbierto(true)}>

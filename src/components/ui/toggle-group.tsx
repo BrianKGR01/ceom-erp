@@ -32,7 +32,7 @@ export function ToggleGroup<T extends string = string>({
             aria-pressed={activo}
             onClick={() => onValueChange(option.value)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+              "rounded-full px-3 py-1.5 text-xs font-bold transition-colors",
               activo
                 ? "bg-primary text-white"
                 : "bg-pastel-blue-bg text-text-body hover:bg-pastel-blue-bg/70"

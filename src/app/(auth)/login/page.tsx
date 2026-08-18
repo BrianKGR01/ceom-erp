@@ -46,7 +46,7 @@ export default async function LoginPage({
 
   return (
     <div className="flex min-h-screen">
-      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to text-white lg:flex">
+      <div className="relative hidden w-1/2 flex-col overflow-hidden bg-[image:var(--brand-gradient-header)] text-white lg:flex">
         {/* Circulos decorativos difuminados — parte de la composicion de
             referencia aprobada por el cliente (design-system.md 5.8: la
             estructura/composicion del login se mantiene tal cual). */}
@@ -76,7 +76,7 @@ export default async function LoginPage({
           </div>
 
           <div>
-            <h2 className="font-heading text-4xl leading-tight font-semibold xl:text-5xl">
+            <h2 className="font-heading text-4xl leading-tight font-extrabold xl:text-5xl">
               Tu negocio,
               <br />
               bajo{" "}

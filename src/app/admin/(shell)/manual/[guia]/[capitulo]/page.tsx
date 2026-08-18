@@ -62,7 +62,7 @@ export default async function CapituloPage({ params }: Params) {
             <p className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">
               {datosGuia.titulo} · Capítulo {datosCapitulo.numero}
             </p>
-            <h2 className="mt-1 font-heading text-2xl leading-tight font-semibold text-navy">
+            <h2 className="mt-1 font-heading text-2xl leading-tight font-extrabold text-navy">
               {datosCapitulo.titulo}
             </h2>
           </div>

@@ -382,7 +382,7 @@ export function RolesCliente({
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="font-heading text-base font-semibold text-navy">{nombreRolVisible(rol.nombre)}</h2>
+                <h2 className="font-heading text-base font-extrabold text-navy">{nombreRolVisible(rol.nombre)}</h2>
                 {rol.esRolSistema && <Badge variant="warning">Rol predefinido</Badge>}
               </div>
               {!rol.esRolSistema && (
@@ -426,7 +426,7 @@ export function RolesCliente({
         <div className="mt-6 rounded-2xl bg-card p-5 shadow-card">
           <div className="flex items-center justify-between border-b border-gray-border pb-4">
             <div>
-              <h2 className="font-heading text-lg font-semibold text-navy">
+              <h2 className="font-heading text-lg font-extrabold text-navy">
                 {seleccionId === "nuevo" ? "Nuevo Rol" : `Editar Rol: ${rolSeleccionado?.nombre}`}
               </h2>
               <p className="text-sm text-text-muted">Configurá los permisos específicos para este rol.</p>

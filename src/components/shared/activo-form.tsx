@@ -89,7 +89,7 @@ export function ActivoForm({
     <form onSubmit={form.handleSubmit(handleSubmit)} className="mx-auto max-w-2xl">
       <div className="rounded-2xl bg-card p-6 shadow-card">
         <div className="space-y-4 border-b border-gray-border pb-6">
-          <h2 className="font-heading text-base font-semibold text-navy">Datos principales</h2>
+          <h2 className="font-heading text-base font-extrabold text-navy">Datos principales</h2>
 
           <div className="space-y-1.5">
             <Label htmlFor="nombre">Nombre del activo</Label>
@@ -142,7 +142,7 @@ export function ActivoForm({
         </div>
 
         <div className="space-y-4 border-b border-gray-border py-6">
-          <h2 className="font-heading text-base font-semibold text-navy">
+          <h2 className="font-heading text-base font-extrabold text-navy">
             Detalles de adquisición y operación
           </h2>
 
@@ -219,7 +219,7 @@ export function ActivoForm({
 
         <div className="space-y-4 pt-6">
           <div>
-            <h2 className="font-heading text-base font-semibold text-navy">Capacidad (opcional)</h2>
+            <h2 className="font-heading text-base font-extrabold text-navy">Capacidad (opcional)</h2>
             <p className="text-xs text-text-muted">
               Solo de referencia — Patrimonio no calcula uso ni alertas de capacidad.
             </p>

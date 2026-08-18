@@ -460,7 +460,7 @@ export function ColaboradoresCliente({
                   <Badge variant={c.activo ? "success" : "error"}>{c.activo ? "Activo" : "Suspendido"}</Badge>
                 </div>
               </div>
-              <h2 className="mt-3 font-heading text-base font-semibold text-navy">{c.nombreCompleto}</h2>
+              <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{c.nombreCompleto}</h2>
               <p className="text-xs text-text-muted">{c.email}</p>
               <p className="mt-2 text-sm text-navy">{nombreRolVisible(c.rol.nombre)}</p>
 

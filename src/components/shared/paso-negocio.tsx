@@ -152,7 +152,7 @@ export function PasoNegocio({
 
   return (
     <div>
-      <h2 className="font-heading text-lg font-semibold text-navy">Contanos de tu negocio</h2>
+      <h2 className="font-heading text-lg font-extrabold text-navy">Contanos de tu negocio</h2>
       <p className="mt-1 text-sm text-text-muted">Esto lo podés cambiar cuando quieras desde tu panel.</p>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 space-y-4">

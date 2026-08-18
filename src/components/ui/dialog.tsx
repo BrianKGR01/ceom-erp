@@ -31,7 +31,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-[var(--overlay)] duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -68,7 +68,7 @@ function DialogContent({
         className={cn(
           // Radio y sombra "casi imperceptible" del design-system — mismo
           // tratamiento que Card, sin ring/borde marcado.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-4 text-sm text-popover-foreground shadow-card duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-6 text-sm text-popover-foreground shadow-lg duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           dialogSizeClasses[size],
           className
         )}
@@ -119,7 +119,7 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         // Sin borde/fondo decorativo — mismo criterio que CardFooter.
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-2xl p-4 sm:flex-row sm:justify-end",
+        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl p-6 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -140,7 +140,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
       data-slot="dialog-title"
       className={cn(
         // Titulo — design-system.md seccion 3, mismo tratamiento que CardTitle.
-        "font-heading text-base leading-none font-semibold text-navy",
+        "font-heading text-base leading-none font-extrabold tracking-[-0.3px] text-navy",
         className
       )}
       {...props}

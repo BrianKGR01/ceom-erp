@@ -162,7 +162,7 @@ export function ResumenFinancieroCliente({
             </span>
             <div>
               <p className="text-xs text-text-muted uppercase">Valor patrimonial total</p>
-              <p className="text-2xl font-semibold text-navy">
+              <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
                 {patrimonio ? formatoMoneda(patrimonio.valorPatrimonialTotal) : "—"}
               </p>
               <p className="text-xs text-text-muted">Activos (valor actual) menos saldo pendiente de pasivos.</p>
@@ -198,7 +198,7 @@ export function ResumenFinancieroCliente({
                     valor={-estado.ajustesCompra}
                     tono="error"
                   />
-                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-navy p-3 text-white">
+                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-brand-dark p-3 text-white">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10">
                       <Sigma className="size-4" />
                     </span>
