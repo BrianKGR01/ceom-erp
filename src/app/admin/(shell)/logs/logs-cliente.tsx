@@ -145,19 +145,19 @@ export function LogsCliente({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-border text-left text-[11px] tracking-wide text-text-muted uppercase">
-                <th className="px-4 py-4 font-medium">Negocio</th>
-                <th className="px-4 py-4 font-medium">Módulo consultado</th>
-                <th className="px-4 py-4 font-medium">Usuario CEOM</th>
-                <th className="px-4 py-4 text-right font-medium">Fecha</th>
+                <th className="px-4 py-3 font-medium">Negocio</th>
+                <th className="px-4 py-3 font-medium">Módulo consultado</th>
+                <th className="px-4 py-3 font-medium">Usuario CEOM</th>
+                <th className="px-4 py-3 text-right font-medium">Fecha</th>
               </tr>
             </thead>
             <tbody>
               {filas.map((fila, index) => (
                 <tr key={`${fila.tenantId}-${fila.creadoEn}-${index}`} className="border-b border-gray-border last:border-0">
-                  <td className="px-4 py-4 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Sin especificar"}</td>
-                  <td className="px-4 py-4 text-text-body">{formatoModulo(fila.moduloConsultado)}</td>
-                  <td className="px-4 py-4 font-mono text-xs text-text-muted">{fila.usuarioCeomId.slice(0, 8)}…</td>
-                  <td className="px-4 py-4 text-right text-text-muted">{formatoFechaHora(fila.creadoEn)}</td>
+                  <td className="px-4 py-3 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Sin especificar"}</td>
+                  <td className="px-4 py-3 text-text-body">{formatoModulo(fila.moduloConsultado)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{fila.usuarioCeomId.slice(0, 8)}…</td>
+                  <td className="px-4 py-3 text-right text-text-muted">{formatoFechaHora(fila.creadoEn)}</td>
                 </tr>
               ))}
             </tbody>
