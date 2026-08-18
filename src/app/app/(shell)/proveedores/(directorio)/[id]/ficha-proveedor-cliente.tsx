@@ -106,7 +106,7 @@ export function FichaProveedorCliente({
               <Truck className="size-5" />
             </span>
             <div>
-              <h1 className="font-heading text-lg font-semibold text-navy">{proveedor.nombre}</h1>
+              <h1 className="font-heading text-lg font-extrabold text-navy">{proveedor.nombre}</h1>
               {proveedor.contacto && <p className="text-xs text-text-muted">{proveedor.contacto}</p>}
             </div>
           </div>

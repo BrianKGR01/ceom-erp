@@ -119,7 +119,7 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
   return (
     <div className="rounded-2xl bg-card p-4 shadow-card">
       <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">{label}</p>
-      <p className="mt-1 font-heading text-xl font-semibold text-navy">{valor}</p>
+      <p className="mt-1 font-heading text-xl font-extrabold text-navy">{valor}</p>
     </div>
   );
 }
@@ -513,7 +513,7 @@ function SucursalesSection({ tenantId, sucursales }: { tenantId: string; sucursa
     <div className="mt-6 rounded-2xl bg-card p-4 shadow-card">
       <div className="flex items-center gap-2">
         <Building2 className="size-4 text-primary" />
-        <h2 className="font-heading text-sm font-semibold text-navy">Sucursales</h2>
+        <h2 className="font-heading text-sm font-extrabold text-navy">Sucursales</h2>
       </div>
       <div className="mt-3 divide-y divide-gray-border">
         {sucursales.map((s) => (
@@ -643,7 +643,7 @@ export function FichaTenantAdminCliente({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy">{tenant.nombreNegocio}</h1>
+          <h1 className="font-heading text-2xl font-extrabold text-navy">{tenant.nombreNegocio}</h1>
           <p className="text-sm text-text-muted">Ficha de Tenant</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

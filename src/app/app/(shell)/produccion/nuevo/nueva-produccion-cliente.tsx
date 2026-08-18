@@ -176,7 +176,7 @@ export function NuevaProduccionCliente({
 
           <div className="space-y-4 border-t border-gray-border pt-5">
             <div className="flex items-center justify-between">
-              <h3 className="font-heading text-sm font-semibold text-navy">Selecciona el producto a producir</h3>
+              <h3 className="font-heading text-sm font-extrabold text-navy">Selecciona el producto a producir</h3>
               <div className="relative w-56">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
                 <Input
@@ -219,7 +219,7 @@ export function NuevaProduccionCliente({
         </div>
 
         <div className="rounded-2xl bg-card p-5 shadow-card">
-          <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-semibold text-navy">
+          <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
             <Calendar className="size-4 text-primary" />
             Equipo y Fecha
           </h3>
@@ -307,7 +307,7 @@ export function NuevaProduccionCliente({
         </div>
 
         <div className="rounded-2xl bg-card p-5 shadow-card">
-          <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-semibold text-navy">
+          <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
             <BarChart3 className="size-4 text-primary" />
             Resultados
           </h3>
@@ -333,7 +333,7 @@ export function NuevaProduccionCliente({
               <BarChart3 className="size-4" />
             </span>
             <div>
-              <p className="font-heading text-sm font-semibold text-navy">Resumen</p>
+              <p className="font-heading text-sm font-extrabold text-navy">Resumen</p>
               <p className="text-xs text-text-muted">Producción en tiempo real</p>
             </div>
           </div>

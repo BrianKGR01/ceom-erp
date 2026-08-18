@@ -102,7 +102,7 @@ export function CanjearCliente() {
         <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-success-bg text-success-text">
           <CheckCircle2 className="size-7" />
         </span>
-        <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Acceso otorgado</h1>
+        <h1 className="mt-4 font-heading text-lg font-extrabold text-navy">Acceso otorgado</h1>
         {/* Este texto decía que el panel "está por construirse". Existe desde
             el ítem #11 del roadmap: era copy muerto de una tanda anterior. */}
         <p className="mt-2 text-sm text-text-muted">
@@ -120,7 +120,7 @@ export function CanjearCliente() {
         <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
           <Mail className="size-7" />
         </span>
-        <h1 className="mt-4 font-heading text-lg font-semibold text-navy">Revisá tu correo</h1>
+        <h1 className="mt-4 font-heading text-lg font-extrabold text-navy">Revisá tu correo</h1>
         {/* El mensaje es el MISMO exista o no ese correo (anti-enumeración,
             mismo criterio que la recuperación de contraseña). Por eso dice
             "si existe" y nunca confirma nada. */}
@@ -148,7 +148,7 @@ export function CanjearCliente() {
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
             <KeyRound className="size-5" />
           </span>
-          <h1 className="mt-3 text-center font-heading text-lg font-semibold text-navy">
+          <h1 className="mt-3 text-center font-heading text-lg font-extrabold text-navy">
             Ingresar Código
           </h1>
           <p className="mt-1 text-center text-sm text-text-muted">
@@ -203,7 +203,7 @@ export function CanjearCliente() {
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-pastel-blue-bg text-primary">
             <Mail className="size-5" />
           </span>
-          <h1 className="mt-3 text-center font-heading text-lg font-semibold text-navy">
+          <h1 className="mt-3 text-center font-heading text-lg font-extrabold text-navy">
             Iniciar con tu email
           </h1>
           <p className="mt-1 text-center text-sm text-text-muted">
@@ -251,7 +251,7 @@ export function CanjearCliente() {
         </>
       ) : (
         <>
-          <h1 className="text-center font-heading text-lg font-semibold text-navy">
+          <h1 className="text-center font-heading text-lg font-extrabold text-navy">
             Contanos quién sos
           </h1>
           {/* El texto anterior decía "No encontramos una cuenta con este

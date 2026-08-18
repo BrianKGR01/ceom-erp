@@ -123,7 +123,7 @@ export function GenerarCodigoCliente({
       <NavConsentimiento activo="generar" />
 
       <div className="rounded-2xl bg-card p-5 shadow-card">
-        <h2 className="font-heading text-base font-semibold text-navy">Generar Código de Acceso</h2>
+        <h2 className="font-heading text-base font-extrabold text-navy">Generar Código de Acceso</h2>
         <p className="mt-1 text-sm text-text-muted">
           Seleccioná los módulos a los que querés otorgar acceso temporal. Generá un código seguro
           para compartir con tu equipo o asesores.
@@ -173,7 +173,7 @@ export function GenerarCodigoCliente({
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-brand-dark p-4 text-white">
             <div>
               <p className="text-[11px] tracking-wide text-white/60 uppercase">Código generado</p>
-              <p className="font-heading text-2xl font-bold tracking-widest">{codigoGenerado}</p>
+              <p className="font-heading text-2xl font-extrabold tracking-widest">{codigoGenerado}</p>
             </div>
             <Button variant="outline" size="sm" onClick={copiarCodigo} className="border-white/30 bg-white/10 text-white hover:bg-white/20">
               <Copy className="size-4" />

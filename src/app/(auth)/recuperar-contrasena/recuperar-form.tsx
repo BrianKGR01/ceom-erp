@@ -23,7 +23,7 @@ export function RecuperarForm() {
           <span className="mb-4 flex size-11 items-center justify-center rounded-full bg-success-bg">
             <MailCheck className="size-5 text-success-text" />
           </span>
-          <h1 className="font-heading text-lg font-semibold text-navy">Revisá tu correo</h1>
+          <h1 className="font-heading text-lg font-extrabold text-navy">Revisá tu correo</h1>
           <p className="mt-2 text-sm text-text-muted">{estado.mensaje}</p>
         </div>
         <Link
@@ -41,7 +41,7 @@ export function RecuperarForm() {
     <div className="w-full max-w-sm rounded-2xl bg-card p-8 shadow-card">
       <Logo className="mx-auto mb-6 h-10 w-auto" />
 
-      <h1 className="text-center font-heading text-lg font-semibold text-navy">
+      <h1 className="text-center font-heading text-lg font-extrabold text-navy">
         ¿Olvidaste tu contraseña?
       </h1>
       <p className="mt-1 text-center text-sm text-text-muted">

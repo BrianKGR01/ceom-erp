@@ -36,7 +36,7 @@ export function DefinirContrasenaForm({ motivo }: { motivo: MotivoDefinirContras
     <div className="w-full max-w-sm rounded-2xl bg-card p-8 shadow-card">
       <Logo className="mx-auto mb-6 h-10 w-auto" />
 
-      <h1 className="text-center font-heading text-lg font-semibold text-navy">{copy.titulo}</h1>
+      <h1 className="text-center font-heading text-lg font-extrabold text-navy">{copy.titulo}</h1>
       <p className="mt-1 text-center text-sm text-text-muted">{copy.bajada}</p>
 
       <form action={formAction} className="mt-6 space-y-4">

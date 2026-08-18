@@ -74,7 +74,7 @@ export function CodigosCliente({ datosIniciales }: { datosIniciales: Resultado<F
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="font-heading font-semibold tracking-widest text-navy">{fila.codigo}</p>
+                    <p className="font-heading font-extrabold tracking-widest text-navy">{fila.codigo}</p>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   </div>
                   <p className="mt-0.5 text-xs text-text-muted">

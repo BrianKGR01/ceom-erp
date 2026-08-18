@@ -248,7 +248,7 @@ export function CapacidadesCliente({
 
       <div className="mt-6 rounded-2xl bg-card shadow-card">
         <div className="border-b border-gray-border p-4">
-          <h2 className="font-heading text-base font-semibold text-navy">Permisos por rol</h2>
+          <h2 className="font-heading text-base font-extrabold text-navy">Permisos por rol</h2>
         </div>
         {roles.length === 0 ? (
           <p className="p-6 text-center text-sm text-text-muted">
@@ -294,7 +294,7 @@ export function CapacidadesCliente({
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-heading text-base font-semibold text-navy">Excepciones por colaborador</h2>
+          <h2 className="font-heading text-base font-extrabold text-navy">Excepciones por colaborador</h2>
           <p className="text-sm text-text-muted">Excepciones específicas asignadas a colaboradores individuales.</p>
         </div>
         <div className="flex items-center gap-2">

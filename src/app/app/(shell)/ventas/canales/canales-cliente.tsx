@@ -187,7 +187,7 @@ export function CanalesCliente({ canales }: { canales: CanalListado[] }) {
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                       <Store className="size-4" />
                     </span>
-                    <p className="font-heading text-sm font-semibold text-navy">{canal.nombre}</p>
+                    <p className="font-heading text-sm font-extrabold text-navy">{canal.nombre}</p>
                   </div>
                   <Switch checked={canal.activo} onCheckedChange={() => toggleActivo(canal)} />
                 </div>

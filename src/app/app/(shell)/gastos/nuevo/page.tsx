@@ -27,7 +27,7 @@ export default async function NuevoGastoPage() {
             <ArrowLeft className="size-4" />
           </Button>
           <div>
-            <h1 className="font-heading text-xl font-semibold text-navy">Registrar Gasto</h1>
+            <h1 className="font-heading text-xl font-extrabold text-navy">Registrar Gasto</h1>
             <p className="text-sm text-text-muted">Ingresá los detalles del nuevo movimiento.</p>
           </div>
         </div>

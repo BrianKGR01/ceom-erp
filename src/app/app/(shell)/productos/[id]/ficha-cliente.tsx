@@ -435,7 +435,7 @@ export function FichaCliente({
           <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
           <CardContent className="relative space-y-1 pt-6">
             <p className="text-xs text-text-muted uppercase">Precio de venta</p>
-            <p className="text-2xl font-semibold text-navy">
+            <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
               {precio.toFixed(2)}{" "}
               <span className="text-sm font-normal text-text-muted">/ {unidadVenta}</span>
             </p>
@@ -450,7 +450,7 @@ export function FichaCliente({
           <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
           <CardContent className="relative space-y-1 pt-6">
             <p className="text-xs text-text-muted uppercase">Costo operativo</p>
-            <p className="text-2xl font-semibold text-navy">
+            <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
               {costo !== null ? costo.toFixed(2) : "—"}
             </p>
             {costoBloqueado ? (

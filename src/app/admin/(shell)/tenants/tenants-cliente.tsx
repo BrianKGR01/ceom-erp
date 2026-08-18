@@ -55,7 +55,7 @@ export function TenantsCliente({
     <div className="min-h-screen bg-gray-bg p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-navy">Negocios</h1>
+          <h1 className="font-heading text-2xl font-extrabold text-navy">Negocios</h1>
           <p className="mt-1 text-sm text-text-muted">Salud agregada de la plataforma.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function TenantsCliente({
           </span>
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Total de negocios</p>
-            <p className="font-heading text-xl font-semibold text-navy">{tenants.length}</p>
+            <p className="font-heading text-xl font-extrabold text-navy">{tenants.length}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -90,7 +90,7 @@ export function TenantsCliente({
           </span>
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Activos</p>
-            <p className="font-heading text-xl font-semibold text-navy">{porEstadoAcceso.activo ?? 0}</p>
+            <p className="font-heading text-xl font-extrabold text-navy">{porEstadoAcceso.activo ?? 0}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -99,7 +99,7 @@ export function TenantsCliente({
           </span>
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Solo lectura</p>
-            <p className="font-heading text-xl font-semibold text-navy">{porEstadoAcceso.solo_lectura ?? 0}</p>
+            <p className="font-heading text-xl font-extrabold text-navy">{porEstadoAcceso.solo_lectura ?? 0}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -108,7 +108,7 @@ export function TenantsCliente({
           </span>
           <div>
             <p className="text-[11px] font-medium tracking-wide text-text-muted uppercase">Bloqueados</p>
-            <p className="font-heading text-xl font-semibold text-navy">{porEstadoAcceso.bloqueado ?? 0}</p>
+            <p className="font-heading text-xl font-extrabold text-navy">{porEstadoAcceso.bloqueado ?? 0}</p>
           </div>
         </div>
       </div>

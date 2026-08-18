@@ -140,7 +140,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
       data-slot="dialog-title"
       className={cn(
         // Titulo — design-system.md seccion 3, mismo tratamiento que CardTitle.
-        "font-heading text-base leading-none font-semibold text-navy",
+        "font-heading text-base leading-none font-extrabold tracking-[-0.3px] text-navy",
         className
       )}
       {...props}

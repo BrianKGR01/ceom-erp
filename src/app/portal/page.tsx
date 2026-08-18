@@ -51,7 +51,7 @@ export default async function PortalCanjearPage({
         />
 
         <div className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-8 py-12">
-          <h2 className="font-heading text-3xl leading-tight font-semibold xl:text-4xl">
+          <h2 className="font-heading text-3xl leading-tight font-extrabold xl:text-4xl">
             Accedé al seguimiento de un emprendimiento.
           </h2>
           <p className="mt-4 max-w-sm text-base text-white/70">

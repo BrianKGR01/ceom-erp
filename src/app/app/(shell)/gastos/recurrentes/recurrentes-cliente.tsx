@@ -355,7 +355,7 @@ export function RecurrentesCliente({
                 </span>
                 <div>
                   <p className="text-[11px] tracking-wide text-text-muted uppercase">Plantillas activas</p>
-                  <p className="font-heading text-lg font-semibold text-navy">{activas.length}</p>
+                  <p className="font-heading text-lg font-extrabold text-navy">{activas.length}</p>
                 </div>
               </CardContent>
             </Card>
@@ -366,7 +366,7 @@ export function RecurrentesCliente({
                 </span>
                 <div>
                   <p className="text-[11px] tracking-wide text-text-muted uppercase">Proyección mensual</p>
-                  <p className="font-heading text-lg font-semibold text-navy">{formatMoneda(proyeccionMensual)}</p>
+                  <p className="font-heading text-lg font-extrabold text-navy">{formatMoneda(proyeccionMensual)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -377,7 +377,7 @@ export function RecurrentesCliente({
                 </span>
                 <div>
                   <p className="text-[11px] tracking-wide text-text-muted uppercase">Próximos 7 días</p>
-                  <p className="font-heading text-lg font-semibold text-navy">{en7Dias} por vencer</p>
+                  <p className="font-heading text-lg font-extrabold text-navy">{en7Dias} por vencer</p>
                 </div>
               </CardContent>
             </Card>
@@ -403,7 +403,7 @@ export function RecurrentesCliente({
                         <Switch checked={false} disabled />
                       )}
                     </div>
-                    <p className="mt-2 font-heading text-lg font-semibold text-navy">{formatMoneda(r.monto)}</p>
+                    <p className="mt-2 font-heading text-lg font-extrabold text-navy">{formatMoneda(r.monto)}</p>
                     <p className="text-xs text-text-muted">{r.categoriaNombre}</p>
                   </CardHeader>
                   <CardContent className="space-y-2 border-t border-gray-border pt-3 text-xs">

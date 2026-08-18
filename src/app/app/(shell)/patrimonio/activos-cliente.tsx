@@ -137,7 +137,7 @@ export function ActivosCliente({
                         </span>
                         <Badge variant={badge.variant}>{badge.label}</Badge>
                       </div>
-                      <p className="mt-2 font-heading text-sm font-semibold text-navy">{activo.nombre}</p>
+                      <p className="mt-2 font-heading text-sm font-extrabold text-navy">{activo.nombre}</p>
                       <p className="text-xs text-text-muted">{LABEL_TIPO[activo.tipo]}</p>
                     </CardHeader>
                     <CardContent className="space-y-2 border-t border-gray-border pt-3">
@@ -169,7 +169,7 @@ export function ActivosCliente({
               </span>
               <div>
                 <p className="text-[11px] tracking-wide text-text-muted uppercase">Activos operativos</p>
-                <p className="font-heading text-lg font-semibold text-navy">{totalOperativos}</p>
+                <p className="font-heading text-lg font-extrabold text-navy">{totalOperativos}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
@@ -178,7 +178,7 @@ export function ActivosCliente({
               </span>
               <div>
                 <p className="text-[11px] tracking-wide text-text-muted uppercase">Valor patrimonial total</p>
-                <p className="font-heading text-lg font-semibold text-navy">
+                <p className="font-heading text-lg font-extrabold text-navy">
                   {formatMoneda(valorPatrimonialTotal)}
                 </p>
               </div>

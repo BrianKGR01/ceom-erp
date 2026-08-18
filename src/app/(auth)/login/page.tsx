@@ -76,7 +76,7 @@ export default async function LoginPage({
           </div>
 
           <div>
-            <h2 className="font-heading text-4xl leading-tight font-semibold xl:text-5xl">
+            <h2 className="font-heading text-4xl leading-tight font-extrabold xl:text-5xl">
               Tu negocio,
               <br />
               bajo{" "}

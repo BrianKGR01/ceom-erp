@@ -544,7 +544,7 @@ export function FichaInsumoCliente({
           <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-pastel-blue-bg text-primary">
             <Beaker className="size-5" />
           </span>
-          <h1 className="font-heading text-lg font-semibold text-navy">{nombre}</h1>
+          <h1 className="font-heading text-lg font-extrabold text-navy">{nombre}</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setDialogoCompra(primeraSucursal)}>
@@ -607,7 +607,7 @@ export function FichaInsumoCliente({
           <div className="pointer-events-none absolute -top-6 -right-6 size-24 rounded-full bg-pastel-blue-bg" />
           <CardContent className="relative space-y-1 pt-6">
             <p className="text-xs text-text-muted uppercase">Costo unitario vigente</p>
-            <p className="text-2xl font-semibold text-navy">
+            <p className="font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
               {costoUnitarioVigente !== null ? Number(costoUnitarioVigente).toFixed(4) : "—"}{" "}
               <span className="text-sm font-normal text-text-muted">
                 / {LABEL_UNIDAD[unidadMedida]}

@@ -19,7 +19,7 @@ export function LoginForm({ aviso }: { aviso?: string | null }) {
           design-system: usar public/logo-CEOM.svg tal cual existe. */}
       <Logo className="mx-auto mb-6 h-10 w-auto" />
 
-      <h1 className="text-center font-heading text-lg font-semibold text-navy">
+      <h1 className="text-center font-heading text-lg font-extrabold text-navy">
         ¡Bienvenid@ de vuelta!
       </h1>
       <p className="mt-1 text-center text-sm text-text-muted">

@@ -111,7 +111,7 @@ export function InicioContenido({
         <X className="size-4" />
       </button>
 
-      <h1 className="font-heading text-xl font-semibold text-navy">¡Bienvenido, {nombreNegocio}!</h1>
+      <h1 className="font-heading text-xl font-extrabold text-navy">¡Bienvenido, {nombreNegocio}!</h1>
       <p className="mt-1 text-sm text-text-muted">Empecemos por cargar lo que vendés.</p>
 
       <div className="mt-4 flex flex-col items-start gap-3 rounded-xl border border-gray-border p-4 sm:flex-row sm:items-center">
