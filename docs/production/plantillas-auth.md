@@ -146,5 +146,5 @@ para todos**, que es justo la conclusión que la asimetría de este documento de
 
 > **`pnpm auth:config` es lo que cierra la pregunta**, y su salida se commitea como
 > `docs/production/auth-config.snapshot.json`. Hasta entonces, **el runbook de
-> [`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/09-arranque-desde-cero.md) §3.2 describe
+> [`09-arranque-desde-cero.md`](../auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md) §3.2 describe
 > valores que nadie puede verificar** — y eso, no la redacción de las plantillas, es el hallazgo.

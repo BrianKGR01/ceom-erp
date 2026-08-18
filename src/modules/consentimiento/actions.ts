@@ -80,7 +80,7 @@ function esCorreoDeInstitucionDuplicado(error: unknown): boolean {
 /**
  * Limite de intentos de canje por origen (tanda 3.2). `canjearCodigoAcceso`
  * es la unica escritura sin autenticar del producto y hasta esta tanda no
- * tenia ninguno; `docs/auditoria-prelanzamiento/03-seguridad.md` lo marco
+ * tenia ninguno; `docs/auditoria-prelanzamiento/antiguo/03-seguridad.md` lo marco
  * como previo a cualquier despliegue.
  *
  * Deliberadamente holgado: 10 intentos cada 15 minutos no molesta a nadie

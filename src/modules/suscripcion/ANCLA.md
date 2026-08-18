@@ -36,7 +36,7 @@
       reemplaza a `DatosPlan.incluyeSucursales` en `crearPlan`/`actualizarPlan`.
       Nuevo helper exportado `incluyeMultiplesSucursales(plan)` para los
       call-sites que solo necesitan sí/no. Diagnóstico completo en
-      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 5.
+      `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md` sección 5.
 - [x] Schema Drizzle (`planes`) + RLS (policy de solo `select` para
       `authenticated`, sin `crudPolicy()` porque no es tenant-scoped).
 - [x] Plan "Básico" sembrado con ID fijo (`PLAN_BASICO_ID`), **precio_mensual
@@ -98,12 +98,16 @@
   Identidad — el módulo de Nicho no existe todavía. Cuando se construya,
   hay que revisar ambos pendientes juntos.
 - `modulos_veedor_permitidos` es un `pgEnum[]` (`financiero`, `operativo`,
-  `inventario_operativo`) que hoy nadie consume — está en el schema porque
-  Módulo 1 sección 1.6 ya lo especifica como parte de `Plan`, pero el
-  Código de Acceso que lo usaría es trabajo futuro. Ojo: agregar valores a
-  este enum más adelante requiere `ALTER TYPE ... ADD VALUE`, que en
-  Postgres **no puede ir en la misma transacción** que otro DDL — separar
-  esa migración cuando llegue el momento.
+  `inventario_operativo`). ⚠️ **Corregido el 2026-08-06 (R-2.2 / DA-14):**
+  este archivo decía *"hoy nadie consume"* y **es falso desde hace semanas** —
+  es, de hecho, el atributo de plan con más efecto del sistema:
+  `generarCodigoAcceso` valida contra él qué módulos puede otorgar un Código
+  de Acceso (`consentimiento/actions.ts:471`), y el formulario de
+  `/admin/planes` lo edita (`planes-cliente.tsx`). Cambiar este arreglo en un
+  plan cambia qué puede ver una institución. Ojo: agregar valores a este enum
+  más adelante requiere `ALTER TYPE ... ADD VALUE`, que en Postgres **no puede
+  ir en la misma transacción** que otro DDL — separar esa migración cuando
+  llegue el momento.
 - Los tests de este módulo (y los de Identidad) corren contra el rol
   `postgres` (bypassea RLS por completo, vía `DATABASE_URL`/`DIRECT_URL`) —
   no validan la policy de `authenticated` de verdad. Es una limitación ya
@@ -115,6 +119,6 @@
 
 ## Última actualización: 2026-07-27 — H-02: `incluyeSucursales` (boolean) reemplazado por
 `maxSucursales` (integer nullable, tope estructurado). Migraciones `0045`/`0046`. Ver
-`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
 
 ## Última actualización: 2026-07-18 — UI de "Mi Plan" construida (`/app/mi-negocio/plan`), cierra el último ítem pendiente de este módulo. Actualización previa el mismo día: UI del catálogo de Planes construida (`/admin/planes`)

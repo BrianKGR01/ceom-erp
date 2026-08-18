@@ -104,6 +104,26 @@ Resuelve la necesidad real de registrar un gasto ya reconocido pero **pendiente 
 - `consultar_distribucion_por_categoria(periodo)` — para el dashboard de este módulo y para **Reportes**.
 - Evento `gasto_registrado(monto, categoria, tipo, fecha)` — consumido por **Financiero** para el Estado de Resultados.
 
+> **Lo que el código expone y este doc no decía — agregado el 2026-08-06 (R-2.2):**
+>
+> - **`sembrarCategoriasGastoDefault(tenantId)`** — siembra el catálogo inicial. Ya tiene llamador
+>   de producción: el alta de tenant desde `/admin` la invoca (DA-01 cerrado). Un negocio nuevo
+>   nace con categorías; los creados antes del cableado, no.
+> - **Las categorías de los gastos automáticos se autoprovisionan.** `generarGastoCuotaPasivo` y
+>   `generarGastoComisionVenta` crean su categoría destino ("Comisiones de venta", "Cuotas de
+>   deuda") si no existe, en vez de fallar. Es lo que permite que la regla 6 de §3 se cumpla en un
+>   tenant recién creado.
+> - **Gates cruzados:** las dos `generarGasto*` son llamadas **por otro módulo** (Patrimonio y
+>   Ventas), no por la UI de Gastos. Cada una valida permisos con el `solicitante` que le llega —
+>   no asume que quien la llama ya autorizó.
+> - **Guard anti-código-muerto:** `auto-generacion-conectada.test.ts` hace fallar la suite si
+>   alguna `generarGasto*` se queda sin llamador de producción. Nació de DA-03, donde la función
+>   estuvo escrita y probada durante días sin que nadie la invocara y el Estado de Resultados
+>   subdeclaraba gastos en silencio. **No borrar ese test al refactorizar.**
+> - **Deuda viva:** `sumarPagosGastoPeriodo` (usada por `flujoCaja`) **no filtra `eliminado_en`** y
+>   su gemela sí (`repository.ts:314-334` vs `:339-359`) — caja y resultado divergen sin aviso
+>   cuando se borra un gasto que tenía pagos. Es R-3.5.
+
 ---
 
 ## 3. Reglas de negocio clave

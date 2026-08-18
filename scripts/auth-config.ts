@@ -2,7 +2,7 @@
 // plantillas de correo) y la guarda como snapshot versionable en
 // `docs/production/auth-config.snapshot.json`.
 //
-// **Por qué existe.** `docs/auditoria-prelanzamiento/09-arranque-desde-cero.md`
+// **Por qué existe.** `docs/auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md`
 // §3.1 documentó 13 piezas de configuración del proyecto de Supabase que no
 // viven en el repo y que un `clone` + `migrate` + `seed` no reproduce. Las dos
 // plantillas de correo son la peor: sin ellas, el Owner de un negocio recién
@@ -93,7 +93,7 @@ async function main() {
         "  SUPABASE_ACCESS_TOKEN=sbp_xxx pnpm auth:config\n\n" +
         "Sin él, la configuración de Auth de este proyecto NO se puede leer desde el\n" +
         "repo — que es exactamente el problema que este script existe para cerrar\n" +
-        "(docs/auditoria-prelanzamiento/09-arranque-desde-cero.md §3.1)."
+        "(docs/auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md §3.1)."
     );
     process.exitCode = 1;
     return;

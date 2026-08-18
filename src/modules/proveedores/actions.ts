@@ -177,7 +177,7 @@ export async function fichaProveedor(
 /**
  * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio/Gastos
  * (H-02, completando el freeze en los 6 módulos que escriben con
- * sucursal_id — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+ * sucursal_id — ver docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md
  * sección 6.3 hueco 6). `compras.sucursalId` es `NOT NULL` acá (a diferencia
  * de Patrimonio/Gastos) — se llama siempre, sin atajo de null.
  */

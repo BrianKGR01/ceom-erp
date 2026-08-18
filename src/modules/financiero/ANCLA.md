@@ -95,11 +95,20 @@
       período. Los tests de este módulo tuvieron que ampliar su rango de
       período para cubrir la fecha real de ejecución, no solo las fechas
       ficticias de las Ventas — quedó documentado en el propio test.
-- [ ] `Monitoreo Institucional`/Gateway de Consentimiento (sección 2, "hacia
+- [x] `Monitoreo Institucional`/Gateway de Consentimiento (sección 2, "hacia
       Monitoreo Institucional... filtradas por lo que el Owner haya
-      aprobado") **no existe todavía** (roadmap ítems #10/#11) — las
-      funciones de Financiero ya están gateadas por `tienePermiso()`, listas
-      para que el Gateway las consuma cuando exista.
+      aprobado"). ⚠️ **Corregido el 2026-08-06 (R-2.2 / DA-15):** este ítem
+      decía *"no existe todavía"* y **los dos módulos existen y consumen
+      Financiero** desde los ítems #10/#11 del roadmap de construcción.
+      `monitoreo-institucional/actions.ts` llama a
+      `flujoCaja`/`estadoResultados`/`costoFijoTotal` detrás de
+      `tieneConsentimiento()`, y `panel-admin-ceom/actions.ts` a las mismas
+      tres detrás de su gate de `ceom_admin`.
+      **Consecuencia viva para este módulo:** `estadoResultados` es la fuente
+      de `MARCADORES_ESTADO_RESULTADOS` (D-10/DD-10). Cualquier consumidor que
+      re-proyecte a mano sus campos descarta marcadores de completitud y
+      viola las reglas #9/#10 de `CLAUDE.md` — es lo que hoy hace
+      `panel-admin-ceom` (defecto abierto registrado en su ANCLA, R-3.7).
 - [x] `margenPorProducto` — UI construida el 2026-07-17 en
       `/app/simulaciones/margen-producto` (no ruta propia de Financiero,
       mismo criterio que Flujo de Caja/Estado de Resultados: viven en

@@ -220,7 +220,7 @@ export async function listarMovimientosInsumo(
 /**
  * Hermano de requireSucursalOperable en Productos/Ventas/Patrimonio/Gastos/
  * Proveedores (H-02, completa el freeze en los 6 módulos que escriben con
- * sucursal_id — ver docs/auditoria-prelanzamiento/07-sucursales-multiples.md
+ * sucursal_id — ver docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md
  * sección 6.3 hueco 6). Cierra además el mismo hueco de autorización que ya
  * se había señalado (revisión adversarial V1 del diagnóstico): ninguna de
  * las 4 funciones de abajo validaba que sucursalId perteneciera al tenant.

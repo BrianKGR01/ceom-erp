@@ -59,7 +59,7 @@ sistema ya validado).
 
 | # | Qué | Nota |
 |---|---|---|
-| O1 | Conectar el repo a Vercel (deploy de preview por PR + producción desde `main`) | Hoy: cero proyectos. Es el ítem pendiente más viejo de la Fase 0 |
+| ~~O1~~ | ~~Conectar el repo a Vercel (deploy de preview por PR + producción desde `main`)~~ | ~~Hoy: cero proyectos.~~ ✅ **Hecho el 2026-07-27** (corregido acá el 2026-08-06, R-2.2): el proyecto `ceom-erp` existe, con producción desde `main` y previews por PR. **"Cero proyectos" es falso desde entonces**, y engañoso en la peor dirección: la etapa de despliegue no es que no arrancó — arrancó por el paso más riesgoso |
 | O2 | Endurecimiento mínimo de Auth: leaked password protection, rate limits de Supabase, `REVOKE EXECUTE` de las 4 funciones SECURITY DEFINER, rate limit propio en el canje de código | [03-seguridad.md](03-seguridad.md) §5.1 |
 | O3 | Captura de errores (Sentry o equivalente) + revisar los logs de Supabase como rutina | Sin esto, los errores del piloto son invisibles |
 | O4 | Confirmar backups del plan de Supabase Cloud + una restauración de prueba | Barato, y convierte "hay backups" en un hecho |

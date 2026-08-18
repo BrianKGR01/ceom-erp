@@ -61,7 +61,7 @@ varios negocios y varias instituciones sobre los mismos tenants. Con eso, un bug
 `tieneConsentimiento()` —hoy el **único** lugar donde se decide institución A vs. institución B, porque
 `tenant_tiene_consentimiento_vigente()` no recibe `institucion_id`— pasa de filtrar de una institución a
 un negocio, a filtrar entre cualquier par. Diagnóstico completo:
-[`docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/08-instituciones-punta-a-punta.md) §4.1 (G-11, G-12).
+[`docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md`](../auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md) §4.1 (G-11, G-12).
 
 **Revisada con eso a la vista, la decisión se ratifica: 4.b.1 sigue diferida.** Dos consecuencias que
 **no** son opcionales:

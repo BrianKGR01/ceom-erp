@@ -76,8 +76,12 @@ Por lo tanto:
     gateados por capacidad/esOwner donde `tienePermiso` no aplica.
   - `requiereCeomAdmin` / `requiereOwnerDelTenant` / `tieneConsentimiento` / `estaEnCartera` —
     boundaries de /admin, consentimiento y portal.
-- **El layout de `/admin` NO gatea `ceom_admin`** (solo `!usuario`) — la protección de /admin vive
-  enteramente en `requiereCeomAdmin` dentro de cada module action. Verificado: todas lo tienen (§4).
+- ~~**El layout de `/admin` NO gatea `ceom_admin`** (solo `!usuario`)~~ → ✅ **Ya lo gatea, en dos
+  capas** (corregido el 2026-08-06, R-2.2): `src/app/admin/layout.tsx` redirige a `/app` a
+  cualquier usuario cuyo `rolId !== ROL_CEOM_ADMIN_ID`, y `src/app/admin/(shell)/layout.tsx`
+  agrega el chequeo de sesión. La protección por `requiereCeomAdmin` dentro de cada module action
+  **sigue estando y sigue siendo la que importa** — el layout es defensa en profundidad, no la
+  reemplaza. Este renglón es drift en la dirección buena: el doc era más pesimista que el código.
 
 ---
 
@@ -97,7 +101,7 @@ Por lo tanto:
 | **Reportes** (`modules/reportes`) | composición pura; reenvía `usuario.tenantId` a actions gateadas | ✅ Sin hallazgos | 0 |
 | **Suscripción** (`modules/suscripcion`) | catálogo global de planes (sin tenant_id); writes por `requiereCeomAdmin` | ✅ Sin hallazgos | 0 |
 | **Operativo Nicho-4** (`modules/operativo/nichos/nicho-4`) | 1 lectura; delega a patrimonio/productos que revalidan | ✅ Sin hallazgos | 0 |
-| **Boundary /admin** (`app/admin/**` + `panel-admin-ceom`) | `requiereCeomAdmin` en toda función alcanzable | ✅ Sin hallazgos — el layout no gatea, pero las actions sí | 0 |
+| **Boundary /admin** (`app/admin/**` + `panel-admin-ceom`) | `requiereCeomAdmin` en toda función alcanzable, **+ gate de rol en `admin/layout.tsx`** | ✅ Sin hallazgos — ~~el layout no gatea, pero las actions sí~~ hoy gatean las dos capas (corregido 2026-08-06) | 0 |
 | **Boundary /portal** (`app/portal/**` + `monitoreo-institucional` + Gateway) | `tieneConsentimiento`/`estaEnCartera` antes de cualquier dato | ✅ Sin hallazgos — **el Gateway de Consentimiento resiste** | 0 |
 | **Thin actions** (`app/app/(shell)/**/actions.ts`) | resuelven sesión, pasan `usuario.tenantId`; no gatean (esperado) | ⚠️ Exponen las funciones de módulo vulnerables de arriba | (mismos que arriba) |
 
@@ -203,7 +207,7 @@ referenciando un proveedor ajeno. **Fix:** validación de `proveedor.tenantId ==
 | M1 | `ventas.registrarVenta` | Media | `eventoId`/`canalVentaId` ajenos leídos para la comisión (fuga del %) | Endpoint pasa `usuario.tenantId`; `productoId` ajeno ya rechazado por `consultarPrecioVenta` |
 | M2 | `ventas.importarVentaHistorica` | Media | `canalVentaId`/`clienteId`/`productoId` anidados sin validar | Endpoint pasa `usuario.tenantId`; no escribe a tenant arbitrario |
 | M3 | `patrimonio.crearPasivo` / `refinanciarPasivo` | Media | `activoId` no validado contra el tenant | Escritura cae en el tenant propio; integridad, no fuga de datos ajenos |
-| M4 | `patrimonio.crearActivo`/`actualizarActivo`/`transferirActivo` | Baja | `sucursalId`/`proveedorId`/`nuevaSucursalId` no revalidados | Ídem — contamina FK propio, sin leer datos de la víctima |
+| M4 | `patrimonio.crearActivo`/`actualizarActivo`/`transferirActivo` | Baja | 🟨 **⅔ cerrado de rebote por H-02** (registrado el 2026-08-06, R-2.2): `requireSucursalOperable()` valida `sucursalId` y `nuevaSucursalId` contra el tenant **y** contra el congelamiento (`patrimonio/actions.ts:246-262,305,347,405`). **Queda solo `proveedorId` sin revalidar.** Ningún doc lo registraba: quien retomara M-01…M-06 iba a re-verificar trabajo hecho | Ídem — contamina FK propio, sin leer datos de la víctima |
 | M5 | `proveedores.registrarCompra` (residuo) | Media | `insumoId`/`productoId` en compra "pedido" (sin recepción) | Se rechaza al recibir (entrada de stock atada al tenant) |
 | M6 | `identidad.completarOnboarding` | Media | Write sin gate de `estado_acceso` (asimétrico vs sus hermanas) | Solo escribe `onboarding_completado_en` del propio tenant |
 
@@ -367,6 +371,6 @@ Estado: **plan presentado, pendiente de aprobación** — ningún cambio de cód
   implementado (§8.3), incluida la regla que prohíbe recibir identidad/permisos/tenant por
   parámetro (§8.3.1); backstop RLS sigue como recomendación estratégica pendiente (§8.4).
 - **Positivos que resisten:** Gastos, Simulaciones, Financiero, Reportes, Suscripción, el boundary de
-  `/admin` (todas las admin actions exigen `ceom_admin` pese a que el layout no lo hace) y el boundary
+  `/admin` (todas las admin actions exigen `ceom_admin`, ~~pese a que el layout no lo hace~~ — y desde entonces el layout también, corregido 2026-08-06) y el boundary
   de `/portal` (el Gateway de Consentimiento exige `tieneConsentimiento`/`estaEnCartera` antes de
   devolver cualquier dato de un tenant).

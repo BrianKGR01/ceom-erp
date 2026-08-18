@@ -35,7 +35,7 @@ export async function informarEstadoDelEntorno(): Promise<void> {
   // asimetría es justamente la trampa: en un proyecto nuevo, tras `migrate`
   // las policies existen y el bucket no, así que toda subida de imagen falla
   // con un error de Storage que no menciona nada de esto. Hallazgo 🔴 de
-  // docs/auditoria-prelanzamiento/09-arranque-desde-cero.md §3.
+  // docs/auditoria-prelanzamiento/antiguo/09-arranque-desde-cero.md §3.
   const [bucket] = (await db.execute(sql`
     select count(*) as existe from storage.buckets where id = ${BUCKET_TENANT_UPLOADS}
   `)) as unknown as Array<{ existe: number }>;

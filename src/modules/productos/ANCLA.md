@@ -140,7 +140,7 @@
       escribir contra una sucursal congelada — a propósito, es el mecanismo
       para vaciarla antes de cerrarla, así que no pasa por
       `requireSucursalOperable()`. Diagnóstico completo en
-      `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` secciones
+      `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md` secciones
       3 y 7.
 
 ## Dónde está cada cosa
@@ -254,4 +254,4 @@
 real (sucursal_id nunca se validaba contra el tenant en los 5 escritores del ledger) y hace cumplir el
 congelamiento de sucursal por downgrade de plan. Nueva función `consolidarStockDeSucursal` (Panel Admin
 CEOM). Sin cambios de schema — el ledger ya era 100% sucursal-consciente. Ver
-`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`.
+`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.

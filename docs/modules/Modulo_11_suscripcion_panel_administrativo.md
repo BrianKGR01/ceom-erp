@@ -35,7 +35,8 @@ Reutiliza el mismo motor de Autorización de todo el sistema (Módulo 1) — el 
 ### 2.1 Funciones del Panel
 
 - **Gestión de Tenants:** alta manual, cambio de plan, cambio de `estado_suscripcion`, consulta de cualquier tenant (sujeto a los mismos principios de auditoría que el resto del sistema — cada acción queda con `creado_por`/`modificado_por`).
-- **Gestión del catálogo de Planes:** crear/editar planes, precio por Nicho, funciones incluidas (`incluye_sucursales`, `permite_multiples_owners`, `permite_downgrade_autogestionado`, duraciones de gracia).
+- **Gestión del catálogo de Planes:** crear/editar planes, precio por Nicho, funciones incluidas (`max_sucursales`, `permite_multiples_owners`, `permite_downgrade_autogestionado`, duraciones de gracia, `modulos_veedor_permitidos`).
+  > **Corregido el 2026-08-06 (R-2.2).** Decía `incluye_sucursales`, un boolean que **ya no existe**: H-02 lo reemplazó por `max_sucursales` (integer nullable). Y conviene saber cuál de estos atributos hace algo de verdad hoy: **`max_sucursales` y `modulos_veedor_permitidos` sí** (topan sucursales y acotan qué puede otorgar un Código de Acceso); los otros cuatro **no** — `permite_multiples_owners` y `permite_downgrade_autogestionado` son H-36, y las dos duraciones son letra muerta editable (decisión **DP-07** pendiente: aplicarlas o quitarlas del formulario).
 - **Gestión de categorías sugeridas por Nicho:** `CategoriaSugerida` (Módulo 2) y `CategoriaGastoSugerida` (Módulo 4) — el equipo CEOM las administra desde acá.
 - **Gestión de Instituciones y sus alianzas** (sección 3).
 - **Salud agregada de la plataforma** (sección 2.2).

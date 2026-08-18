@@ -235,4 +235,4 @@ Dos defectos propios de este módulo, además del borde compartido:
 `fechaVencimientoLote` NO usa el helper a propósito: es columna `date` y su cálculo es aritmética de
 días pura.
 
-Contexto completo: `docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`.
+Contexto completo: `docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`.

@@ -241,7 +241,7 @@ export async function consultarValorPatrimonialTotal(
 /**
  * Hermano de requireSucursalOperable en Productos/Ventas (H-02, extendido a
  * todos los módulos que escriben con sucursal_id — ver
- * docs/auditoria-prelanzamiento/07-sucursales-multiples.md sección 6.3
+ * docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md sección 6.3
  * hueco 6, "el freeze no puede quedar decorativo en 4 de 6 módulos"):
  * valida que sucursalId pertenezca al tenant y no esté congelada.
  *

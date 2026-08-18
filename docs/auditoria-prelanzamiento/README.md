@@ -1,106 +1,159 @@
-# Auditoría de prelanzamiento — CEOM-ERP
+# Auditoría de prelanzamiento — CEOM-ERP (2ª edición)
 
-> **Qué es esta carpeta.** El resultado de una auditoría integral del proyecto hecha el
-> **2026-07-27** sobre la rama `dev`: documentación completa de `docs/`, código de los 14 módulos,
-> verificaciones ejecutadas en vivo (`pnpm typecheck` / `lint` / `test`), estado real de la base de
-> datos en Supabase (advisors, migraciones) y estado real de despliegue (Vercel, CI). **No se
-> modificó ningún código** — el único entregable es este diagnóstico.
+> **📌 Esto es evidencia, no el plan.** La **única fuente de verdad** del estado del proyecto es
+> [`docs/roadmap/roadmap.md`](../roadmap/roadmap.md) (v3, 2026-08-06). Los documentos de esta
+> carpeta son la evidencia fechada que lo sostiene: **son fotos del 2026-07-29 y no se actualizan**,
+> salvo por notas de corrección explícitas donde una afirmación resultó falsa.
 >
-> **La pregunta que responde:** ¿en qué porcentaje está el producto, qué falta para lanzarlo, y qué
-> falta para que sea valioso para sus usuarios?
+> **Cambios de nomenclatura que aplican a todo lo de acá** (fijados en la R-2.2 — tabla completa en
+> el [Anexo A del roadmap](../roadmap/roadmap.md#anexo-a--nomenclatura)):
+> `D1`…`D8` ⇒ `DP-01`…`DP-08` · `D-1`…`D-10` ⇒ `DD-01`…`DD-10` · `tanda 3.x` ⇒ `TI-3.x` ·
+> `M1`…`M6` ⇒ `M-01`…`M-06` · las etapas `A`–`G` de [04-roadmap-lanzamiento.md](04-roadmap-lanzamiento.md)
+> quedan retiradas en favor de los ítems `R-N.M` del roadmap.
+>
+> **Qué es esta carpeta.** El resultado de la segunda auditoría integral del proyecto, hecha el
+> **2026-07-29** sobre la rama `dev`. La primera auditoría (2026-07-27) y sus 5 diagnósticos
+> profundos viven en [`antiguo/`](antiguo/README.md) — siguen siendo referencia válida de diseño
+> (varios ANCLA y comentarios de código apuntan ahí), pero sus números y su plan quedaron
+> superados por esta edición.
+>
+> **La pregunta que responde:** ¿qué cambió en los dos días desde la auditoría anterior, en qué
+> estado real está el producto hoy, y qué falta exactamente —y en qué orden— para llevarlo a
+> producción de verdad?
 
 ## Documentos
 
 | Documento | Qué responde |
 |---|---|
-| Este README | Resumen ejecutivo: veredicto, porcentajes, los 10 números que importan |
-| [01-estado-funcional.md](01-estado-funcional.md) | Qué hace el producto hoy, por actor; qué hallazgos críticos siguen abiertos (re-verificados contra el código hoy) |
-| [02-arquitectura-y-calidad.md](02-arquitectura-y-calidad.md) | Si el código cumple la arquitectura prometida; calidad, tests, CI, deuda técnica |
-| [03-seguridad.md](03-seguridad.md) | Postura de seguridad real: qué resiste, qué está a medias, qué falta |
-| [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md) | Las brechas priorizadas (P0/P1/P2) y un plan por etapas hasta el lanzamiento |
-| [05-dia-local-y-reportes.md](05-dia-local-y-reportes.md) | Por qué el día en curso no aparece en ningún reporte: inventario completo, enfoque recomendado, plan de migración y de tests (H-49) |
-| [06-costo-ausente-y-cuota-de-pasivo.md](06-costo-ausente-y-cuota-de-pasivo.md) | Los dos últimos huecos entre el dato operativo y el resultado: la cuota de deuda que no genera gasto (H-27) y el producto sin costo que se cuenta como ganancia pura (H-15) |
-| [07-sucursales-multiples.md](07-sucursales-multiples.md) | Diagnóstico y diseño técnico de sucursales múltiples (H-02): mapa de impacto completo, modelo de stock por sucursal, control por plan, downgrade, migración y plan de tests |
-| [08-instituciones-punta-a-punta.md](08-instituciones-punta-a-punta.md) | El subsistema de consentimiento de punta a punta (H-42): causa raíz y alcance real del defecto, ciclo de vida de código y consentimiento con sus 17 huecos, si el modelo soporta institución-con-cartera, estado del aislamiento (RLS + aplicación), revocación, plan de sub-etapas y de tests |
-| [09-arranque-desde-cero.md](09-arranque-desde-cero.md) | ¿Se puede levantar el sistema entero desde una base vacía? Los 7 pasos del arranque real, los 2 que dependen de una bandeja de correo, el que no está en ninguna lista (`storage:setup`), y qué falta medir antes |
+| Este README | Resumen ejecutivo: veredicto, qué cambió, números verificados, avance por dimensión, hallazgos críticos |
+| [01-estado-por-modulo.md](01-estado-por-modulo.md) | Los 14 módulos comparados contra sus docs y ANCLA: qué coincide, qué sigue abierto, qué defectos nuevos aparecieron |
+| [02-transversales.md](02-transversales.md) | Seguridad (RLS, autorización, secretos), red de verificación (tests/CI/e2e), UI, e higiene documental (los registros corren detrás del código) |
+| [03-operacion-y-comercial.md](03-operacion-y-comercial.md) | La dimensión más débil: producción sirviendo la base de desarrollo, plantillas de Auth desconocidas, sin captura de errores, ciclo comercial congelado |
+| [04-roadmap-lanzamiento.md](04-roadmap-lanzamiento.md) | **El plan de acción**: estado ítem por ítem del plan anterior (37 ítems), y el roadmap nuevo por etapas hasta producción |
+| [`antiguo/`](antiguo/README.md) | La auditoría del 2026-07-27 completa, con sus 5 diagnósticos profundos (día local, costo ausente, sucursales, instituciones, arranque desde cero) |
 
 ---
 
 ## Veredicto en tres frases
 
-1. **La construcción del producto está esencialmente terminada** (~90%): los 14 módulos del backend
-   cerrados con tests, las 119 pantallas del inventario construidas y verificadas en navegador, el
-   manual de usuario completo y una landing pública. Es un logro real: todo esto se construyó en
-   **dos semanas** (primer commit 2026-07-13, 216 commits).
-2. **La preparación para el lanzamiento está aproximadamente al 60%**, y el 40% restante no es más
-   construcción: es **desplegar** (hoy no existe ningún entorno fuera de la máquina local — Vercel
-   tiene cero proyectos), **verificar los flujos completos** (la Fase 2 del roadmap está 0/6, el
-   único test e2e está roto), **cerrar 5 defectos críticos conocidos** y **decidir ~6 cuestiones de
-   producto** que solo el dueño puede decidir (precio, sucursales, roles por defecto, entre otras).
-3. **El riesgo más caro no es un bug: es la promesa central del producto.** "Todo dato operativo
-   termina en un número financiero" es el principio rector #2 de la arquitectura — y hoy la comisión
-   de venta se calculaba, se guardaba **y nunca llegaba al Estado de Resultados** (H-24), y una compra
-   de ajuste **no tenía ningún efecto observable** (H-31). **Los dos están corregidos** (ver
-   [01-estado-funcional.md](01-estado-funcional.md) §2). Un negocio que confiara en esos números los veía
-   mejores de lo que son. Cerrar eso vale más que cualquier pantalla nueva.
+1. **Los dos días entre auditorías fueron de los más productivos del proyecto, y todo lo declarado
+   cerrado es real.** Se re-verificó en código, hallazgo por hallazgo: H-02 (sucursales múltiples
+   completas), H-42 + tandas 3.1–3.3b (instituciones), H-15/H-24/H-27/H-31 (la familia del número
+   financiero), H-49 (día local), el candado de suite, y **el repo ya está conectado a Vercel con
+   deploys de producción automáticos desde `main`** — la suite creció de 263 a 384 tests y **no se
+   encontró ni una sola regresión**.
+2. **El riesgo ya no es de construcción: es operativo y está vivo hoy.** Existe una URL de
+   "producción" pública que sirve **la base de datos de desarrollo** (la misma que la suite de
+   tests puebla y limpia), el repo de GitHub es **público con una credencial de `ceom_admin` de QA
+   commiteada en un ANCLA**, las plantillas de correo de Auth están en estado "mixto y
+   desconocido" (el alta de un negocio real puede congelarse en silencio), y un push directo a
+   `main` llega a producción **sin que corra un solo test**. Ninguno de estos cuatro requiere
+   construir nada grande — son horas, no semanas — pero son lo primero.
+3. **El camino al piloto sigue siendo ~3-5 semanas de trabajo enfocado**, y ahora está mejor
+   definido que hace dos días: 4 decisiones de producto siguen sin tomar (precio, roles, costeo,
+   "pausada"), el único hallazgo 🔴 real que queda es H-33 (negocio irrecuperable sin el dueño),
+   los 4 flujos e2e siguen en cero, y apareció una familia nueva de defectos — **avisos que el
+   backend calcula y la UI descarta** (stock del POS, entrada de stock de compras, acreditación de
+   producción) — que hace que fallos reales sean invisibles para el usuario.
 
-## Porcentaje de avance, por dimensión
+## Qué cambió desde la auditoría del 2026-07-27 (verificado en código, no en commits)
 
-| Dimensión | Avance | Evidencia principal |
-|---|---|---|
-| Backend funcional (14 módulos, Fase 1) | **~95%** | 14/14 cerrados con tests; residuos: comisión sin conectar, compra de ajuste sin lectura, M1-M6 |
-| Cobertura de UI (inventario de pantallas) | **~95%** | 119/119 construidas y verificadas; residuos: capacidad de producción inservible (H-34), stock mínimo sin carga (H-28) |
-| Consistencia y pulido de UI | **~75%** | 8 problemas transversales de `docs/ui/AUDITORIA-UI-UX.md` (moneda ausente en montos, componentes duplicados, anchos sin regla) |
-| Verificación end-to-end (Fase 2) | **~5%** | 0/6 ítems del roadmap; un solo spec de Playwright, y está roto (busca texto del placeholder de Next.js que ya no existe) |
-| Seguridad (Fase 3, parcial) | **~70%** | Auditoría de autorización cerrada (27 críticos corregidos + manifiesto con test por AST sobre 152 funciones); RLS backstop solo 2/10 módulos; sin rate limiting; 4 WARN de advisors abiertos |
-| Infraestructura y operación (Fases 4-6) | **~5%** | Runbook de producción escrito y bueno; nada ejecutado; **cero despliegues en Vercel**; sin backups propios, monitoreo ni logging estructurado |
-| Ciclo comercial de la suscripción | **~25%** | Catálogo de planes funciona; precio del plan Básico en Bs 0, sin cobro, sin vencimiento automático, sin avisos (H-45/DA-18) |
-| Documentación | **~95%** | Arquitectura, 11 módulos, manual de usuario (20 capítulos, 3 actores), runbook, 4 auditorías internas previas — sobresaliente |
+| Cierre declarado | Veredicto de esta auditoría |
+|---|---|
+| H-02 — Sucursales múltiples (ABM, tope por plan, freeze en downgrade) | ✅ Real y completo; freeze verificado en los 6 módulos que escriben con `sucursal_id`, con tests |
+| H-42 + tandas 3.1, 3.2, 3.3a, 3.3b — Instituciones | ✅ Reales: canje autenticado + TTL + límite de intentos, tercer estado "no aplica", proyección tipada, marcador H-15 al portal, registro de acceso D-1 visible para el negocio |
+| H-15 — Producto sin costo ya no cuenta como ganancia pura | ✅ Real de punta a punta (columna, agregados, ranking, POS, portal institucional) — con un residuo: la tarjeta del Dashboard pinta `null` como "0%" |
+| H-24 / H-27 — Comisión y cuota de pasivo generan Gasto real | ✅ Reales, con tests de valor exacto y guard anti-código-muerto (`auto-generacion-conectada.test.ts`) |
+| H-31 — Compra de Ajuste con efecto observable | ✅ Real de punta a punta (monto efectivo, reversión parcial, estado de resultados) |
+| H-49 — Día local | ✅ Real (intervalo semiabierto, `rangoInstantes`, TZ=UTC en CI a propósito) — con 2 fugas nuevas de la misma familia (fecha del gasto de comisión y vencimiento de insumo usan día UTC) |
+| V1 — Spec e2e roto | ✅ Arreglado contra la landing real |
+| O1 — Vercel | ✅ Conectado: producción desde `main`, previews por PR — pero ver el hallazgo crítico №1 abajo |
+| Runbook de arranque + `pnpm auth:config` + `storage:setup` | ✅ Escritos y cableados — pero **nunca ejecutados** (el snapshot de Auth no existe, el ensayo de arranque no se corrió) |
 
-**Lectura honesta del número global:** si "lanzar" significa un **piloto asistido** (3-10 negocios
-reales invitados por CEOM, corriendo en Vercel + Supabase Cloud), el proyecto está a **~4-6 semanas
-de trabajo enfocado**. Si "lanzar" significa la visión completa del roadmap (VPS propio, Supabase
-self-hosted, cobro funcionando), hay que sumarle las Fases 4-6 completas.
+**Regresiones encontradas: 0.** El único retroceso es de consistencia de UI: el patrón
+`SubnavMiNegocio` que la auditoría de UI dio por "causa raíz cerrada" ganó una sexta copia con H-02.
 
-## Los 10 números que importan (verificados hoy)
+## Los números verificados hoy (2026-07-29, en vivo)
 
 | # | Dato | Valor |
 |---|---|---|
 | 1 | `pnpm typecheck` | ✅ pasa limpio |
-| 2 | `pnpm lint` | ✅ 0 errores (13 warnings `react-hooks/incompatible-library`) |
-| 3 | `pnpm test` (suite completa, DB real) | ✅ 39 archivos, 263/263 tests pasando |
-| 4 | Tests e2e reales de los 4 flujos de negocio | **0** (el único spec existente falla: quedó del template inicial) |
-| 5 | Proyectos desplegados en Vercel | **0** |
-| 6 | Hallazgos 🔴 del manual aún abiertos | **3 de 6** (H-02, H-33, H-42 — H-24, H-30 y H-31 ya corregidos) |
-| 7 | Módulos con RLS de backstop activa | 2 de ~10 (Patrimonio, Proveedores) — plan pausado a propósito |
-| 8 | Advisors de seguridad de Supabase | 4 WARN + 1 INFO (ninguno crítico; detalle en [03-seguridad.md](03-seguridad.md)) |
-| 9 | Decisiones de producto pendientes que bloquean trabajo | ~6 (ver [04-camino-al-lanzamiento.md](04-camino-al-lanzamiento.md) §2) |
-| 10 | Precio real del producto | **sin definir** (plan Básico en Bs 0, visible para el cliente en "Mi Plan") |
+| 2 | `pnpm lint` | ✅ 0 errores (19 warnings) |
+| 3 | `pnpm test` (suite completa, DB real) | ✅ **46 archivos, 384/384 tests** en 9,1 min (hace 2 días: 39/263) |
+| 4 | Tests e2e de los 4 flujos de negocio | **0 de 4** (solo el smoke de la landing, ya arreglado) |
+| 5 | Vercel | ✅ Proyecto `ceom-erp`: producción desde `main` (último deploy 2026-07-28, PR #40) + previews por PR |
+| 6 | CI (GitHub Actions) | ✅ Verde en los últimos 8 PRs (~2 min) — pero solo corre en `pull_request`, nunca en `push`, y ~15 suites de integración se saltean por falta de secrets |
+| 7 | Advisors de seguridad de Supabase | 5 WARN (4 = riesgo aceptado documentado de las funciones RLS; 1 real: leaked password protection) + 2 INFO esperados (deny-all deliberado) |
+| 8 | Advisors de performance | 81 FKs sin índice, 57 policies permisivas múltiples (sin cambios, no urge) |
+| 9 | Hallazgos del manual: estado real contra código | **10 corregidos, 4 parciales, 31 abiertos (1 🔴: H-33)** — el doc declaraba 7/38 y corría detrás del código. *(✅ `hallazgos.md` actualizado el 2026-08-06 en la R-2.2; este número se confirmó exacto.)* |
+| 10 | Precio real del producto | **Sigue sin definir** (Bs 0 en la base viva, verificado por SQL; "Precio a convenir" en Mi Plan es maquillaje) |
 
-## Qué hace falta para que sea valioso para los usuarios — en una tabla
+## Los 5 hallazgos críticos de esta edición
 
-El detalle por actor está en [01-estado-funcional.md](01-estado-funcional.md); esto es el resumen:
+Detalle y evidencia en [03-operacion-y-comercial.md](03-operacion-y-comercial.md) y
+[02-transversales.md](02-transversales.md). Los cinco fueron verificados adversarialmente
+(un segundo agente intentó refutar cada uno leyendo el código y el entorno vivo, y no pudo).
 
-| Actor | Lo que ya recibe | Lo que le falta para confiar/operar |
-|---|---|---|
-| **Negocio (Owner)** | El camino dorado completo: catálogo → venta → dashboard con datos reales; producción por recetas (Nicho 1); compras con landed cost (Nicho 4); patrimonio, gastos, simulaciones, reportes; comisión de canal y ajuste de compra ya descontados del resultado (H-24, H-31) | Que el resto de los costos también llegue al resultado (H-27 cuotas de pasivo, H-15 productos sin costo, H-26, DA-06); sucursales reales o que dejen de prometerse (H-02); roles predefinidos para invitar a su equipo sin armar una matriz de 40 casillas (H-35) |
-| **Colaborador** | Login, permisos por rol funcionando de verdad (server-side), POS | Un menú que se adapte a sus permisos (H-08); que el Owner pueda armarle un rol sin fricción (H-35) |
-| **Institución** | Canje de código, magic link de reingreso, cartera, ficha de negocio con solo lo aprobado | Poder canjear un **segundo** código sin romperse (H-42 — es su caso más probable); correo obligatorio al alta (H-43) |
-| **Equipo CEOM** | Panel completo: tenants, planes, instituciones, logs, manual integrado | Recuperar un negocio cuyo dueño no está (H-33 — hoy la única salida es tocar la base a mano); dar de alta a otro admin (H-14); que la suscripción venza/avise sola (H-45) |
+1. **La "producción" de Vercel sirve la base de desarrollo, es pública, y el repo público tiene
+   una credencial de `ceom_admin` commiteada.** `https://ceom-erp.vercel.app` responde 200 sin
+   protección; sus 6 variables apuntan al único proyecto Supabase existente (el de dev, el mismo
+   que la suite puebla y limpia); y `src/modules/consentimiento/ANCLA.md:288` publicaba una
+   credencial de `ceom_admin` de QA válida contra esa base — cualquiera podía iniciar sesión como
+   admin de la plataforma. **Era la acción №1 del roadmap.** *(✅ Neutralizado el 2026-07-30 —
+   Fase 0: base vaciada, credencial rotada y retirada de los docs; la Deployment Protection queda
+   para la Fase 1.)*
+2. **Las plantillas de correo de Auth siguen en estado "mixto y desconocido" con producción viva.**
+   El script `pnpm auth:config` que cierra la pregunta existe y nunca se corrió (el snapshot no
+   está en ninguna rama). Si la plantilla de invitación sigue de fábrica, el Owner de un negocio
+   recién dado de alta **no puede fijar contraseña nunca** y el negocio queda congelado sin error
+   visible — la base viva ya muestra 4 invitados que jamás confirmaron.
+3. **Un push directo a `main` despliega a producción sin correr un solo test.** `ci.yml` solo se
+   dispara en `pull_request`; el build de Vercel solo typechequea. La rama `dev` tampoco tiene CI
+   en push. Esta brecha nació al conectar Vercel y ningún doc la registra.
+4. **El Panel Admin CEOM re-proyecta a mano y descarta los marcadores de completitud** — la clase
+   exacta de defecto que la tanda 3.3a corrigió en el portal institucional, viva en la otra
+   superficie de terceros, en violación directa de las reglas #9/#10 de `CLAUDE.md`. El equipo
+   CEOM ve estados de resultados presentados como completos sin serlo.
+5. **H-33 sigue abierto y es el único 🔴 real: un negocio cuyo dueño no está es irrecuperable**
+   salvo escribiendo la base a mano. El diseño para cerrarlo ya está aprobado
+   (`docs/decisiones/recuperacion-de-acceso.md` §5-B) y no se implementó. Peor: en un tenant
+   vencido, ni siquiera el Owner presente puede transferir la titularidad
+   (`transferirOwner` exige escritura habilitada).
+
+## Porcentaje de avance, por dimensión
+
+| Dimensión | 27-jul | **Hoy** | Qué lo mueve |
+|---|---|---|---|
+| Backend funcional (14 módulos) | ~95% | **~93%** | Sin regresiones, pero esta auditoría profundizó más: H-26 intacto, avisos descartados (C4, POS, producción), validaciones de tenant faltantes (M1/M2, `clienteId` con escritura cross-tenant), sin scheduler |
+| Subsistema institucional | — | **~70%** | Tandas 3.1–3.3b cerradas y verificadas; 3.4 (revocación), 3.5 (RLS de `instituciones`, doble identidad) y 3.6 abiertas; `/admin` sin marcadores |
+| Cobertura de UI (pantallas construidas) | ~95% | **~95%** | Completa y creciendo (Sucursales, Accesos D-1, landing) — el tracker corre detrás |
+| Consistencia y pulido de UI | ~75% | **~72%** | Fases A/B cerradas; la migración masiva (Fase C) sin arrancar; `formatMoneda` con 10 copias + 21 usos crudos; una regresión (6ª copia de subnav) |
+| Verificación end-to-end (Fase 2) | ~5% | **~10%** | V1 cerrado; 0/4 flujos; CI sin e2e; decisión de aislamiento de datos pendiente **antes** de escribir los specs |
+| Seguridad | ~70% | **~72%** | Rate limit del canje ✅, manifiesto 165 funciones ✅, secretos ✅; backstop RLS sigue 2/9 módulos, G-12 abierto, M1-M6 abiertos (M4 ⅔ cerrado de rebote), leaked password pendiente |
+| Infraestructura y operación | ~5% | **~35%** | Vercel conectado + runbook de arranque de 17 pasos + `auth:config` + `storage:setup` escritos — pero nada ensayado, sin Sentry, sin backups probados, y el crítico №1 |
+| Ciclo comercial de la suscripción | ~25% | **~25%** | Sin cambios: precio en 0, vencimiento manual, sin avisos, rutina sin documentar |
+| Documentación | ~95% | **~85%** | Sigue sobresaliente en volumen, pero el drift creció: los 2 registros de deuda, 4 ANCLA, 3 docs de módulo y el tracker de pantallas corren detrás del código (detalle en [02-transversales.md](02-transversales.md) §4) |
+
+**Lectura honesta:** para un **piloto asistido** (3-10 negocios reales en Vercel + Supabase Cloud),
+el proyecto está a **~3-5 semanas de trabajo enfocado** — un poco menos que hace dos días, y con
+mucho mejor mapa. La etapa A del roadmap (seguridad inmediata: credencial, base de producción,
+plantillas, CI en push) es de **horas**, y conviene hacerla antes que cualquier otra cosa.
 
 ## Metodología y alcance
 
-- **Fuentes:** los ~9.400 renglones de documentación de estado en `docs/` (roadmap, tracker de
-  pantallas, barrido de deuda aplazada, 4 auditorías internas previas, 48 hallazgos del manual,
-  observaciones de uso), contrastados **contra el código actual** — cada hallazgo crítico citado acá
-  se re-verificó hoy con búsquedas sobre `src/` (varios ya estaban corregidos y así se registra).
-- **Verificaciones ejecutadas:** `pnpm typecheck`, `pnpm lint`, `pnpm test`; advisors de seguridad y
-  performance de Supabase (proyecto `riertvgnjaujstwyqoom`); listado de proyectos/deployments de
-  Vercel; historial de PRs y corridas de CI en GitHub.
-- **Lo que esta auditoría NO hizo:** no ejecutó la app en navegador (las tandas de UI ya fueron
-  verificadas así por el equipo y está documentado), no corrió Playwright contra un entorno vivo, y
-  no re-auditó línea por línea los 53.000 renglones de TypeScript — se apoya en las auditorías
-  internas previas y las contrasta por muestreo.
+- **Ejecutado en vivo hoy:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (suite completa contra la
+  base real, 9,1 min); advisors de seguridad y performance de Supabase (proyecto
+  `riertvgnjaujstwyqoom`, el único existente); proyectos y deployments de Vercel; corridas de CI;
+  consultas SQL a la base viva (precio del plan, usuarios invitados sin confirmar).
+- **Análisis:** 12 agentes en paralelo compararon docs (`docs/modules/`, ANCLA, arquitectura,
+  registros de deuda, planes de seguridad, tracker de UI, runbooks) contra `src/` completo, con
+  evidencia `archivo:línea` obligatoria por hallazgo.
+- **Verificación adversarial:** los 10 hallazgos críticos/altos más graves pasaron por un segundo
+  agente instruido para **refutarlos**; 10/10 se confirmaron (uno con corrección de alcance: H-37
+  no está "agravado", sigue tal como su registro lo describe).
+- **Lo que esta auditoría NO hizo:** no ejecutó la app en navegador ni Playwright (prohibido por
+  el candado de la suite en curso), y no re-verificó los ~21 ítems de deuda clasificados "dejar
+  dormir" por el barrido del 2026-07-22.
 
-*Auditoría generada el 2026-07-27 sobre `dev`. Los porcentajes son juicio del auditor sobre la
-evidencia citada, no una métrica automática.*
+*Auditoría generada el 2026-07-29 sobre `dev` (HEAD `e5f69ea`). Los porcentajes son juicio del
+auditor sobre la evidencia citada, no una métrica automática.*

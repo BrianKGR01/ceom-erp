@@ -10,7 +10,31 @@
 > **Cómo se usa.** Cada hallazgo tiene un identificador (`H-01`) que el manual cita en línea. Si un
 > hallazgo se corrige, hay que revisar los lugares del manual que lo citan — están enlazados.
 >
-> Verificado contra el código el 2026-07-22, rama `claude/manual-usuario-fase-1`.
+> Verificado contra el código el 2026-07-22 (rama `claude/manual-usuario-fase-1`) y **reconciliado
+> contra el código vivo el 2026-08-06** (R-2.2 del [roadmap](../roadmap/roadmap.md)).
+
+---
+
+## Estado real — 2026-08-06
+
+Este registro venía declarando **7 corregidos / 38 abiertos**. La reconciliación de la R-2.2
+verificó los 49 hallazgos contra el código y la cuenta real es:
+
+| | Cuántos | Cuáles |
+|---|---|---|
+| ✅ **Corregidos** | **10** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, H-42, H-49 |
+| 🟨 **Parciales** | **4** | H-01, H-05, H-12, H-32 |
+| 🔴🟠🟡 **Abiertos** | **31** | el resto, con **un solo 🔴: H-33** |
+| ⚪ **Anotados** (decisión de alcance, no defecto) | **4** | H-17, H-20, H-23, H-48 |
+| | **49** | total |
+
+En **negrita** los tres que estaban cerrados con tests y este documento seguía contando como
+abiertos. El más grave era **H-30**, que el índice mostraba con un 🔴 falso siendo "el peor
+abierto" de la lista: está cerrado desde `signo-ajuste.test.ts`.
+
+**Cómo se mantiene:** al cerrar un hallazgo se actualiza este documento **en el mismo cambio** que
+toca el código, no al final de la fase. Ésa es la lección que produjo el drift: los tres
+corregidos-sin-registrar se cerraron en tandas que no volvieron acá.
 
 ---
 
@@ -22,6 +46,8 @@
 | 🟠 **Confunde** | Se puede resolver, pero solo si alguien te lo explica. Genera consultas a soporte. |
 | 🟡 **Roza** | Molesta o queda raro. No impide nada. |
 | ⚪ **Anotado** | Ni bueno ni malo: una decisión de alcance que el manual tiene que saber describir. |
+| 🟨 **Parcial** | Una parte del hallazgo está cerrada y otra no. La nota del índice dice cuál es cuál. |
+| ✅ **Corregido** | Cerrado y verificado en el código. El texto original queda tachado, con la nota de cierre arriba. |
 
 ---
 
@@ -29,24 +55,24 @@
 
 | ID | Severidad | Hallazgo |
 |---|---|---|
-| [H-01](#h-01) | 🟠 | El canal de venta es obligatorio, la tarjeta de inicio dice lo contrario |
+| [H-01](#h-01) | 🟨 | El canal de venta es obligatorio, la tarjeta de inicio dice lo contrario — **parcial** (severidad corregida; la pre-carga de canales sigue sin cablear, DA-02) |
 | [H-02](#h-02) | ✅ | ~~No existe forma de crear una sucursal — y hay funciones que asumen que hay varias~~ — **corregido** |
 | [H-03](#h-03) | 🟠 | Elegido el rubro, los datos del negocio dejan de ser editables |
 | [H-04](#h-04) | 🟠 | "Quitar logo" no quita el logo |
-| [H-05](#h-05) | 🟠 | Dos enlaces muertos en la pantalla de entrada, uno de ellos crítico |
-| [H-06](#h-06) | 🟠 | La pantalla de entrada anuncia un asistente de IA que no existe |
+| [H-05](#h-05) | 🟨 | Dos enlaces muertos en la pantalla de entrada, uno de ellos crítico — **parcial** (el crítico está cerrado; "Crear cuenta gratis" sigue muerto) |
+| [H-06](#h-06) | ✅ | ~~La pantalla de entrada anuncia un asistente de IA que no existe~~ — **corregido** |
 | [H-07](#h-07) | 🟠 | El registro de accesos identifica a las personas con un fragmento de UUID |
 | [H-08](#h-08) | 🟠 | El menú no se adapta ni al rubro ni a los permisos del colaborador |
 | [H-09](#h-09) | 🟡 | Nada te dice en qué superficie estás |
 | [H-10](#h-10) | 🟠 | Los gastos recurrentes no se generan solos |
 | [H-11](#h-11) | 🟡 | Un gasto recurrente pausado no se puede reactivar |
-| [H-12](#h-12) | 🟠 | "Tenant" en 105 mensajes de error |
+| [H-12](#h-12) | 🟨 | "Tenant" en 105 mensajes de error — **parcial** (bajó en las superficies tocadas, la palabra sigue viva en los módulos) |
 | [H-13](#h-13) | 🟡 | Dos cosas que el registro de accesos no distingue |
 | [H-14](#h-14) | 🟠 | No hay pantalla para dar de alta a otra persona del equipo CEOM |
 | [H-15](#h-15) | ✅ | ~~Un producto sin costo degrada seis pantallas en silencio~~ — **corregido** |
 | [H-16](#h-16) | 🟡 | El filtro de sucursal del panel solo afecta a dos de cinco tarjetas |
 | [H-17](#h-17) | ⚪ | Funciones que existen en el backend y no tienen botón |
-| [H-18](#h-18) | 🟡 | Documentación interna filtrada a la pantalla |
+| [H-18](#h-18) | ✅ | ~~Documentación interna filtrada a la pantalla~~ — **corregido** |
 | [H-19](#h-19) | 🟡 | Etiquetas inconsistentes y valores crudos que pueden asomar |
 | [H-20](#h-20) | ⚪ | Sin exportación de reportes |
 | [H-21](#h-21) | 🟡 | El listado de negocios no pagina |
@@ -63,9 +89,9 @@
 | [H-27](#h-27) | ✅ | ~~Los gastos automáticos son inalcanzables: toda su lógica es código muerto~~ — **corregido** |
 | [H-28](#h-28) | 🟡 | "Stock mínimo" se muestra en pantalla y no hay forma de cargarlo |
 | [H-29](#h-29) | 🟠 | Eliminar una categoría de producto no verifica si está en uso |
-| [H-30](#h-30) | 🔴 | El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso |
+| [H-30](#h-30) | ✅ | ~~El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso~~ — **corregido** |
 | [H-31](#h-31) | ✅ | ~~Una compra de ajuste no tiene ningún efecto observable~~ — **corregido** |
-| [H-32](#h-32) | 🟠 | No se puede cargar un gasto sin crear antes una categoría |
+| [H-32](#h-32) | 🟨 | No se puede cargar un gasto sin crear antes una categoría — **parcial** (los tenants nuevos ya nacen con categorías; DA-01 cerrado) |
 
 ### Fase 3 — aparecidos al documentar patrimonio, producción, equipo y reportes
 
@@ -161,7 +187,7 @@ paso: se encuentra mirando, no siguiendo la guía.
 
 > **Corregido el 2026-07-27.** El diagnóstico completo (mapa de impacto módulo por módulo, modelo de
 > stock, control por plan, downgrade y migración) está en
-> [`docs/auditoria-prelanzamiento/07-sucursales-multiples.md`](../auditoria-prelanzamiento/07-sucursales-multiples.md).
+> [`docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`](../auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md).
 > Lo que cambió:
 >
 > - **Existe el ABM.** `/app/mi-negocio/sucursales` — crear y editar sucursales, gateado a Owner.
@@ -256,7 +282,13 @@ Ya está documentado en `src/modules/identidad/ANCLA.md` como gap conocido no re
 ---
 
 <a id="h-05"></a>
-## H-05 🟠 Dos enlaces muertos en la pantalla de entrada, uno de ellos crítico
+## H-05 🟨 Dos enlaces muertos en la pantalla de entrada, uno de ellos crítico — PARCIAL
+
+> **Parcial** (registrado el 2026-08-06, R-2.2). **La mitad crítica está cerrada:** "¿Olvidaste tu
+> contraseña?" apunta a `/recuperar-contrasena` (`login-form.tsx:67`), que existe con su formulario
+> y sus tests — es la Opción C del diseño de `docs/decisiones/recuperacion-de-acceso.md`. **La otra
+> mitad sigue abierta:** "Crear cuenta gratis" continúa con `href="#"`
+> (`login-form.tsx:112-113`), prometiéndole a un visitante un alta que el producto no ofrece.
 
 **Qué pasa.** El formulario de entrada muestra **¿Olvidaste tu contraseña?**
 (`src/app/(auth)/login/login-form.tsx:55`) y **Crear cuenta gratis** (`:98`). Ninguno tiene flujo
@@ -273,9 +305,16 @@ detrás.
 ---
 
 <a id="h-06"></a>
-## H-06 🟠 La pantalla de entrada anuncia un asistente de IA que no existe
+## H-06 ✅ La pantalla de entrada anuncia un asistente de IA que no existe — CORREGIDO
 
-**Qué pasa.** El panel lateral de la pantalla de entrada dice, como tercer argumento de venta:
+> **Corregido** (registrado el 2026-08-06, R-2.2). El bullet ya no existe: `login/page.tsx:17-19`
+> conserva solo el comentario que explica por qué se quitó. La landing tampoco lo promete —
+> `landing.tsx:39,47,549` documenta que al caer Tuki y CEOM EDU la página quedó dos secciones más
+> corta. La única mención viva de "Tuki" en todo el repo es la idea a futuro de
+> `simulaciones/ANCLA.md:78`, que no promete nada al usuario.
+
+**Qué decía (texto original del hallazgo).** El panel lateral de la pantalla de entrada dice, como
+tercer argumento de venta:
 *"Tuki IA te asesora 24/7 con tus datos — Tu asistente inteligente siempre disponible."*
 (`src/app/(auth)/login/page.tsx:18-19`).
 
@@ -373,10 +412,16 @@ control **parece** un interruptor de dos posiciones.
 ---
 
 <a id="h-12"></a>
-## H-12 🟠 "Tenant" en 105 mensajes de error
+## H-12 🟨 "Tenant" en 105 mensajes de error — PARCIAL
 
-**Qué pasa.** La fórmula "…en este tenant." aparece en 105 mensajes de error de usuario, repartidos
-en 12 módulos, y se muestra tal cual en los diálogos y formularios.
+> **Parcial** (registrado el 2026-08-06, R-2.2). **De 105 quedan 13**, y están todas concentradas
+> en los dos módulos operativos: `nicho-1/actions.ts` (12) y `nicho-4/actions.ts` (1) — verificado
+> por grep de la fórmula literal sobre `src/`. Los 12 módulos restantes ya no la usan. Lo que queda
+> es un barrido acotado a dos archivos, no el defecto transversal que este hallazgo describía; el
+> número 105 del título es histórico y se conserva para que la cita del manual siga resolviendo.
+
+**Qué pasa (texto original).** La fórmula "…en este tenant." aparece en 105 mensajes de error de
+usuario, repartidos en 12 módulos, y se muestra tal cual en los diálogos y formularios.
 
 Está desarrollado con el detalle completo y la decisión de reemplazo en
 [`glosario.md`](glosario.md), sección 7. Se anota acá porque es, por volumen, el defecto de
@@ -462,7 +507,7 @@ esto, y es raro que la única instrucción para un usuario sea "pedile a alguien
 > costo, así que este escenario no se reproducía nunca en datos de prueba y toda la QA visual de
 > reportes se había hecho sobre un catálogo perfecto.
 >
-> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md).
 > El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** `costoOperativoVigente` es opcional (`modules/productos/validation.ts:15`). Se puede
@@ -496,7 +541,7 @@ visual, produce lecturas cruzadas erróneas. Hasta el 2026-07-27 el impacto real
 existía una sucursal — **con H-02 corregido, un negocio ya puede tener varias sucursales de verdad,
 así que esto pasó de ser un riesgo hipotético a un defecto de datos activo.** No se corrigió en la
 misma tanda que H-02 — queda priorizado para la próxima, ver
-[07-sucursales-multiples.md](../auditoria-prelanzamiento/07-sucursales-multiples.md) sección "Estado
+[07-sucursales-multiples.md](../auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md) sección "Estado
 de implementación".
 
 ---
@@ -520,9 +565,15 @@ de alcance ya registradas.
 ---
 
 <a id="h-18"></a>
-## H-18 🟡 Documentación interna filtrada a la pantalla
+## H-18 ✅ Documentación interna filtrada a la pantalla — CORREGIDO
 
-**Qué pasa.** El diálogo de gestión de roles muestra al usuario la cadena
+> **Corregido** (registrado el 2026-08-06, R-2.2). La cadena "(Módulo 1, sección 6.3)" ya no
+> aparece en `roles-cliente.tsx` — verificado por grep sobre todo `src/app`. La única "Módulo" que
+> queda en esa pantalla es el encabezado de columna de la grilla de permisos, que es la palabra del
+> dominio, no una referencia al documento de especificación.
+
+**Qué decía (texto original del hallazgo).** El diálogo de gestión de roles muestra al usuario la
+cadena
 **"(Módulo 1, sección 6.3)"** — `src/app/app/(shell)/mi-negocio/roles/roles-cliente.tsx:170`. Es una
 referencia al documento de especificación interno.
 
@@ -702,7 +753,7 @@ append-only, que está bien: alcanza con que la pantalla lo refleje.
 > **scheduler** (H-10) — el gasto de la cuota se genera cuando alguien registra el pago, no "cada
 > período" como pide `Modulo_05` §2.
 >
-> Diagnóstico completo: [`docs/auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/06-costo-ausente-y-cuota-de-pasivo.md).
+> Diagnóstico completo: [`docs/auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md`](../auditoria-prelanzamiento/antiguo/06-costo-ausente-y-cuota-de-pasivo.md).
 > El diagnóstico original queda abajo como registro de qué pasaba y por qué importaba.
 
 **Qué pasa.** El enum de origen de un gasto tiene tres valores: `manual`,
@@ -764,9 +815,20 @@ borrar. El patrón correcto ya existe en el producto; a categorías no se le apl
 ---
 
 <a id="h-30"></a>
-## H-30 🔴 El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso
+## H-30 ✅ El signo del ajuste de venta no se valida: una anulación mal cargada duplica el ingreso — CORREGIDO
 
-**Qué pasa.** El estado de resultados **suma** los ajustes:
+> **Corregido** (registrado el 2026-08-06, R-2.2). Se tomó la salida que este mismo hallazgo
+> proponía —**derivar el signo del tipo de ajuste**—: `ventas/validation.ts:84-103` declara
+> `TIPOS_AJUSTE_REDUCTORES` (los tres tipos que solo pueden reducir) y expone la regla de signo
+> **compartida por el schema de la ruta y el guard del módulo**, así que un POST directo tampoco la
+> esquiva. `ventas/signo-ajuste.test.ts` la cubre tipo por tipo.
+>
+> **Este es el que más caro salía dejar mal registrado.** El índice lo mostraba con un 🔴 y la
+> leyenda "el peor abierto" estando cerrado: cualquier planificación hecha sobre este documento le
+> reservaba tiempo a un trabajo ya hecho, y le daba al proyecto un segundo bloqueante 🔴 que no
+> existía. El único 🔴 real es H-33.
+
+**Qué decía (texto original del hallazgo).** El estado de resultados **suma** los ajustes:
 `ingresos − costos − gastos + ajustesVenta` (`financiero/actions.ts:37-44`). Para que una devolución,
 un descuento o una anulación **reduzcan** el resultado, el monto tiene que cargarse **negativo**.
 
@@ -829,9 +891,16 @@ caso.
 ---
 
 <a id="h-32"></a>
-## H-32 🟠 No se puede cargar un gasto sin crear antes una categoría
+## H-32 🟨 No se puede cargar un gasto sin crear antes una categoría — PARCIAL
 
-**Qué pasa.** `categoriaId` es obligatorio tanto en un gasto como en una plantilla recurrente
+> **Parcial** (registrado el 2026-08-06, R-2.2). **DA-01 está cerrado:**
+> `sembrarCategoriasGastoDefault()` ya tiene llamador de producción — el alta de tenant desde
+> `/admin` la invoca (`app/admin/(shell)/tenants/actions.ts:128`), así que **un negocio nuevo ya
+> nace con categorías de gasto**. Queda abierto lo que no depende de esa siembra: los tenants
+> creados antes del cableado, y el gemelo de Ventas (DA-02, sin `sembrarCanalesVentaDefault()`
+> escrita todavía) que es H-01.
+
+**Qué pasa (texto original).** `categoriaId` es obligatorio tanto en un gasto como en una plantilla recurrente
 (`gastos/validation.ts:10` y `:31`, ambos con `.min(1, "Elegí una categoría.")`). Un negocio recién
 creado **no tiene ninguna categoría de gasto**: `crearTenantConOwner` no siembra nada.
 
@@ -1064,7 +1133,7 @@ capítulo de CEOM: **poner "vencida" sin fecha bloquea al negocio en el acto.**
 > podía canjearlo, **revocar era irreversible desde `/app`** (G-17). Al cerrar H-42 se cierra eso, y
 > hay un test que lo afirma explícitamente en vez de asumirlo.
 >
-> Diagnóstico completo: `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`.
+> Diagnóstico completo: `docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md`.
 
 
 **Qué pasa.** El asistente de canje del portal **siempre** manda `institucionNueva` y nunca
@@ -1275,4 +1344,4 @@ instantes ya resueltos. La escritura se arregló **antes** que la lectura — `p
 habría contado un día antes, en silencio. 10 filas ya cargadas se reanclaron con la migración `0043`.
 
 Desarrollo completo, inventario de los 11 lugares y plan de pruebas en
-[`docs/auditoria-prelanzamiento/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/05-dia-local-y-reportes.md).
+[`docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md).

@@ -45,6 +45,23 @@ estado_resultados = Σ (precio_venta_snapshot × cantidad) de Detalle de Venta  
 
 **Esta es la distinción entre "caja" y "resultado" que ya estaba implícita en toda la arquitectura**, ahora hecha explícita: una venta con `estado_pago = pendiente` ya cuenta como ingreso en el Estado de Resultados (se vendió, es un hecho económico), pero **no** cuenta en el Flujo de Caja hasta que efectivamente se cobre (exista un `Pago de Venta`).
 
+> **Dos términos que este doc no tenía y el código sí — agregados el 2026-08-06 (R-2.2):**
+>
+> **(a) El 5º término, de H-31.** Una **Compra de Ajuste** llega al resultado, y **solo en
+> dirección de costo**: la fórmula de arriba se completa con `± Σ CompraAjuste` del período. Es la
+> contraparte de `AjusteVenta` del lado de Proveedores, y llegó con H-31 (monto efectivo, reversión
+> parcial, estado de pago derivado). Sin este término, el resultado subdeclara correcciones de
+> compra.
+>
+> **(b) `estado_resultados` devuelve marcadores de completitud, no solo el número** (H-15).
+> Junto al escalar viaja **`ingresosSinCostoConocido`**: cuánto del ingreso del período proviene de
+> productos sin costo cargado. El resultado **no se corrige** por eso —estimar un costo ausente es
+> inventar un número—, lo que cambia es que el número deja de presentarse como completo. La lista
+> canónica la exporta este módulo (`MARCADORES_ESTADO_RESULTADOS`, D-10/DD-10).
+> **Regla dura (`CLAUDE.md` #9/#10):** ningún consumidor —pantalla del dueño, portal
+> institucional, Panel Admin CEOM— puede re-proyectar a mano estos campos eligiendo cuáles pasar.
+> Se proyecta con `src/lib/proyeccion-institucional.ts`, que hace del descarte un error de tipos.
+
 ### 1.3 `margen_por_producto(producto_id, periodo)`
 
 ```
@@ -54,6 +71,13 @@ margen % = [Σ (precio_venta_snapshot × cantidad) − Σ (costo_unitario_snapsh
 ```
 
 Sobre `Detalle de Venta` del producto y período, ya ajustado por cualquier `AjusteVenta` asociado.
+
+> **Corrección de contrato (2026-08-06, R-2.2 / H-15):** `margenPorcentaje` devuelve **`null`**
+> cuando hubo ventas pero ningún costo cargado. Antes la fórmula daba **100%**, que es una
+> afirmación falsa y no un dato faltante — y va en la dirección optimista. El llamador distingue
+> "no hubo ventas" de "hubo ventas sin costo" mirando `ingresosSinCostoConocido`. **Pintar ese
+> `null` como `0%` o como `100%` reintroduce el defecto**; hoy sigue pasando en la tarjeta
+> "Productos más vendidos" del Dashboard (`dashboard-resumen.tsx:292,308`, R-4.5).
 
 ### 1.4 Insumos que expone hacia Simulaciones (Módulo 9)
 

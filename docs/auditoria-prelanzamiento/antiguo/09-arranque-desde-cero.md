@@ -255,7 +255,32 @@ confirmados ni refutados** — se listan como pistas, no como hallazgos:
 `6543 vs 5432` como diferencia funcional · el runtime de producción (Node 24) nunca corrió la suite
 (CI usa Node 20) · las `NEXT_PUBLIC_*` se resuelven en build (cambiarlas sin redesplegar no tiene
 efecto) · CI en verde no valida nada del proyecto nuevo (no tiene credenciales y los tests que las
-necesitan se saltan solos) · plan del proyecto y política de backups.
+necesitan se saltan solos) · ~~plan del proyecto y política de backups~~.
+
+> **El quinto se cerró (2026-08-06, R-2.2) — "plan del proyecto y política de backups"**, y la
+> respuesta cambia dos ítems del plan. Verificado contra la Management API de Supabase:
+>
+> | Dato | Valor verificado |
+> |---|---|
+> | Organización | `DevBroSolutions`, **plan `free`** |
+> | Proyectos hoy | **1** (`ceom-services` / `riertvgnjaujstwyqoom`, `sa-east-1`) |
+> | Costo de un 2º proyecto | **$0/mes** |
+> | Tope de proyectos del plan Free | **2** — y **los pausados no cuentan** para el tope |
+> | Backups automáticos | **ninguno.** Supabase respalda a diario solo Pro/Team/Enterprise; al plan Free le recomienda `supabase db dump` + copia off-site |
+> | Pausa por inactividad | **sí**, tras ~7 días de poca actividad de base. Solo los planes pagos están exentos |
+>
+> **Lo que eso cambia:**
+> 1. **El ensayo de [§5](#5-el-ensayo--requisito-de-cierre-de-la-etapa-3) es gratis** y no compite
+>    con producción si el proyecto de ensayo se **pausa o borra** antes de crear el definitivo. La
+>    fusión "el ensayo es el arranque" que proponía el plan de lanzamiento ya no tiene excusa.
+> 2. **El paso "confirmar backups + restauración de prueba" no es ejecutable en Free.** No hay
+>    backup que restaurar. O se sube a Pro antes del piloto, o el runbook gana un paso de
+>    `pg_dump` programado con su restauración probada. Cualquiera de las dos sirve; **ninguna es
+>    gratis en trabajo o en plata, y hoy el plan las daba por resueltas.**
+> 3. **Un piloto de 3-10 negocios sobre Free puede quedar pausado.** Es el perfil exacto de uso
+>    esporádico que dispara la pausa por inactividad, y le pasaría a un negocio real.
+>
+> Los otros cuatro candidatos siguen sin verificar.
 
 > **El sexto se cerró (2026-07-28).** Era el único que tocaba Auth —"endurecimiento por proyecto:
 > leaked password protection y rate limits"— y el propio hallazgo de esta sección es el filtro: lo

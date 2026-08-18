@@ -22,10 +22,32 @@
 
 ---
 
-## Progreso (actualizado 2026-07-20)
+## Progreso (actualizado 2026-08-06 — R-2.2)
 
-**117 construidas · 0 parciales · 0 pendientes, de 117 pantallas/modales trackeados — inventario
-100% completo.** (El conteo original de "~85" era más grueso — agrupaba varios modales bajo una
+> ⚠️ **El "100% completo" de este tracker venció el 2026-07-20 y el documento no se enteró.**
+> Desde entonces se construyeron pantallas nuevas que **no están inventariadas acá**, así que el
+> conteo de abajo es un piso, no un total. Lo verificado el 2026-08-06:
+>
+> | Pantalla nueva | Dónde | Desde |
+> |---|---|---|
+> | **Sucursales** (ABM + resolución de congelamiento) | `/app/mi-negocio/sucursales` | H-02, 2026-07-27 |
+> | **Accesos institucionales — "Quién miró"** | `/app/consentimiento/accesos` | D-1/DD-01, tanda TI-3.3b, 2026-07-28 |
+> | **Landing pública** | `/` (`src/components/landing/landing.tsx`) | 2026-07-27 |
+> | **Recuperar contraseña** | `/recuperar-contrasena` | H-05 (mitad crítica) |
+> | **Canje autenticado desde el portal** | `/portal` | tanda TI-3.2, 2026-07-27 |
+>
+> El conteo real de rutas hoy es **74 `page.tsx`** (los 117 del inventario son más finos: cuentan
+> modales y diálogos aparte de las rutas). La reconciliación de la R-2.2 no re-inventarió pantalla
+> por pantalla —eso es trabajo de la **R-4.6**, al cierre de la pasada de UI—; lo que hace es
+> quitar la afirmación falsa de "inventario 100% completo" para que nadie planifique desde ella.
+>
+> **⚠️ Trampa conocida antes de tocar los subnav (R-4.1):** la **única** navegación existente a
+> `/app/mi-negocio/sucursales` vive dentro de las copias de `SubnavMiNegocio` que la pasada de UI
+> planea **borrar**. Ejecutar ese borrado antes de integrar Sucursales al sidebar deja la pantalla
+> inalcanzable desde la interfaz.
+
+**Estado declarado al 2026-07-20 (se conserva como piso del conteo): 117 construidas · 0 parciales
+· 0 pendientes, de 117 pantallas/modales trackeados.** (El conteo original de "~85" era más grueso — agrupaba varios modales bajo una
 sola pantalla; este número es más fino y es el que se mantiene de acá en adelante. Sumó 1 al total
 con "Transferir Owner", que no estaba en el inventario original.)
 
@@ -524,7 +546,7 @@ Colaboradores/Roles/Capacidades Especiales, sub-nav compartido).
 **Listado de Planes + Crear/Editar/Desactivar/Reactivar.** `[x]` (`/admin/planes`, sin mockup —
 lista de cards + un solo Dialog reutilizado para crear/editar, no maestro-detalle: Plan es una
 entidad chica y plana, sin sub-listados propios).
-- Campos: `nombre`, `incluyeSucursales`, `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias` (default 7), `duracionEtapaSoloLecturaDias` (default 3), `modulosVeedorPermitidos` (multi-select: `financiero`/`operativo`/`inventario_operativo`, reusa `MODULOS_VEEDOR_INFO` de Consentimiento), `precioMensual`, `moneda` (`BOB`/`USD`, mismo criterio que `monedaPrincipal` de Tenant). `nichoId` del schema queda fuera del formulario a propósito — es un `uuid` sin FK real todavía (el módulo de Nicho no existe, ya documentado en `suscripcion/ANCLA.md`), no hay nada contra qué resolverlo.
+- Campos: `nombre`, ~~`incluyeSucursales`~~ **`maxSucursales`** (integer nullable — reemplazado por H-02, migraciones `0045`/`0046`; corregido acá el 2026-08-06), `permiteMultiplesOwners`, `permiteDowngradeAutogestionado`, `duracionInvitacionDias` (default 7), `duracionEtapaSoloLecturaDias` (default 3), `modulosVeedorPermitidos` (multi-select: `financiero`/`operativo`/`inventario_operativo`, reusa `MODULOS_VEEDOR_INFO` de Consentimiento), `precioMensual`, `moneda` (`BOB`/`USD`, mismo criterio que `monedaPrincipal` de Tenant). `nichoId` del schema queda fuera del formulario a propósito — es un `uuid` sin FK real todavía (el módulo de Nicho no existe, ya documentado en `suscripcion/ANCLA.md`), no hay nada contra qué resolverlo.
 - Desactivar/Reactivar es el toggle `activo` (sin `eliminado_en` — la baja ES ese booleano, por diseño del schema).
 - Rol: `ceom_admin`. Acciones: `listarPlanes` (pública, sin gate), `crearPlan`/`actualizarPlan`/`desactivarPlan`/`reactivarPlan` (gateadas).
 

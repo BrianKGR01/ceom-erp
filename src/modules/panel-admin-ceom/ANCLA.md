@@ -20,9 +20,12 @@
   `listarProducciones`/`consultarMermaPeriodo`/`listarInsumos` (Operativo
   Nicho 1).
 - Salidas que expone (`actions.ts`): `saludAgregadaPlataforma` (cross-tenant,
-  no audita), `consultarTenantDetalle`, `consultarFinancieroTenant`,
-  `consultarOperativoTenant`, `consultarInventarioOperativoTenant` (estas
-  últimas 3 auditan la lectura vía `registrarAccesoAdminCeom`).
+  **no audita** — a propósito, ver decisiones), y **4 lecturas de un tenant
+  puntual que SÍ auditan** vía `registrarAccesoAdminCeom`:
+  `consultarTenantDetalle` (`moduloConsultado: "identidad"`),
+  `consultarFinancieroTenant` (`"financiero"`), `consultarOperativoTenant`
+  (`"operativo"`) y `consultarInventarioOperativoTenant` (`"operativo"`,
+  no `"inventario_operativo"` — ver estado).
 
 ## Estado actual
 - [x] `actions.ts` con las 5 funciones del contrato, sin `schema.ts` ni
@@ -48,11 +51,17 @@
       onboarding (`identidad/ANCLA.md` ya lo marca pendiente) ni definición
       de qué es "retención" en este proyecto. Cuando se construyan, van
       acá, no en Identidad.
-- [ ] `consultarTenantDetalle` **no llama a `registrarAccesoAdminCeom()`**
-      — "identidad" no es un valor de `moduloPermisoEnum` (no es un módulo
-      gestionable, ver `identidad/ANCLA.md`), no hay categoría de log para
-      metadata básica de tenant. No inventar un valor de enum solo para
-      esto sin decidirlo explícitamente aparte.
+- [x] `consultarTenantDetalle` **SÍ llama a `registrarAccesoAdminCeom()`**,
+      con `moduloConsultado: "identidad"` (`actions.ts:123`).
+      ⚠️ **Corrección de este ANCLA (2026-08-06, R-2.2).** Hasta hoy este
+      archivo decía lo contrario —"no llama", "no inventar un valor de enum
+      solo para esto sin decidirlo explícitamente aparte"— y **el código
+      hacía justo eso**. Era el único ANCLA del proyecto que contradecía a su
+      módulo, no que se le quedaba corto: un agente que leyera el contrato
+      antes de tocar el código habría concluido que las lecturas de metadata
+      de tenant no dejan traza, y son las únicas que sí la dejan por defecto.
+      La decisión efectiva (agregar `identidad` como categoría de log) quedó
+      tomada en el código sin registrarse; se registra ahora tal cual está.
 - [ ] `consultarInventarioOperativoTenant` audita con
       `moduloConsultado: "operativo"` (no `"inventario_operativo"`) —
       `moduloPermisoEnum` no distingue insumos de producción, ambos viven
@@ -64,6 +73,26 @@
       "Tenants" agregado a `admin-shell.tsx`. Sin candado/"no autorizado" en
       esta superficie a propósito — `ceom_admin` no pasa por
       `tieneConsentimiento()`, ver `docs/ui/pantallas.md` sección 11.
+
+## Defecto abierto conocido — re-proyección a mano (reglas #9/#10 de `CLAUDE.md`)
+
+- [ ] 🔴 **`consultarFinancieroTenant` re-proyecta a mano y descarta los
+      marcadores de completitud.** `actions.ts:148-155` elige tres escalares
+      del resultado de `estadoResultados()` (`flujoCaja`, `estadoResultados`,
+      `costoFijoTotal`) y tira todo lo demás — incluido
+      `ingresosSinCostoConocido`. El equipo CEOM ve un estado de resultados
+      presentado como completo sin serlo, que es **el gemelo exacto de X-01**
+      en la otra superficie de terceros. `CLAUDE.md` nombra al Panel Admin
+      CEOM explícitamente en las reglas #9 y #10.
+      **El arreglo ya existe y está probado en el portal institucional:**
+      `src/lib/proyeccion-institucional.ts` (`proyectar()` + la lista de
+      marcadores que exporta el módulo dueño, D-10/X-03). Acá hay que
+      reutilizarlo, no diseñar nada.
+- [ ] Mismo bloque: la Ficha de Tenant conserva el patrón G-15 (cualquier
+      error deja la pestaña en "Cargando…" eterno) y no distingue
+      `modulo_no_aplica` (G-14) — un tenant de nicho 4 muestra "Sin
+      producciones" en vez de "este negocio no usa este módulo". Las tres
+      cosas se cierran juntas en **R-3.7** del roadmap.
 
 ## Cambio de contrato en Identidad
 - `listarTenants(solicitante)` — listado cross-tenant completo, gateado a
@@ -93,4 +122,9 @@
   plan_id inexistente") — no hay un usuario CEOM Admin real sembrado en
   ningún entorno todavía.
 
-## Última actualización: 2026-07-18 — UI construida (Tenants con salud agregada, `/admin`)
+## Última actualización: 2026-08-06 — R-2.2 (reconciliación documental)
+Se corrigió la única contradicción ANCLA↔código del proyecto (`consultarTenantDetalle` **sí**
+audita) y se registró el defecto abierto de re-proyección a mano, que hasta hoy no figuraba en
+ningún archivo de este módulo. No cambió código.
+
+Actualización previa el 2026-07-18 — UI construida (Tenants con salud agregada, `/admin`)

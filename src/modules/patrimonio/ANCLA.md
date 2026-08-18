@@ -128,7 +128,7 @@
   tenía sucursal, y siempre el destino) rechazan si la sucursal está
   congelada (`sucursales.congelada_en`). Variante "nullable" — un activo sin
   `sucursal_id` (compartido) nunca pasa por el chequeo. Ver
-  `docs/auditoria-prelanzamiento/07-sucursales-multiples.md` sección 6.3:
+  `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md` sección 6.3:
   este módulo quedó afuera del freeze en la implementación original de H-02
   y se cerró en una segunda tanda junto con Gastos, Proveedores y Operativo
   Nicho 1.

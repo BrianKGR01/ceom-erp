@@ -34,7 +34,7 @@
  *    revisable en un diff.
  *
  * Justificación completa: `docs/architecture/CEOM_Arquitectura.md` §3 principio
- * 7 y §3.1, y `docs/auditoria-prelanzamiento/08-instituciones-punta-a-punta.md`
+ * 7 y §3.1, y `docs/auditoria-prelanzamiento/antiguo/08-instituciones-punta-a-punta.md`
  * §4.8 (X-03) y D-10.
  */
 

@@ -246,14 +246,14 @@ export const usuarios = pgTable(
       .notNull()
       .references(() => roles.id),
     // Estructura preparada para H-02, TODAVIA SIN USO real (ver
-    // docs/auditoria-prelanzamiento/07-sucursales-multiples.md seccion 4,
+    // docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md seccion 4,
     // Track B): a que sucursal pertenece este colaborador. null = sin
     // restringir (comportamiento de hoy: ve/opera sobre todas las sucursales
     // de su tenant). NINGUN modulo filtra por esta columna todavia —
     // tienePermiso()/recursoPerteneceAlTenant() no la miran. El filtrado real
     // por sucursal es una segunda dimension de autorizacion que se activa
     // recien en la Etapa 5 (roles por defecto, H-35/D3 de
-    // docs/auditoria-prelanzamiento/04-camino-al-lanzamiento.md), junto con
+    // docs/auditoria-prelanzamiento/antiguo/04-camino-al-lanzamiento.md), junto con
     // el modelo de roles — no antes, y no en esta tarea. Ver la anotacion
     // gemela en la seccion 8 de 07-sucursales-multiples.md.
     sucursalId: uuid("sucursal_id").references(() => sucursales.id),
