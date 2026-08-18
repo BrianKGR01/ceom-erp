@@ -54,7 +54,7 @@ const MODULOS: readonly Modulo[] = [
         { etiqueta: "Sem 1", pct: 52, valor: "5.400" },
         { etiqueta: "Sem 2", pct: 70, valor: "7.100" },
         { etiqueta: "Sem 3", pct: 46, valor: "4.800" },
-        { etiqueta: "Sem 4", pct: 88, valor: "7.200", color: "#227a44" },
+        { etiqueta: "Sem 4", pct: 88, valor: "7.200", color: "#137333" },
       ],
     },
   },
@@ -125,8 +125,8 @@ const MODULOS: readonly Modulo[] = [
     viz: {
       tipo: "barras",
       datos: [
-        { etiqueta: "Bienes", pct: 92, valor: "62.000", color: "#227a44" },
-        { etiqueta: "Deudas", pct: 30, valor: "18.000", color: "#b4462f" },
+        { etiqueta: "Bienes", pct: 92, valor: "62.000", color: "#137333" },
+        { etiqueta: "Deudas", pct: 30, valor: "18.000", color: "#c5221f" },
         { etiqueta: "Neto", pct: 66, valor: "44.000" },
       ],
     },
@@ -144,8 +144,8 @@ const MODULOS: readonly Modulo[] = [
       tipo: "barras",
       datos: [
         { etiqueta: "Producido", pct: 88, valor: "3.200" },
-        { etiqueta: "Vendido", pct: 80, valor: "2.900", color: "#227a44" },
-        { etiqueta: "Merma", pct: 14, valor: "130", color: "#b4462f" },
+        { etiqueta: "Vendido", pct: 80, valor: "2.900", color: "#137333" },
+        { etiqueta: "Merma", pct: 14, valor: "130", color: "#c5221f" },
       ],
     },
   },
@@ -162,9 +162,9 @@ const MODULOS: readonly Modulo[] = [
       tipo: "barras",
       datos: [
         { etiqueta: "Ventas", pct: 92, valor: "24.500" },
-        { etiqueta: "Costos", pct: 48, valor: "12.300", color: "#b4462f" },
-        { etiqueta: "Gastos", pct: 24, valor: "6.000", color: "#b4462f" },
-        { etiqueta: "Resultado", pct: 26, valor: "6.200", color: "#227a44" },
+        { etiqueta: "Costos", pct: 48, valor: "12.300", color: "#c5221f" },
+        { etiqueta: "Gastos", pct: 24, valor: "6.000", color: "#c5221f" },
+        { etiqueta: "Resultado", pct: 26, valor: "6.200", color: "#137333" },
       ],
     },
   },

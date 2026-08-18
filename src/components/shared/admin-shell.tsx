@@ -85,7 +85,7 @@ export function AdminShell({
 
   return (
     <>
-      <div className="app-mobile-bar items-center justify-between bg-navy px-4 py-3">
+      <div className="app-mobile-bar items-center justify-between bg-brand-dark px-4 py-3">
         <Icono className="h-7 w-auto" />
         <button
           ref={abrirBtnRef}
@@ -111,7 +111,7 @@ export function AdminShell({
       <aside
         ref={asideRef}
         className={cn(
-          "app-sidebar flex shrink-0 flex-col bg-gradient-to-b from-sidebar-from to-sidebar-to transition-transform duration-200",
+          "app-sidebar flex shrink-0 flex-col bg-[image:var(--brand-gradient)] transition-transform duration-200",
           abierto && "app-sidebar--abierto"
         )}
       >
@@ -135,7 +135,7 @@ export function AdminShell({
               href={item.href}
               onClick={() => setAbierto(false)}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
                 esActivo(item.href) && "bg-sidebar-accent text-white"
               )}
             >

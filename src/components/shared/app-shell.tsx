@@ -293,7 +293,7 @@ export function AppShell({
 
   return (
     <>
-      <div className="app-mobile-bar items-center justify-between bg-navy px-4 py-3">
+      <div className="app-mobile-bar items-center justify-between bg-brand-dark px-4 py-3">
         <Icono className="h-7 w-auto" />
         <button
           ref={abrirBtnRef}
@@ -332,30 +332,23 @@ export function AppShell({
           if (!e.currentTarget.contains(e.relatedTarget)) setHovering(false);
         }}
         className={cn(
-          "app-sidebar flex shrink-0 flex-col overflow-hidden bg-gradient-to-b from-sidebar-from to-sidebar-to transition-[transform,width] duration-200",
+          // Degradado de marca exacto del design system v1.0 (seccion 02):
+          // #1A76FD 0% -> #1356B9 46% -> #0C3E88 100%. Se declara una sola
+          // vez en globals.css (--brand-gradient) porque el sistema lo
+          // reserva a navegacion y cabeceras de marca: si aparece en una
+          // tarjeta o una tabla, es un error.
+          "app-sidebar flex shrink-0 flex-col overflow-hidden bg-[image:var(--brand-gradient)] transition-[transform,width] duration-200",
           abierto && "app-sidebar--abierto",
           colapsado && "app-sidebar--colapsado",
           colapsado && hovering && "app-sidebar--hover"
         )}
       >
-        {/* Mismos círculos difuminados que el panel izquierdo de /login
-            (src/app/(auth)/login/page.tsx): el degradado navy ya era el
-            mismo, lo que le faltaba al sidebar para tener esa identidad era
-            la profundidad. Tokens existentes (pastel-blue, primary), sin
-            colores nuevos. Tamaños ajustados a una columna de 16rem en vez
-            de a media pantalla. El `overflow-hidden` del aside los recorta. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-16 -right-16 size-48 rounded-full bg-pastel-blue/20 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-1/3 -left-12 size-40 rounded-full bg-primary/25 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute right-0 -bottom-20 size-56 rounded-full bg-pastel-blue/10 blur-3xl"
-        />
+        {/* Los circulos difuminados que daban profundidad al sidebar navy
+            del sistema anterior se quitaron: el design system v1.0 define
+            el sidebar como el degradado de marca limpio, sin capas
+            decorativas encima (seccion 02 + regla "no crear tonos nuevos
+            fuera de la paleta"). El degradado de tres paradas ya aporta la
+            profundidad que antes daban los glows. */}
 
         <div className="relative z-10">
           <button
@@ -407,7 +400,7 @@ export function AppShell({
                     onClick={() => setAbierto(false)}
                     title={mostrarExpandido ? undefined : item.label}
                     className={cn(
-                      "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/90 transition-colors hover:bg-sidebar-accent hover:text-white",
+                      "flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-xs text-white/90 transition-colors hover:bg-sidebar-accent hover:text-white",
                       activo && "bg-sidebar-accent text-white",
                       !mostrarExpandido && "justify-center px-0"
                     )}
@@ -452,7 +445,7 @@ export function AppShell({
                         href={sub.href}
                         onClick={() => setAbierto(false)}
                         className={cn(
-                          "block rounded-lg px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
+                          "block rounded-lg px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-sidebar-accent hover:text-white",
                           subitemActivo(sub) && "bg-sidebar-accent text-white"
                         )}
                       >

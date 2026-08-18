@@ -360,7 +360,7 @@ export function NuevaProduccionCliente({
                 </span>
               </div>
             )}
-            <div className="flex items-center justify-between rounded-xl bg-navy px-3 py-3 text-white">
+            <div className="flex items-center justify-between rounded-xl bg-brand-dark px-3 py-3 text-white">
               <span className="text-xs text-white/70">Costo Operativo Resultante</span>
               <span className="font-semibold">
                 {resumen ? formatMoneda(resumen.costoOperativo) : "—"} / unidad

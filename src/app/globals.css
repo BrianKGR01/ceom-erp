@@ -4,16 +4,48 @@
 
 /* Dejamos la directiva de dark mode declarada (algunos componentes de
    shadcn traen clases "dark:") pero nunca se aplica la clase .dark en
-   ningun lado — docs/design-system.md principio 7: modo claro unicamente
-   por ahora. */
+   ningun lado — docs/design-system.md: modo claro unicamente por ahora.
+   El design system v1.0 ya define la paleta oscura completa; queda
+   documentada en docs/design-system.md pero sin activar. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-poppins);
-  --font-heading: var(--font-poppins);
-  --font-accent: var(--font-quicksand);
+
+  /* Tipografia — design system v1.0 seccion 03.
+     Titulos, KPIs y totales en Gogh 800 (la fuente todavia no fue
+     entregada por la marca: se declara primero para que entre sola
+     cuando llegue el woff2, con Archivo ExtraBold como sustituto real
+     via next/font). Cuerpo, tablas, inputs y botones en Verdana. */
+  --font-sans: Verdana, Geneva, sans-serif;
+  --font-heading: "Gogh", var(--font-archivo), Archivo, Verdana, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+
+  /* Escala tipografica del design system v1.0 seccion 03, mapeada sobre
+     los pasos de Tailwind que ya usa el codigo. Cada paso corresponde a
+     exactamente un token del sistema, sin valores intermedios:
+       text-[10px] label · text-[11px] small · xs base · sm body
+       base h3 · lg h2 · xl h1 · 2xl kpi · 3xl display */
+  --text-xs: 12px;
+  --text-xs--line-height: 1.5;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.7;
+  --text-base: 16px;
+  --text-base--line-height: 1.4;
+  --text-lg: 20px;
+  --text-lg--line-height: 1.3;
+  --text-xl: 26px;
+  --text-xl--line-height: 1.2;
+  --text-2xl: 30px;
+  --text-2xl--line-height: 1.15;
+  --text-3xl: 42px;
+  --text-3xl--line-height: 1.1;
+  --text-4xl: 42px;
+  --text-4xl--line-height: 1.1;
+  --text-5xl: 42px;
+  --text-5xl--line-height: 1.1;
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,89 +71,235 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  /* Tokens propios del design-system CEOM (docs/design-system.md seccion 2),
-     sin equivalente directo en las variables semanticas de shadcn. */
+  /* --- Paleta de marca del design system v1.0 (seccion 01) --- */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-info: var(--brand-info);
+  --color-brand-bg: var(--brand-bg);
+  --color-surface-white: var(--surface-white);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-primary-tint: var(--primary-tint);
+  --color-stripe: var(--stripe);
+  --color-text-main: var(--text-main);
+  --color-text-placeholder: var(--text-placeholder);
+  --color-text-inverse: var(--text-inverse);
+
+  /* Pares semanticos fondo+texto — se usan siempre juntos (regla del
+     design system: ningun badge lleva solo uno de los dos). */
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-success-border: var(--success-border);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --color-warning-border: var(--warning-border);
+  --color-error-bg: var(--error-bg);
+  --color-error-text: var(--error-text);
+  --color-error-border: var(--error-border);
+  --color-info-bg: var(--info-bg);
+  --color-info-text: var(--info-text);
+
+  /* Escala de rentabilidad (heatmap de margenes) — design system 02. */
+  --color-margen-1-bg: var(--margen-1-bg);
+  --color-margen-1-fg: var(--margen-1-fg);
+  --color-margen-2-bg: var(--margen-2-bg);
+  --color-margen-2-fg: var(--margen-2-fg);
+  --color-margen-3-bg: var(--margen-3-bg);
+  --color-margen-3-fg: var(--margen-3-fg);
+  --color-margen-4-bg: var(--margen-4-bg);
+  --color-margen-4-fg: var(--margen-4-fg);
+  --color-margen-5-bg: var(--margen-5-bg);
+  --color-margen-5-fg: var(--margen-5-fg);
+
+  /* Alias heredados del sistema anterior. Los nombres siguen vivos en
+     ~1800 usos de utilidades a lo largo de la app; en vez de renombrarlos
+     uno por uno apuntan al token nuevo que les corresponde, que es lo que
+     mantiene el sistema centralizado. Ver docs/design-system.md, "Mapa de
+     migracion de tokens". */
   --color-navy: var(--navy);
   --color-sidebar-from: var(--sidebar-from);
+  --color-sidebar-mid: var(--sidebar-mid);
   --color-sidebar-to: var(--sidebar-to);
   --color-pastel-blue: var(--pastel-blue);
   --color-pastel-blue-bg: var(--pastel-blue-bg);
-  --color-success-bg: var(--success-bg);
-  --color-success-text: var(--success-text);
-  --color-warning-bg: var(--warning-bg);
-  --color-warning-text: var(--warning-text);
-  --color-error-bg: var(--error-bg);
-  --color-error-text: var(--error-text);
-  --color-info-bg: var(--info-bg);
-  --color-info-text: var(--info-text);
   --color-gray-border: var(--gray-border);
   --color-gray-bg: var(--gray-bg);
   --color-text-body: var(--text-body);
   --color-text-muted: var(--text-muted);
 
-  /* Sombra "casi imperceptible" de las cards (seccion 1). */
-  --shadow-card: 0 1px 4px rgba(9, 49, 84, 0.05), 0 2px 8px rgba(9, 49, 84, 0.06);
+  /* Elevacion — design system v1.0 seccion 05. Se usa con moderacion y
+     nunca sobre filas de tabla ni dentro de una tarjeta ya elevada. */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.18);
+  --shadow-cta: 0 8px 20px rgba(26, 118, 253, 0.32);
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Radios — design system v1.0 seccion 05. El radio comunica jerarquia:
+     cuanto mas contenedor es el elemento, mayor el redondeo.
+       md  6px  inputs, selects, buscadores
+       lg  10px botones y controles accionables
+       xl  12px tarjeta anidada
+       2xl 16px tarjeta / panel / contenedor de modulo */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
 }
 
 :root {
-  /* Base: 8px -> radius-lg (botones, seccion 5.7) = 8px exacto;
-     radius-2xl (cards, seccion 1) = 14.4px, dentro del rango 12-14px. */
-  --radius: 0.5rem;
+  /* Radio base que consumen los componentes de shadcn: el del boton. */
+  --radius: 10px;
 
-  --background: #ffffff;
-  --foreground: var(--text-body);
-  --card: #ffffff;
-  --card-foreground: var(--text-body);
-  --popover: #ffffff;
-  --popover-foreground: var(--text-body);
-  --primary: #2176bd;
-  --primary-foreground: #ffffff;
-  --secondary: var(--pastel-blue-bg);
-  --secondary-foreground: var(--navy);
-  --muted: var(--gray-bg);
+  /* ------------------------------------------------------------------
+     Design system CEOM v1.0 — tokens canonicos.
+     Fuente de verdad: docs/design-system.md (extraido de
+     docs/ui/CEOM Design System.html).
+     ------------------------------------------------------------------ */
+
+  /* Marca */
+  --brand-primary: #1a76fd;
+  --brand-dark: #1356b9;
+  --brand-deep: #0c3e88;
+  --brand-accent: #f7941d;
+  --brand-info: #37b3d9;
+
+  /* Superficies y bordes */
+  --brand-bg: #f6f7f9;
+  --surface-white: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --overlay: rgba(15, 23, 42, 0.45);
+  --primary-tint: #eaf2ff;
+  --stripe: #eef2f7;
+
+  /* Texto */
+  --text-main: #0f172a;
+  --text-placeholder: #94a3b8;
+  --text-inverse: #ffffff;
+
+  /* Semanticos — par fondo + texto, siempre juntos */
+  --success-bg: #e6f4ea;
+  --success-text: #137333;
+  --success-border: #bfe0c8;
+  --warning-bg: #fef7e0;
+  --warning-text: #b06000;
+  --warning-border: #f7e3a8;
+  --error-bg: #fce8e6;
+  --error-text: #c5221f;
+  --error-border: #f5c6c3;
+  --info-bg: #e0f2fa;
+  --info-text: #0e7490;
+
+  /* Escala de rentabilidad (heatmap de margenes) */
+  --margen-1-bg: rgba(19, 115, 51, 0.18);
+  --margen-1-fg: #0f5132;
+  --margen-2-bg: rgba(19, 115, 51, 0.09);
+  --margen-2-fg: #137333;
+  --margen-3-bg: rgba(55, 179, 217, 0.12);
+  --margen-3-fg: #0f172a;
+  --margen-4-bg: rgba(247, 148, 29, 0.16);
+  --margen-4-fg: #b06000;
+  --margen-5-bg: rgba(197, 34, 31, 0.13);
+  --margen-5-fg: #c5221f;
+
+  /* Degradado de marca — solo sidebar y cabeceras de marca/portada.
+     Nunca sobre tarjetas, tablas ni formularios. */
+  --sidebar-from: #1a76fd;
+  --sidebar-mid: #1356b9;
+  --sidebar-to: #0c3e88;
+  --brand-gradient: linear-gradient(180deg, #1a76fd 0%, #1356b9 46%, #0c3e88 100%);
+  --brand-gradient-header: linear-gradient(135deg, #1a76fd 0%, #1356b9 48%, #0c3e88 100%);
+
+  /* ------------------------------------------------------------------
+     Alias heredados -> token nuevo (ver docs/design-system.md).
+       navy            titulos          -> text-main
+       text-body       cuerpo           -> text-main
+       text-muted      apoyo            -> text-muted
+       pastel-blue-bg  fondo suave      -> primary-tint
+       pastel-blue     azul sobre marca -> #9CC6FF del propio sistema
+       gray-border     divisores        -> border-subtle
+       gray-bg         superficie tenue -> brand-bg
+     ------------------------------------------------------------------ */
+  --navy: var(--text-main);
+  --text-body: var(--text-main);
+  --text-muted: #64748b;
+  --pastel-blue: #9cc6ff;
+  --pastel-blue-bg: var(--primary-tint);
+  --gray-border: var(--border-subtle);
+  --gray-bg: var(--brand-bg);
+
+  /* ------------------------------------------------------------------
+     Variables semanticas de shadcn, resueltas contra los tokens CEOM.
+     ------------------------------------------------------------------ */
+  --background: var(--brand-bg);
+  --foreground: var(--text-main);
+  --card: var(--surface-white);
+  --card-foreground: var(--text-main);
+  --popover: var(--surface-white);
+  --popover-foreground: var(--text-main);
+  --primary: var(--brand-primary);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--primary-tint);
+  --secondary-foreground: var(--brand-dark);
+  --muted: var(--brand-bg);
   --muted-foreground: var(--text-muted);
-  --accent: var(--pastel-blue-bg);
-  --accent-foreground: var(--navy);
+  --accent: var(--primary-tint);
+  --accent-foreground: var(--brand-dark);
   --destructive: var(--error-text);
-  --border: var(--gray-border);
-  --input: var(--gray-border);
-  --ring: #2176bd;
+  --border: var(--border-subtle);
+  --input: var(--border-subtle);
+  --ring: var(--brand-primary);
 
-  --sidebar: var(--sidebar-from);
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #2176bd;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.07);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #2176bd;
+  --sidebar: var(--sidebar-mid);
+  --sidebar-foreground: var(--text-inverse);
+  --sidebar-primary: var(--brand-primary);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: rgba(255, 255, 255, 0.14);
+  --sidebar-accent-foreground: var(--text-inverse);
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+  --sidebar-ring: rgba(255, 255, 255, 0.5);
+}
 
-  /* Paleta CEOM — docs/design-system.md seccion 2 */
-  --navy: #094979;
-  --sidebar-from: #0e2a47;
-  --sidebar-to: #0b2038;
-  --pastel-blue: #abd8ff;
-  --pastel-blue-bg: #eaf3fd;
-  --gray-border: #d9d9d9;
-  --gray-bg: #eaedf1;
-  --text-body: #545454;
-  --text-muted: #6b7280;
-  --success-bg: #e7f6ec;
-  --success-text: #227a44;
-  --warning-bg: #fcf3d9;
-  --warning-text: #8a6d1d;
-  --error-bg: #fcebea;
-  --error-text: #d64545;
-  --info-bg: #eaf3fd;
-  --info-text: #2176bd;
+/* ---------------------------------------------------------------------------
+   Utilidades tipograficas del design system v1.0 (seccion 03)
+   Los tokens que no tienen un paso equivalente en la escala de Tailwind
+   viven aca como clase, para no repetir el trio tamano/tracking/peso en
+   cada pantalla.
+   --------------------------------------------------------------------------- */
+
+/* Token `label`: 10px / 400 / +1.2px, en mayusculas. Es la etiqueta que va
+   ENCIMA de una cifra de KPI ("VENTAS TOTALES"), no la de un campo de
+   formulario — esa usa el componente Label, a 12px. */
+.ds-label {
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Token `kpi`: 30px / 800 / -1px en la familia de titulos. La cifra
+   protagonista de una tarjeta de KPI y los totales. */
+.ds-kpi {
+  font-family: "Gogh", var(--font-archivo), Archivo, Verdana, sans-serif;
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  color: var(--text-main);
+}
+
+/* Token `mono`: 10px. SKUs, folios y numeros de comprobante. */
+.ds-mono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0;
 }
 
 /* Shell de /app (src/components/shared/app-shell.tsx) — CSS a mano en vez
@@ -142,7 +320,7 @@
   inset-block: 0;
   left: 0;
   z-index: 50;
-  width: 16rem;
+  width: 15rem;
   transform: translateX(-100%);
 }
 .app-sidebar.app-sidebar--abierto {
@@ -195,18 +373,18 @@
     transform: none;
   }
   .app-sidebar.app-sidebar--colapsado {
-    width: 4.75rem;
+    width: 4rem;
   }
   .app-sidebar.app-sidebar--colapsado.app-sidebar--hover {
-    width: 16rem;
+    width: 15rem;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18);
   }
   .app-shell-main {
-    margin-left: 16rem;
+    margin-left: 15rem;
     transition: margin-left 200ms ease;
   }
   .app-shell-main.app-shell-main--colapsado {
-    margin-left: 4.75rem;
+    margin-left: 4rem;
   }
 }
 
@@ -258,9 +436,9 @@
   color: var(--text-body);
   font-size: 0.9375rem;
   line-height: 1.75;
-  /* Poppins no trae emoji: sin este fallback explícito, ⚠️ 🚧 ✅ 🔎 quedan
+  /* Verdana no trae emoji: sin este fallback explícito, ⚠️ 🚧 ✅ 🔎 quedan
      a merced de la fuente por defecto del sistema. */
-  font-family: var(--font-sans), "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-family: Verdana, Geneva, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   /* NO usar `font-variant-emoji: emoji` acá para forzar el color de ⚠️: se
      probó y los dígitos sueltos del texto ("3 días", "H-41", "capítulo 9")
      tienen presentación de emoji propia y salían como teclas azules. ⚠️
@@ -380,7 +558,9 @@
   overflow-wrap: break-word;
 }
 .manual-md pre {
-  background: var(--sidebar-from);
+  /* Azul profundo del degradado de marca — el unico tono oscuro de la
+     paleta v1.0 con contraste suficiente para un bloque de codigo. */
+  background: var(--brand-deep);
   color: #dbe7f3;
   padding: 0.875rem 1rem;
   border-radius: var(--radius-lg);

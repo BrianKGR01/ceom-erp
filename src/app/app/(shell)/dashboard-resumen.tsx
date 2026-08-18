@@ -29,14 +29,7 @@ import {
   type DatosDashboard,
 } from "./inicio-actions";
 import { calcularRangoPreset, PERIODOS_PRESET, type PeriodoPresetId } from "@/lib/periodo";
-
-// Primera vez que la app necesita una paleta de graficas — el design
-// system no define una (docs/design-system.md no tiene seccion de
-// dataviz). Validada con la skill de dataviz contra la superficie real de
-// las cards (--card: #ffffff): CVD ΔE minimo 16.2, banda de lightness y
-// chroma OK. Orden fijo, se asigna por orden estable de categoria, nunca
-// por rank de valor.
-const COLORES_CATEGORIA = ["#2176bd", "#1baf7a", "#eda100", "#4a3aa7", "#e34948", "#eb6834"];
+import { COLORES_CATEGORIA } from "@/lib/dataviz";
 
 function formatoMoneda(valor: number): string {
   return valor.toLocaleString("es-BO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

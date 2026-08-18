@@ -198,7 +198,7 @@ export function ResumenFinancieroCliente({
                     valor={-estado.ajustesCompra}
                     tono="error"
                   />
-                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-navy p-3 text-white">
+                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-brand-dark p-3 text-white">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10">
                       <Sigma className="size-4" />
                     </span>

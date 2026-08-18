@@ -170,7 +170,7 @@ export function GenerarCodigoCliente({
         {error && <p className="mt-3 text-xs text-error-text">{error}</p>}
 
         {codigoGenerado && (
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-navy p-4 text-white">
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-brand-dark p-4 text-white">
             <div>
               <p className="text-[11px] tracking-wide text-white/60 uppercase">Código generado</p>
               <p className="font-heading text-2xl font-bold tracking-widest">{codigoGenerado}</p>
