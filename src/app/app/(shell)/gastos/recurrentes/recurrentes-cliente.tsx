@@ -152,8 +152,8 @@ function NuevaPlantillaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="categoriaId">Categoría</Label>
             <Select
               items={Object.fromEntries(categorias.map((c) => [c.id, c.nombre]))}
@@ -177,7 +177,7 @@ function NuevaPlantillaDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="monto">Monto</Label>
               <Input
                 id="monto"
@@ -191,7 +191,7 @@ function NuevaPlantillaDialog({
                 <p className="text-xs text-error-text">{form.formState.errors.monto.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="frecuencia">Frecuencia</Label>
               <Select
                 items={LABEL_FRECUENCIA}
@@ -213,14 +213,14 @@ function NuevaPlantillaDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaInicio">Fecha de inicio</Label>
               <Input id="fechaInicio" type="date" {...form.register("fechaInicio")} />
               {form.formState.errors.fechaInicio && (
                 <p className="text-xs text-error-text">{form.formState.errors.fechaInicio.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaFin">Fecha de fin (opcional)</Label>
               <Input id="fechaFin" type="date" {...form.register("fechaFin")} />
             </div>
@@ -277,7 +277,7 @@ function GenerarGastoDialog({
           <DialogTitle>Generar gasto de este período</DialogTitle>
           <DialogDescription>Crea un nuevo Gasto manual a partir de esta plantilla.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="fechaGasto">Fecha del gasto</Label>
           <Input id="fechaGasto" type="date" value={fechaGasto} onChange={(e) => setFechaGasto(e.target.value)} />
         </div>

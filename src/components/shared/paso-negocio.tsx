@@ -157,7 +157,7 @@ export function PasoNegocio({
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="mt-4 space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="nombreNegocio">Nombre de tu negocio</Label>
             <Input id="nombreNegocio" {...form.register("nombreNegocio")} />
             {form.formState.errors.nombreNegocio && (
@@ -166,13 +166,13 @@ export function PasoNegocio({
               </p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="ciudadBase">Ciudad</Label>
             <Input id="ciudadBase" {...form.register("ciudadBase")} />
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="monedaPrincipal">Moneda principal</Label>
           <Select
             items={Object.fromEntries(MONEDAS.map((m) => [m.value, m.label]))}
@@ -197,7 +197,7 @@ export function PasoNegocio({
           )}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Logo del negocio (opcional)</Label>
           <div
             onDragOver={(e) => {
@@ -216,7 +216,7 @@ export function PasoNegocio({
             tabIndex={0}
             aria-disabled={subiendoLogo}
             className={cn(
-              "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-5 text-center transition-colors",
+              "flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-6 text-center transition-colors",
               subiendoLogo && "pointer-events-none opacity-60",
               arrastrando ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
             )}
@@ -271,7 +271,7 @@ export function PasoNegocio({
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>¿Dónde vendés hoy?</Label>
           <div className="grid grid-cols-2 gap-2">
             {CANALES_SUGERIDOS.map((canal) => {
@@ -282,7 +282,7 @@ export function PasoNegocio({
                   type="button"
                   onClick={() => alternarCanal(canal.value)}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-colors",
+                    "flex flex-col items-center gap-1.5 rounded-xl border p-4 text-center transition-colors",
                     elegido
                       ? "border-primary bg-pastel-blue-bg"
                       : "border-gray-border hover:border-primary/50"

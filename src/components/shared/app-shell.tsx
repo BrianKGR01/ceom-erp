@@ -459,7 +459,7 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="relative z-10 shrink-0 space-y-3 border-t border-white/10 px-3 py-4">
+        <div className="relative z-10 shrink-0 space-y-4 border-t border-white/10 px-3 py-4">
           {/* El bloque de usuario es la entrada a Mi Cuenta — es donde la
               gente busca sus propios datos, y evita sumar un nav item mas
               para una pantalla que se visita una vez cada tanto. */}

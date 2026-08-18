@@ -198,7 +198,7 @@ export function ResumenFinancieroCliente({
                     valor={-estado.ajustesCompra}
                     tono="error"
                   />
-                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-brand-dark p-3 text-white">
+                  <div className="mt-2 flex items-center gap-3 rounded-xl bg-brand-dark p-4 text-white">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10">
                       <Sigma className="size-4" />
                     </span>
@@ -209,8 +209,8 @@ export function ResumenFinancieroCliente({
                       restar—, pero deja de presentarse como completo. Marcar
                       el hueco, nunca estimar un número para taparlo. */}
                   {estado.ingresosSinCostoConocido > 0 && (
-                    <div className="mt-2 flex items-start gap-2 rounded-xl bg-warning-bg p-3">
-                      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+                    <div className="mt-2 flex items-start gap-2 rounded-xl bg-warning-bg p-4">
+                      <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
                       <p className="text-xs text-text-body">
                         <span className="font-medium text-warning-text">
                           {formatoMoneda(estado.ingresosSinCostoConocido)} de estos ingresos son de
@@ -254,7 +254,7 @@ export function ResumenFinancieroCliente({
                       { valor: salidas, colorClase: "bg-error-text" },
                     ]}
                   />
-                  <div className="mt-3 flex items-center gap-3 rounded-xl bg-pastel-blue-bg p-3">
+                  <div className="mt-4 flex items-center gap-3 rounded-xl bg-pastel-blue-bg p-4">
                     <span className="flex size-9 items-center justify-center rounded-full bg-card text-primary">
                       <Wallet className="size-4" />
                     </span>
@@ -306,7 +306,7 @@ function FilaResultado({
 function BarraComparativa({ segmentos }: { segmentos: { valor: number; colorClase: string }[] }) {
   const max = Math.max(1, ...segmentos.map((s) => Math.abs(s.valor)));
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {segmentos.map((s, i) => (
         <div key={i} className="h-2 overflow-hidden rounded-full bg-gray-bg">
           <div

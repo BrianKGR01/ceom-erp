@@ -180,7 +180,7 @@ function PlanFormDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="nombre-plan">Nombre</Label>
             <Input
               id="nombre-plan"
@@ -191,8 +191,8 @@ function PlanFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="precio-plan">Precio mensual</Label>
               <Input
                 id="precio-plan"
@@ -204,7 +204,7 @@ function PlanFormDialog({
                 placeholder="0.00"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="moneda-plan">Moneda</Label>
               <Select
                 items={Object.fromEntries(MONEDAS.map((m) => [m.value, m.label]))}
@@ -225,8 +225,8 @@ function PlanFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="dias-invitacion">Días de invitación</Label>
               <Input
                 id="dias-invitacion"
@@ -236,7 +236,7 @@ function PlanFormDialog({
                 onChange={(e) => setForm((f) => ({ ...f, duracionInvitacionDias: e.target.value }))}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="dias-gracia">Días de gracia (solo lectura)</Label>
               <Input
                 id="dias-gracia"
@@ -248,7 +248,7 @@ function PlanFormDialog({
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-gray-border p-3">
+          <div className="space-y-4 rounded-xl border border-gray-border p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-navy">Sucursales</p>
@@ -261,7 +261,7 @@ function PlanFormDialog({
               <span className="text-xs text-text-muted">Ilimitadas</span>
             </div>
             {!form.sucursalesIlimitadas && (
-              <div className="space-y-1.5 pl-1">
+              <div className="space-y-2 pl-1">
                 <Label htmlFor="max-sucursales">Tope de sucursales</Label>
                 <Input
                   id="max-sucursales"
@@ -367,18 +367,18 @@ export function PlanesCliente({ planesIniciales }: { planesIniciales: Plan[] }) 
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {planesIniciales.map((plan) => (
-            <div key={plan.id} className={cn("rounded-2xl bg-card p-5 shadow-card", !plan.activo && "opacity-60")}>
+            <div key={plan.id} className={cn("rounded-2xl bg-card p-6 shadow-card", !plan.activo && "opacity-60")}>
               <div className="flex items-start justify-between">
                 <span className="flex size-11 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                   <CreditCard className="size-5" />
                 </span>
                 <Badge variant={plan.activo ? "success" : "outline"}>{plan.activo ? "Activo" : "Inactivo"}</Badge>
               </div>
-              <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{plan.nombre}</h2>
+              <h2 className="mt-4 font-heading text-base font-extrabold text-navy">{plan.nombre}</h2>
               <p className="text-sm text-text-muted">
                 {Number(plan.precioMensual).toFixed(2)} {plan.moneda} / mes
               </p>
-              <div className="mt-3 flex flex-wrap gap-1">
+              <div className="mt-4 flex flex-wrap gap-1">
                 {plan.modulosVeedorPermitidos.length === 0 ? (
                   <span className="text-xs text-text-muted">Sin información habilitada para compartir</span>
                 ) : (

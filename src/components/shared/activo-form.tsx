@@ -91,7 +91,7 @@ export function ActivoForm({
         <div className="space-y-4 border-b border-gray-border pb-6">
           <h2 className="font-heading text-base font-extrabold text-navy">Datos principales</h2>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre del activo</Label>
             <Input id="nombre" placeholder="Ej. Horno Industrial Modelo X" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
@@ -100,7 +100,7 @@ export function ActivoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="tipo">Categoría</Label>
               <Select
                 items={Object.fromEntries(TIPOS.map((t) => [t.value, t.label]))}
@@ -119,7 +119,7 @@ export function ActivoForm({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="sucursalId">Sucursal (opcional)</Label>
               <Select
                 items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -147,7 +147,7 @@ export function ActivoForm({
           </h2>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="valorCompra">Valor de adquisición</Label>
               <Input
                 id="valorCompra"
@@ -161,7 +161,7 @@ export function ActivoForm({
                 <p className="text-xs text-error-text">{form.formState.errors.valorCompra.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaAdquisicion">Fecha de adquisición</Label>
               <Input id="fechaAdquisicion" type="date" {...form.register("fechaAdquisicion")} />
               {form.formState.errors.fechaAdquisicion && (
@@ -171,7 +171,7 @@ export function ActivoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="vidaUtilMeses">Vida útil en meses (opcional)</Label>
               <Input
                 id="vidaUtilMeses"
@@ -184,7 +184,7 @@ export function ActivoForm({
                 })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
               <Select
                 items={Object.fromEntries(proveedores.map((p) => [p.id, p.nombre]))}
@@ -206,11 +206,11 @@ export function ActivoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="numeroSerie">Número de serie (opcional)</Label>
               <Input id="numeroSerie" {...form.register("numeroSerie")} />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="vencimientoGarantia">Vencimiento de garantía (opcional)</Label>
               <Input id="vencimientoGarantia" type="date" {...form.register("vencimientoGarantia")} />
             </div>
@@ -226,7 +226,7 @@ export function ActivoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="capacidadProduccionCantidad">Capacidad de producción</Label>
               <Input
                 id="capacidadProduccionCantidad"
@@ -239,7 +239,7 @@ export function ActivoForm({
                 })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="capacidadProduccionUnidad">Unidad</Label>
               <Input
                 id="capacidadProduccionUnidad"
@@ -250,7 +250,7 @@ export function ActivoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="capacidadAlmacenamientoCantidad">Capacidad de almacenamiento</Label>
               <Input
                 id="capacidadAlmacenamientoCantidad"
@@ -263,7 +263,7 @@ export function ActivoForm({
                 })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="capacidadAlmacenamientoUnidad">Unidad</Label>
               <Input
                 id="capacidadAlmacenamientoUnidad"

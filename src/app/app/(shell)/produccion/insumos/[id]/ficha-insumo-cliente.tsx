@@ -138,9 +138,9 @@ function EntradaCompraDialog({
           <DialogDescription>Recalcula el costo promedio ponderado del insumo.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {sucursales.length > 1 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Sucursal</Label>
               <Select
                 items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -161,7 +161,7 @@ function EntradaCompraDialog({
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="cantidad">Cantidad</Label>
               <Input
                 id="cantidad"
@@ -173,7 +173,7 @@ function EntradaCompraDialog({
                 onChange={(e) => setCantidad(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="costoCompra">Costo de compra</Label>
               <Input
                 id="costoCompra"
@@ -186,7 +186,7 @@ function EntradaCompraDialog({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaVencimiento">Fecha de vencimiento (opcional)</Label>
             <Input
               id="fechaVencimiento"
@@ -269,9 +269,9 @@ function AjusteDialog({
             Para corregir por conteo físico u otro motivo — el motivo queda registrado.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {sucursales.length > 1 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Sucursal</Label>
               <Select
                 items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -291,14 +291,14 @@ function AjusteDialog({
               </Select>
             </div>
           )}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Tipo de ajuste</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setTipo("entrada_ajuste_manual")}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                  "flex flex-col items-center gap-1.5 rounded-xl border p-4 transition-colors",
                   tipo === "entrada_ajuste_manual"
                     ? "border-primary bg-pastel-blue-bg"
                     : "border-gray-border hover:border-primary/50"
@@ -313,7 +313,7 @@ function AjusteDialog({
                 type="button"
                 onClick={() => setTipo("salida_ajuste_manual")}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-colors",
+                  "flex flex-col items-center gap-1.5 rounded-xl border p-4 transition-colors",
                   tipo === "salida_ajuste_manual"
                     ? "border-primary bg-pastel-blue-bg"
                     : "border-gray-border hover:border-primary/50"
@@ -326,7 +326,7 @@ function AjusteDialog({
               </button>
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="cantidadAjuste">Cantidad</Label>
             <Input
               id="cantidadAjuste"
@@ -337,7 +337,7 @@ function AjusteDialog({
               onChange={(e) => setCantidad(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="motivoAjuste">Motivo</Label>
             <Textarea
               id="motivoAjuste"
@@ -408,9 +408,9 @@ function MermaDialog({
             Para un insumo perecedero que se venció sin llegar a producción.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {sucursales.length > 1 && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Sucursal</Label>
               <Select
                 items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -430,7 +430,7 @@ function MermaDialog({
               </Select>
             </div>
           )}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="cantidadMerma">Cantidad</Label>
             <Input
               id="cantidadMerma"
@@ -441,7 +441,7 @@ function MermaDialog({
               onChange={(e) => setCantidad(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="motivoMerma">Motivo</Label>
             <Textarea
               id="motivoMerma"
@@ -587,17 +587,17 @@ export function FichaInsumoCliente({
           <CardContent className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-text-muted uppercase">Unidad de medida</p>
-              <p className="mt-0.5 text-text-body">{LABEL_UNIDAD[unidadMedida]}</p>
+              <p className="mt-1 text-text-body">{LABEL_UNIDAD[unidadMedida]}</p>
             </div>
             <div>
               <p className="text-xs text-text-muted uppercase">Vida útil</p>
-              <p className="mt-0.5 text-text-body">
+              <p className="mt-1 text-text-body">
                 {vidaUtilDias ? `${vidaUtilDias} días` : "No vence"}
               </p>
             </div>
             <div>
               <p className="text-xs text-text-muted uppercase">Stock mínimo</p>
-              <p className="mt-0.5 text-text-body">
+              <p className="mt-1 text-text-body">
                 {stockMinimo !== null ? Number(stockMinimo) : "Sin definir"}
               </p>
             </div>

@@ -201,9 +201,9 @@ function ReasignarYEliminarDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {colaboradoresDelRol.map((c) => (
-            <div key={c.id} className="space-y-1.5">
+            <div key={c.id} className="space-y-2">
               <Label>{c.nombreCompleto}</Label>
               <Select
                 items={Object.fromEntries(rolesDestino.map((r) => [r.id, nombreRolVisible(r.nombre)]))}
@@ -375,7 +375,7 @@ export function RolesCliente({
             type="button"
             onClick={() => !rol.esRolSistema && setSeleccionId(rol.id)}
             className={cn(
-              "rounded-2xl bg-card p-5 text-left shadow-card transition-shadow",
+              "rounded-2xl bg-card p-6 text-left shadow-card transition-shadow",
               !rol.esRolSistema && "hover:shadow-md",
               seleccionId === rol.id && "ring-2 ring-primary"
             )}
@@ -415,7 +415,7 @@ export function RolesCliente({
             <p className="mt-2 text-sm text-text-muted">
               {descripcionDeRol(rol)}
             </p>
-            <p className="mt-3 text-xs text-text-muted">
+            <p className="mt-4 text-xs text-text-muted">
               {rol.colaboradores} Colaborador{rol.colaboradores === 1 ? "" : "es"}
             </p>
           </button>
@@ -423,7 +423,7 @@ export function RolesCliente({
       </div>
 
       {seleccionId && (
-        <div className="mt-6 rounded-2xl bg-card p-5 shadow-card">
+        <div className="mt-6 rounded-2xl bg-card p-6 shadow-card">
           <div className="flex items-center justify-between border-b border-gray-border pb-4">
             <div>
               <h2 className="font-heading text-lg font-extrabold text-navy">
@@ -436,14 +436,14 @@ export function RolesCliente({
             </Button>
           </div>
 
-          <div className="mt-4 max-w-sm space-y-1.5">
+          <div className="mt-4 max-w-sm space-y-2">
             <Label htmlFor="nombre-rol">Nombre del rol</Label>
             <Input id="nombre-rol" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Cajero" />
           </div>
 
-          {error && <p className="mt-3 text-xs text-error-text">{error}</p>}
+          {error && <p className="mt-4 text-xs text-error-text">{error}</p>}
 
-          <div className="mt-5">
+          <div className="mt-6">
             <h3 className="mb-2 text-sm font-semibold text-navy">Qué puede hacer este rol</h3>
             {cargandoMatriz ? (
               <p className="py-8 text-center text-sm text-text-muted">Cargando...</p>

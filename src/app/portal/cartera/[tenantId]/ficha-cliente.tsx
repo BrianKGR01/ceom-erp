@@ -102,8 +102,8 @@ function StatCard({ label, valor }: { label: string; valor: string }) {
 function MarcadorSinCosto({ monto }: { monto: number }) {
   if (monto <= 0) return null;
   return (
-    <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+    <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-4">
+      <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
       <p className="text-xs text-text-body">
         <span className="font-medium text-warning-text">
           {formatoMoneda(monto)} de los ingresos de este período son de productos sin costo
@@ -141,8 +141,8 @@ function CoberturaDeSucursales({
 }) {
   if (totales <= operables) return null;
   return (
-    <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-bg p-3">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+    <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-bg p-4">
+      <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
       <p className="text-xs text-text-body">
         <span className="font-medium text-warning-text">
           Este negocio tiene {totales} sucursales y {operables === 1 ? "solo 1 está" : `solo ${operables} están`}{" "}
@@ -366,7 +366,7 @@ export function FichaTenantCliente({
           Volver a Mi Cartera
         </Link>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-2xl font-extrabold text-navy">{tenant.nombreNegocio}</h1>
             <p className="text-sm text-text-muted">Ficha de Tenant</p>

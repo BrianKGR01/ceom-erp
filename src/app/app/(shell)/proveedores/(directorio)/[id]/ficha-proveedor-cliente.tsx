@@ -99,7 +99,7 @@ export function FichaProveedorCliente({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-card p-5 shadow-card">
+      <div className="rounded-2xl bg-card p-6 shadow-card">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-pastel-blue-bg text-primary">
@@ -138,7 +138,7 @@ export function FichaProveedorCliente({
 
         <FormError className="mt-2">{error}</FormError>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-border pt-4 text-sm">
+        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-gray-border pt-4 text-sm">
           <div>
             <p className="text-xs text-text-muted">Compras registradas</p>
             <p className="font-semibold text-navy">{cantidadCompras}</p>
@@ -150,14 +150,14 @@ export function FichaProveedorCliente({
         </div>
 
         {proveedor.notas && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-bg p-3 text-sm text-warning-text">
-            <FileText className="mt-0.5 size-4 shrink-0" />
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-bg p-4 text-sm text-warning-text">
+            <FileText className="mt-1 size-4 shrink-0" />
             <p>{proveedor.notas}</p>
           </div>
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <Tabs
           items={[
             { key: "compras", label: "Historial de Compras", icon: History },
@@ -195,7 +195,7 @@ export function FichaProveedorCliente({
               {precioPorItem.map(({ itemNombre, filas }) => (
                 <div key={itemNombre} className="p-4">
                   <p className="mb-2 text-sm font-medium text-navy">{itemNombre}</p>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {filas.map((fila) => (
                       <div key={fila.id} className="flex items-center justify-between text-xs">
                         <span className="text-text-muted">{formatFecha(fila.fechaCompra)}</span>

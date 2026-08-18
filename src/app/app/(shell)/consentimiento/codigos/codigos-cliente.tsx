@@ -61,7 +61,7 @@ export function CodigosCliente({ datosIniciales }: { datosIniciales: Resultado<F
 
       <div className="divide-y divide-gray-border rounded-2xl bg-card shadow-card">
         {!datosIniciales.ok ? (
-          <p className="p-5 text-sm text-error-text">{datosIniciales.error}</p>
+          <p className="p-6 text-sm text-error-text">{datosIniciales.error}</p>
         ) : filas.length === 0 ? (
           <p className="p-8 text-center text-sm text-text-muted">Todavía no generaste ningún código.</p>
         ) : (
@@ -77,7 +77,7 @@ export function CodigosCliente({ datosIniciales }: { datosIniciales: Resultado<F
                     <p className="font-heading font-extrabold tracking-widest text-navy">{fila.codigo}</p>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   </div>
-                  <p className="mt-0.5 text-xs text-text-muted">
+                  <p className="mt-1 text-xs text-text-muted">
                     {fila.modulosHabilitados.map((m) => MODULOS_VEEDOR_INFO[m].label).join(", ")} · generado{" "}
                     {formatoFecha(fila.creadoEn)}
                     {fila.canjeadoEn && ` · canjeado ${formatoFecha(fila.canjeadoEn)}`}

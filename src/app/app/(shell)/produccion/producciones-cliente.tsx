@@ -91,16 +91,16 @@ function AjusteDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="flex items-start gap-2 rounded-lg bg-info-bg p-3 text-xs text-info-text">
-            <Info className="mt-0.5 size-4 shrink-0" />
+        <div className="space-y-4">
+          <div className="flex items-start gap-2 rounded-lg bg-info-bg p-4 text-xs text-info-text">
+            <Info className="mt-1 size-4 shrink-0" />
             <p>
               No revierte movimientos de stock ni de insumo — es una corrección contable/de
               trazabilidad. Completá solo lo que necesitás corregir.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="costoCorregido">Costo operativo corregido (opcional)</Label>
               <Input
                 id="costoCorregido"
@@ -112,7 +112,7 @@ function AjusteDialog({
                 onChange={(e) => setCostoOperativoCorregido(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="cantidadCorregida">Cantidad obtenida corregida (opcional)</Label>
               <Input
                 id="cantidadCorregida"
@@ -125,7 +125,7 @@ function AjusteDialog({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="motivo">Motivo</Label>
             <Textarea
               id="motivo"

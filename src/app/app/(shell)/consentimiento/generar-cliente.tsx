@@ -122,14 +122,14 @@ export function GenerarCodigoCliente({
       />
       <NavConsentimiento activo="generar" />
 
-      <div className="rounded-2xl bg-card p-5 shadow-card">
+      <div className="rounded-2xl bg-card p-6 shadow-card">
         <h2 className="font-heading text-base font-extrabold text-navy">Generar Código de Acceso</h2>
         <p className="mt-1 text-sm text-text-muted">
           Seleccioná los módulos a los que querés otorgar acceso temporal. Generá un código seguro
           para compartir con tu equipo o asesores.
         </p>
 
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-4 space-y-2">
           {(Object.keys(MODULOS_VEEDOR_INFO) as ModuloVeedorForm[]).map((modulo) => {
             const info = MODULOS_VEEDOR_INFO[modulo];
             const permitido = modulosPermitidos.includes(modulo);
@@ -162,12 +162,12 @@ export function GenerarCodigoCliente({
         </div>
 
         {modulosPermitidos.length === 0 && (
-          <p className="mt-3 text-xs text-warning-text">
+          <p className="mt-4 text-xs text-warning-text">
             Tu plan actual no permite compartir ningún módulo todavía.
           </p>
         )}
 
-        {error && <p className="mt-3 text-xs text-error-text">{error}</p>}
+        {error && <p className="mt-4 text-xs text-error-text">{error}</p>}
 
         {codigoGenerado && (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-brand-dark p-4 text-white">
@@ -182,7 +182,7 @@ export function GenerarCodigoCliente({
           </div>
         )}
 
-        <div className="mt-5 flex justify-end">
+        <div className="mt-6 flex justify-end">
           <Button onClick={generar} disabled={generando || seleccionados.length === 0}>
             <KeyRound className="size-4" />
             {generando ? "Generando..." : "Generar código"}

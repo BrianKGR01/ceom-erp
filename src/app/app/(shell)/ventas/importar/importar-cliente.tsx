@@ -178,7 +178,7 @@ export function ImportarCliente({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-2xl bg-card p-5 shadow-card">
+      <div className="space-y-4 rounded-2xl bg-card p-6 shadow-card">
         <p className="text-sm font-semibold text-navy">1. Cargar archivo</p>
         <input
           ref={fileInputRef}
@@ -232,7 +232,7 @@ export function ImportarCliente({
       </div>
 
       {filas.length > 0 && (
-        <div className="space-y-3 rounded-2xl bg-card p-5 shadow-card">
+        <div className="space-y-4 rounded-2xl bg-card p-6 shadow-card">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-navy">2. Vista previa de datos</p>
             <Badge variant={invalidas.length > 0 ? "warning" : "success"}>
@@ -240,7 +240,7 @@ export function ImportarCliente({
             </Badge>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="text-xs font-medium text-text-muted" htmlFor="sucursalId">
               Sucursal donde se registran estas ventas
             </label>
@@ -306,7 +306,7 @@ export function ImportarCliente({
       )}
 
       {resultado && (
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <p className="text-sm font-semibold text-navy">
             Importación completa — {resultado.importadas} venta(s) cargada(s)
           </p>

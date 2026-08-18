@@ -214,7 +214,7 @@ export function MargenCanalProductoCliente({
       </div>
 
       <div className={cn("space-y-4 transition-opacity", cargando && "pointer-events-none opacity-60")}>
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
               <BarChart3 className="size-4 text-primary" />

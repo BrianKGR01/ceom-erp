@@ -163,19 +163,19 @@ export function DashboardResumen({
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-xs text-text-muted uppercase">Ingresos</p>
-                      <p className="mt-0.5 font-medium text-navy">{formatoMoneda(resumen.ingresos)}</p>
+                      <p className="mt-1 font-medium text-navy">{formatoMoneda(resumen.ingresos)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted uppercase">Costos</p>
-                      <p className="mt-0.5 font-medium text-navy">{formatoMoneda(resumen.costos)}</p>
+                      <p className="mt-1 font-medium text-navy">{formatoMoneda(resumen.costos)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted uppercase">Gastos</p>
-                      <p className="mt-0.5 font-medium text-navy">{formatoMoneda(resumen.gastos)}</p>
+                      <p className="mt-1 font-medium text-navy">{formatoMoneda(resumen.gastos)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted uppercase">Resultado neto</p>
-                      <p className="mt-0.5 font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
+                      <p className="mt-1 font-heading text-2xl font-extrabold tracking-[-1px] text-navy">
                         {formatoMoneda(resumen.estadoResultados)}
                       </p>
                       {deltaPct !== null && (
@@ -277,7 +277,7 @@ export function DashboardResumen({
                 </button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2.5">
+            <CardContent className="space-y-2">
               {ranking.length === 0 ? (
                 <p className="text-sm text-text-muted">Sin ventas en este período.</p>
               ) : (
@@ -403,7 +403,7 @@ function BarraComparativa({
 }) {
   const max = Math.max(1, ...segmentos.map((s) => Math.abs(s.valor)));
   return (
-    <div className={cn("space-y-1.5", compacta ? "mt-1" : "mt-4")}>
+    <div className={cn("space-y-2", compacta ? "mt-1" : "mt-4")}>
       {segmentos.map((s) => (
         <div key={s.label} className="flex items-center gap-2 text-xs">
           {!compacta && <span className="w-14 shrink-0 text-text-muted">{s.label}</span>}
@@ -470,7 +470,7 @@ function DonaGastos({
           <span className="text-sm font-semibold text-navy">{formatoMoneda(total)}</span>
         </div>
       </div>
-      <div className="flex-1 space-y-1.5">
+      <div className="flex-1 space-y-2">
         {datos.map((g, index) => (
           <div key={g.categoriaId} className="flex items-center gap-2 text-xs">
             <span

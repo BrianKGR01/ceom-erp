@@ -82,7 +82,7 @@ function CanjearOtroCodigoDialog({
             Sumá otro negocio a tu cartera con el código que te dio su dueño.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="codigo-extra">Código de acceso</Label>
           <Input
             id="codigo-extra"
@@ -287,14 +287,14 @@ export function CarteraCliente({
                   className="block overflow-hidden rounded-2xl bg-card shadow-card transition-shadow hover:shadow-md"
                 >
                   <div className={cn("h-1.5 w-full", estado.borde)} />
-                  <div className="p-5">
+                  <div className="p-6">
                     <div className="flex items-start justify-between">
                       <span className="flex size-11 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                         <IconoNicho className="size-5" />
                       </span>
                       <Badge variant={estado.variant}>{estado.label}</Badge>
                     </div>
-                    <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{fila.nombreNegocio}</h2>
+                    <h2 className="mt-4 font-heading text-base font-extrabold text-navy">{fila.nombreNegocio}</h2>
                     <p className="text-xs text-text-muted">
                       Rubro: {fila.nichoId ? (NICHO_LABEL[fila.nichoId] ?? "Sin especificar") : "Modo Básico"}
                     </p>

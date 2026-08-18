@@ -150,7 +150,7 @@ export function ProductForm({
             <CardTitle>Información básica</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="nombre">Nombre del producto</Label>
               <Input id="nombre" placeholder="Ej. Gelato Frutos Rojos" {...form.register("nombre")} />
               {form.formState.errors.nombre && (
@@ -159,7 +159,7 @@ export function ProductForm({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="categoriaId">Categoría (opcional)</Label>
                 <Select
                   items={Object.fromEntries(categorias.map((c) => [c.id, c.nombre]))}
@@ -178,7 +178,7 @@ export function ProductForm({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="unidadVenta">Se vende por</Label>
                 <Select
                   items={Object.fromEntries(UNIDADES.map((u) => [u.value, u.label]))}
@@ -209,7 +209,7 @@ export function ProductForm({
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="costoOperativoVigente">
                   Costo por {form.watch("unidadVenta")} (opcional)
                 </Label>
@@ -224,7 +224,7 @@ export function ProductForm({
                   })}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="precioVenta">Precio de venta</Label>
                 <Input
                   id="precioVenta"
@@ -257,8 +257,8 @@ export function ProductForm({
             <CardHeader>
               <CardTitle>Stock inicial (opcional)</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1.5">
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
                 <Label htmlFor="stockInicial">¿Cuánto tenés ahora mismo?</Label>
                 <Input
                   id="stockInicial"
@@ -271,7 +271,7 @@ export function ProductForm({
                 />
               </div>
               {sucursales.length > 1 && (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="sucursalId">Sucursal</Label>
                   <Select
                     items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -319,7 +319,7 @@ export function ProductForm({
               tabIndex={0}
               aria-disabled={subiendoImagen}
               className={cn(
-                "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-5 text-center transition-colors",
+                "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-6 text-center transition-colors",
                 subiendoImagen && "pointer-events-none opacity-60",
                 arrastrando ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
               )}
@@ -346,7 +346,7 @@ export function ProductForm({
                     </button>
                   )}
                   {subiendoImagen && (
-                    <p className="mt-1.5 text-[11px] text-text-muted">Subiendo...</p>
+                    <p className="mt-2 text-[11px] text-text-muted">Subiendo...</p>
                   )}
                 </div>
               ) : (
@@ -360,7 +360,7 @@ export function ProductForm({
                 </>
               )}
             </div>
-            {imagenError && <p className="mt-1.5 text-xs text-error-text">{imagenError}</p>}
+            {imagenError && <p className="mt-2 text-xs text-error-text">{imagenError}</p>}
             <input
               ref={fileInputRef}
               type="file"
@@ -393,7 +393,7 @@ export function ProductForm({
               />
             </label>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="vidaUtilDias">Vida útil en días (opcional)</Label>
               <Input
                 id="vidaUtilDias"
@@ -407,7 +407,7 @@ export function ProductForm({
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaVencimientoReferencia">
                 Fecha de vencimiento (lote inicial, opcional)
               </Label>

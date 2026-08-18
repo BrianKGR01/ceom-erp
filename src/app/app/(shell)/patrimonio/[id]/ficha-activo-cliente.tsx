@@ -137,7 +137,7 @@ function DarDeBajaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label htmlFor="motivo" className="text-sm text-text-body">
             Motivo de la baja
           </label>
@@ -208,7 +208,7 @@ function TransferirDialog({
           <DialogDescription>Seleccioná la sucursal de destino para reasignar este activo.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label htmlFor="nuevaSucursalId" className="text-sm text-text-body">
             Nueva sucursal destino
           </label>
@@ -375,7 +375,7 @@ export function FichaActivoCliente({
               )}
 
               {yaDadoDeBaja && activo.motivoBaja && (
-                <div className="rounded-lg bg-gray-bg p-3 text-sm">
+                <div className="rounded-lg bg-gray-bg p-4 text-sm">
                   <p className="text-xs font-medium text-text-muted">Motivo de la baja</p>
                   <p className="text-text-body">{activo.motivoBaja}</p>
                 </div>

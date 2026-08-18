@@ -153,13 +153,13 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           <CardTitle>Qué incluye tu plan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex items-start gap-2.5">
               <span
                 className={
                   plan.maxSucursales !== 1
-                    ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
-                    : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
+                    ? "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
+                    : "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
                 }
               >
                 {plan.maxSucursales !== 1 ? <Check className="size-3" /> : <X className="size-3" />}
@@ -182,8 +182,8 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
                   <span
                     className={
                       incluido
-                        ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
-                        : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
+                        ? "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
+                        : "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
                     }
                   >
                     {incluido ? <Check className="size-3" /> : <X className="size-3" />}

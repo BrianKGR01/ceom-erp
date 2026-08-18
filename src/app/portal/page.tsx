@@ -63,8 +63,8 @@ export default async function PortalCanjearPage({
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-background p-6">
         {mensajeError && (
-          <div className="flex w-full max-w-sm items-start gap-2 rounded-xl bg-warning-bg p-3 text-sm text-warning-text">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <div className="flex w-full max-w-sm items-start gap-2 rounded-xl bg-warning-bg p-4 text-sm text-warning-text">
+            <AlertTriangle className="mt-1 size-4 shrink-0" />
             <p>{mensajeError}</p>
           </div>
         )}

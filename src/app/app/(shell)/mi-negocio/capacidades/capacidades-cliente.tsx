@@ -129,8 +129,8 @@ function AgregarOverrideDialog({
           <DialogTitle>Agregar una excepción</DialogTitle>
           <DialogDescription>Excepción puntual — anula el permiso del rol solo para esta persona.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label>Colaborador</Label>
             <Select
               items={Object.fromEntries(colaboradoresSinOverride.map((c) => [c.id, c.nombreCompleto]))}
@@ -149,7 +149,7 @@ function AgregarOverrideDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>Capacidad</Label>
             <Select
               items={Object.fromEntries(CAPACIDADES.map((c) => [c.id, c.label]))}
@@ -314,8 +314,8 @@ export function CapacidadesCliente({
         </div>
       </div>
 
-      <div className="mt-3 flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-3 text-sm text-primary">
-        <Info className="mt-0.5 size-4 shrink-0" />
+      <div className="mt-4 flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-4 text-sm text-primary">
+        <Info className="mt-1 size-4 shrink-0" />
         <p>Este ajuste anula los permisos del rol, aplicándose solo a esta persona.</p>
       </div>
 
@@ -328,7 +328,7 @@ export function CapacidadesCliente({
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {filtrados.map((c) => (
-            <div key={c.id} className="rounded-2xl bg-card p-5 shadow-card">
+            <div key={c.id} className="rounded-2xl bg-card p-6 shadow-card">
               <div className="flex items-center gap-3">
                 <span className="flex size-10 items-center justify-center rounded-full bg-pastel-blue-bg text-sm font-semibold text-primary">
                   {c.nombreCompleto.charAt(0).toUpperCase()}

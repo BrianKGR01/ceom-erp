@@ -248,7 +248,7 @@ export function PosCliente({
             Ningún producto coincide con esta búsqueda.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {productosFiltrados.map((producto) => (
               <ProductPickerCard
                 key={producto.id}
@@ -282,20 +282,20 @@ export function PosCliente({
                 confirmar, la línea congela su costo y no se recalcula nunca
                 (regla 4), así que cargarlo mañana no repara esta venta. */}
             {sinCostoEnCarrito.length > 0 && (
-              <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-text" />
+              <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-4">
+                <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
                 <div className="text-xs text-text-body">
                   <p className="font-medium text-warning-text">
                     {sinCostoEnCarrito.length === 1
                       ? `"${sinCostoEnCarrito[0].nombre}" no tiene costo cargado.`
                       : `${sinCostoEnCarrito.length} productos de esta venta no tienen costo cargado.`}
                   </p>
-                  <p className="mt-0.5">
+                  <p className="mt-1">
                     Se va a contar como ganancia pura y el margen va a quedar sin calcular.
                     Podés registrar la venta igual — pero el costo de esta venta ya no se
                     puede corregir después.
                   </p>
-                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                     {sinCostoEnCarrito.map((l) => (
                       <Link
                         key={l.productoId}
@@ -310,7 +310,7 @@ export function PosCliente({
               </div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Cliente</Label>
               <Select
                 items={{
@@ -336,7 +336,7 @@ export function PosCliente({
                 </SelectContent>
               </Select>
               {clienteId === "nuevo" && (
-                <div className="space-y-1.5 pt-1.5">
+                <div className="space-y-2 pt-1.5">
                   <Input
                     placeholder="Nombre del cliente"
                     value={clienteNuevoNombre}
@@ -358,7 +358,7 @@ export function PosCliente({
                 grilla de canales al no renderizarse. Se pasa al patrón que ya
                 usa GastoForm para "+ Crear nueva" categoría: el enlace vive
                 en la misma fila que el label, y debajo siempre hay algo. */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label>Canal de venta</Label>
                 <button
@@ -397,7 +397,7 @@ export function PosCliente({
             </div>
 
             {eventos.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label>Evento (opcional)</Label>
                 <Select
                   items={{
@@ -422,10 +422,10 @@ export function PosCliente({
               </div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label>Pago inicial (opcional)</Label>
               {metodos.length > 0 && (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-4">
                   {metodos.map((metodo) => (
                     <button
                       key={metodo.id}

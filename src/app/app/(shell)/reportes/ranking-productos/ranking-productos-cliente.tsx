@@ -172,11 +172,11 @@ export function RankingProductosCliente({
         </div>
       </div>
 
-      <div className={cn("rounded-2xl bg-card p-5 shadow-card transition-opacity", cargando && "pointer-events-none opacity-60")}>
+      <div className={cn("rounded-2xl bg-card p-6 shadow-card transition-opacity", cargando && "pointer-events-none opacity-60")}>
         {filas.length === 0 ? (
           <p className="py-8 text-center text-sm text-text-muted">Sin ventas en este período.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {filas.map((fila, index) => {
               // H-15: sin costo cargado no hay margen que dibujar. Antes su
               // costo era 0 -> 100% -> barra llena y primer puesto: el

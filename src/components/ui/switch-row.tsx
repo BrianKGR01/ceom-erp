@@ -44,7 +44,7 @@ export function SwitchRow({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors",
+        "flex items-center justify-between gap-3 rounded-xl border p-4 transition-colors",
         disabled && "border-gray-border bg-gray-bg opacity-60",
         !disabled && checked && "border-primary bg-pastel-blue-bg",
         !disabled && !checked && "border-gray-border",

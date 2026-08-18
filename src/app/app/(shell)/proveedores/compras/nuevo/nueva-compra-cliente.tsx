@@ -68,7 +68,7 @@ export function NuevaCompraCliente({
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="rounded-2xl bg-card p-6 shadow-card">
       <div className="space-y-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Tipo de compra</Label>
           <div className="grid grid-cols-2 gap-2">
             {(["reventa", "insumo"] as const).map((valor) => (
@@ -90,7 +90,7 @@ export function NuevaCompraCliente({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="sucursalId">Sucursal</Label>
             <Select
               items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -112,7 +112,7 @@ export function NuevaCompraCliente({
               <p className="text-xs text-error-text">{form.formState.errors.sucursalId.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
             <Select
               items={Object.fromEntries(proveedores.map((p) => [p.id, p.nombre]))}
@@ -133,7 +133,7 @@ export function NuevaCompraCliente({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="item">{tipo === "insumo" ? "Insumo" : "Producto"}</Label>
           {tipo === "insumo" ? (
             <Select
@@ -178,7 +178,7 @@ export function NuevaCompraCliente({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="cantidad">Cantidad</Label>
             <Input
               id="cantidad"
@@ -192,7 +192,7 @@ export function NuevaCompraCliente({
               <p className="text-xs text-error-text">{form.formState.errors.cantidad.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="montoTotal">Monto total</Label>
             <Input
               id="montoTotal"
@@ -208,7 +208,7 @@ export function NuevaCompraCliente({
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="costoAdicionalTraslado">Costo adicional de traslado (opcional)</Label>
           <Input
             id="costoAdicionalTraslado"
@@ -223,20 +223,20 @@ export function NuevaCompraCliente({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaCompra">Fecha de compra</Label>
             <Input id="fechaCompra" type="date" {...form.register("fechaCompra")} />
             {form.formState.errors.fechaCompra && (
               <p className="text-xs text-error-text">{form.formState.errors.fechaCompra.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaVencimiento">Fecha de vencimiento (opcional)</Label>
             <Input id="fechaVencimiento" type="date" {...form.register("fechaVencimiento")} />
           </div>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>Estado</Label>
           <div className="grid grid-cols-2 gap-2">
             {(["recibido", "pedido"] as const).map((valor) => (

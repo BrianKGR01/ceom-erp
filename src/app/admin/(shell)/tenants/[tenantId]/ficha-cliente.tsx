@@ -133,7 +133,7 @@ function SkeletonStatCard() {
   return (
     <div className="rounded-2xl bg-card p-4 shadow-card">
       <Skeleton className="h-3 w-24" />
-      <Skeleton className="mt-1.5 h-6 w-32" />
+      <Skeleton className="mt-2 h-6 w-32" />
     </div>
   );
 }
@@ -201,7 +201,7 @@ function CambiarPlanDialog({
           <DialogDescription>Subir o bajar el plan de este negocio.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="nuevo-plan">Plan</Label>
           <Select
             items={Object.fromEntries(planes.map((p) => [p.id, p.nombre]))}
@@ -293,8 +293,8 @@ function CambiarEstadoSuscripcionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nuevo-estado">Estado</Label>
             <Select
               items={Object.fromEntries(ESTADOS_SUSCRIPCION.map((e) => [e.id, e.label]))}
@@ -315,7 +315,7 @@ function CambiarEstadoSuscripcionDialog({
           </div>
 
           {nuevoEstado === "vencida" && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fecha-proximo-pago">Fecha de próximo pago</Label>
               <Input
                 id="fecha-proximo-pago"
@@ -403,7 +403,7 @@ function ConsolidarSucursalDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="destino-consolidar">Mover el stock a</Label>
           <Select
             items={Object.fromEntries(candidatasDestino.map((s) => [s.id, s.nombre]))}
@@ -515,7 +515,7 @@ function SucursalesSection({ tenantId, sucursales }: { tenantId: string; sucursa
         <Building2 className="size-4 text-primary" />
         <h2 className="font-heading text-sm font-extrabold text-navy">Sucursales</h2>
       </div>
-      <div className="mt-3 divide-y divide-gray-border">
+      <div className="mt-4 divide-y divide-gray-border">
         {sucursales.map((s) => (
           <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
             <div>
@@ -641,7 +641,7 @@ export function FichaTenantAdminCliente({
         Volver a Negocios
       </Link>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-navy">{tenant.nombreNegocio}</h1>
           <p className="text-sm text-text-muted">Ficha de Tenant</p>
