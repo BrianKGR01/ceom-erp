@@ -76,6 +76,7 @@
   --color-brand-dark: var(--brand-dark);
   --color-brand-deep: var(--brand-deep);
   --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-fg: var(--brand-accent-fg);
   --color-brand-info: var(--brand-info);
   --color-brand-bg: var(--brand-bg);
   --color-surface-white: var(--surface-white);
@@ -167,6 +168,9 @@
   --brand-dark: #1356b9;
   --brand-deep: #0c3e88;
   --brand-accent: #f7941d;
+  /* Texto sobre el naranja de marca — el sistema lo fija en el boton
+     "Atencion" de su biblioteca de componentes. */
+  --brand-accent-fg: #3d2200;
   --brand-info: #37b3d9;
 
   /* Superficies y bordes */

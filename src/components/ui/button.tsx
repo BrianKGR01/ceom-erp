@@ -28,7 +28,7 @@ const buttonVariants = cva(
           "font-normal hover:bg-muted hover:text-foreground aria-expanded:bg-muted",
         // Atencion — el naranja de marca se reserva para esto, nunca
         // como color decorativo (regla del design system seccion 09).
-        warning: "bg-brand-accent text-[#3d2200] hover:bg-brand-accent/85",
+        warning: "bg-brand-accent text-brand-accent-fg hover:bg-brand-accent/85",
         // Destructivo — par completo fondo + texto de peligro.
         destructive:
           "border-error-bg bg-error-bg text-error-text hover:bg-error-border",
