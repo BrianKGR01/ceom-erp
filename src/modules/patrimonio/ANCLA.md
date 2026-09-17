@@ -27,6 +27,9 @@
   "Actualización 2026-07-17"), `transferirActivo`,
   `crearPasivo`, `refinanciarPasivo`, `registrarPagoPasivo`,
   `listarActivos`, `obtenerActivoPorId`, `listarPasivos`,
+  **`listarPasivosConSaldo`** (2026-09-17: el listado con `saldoPendiente` por
+  fila en UNA consulta, misma fórmula que `obtenerSaldoPendiente`; reemplaza
+  llamar `fichaPasivo` por fila desde Deudas),
   `obtenerPasivoPorId`, `fichaPasivo` (agregados para la UI de Patrimonio —
   ver "Última actualización").
 
@@ -158,6 +161,12 @@ Segundo paso: `actualizarActivo` y `transferirActivo` llamaban a `requireSucursa
 (`leerActivoAutorizado`), chequean la sucursal sin transacción abierta y escriben en una segunda.
 12 `transferirActivo` simultáneos se colgaban antes y terminan después
 (`src/db/agotamiento-pool-escrituras.test.ts`).
+
+Tercer paso: la pantalla de Deudas usa `listarPasivosConSaldo()` (`LEFT JOIN pagos_pasivo` + `sum`)
+en vez de `fichaPasivo()` por fila. Saldo exacto (1000 − 100 − 250 = 650) e igual al de la ficha en
+`src/db/agregados-listado.test.ts`. `consultarValorPatrimonialTotal` sigue sumando saldos con una
+consulta por pasivo, pero dentro de su propia transacción (misma conexión): no agota el pool, y se
+dejó igual para no ampliar este cambio.
 
 ## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `crearActivo`/`actualizarActivo`/

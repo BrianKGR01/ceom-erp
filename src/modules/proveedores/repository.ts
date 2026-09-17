@@ -52,6 +52,24 @@ export async function listarProveedoresPorTenant(tx: Ejecutor, tenantId: string)
     .where(and(eq(proveedores.tenantId, tenantId), isNull(proveedores.eliminadoEn)));
 }
 
+/**
+ * El listado del directorio con la cantidad de compras de cada proveedor, en
+ * UNA consulta. Reemplaza a llamar `fichaProveedor()` por fila (1 + 4N
+ * consultas y N transacciones, la mitad del incidente de pool del 2026-09-17).
+ * Cuenta con el mismo criterio que `resumenComprasPorProveedor`: compras del
+ * proveedor no eliminadas.
+ */
+export async function listarProveedoresConCantidadCompras(tx: Ejecutor, tenantId: string) {
+  const filas = await tx
+    .select({ proveedor: proveedores, cantidadCompras: sql<number>`count(${compras.id})::int` })
+    .from(proveedores)
+    .leftJoin(compras, and(eq(compras.proveedorId, proveedores.id), isNull(compras.eliminadoEn)))
+    .where(and(eq(proveedores.tenantId, tenantId), isNull(proveedores.eliminadoEn)))
+    .groupBy(proveedores.id)
+    .orderBy(asc(proveedores.creadoEn));
+  return filas.map((f) => ({ ...f.proveedor, cantidadCompras: f.cantidadCompras }));
+}
+
 export async function resumenComprasPorProveedor(tx: Ejecutor, proveedorId: string) {
   const [resumen] = await tx
     .select({

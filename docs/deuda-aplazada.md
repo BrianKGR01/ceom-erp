@@ -677,6 +677,28 @@ adentro y no debe arrastrar un cambio de concurrencia en el ledger de otro módu
 
 ---
 
+### DA-46 · Recetas carga una ficha por receta — la misma trampa del incidente, latente 🟡
+**Encontrado el 2026-09-17**, revisando el N+1 que originó el incidente de pool de Proveedores.
+
+**Dónde:** `src/app/app/(shell)/produccion/recetas/page.tsx` hace
+`Promise.all(recetas.map((r) => fichaReceta(usuario, r.id)))`; cada `fichaReceta` son 3-4 consultas.
+El comentario de la página cita *"mismo criterio que fichaProveedor() por fila en el Directorio de
+Proveedores"* — el patrón que se colgó.
+
+**Por qué hoy no se cuelga:** Nicho 1 no está migrado a `comoUsuario()`: sus consultas no abren
+transacción, así que no retienen conexiones mientras esperan otras. El tenant con más recetas tiene 7.
+
+**Por qué va a colgarse:** el día que Nicho 1 migre (R-8.5), si `fichaReceta` queda con
+`tienePermiso()` adentro del `tx` —la forma natural de migrarla—, 10 recetas reproducen el incidente
+exacto. El guard `src/db/sin-db-crudo-en-transaccion.test.ts` detecta la mitad de `tienePermiso`
+adentro; la otra mitad es este `Promise.all` y hay que cambiarlo por un listado con la composición
+agregada, como se hizo con Proveedores y Deudas.
+
+**Revisado y descartado en la misma pasada:** `consentimiento/solicitudes/page.tsx` busca una
+institución por id distinto (hoy como máximo 1 por tenant), sin transacción. No vale el cambio.
+
+---
+
 
 *Barrido generado el 2026-07-22 sobre los 15 `ANCLA.md` de `src/modules/**`. Cada ítem se
 verificó contra el código real — no solo contra lo que el ANCLA dice de sí mismo. No se
