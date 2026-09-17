@@ -239,7 +239,10 @@ export async function registrarProduccionAction(input: unknown): Promise<
     costoOperativoCalculado: number;
     mermaCantidad: number;
     mermaCosto: number;
-    acreditacionOk: boolean;
+    // R-3.2: antes era `acreditacionOk: boolean` y ninguna pantalla lo leía.
+    // La producción (con sus insumos ya consumidos) queda aunque el producto
+    // terminado no entre al stock; eso se dice, con el motivo.
+    errorAcreditacion: string | null;
   }>
 > {
   const usuario = await obtenerUsuarioActual();
@@ -264,7 +267,10 @@ export async function registrarProduccionAction(input: unknown): Promise<
       costoOperativoCalculado: resultado.data.costoOperativoCalculado,
       mermaCantidad: resultado.data.mermaCantidad,
       mermaCosto: resultado.data.mermaCosto,
-      acreditacionOk: resultado.data.acreditacionProductos.ok,
+      errorAcreditacion: resultado.data.acreditacionProductos.ok
+        ? null
+        : `La producción quedó registrada, pero las ${parsed.data.cantidadRealObtenida} unidades no entraron al stock: ` +
+          `${resultado.data.acreditacionProductos.error} Pedile a alguien con permiso de inventario que cargue la entrada a mano.`,
     },
   };
 }

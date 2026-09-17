@@ -241,7 +241,7 @@ vez. Evidencia por ítem: [01-estado-por-modulo.md](../auditoria-prelanzamiento/
       aprobado en `docs/decisiones/recuperacion-de-acceso.md` §5-B; función nueva con `tenantId`
       explícito, **no** un bypass de `transferirOwner` (que es caller-implícita). **El único 🔴 del
       sistema.** Agravante verificado: en un tenant vencido ni el Owner presente puede transferir.
-- [ ] **R-3.2** Familia **"el aviso se calcula y se descarta"** — un solo patrón, cuatro lugares:
+- [x] **R-3.2** *(cerrada el 2026-09-17)* Familia **"el aviso se calcula y se descarta"** — un solo patrón, cuatro lugares:
       `entradaStock` al registrar/recibir compra (**DA-24**), `acreditacionOk` de producción,
       `avisosStock` del POS (**H-37**, incluyendo stock visible por producto), `ajusteStock` del
       ajuste de venta. El criterio de fix ya existe en el repo: `registrarCompraDeAjusteAction`
@@ -252,6 +252,12 @@ vez. Evidencia por ítem: [01-estado-por-modulo.md](../auditoria-prelanzamiento/
       - [x] *(2026-09-17)* Compras: registrar y recibir (DA-24).
       - [x] *(2026-09-17)* POS: avisos de stock tras confirmar + stock visible por producto (H-37).
       - [x] *(2026-09-17)* Ajuste de venta: `ajusteStock`.
+      - [x] *(2026-09-17)* Producción: `acreditacionOk` → `errorAcreditacion`.
+      > **Criterio único aplicado en los cuatro:** la operación principal ya quedó guardada y no se
+      > revierte, así que la pantalla **no se va ni se cierra** mientras el aviso no se lea, y el
+      > mensaje dice qué pasó, por qué y qué hacer. Un test por caso con el escenario de permisos
+      > cruzados, más su control, en `src/app/app/(shell)/*/avisos-stock.test.ts`; cada uno validado
+      > con un mutante. Cierra **DA-24** (sub-ítem de Proveedores) y **H-37**.
 - [ ] **R-3.3** **H-26** — los ajustes de venta afectan el total derivado y recalculan
       `estado_pago`. Es el espejo del patrón ya resuelto en Proveedores con H-31 (`derivarEstadoPago`
       contra monto efectivo). Hoy una venta anulada queda "pendiente de cobro" para siempre.
