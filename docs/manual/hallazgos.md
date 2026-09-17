@@ -1383,6 +1383,11 @@ Mecanismo completo, evidencia y reproducción: `src/modules/proveedores/ANCLA.md
 Deudas. La reproducción (`src/db/agotamiento-pool.test.ts`) se colgaba antes del arreglo y pasa
 después.
 
+**Agregado el 2026-09-17:** `src/app/app/(shell)/loading.tsx`. Sin él, en una navegación del
+cliente Next deja la pantalla anterior hasta que la nueva termina, que es exactamente lo que se
+reportó como "toco Proveedores y no pasa nada". Ahora se ve un esqueleto con el sidebar usable al
+lado, así que una pantalla lenta se lee como lenta y no como un clic perdido.
+
 **Lo que el manual tiene que saber:** nada cambia para el usuario. Si alguien vuelve a describir
 "toco un módulo y no pasa nada", no es un clic perdido: es una pantalla que no termina de cargar, y
 hay que mirar los logs de Vercel, no pedirle que pruebe de nuevo.
