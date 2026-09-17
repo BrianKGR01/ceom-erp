@@ -115,8 +115,12 @@
   siguiendo la misma regla de nunca editar una migración ya aplicada.
 - **Patrón de autorización por recurso:** las acciones que reciben
   `activoId`/`pasivoId` primero buscan la fila (para conocer su
-  `tenant_id` real) y recién ahí llaman a `tienePermiso()` — nunca confían
-  en un `tenantId` que mande el llamador.
+  `tenant_id` real) y recién ahí evalúan el permiso — nunca confían
+  en un `tenantId` que mande el llamador. **Desde el 2026-09-17** el permiso
+  se resuelve con `preautorizarSobreRecurso()` antes de abrir la transacción
+  y adentro se evalúa `puede(fila.tenantId)`, que no toca la base. No volver
+  a `await tienePermiso(…, fila.tenantId, …)` adentro del `tx`: es el bug del
+  incidente de pool.
 - **Transferencia entre sucursales no lleva ledger** (a diferencia de
   Stock, Módulo 2) — un activo es un bien físico único, no fungible;
   alcanza con `sucursal_id` + auditoría `modificado_por`/`modificado_en`
