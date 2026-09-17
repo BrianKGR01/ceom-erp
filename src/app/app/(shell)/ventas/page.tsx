@@ -4,7 +4,7 @@ import { Package } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { listarCategorias, listarProductos } from "@/modules/productos/actions";
+import { listarCategorias, listarProductos, listarStockPorSucursal } from "@/modules/productos/actions";
 import {
   listarCanalesVenta,
   listarClientes,
@@ -46,6 +46,15 @@ export default async function PuntoDeVentaPage() {
   );
 
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
+
+  // H-37: el stock de cada producto, en una sola consulta. Sin permiso de ver
+  // inventario la pantalla no muestra números — no inventa un "0".
+  const stockResultado = sucursalPrincipal
+    ? await listarStockPorSucursal(usuario, usuario.tenantId, sucursalPrincipal.id)
+    : null;
+  const stockPorProducto = stockResultado?.ok
+    ? Object.fromEntries(stockResultado.data.map((s) => [s.productoId, s.cantidadActual]))
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
@@ -91,6 +100,7 @@ export default async function PuntoDeVentaPage() {
         ) : (
           <PosCliente
             sucursalId={sucursalPrincipal.id}
+            stockPorProducto={stockPorProducto}
             productos={productos.map((p) => ({
               id: p.id,
               categoriaId: p.categoriaId,

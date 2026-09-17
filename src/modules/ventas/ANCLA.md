@@ -366,3 +366,21 @@ entonces la Venta ya estaría creada (con snapshot y deuda del cliente generada)
 gap de atomicidad cruzada ya documentado arriba en su peor forma. Sin cambios de schema ni de
 contrato — mismo mensaje de error que produce Productos. Ver
 `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
+
+## Última actualización: 2026-09-17 — R-3.2 / H-37: lo que pasa con el stock llega a la pantalla
+Dos Server Actions de ruta (`src/app/app/(shell)/ventas/actions.ts`) descartaban lo que el módulo ya
+devolvía:
+- `registrarVentaAction` reducía `descuentosStock` a una lista de strings que **ninguna pantalla
+  leía**. Ahora devuelve `avisosStock: Array<{ productoId, mensaje }>` con dos casos: el descuento
+  falló (la venta queda, el stock no bajó) o se descontó y el stock quedó en negativo. El POS no navega
+  mientras haya avisos, muestra el stock por producto (`listarStockPorSucursal` de Productos) y avisa
+  en el carrito si una línea pide más de lo que hay. **Avisa, no bloquea**: vender sin stock puede
+  estar permitido, y la decisión sigue siendo del servidor.
+- `registrarAjusteVentaAction` devolvía solo `ajusteId`. Ahora también `errorStock`, y el diálogo de
+  ajuste de la ficha lo muestra sin cerrarse solo (mismo criterio que el ajuste de compra).
+
+**Sin cambio de contrato del módulo Ventas** (`descuentosStock`/`ajusteStock` ya existían). Se
+apoya en que `descuentosStock` viene en el mismo orden que las líneas de entrada —hoy cierto porque
+`registrarVenta` corta con error si alguna línea no resuelve—; si eso cambia, `avisosDeStock` tiene
+que dejar de parear por índice. Test con un cajero (productos:ver + ventas, sin inventario), control
+Owner, y sobreventa del Owner; validado con mutantes (POS: 2 rojos; ajuste: 1 rojo).

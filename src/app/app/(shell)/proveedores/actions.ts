@@ -86,9 +86,29 @@ export async function eliminarProveedorAction(
 
 // --- Compras ---------------------------------------------------------
 
+/**
+ * R-3.2 / DA-24 — la entrada de stock de una compra puede fallar con la compra
+ * ya guardada (caso típico: un colaborador con permiso de proveedores y sin
+ * permiso de inventario). Desde el incidente de pool del 2026-09-17 la entrada
+ * corre DESPUÉS del commit, así que ese estado no se revierte: si esta capa
+ * descarta el resultado, queda permanente e invisible. Mismo criterio que
+ * `registrarCompraDeAjusteAction` → `errorStock`: se propaga y la pantalla
+ * lo muestra sin cerrarse sola.
+ */
+function mensajeEntradaStock(
+  momento: "registrada" | "recibida",
+  entradaStock: { ok: boolean; error?: string } | undefined
+): string | null {
+  if (!entradaStock || entradaStock.ok) return null;
+  return (
+    `La compra quedó ${momento}, pero el stock no entró: ${entradaStock.error ?? "error desconocido"} ` +
+    "Pedile a alguien con permiso de inventario que cargue la entrada a mano, o no va a figurar en el stock."
+  );
+}
+
 export async function registrarCompraAction(
   input: unknown
-): Promise<ResultadoAccion<{ compraId: string }>> {
+): Promise<ResultadoAccion<{ compraId: string; errorStock: string | null }>> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
@@ -107,13 +127,19 @@ export async function registrarCompraAction(
   });
   if (!resultado.ok) return resultado;
   revalidatePath("/app/proveedores/compras");
-  return { ok: true, data: { compraId: resultado.data.compraId } };
+  return {
+    ok: true,
+    data: {
+      compraId: resultado.data.compraId,
+      errorStock: mensajeEntradaStock("registrada", resultado.data.entradaStock),
+    },
+  };
 }
 
 export async function recibirCompraAction(
   compraId: string,
   input: unknown
-): Promise<ResultadoAccion<undefined>> {
+): Promise<ResultadoAccion<{ errorStock: string | null }>> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
@@ -125,7 +151,7 @@ export async function recibirCompraAction(
   const resultado = await recibirCompra(usuario, compraId, parsed.data.fechaRecepcion);
   if (!resultado.ok) return resultado;
   revalidatePath("/app/proveedores/compras");
-  return { ok: true, data: undefined };
+  return { ok: true, data: { errorStock: mensajeEntradaStock("recibida", resultado.data.entradaStock) } };
 }
 
 export async function consultarSaldoCompraAction(

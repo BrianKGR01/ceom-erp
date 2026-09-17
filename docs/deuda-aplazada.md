@@ -510,6 +510,15 @@ DA-06. El propio ANCLA ya dejó escrita la ruta de migración si se decide agreg
   > usuario no se entera nunca. El aplazamiento se aceptó tres veces con la condición *"el
   > caller lo detecta"*; se honró en dos. **Este sub-ítem sí merece arreglo** (🔴).
 
+  > ✅ **Sub-ítem de Proveedores cerrado el 2026-09-17 (R-3.2).** `registrarCompraAction` y
+  > `recibirCompraAction` devuelven `errorStock`, y la pantalla de nueva compra y el diálogo de
+  > recepción lo muestran sin cerrarse solos. Urgía más desde el incidente de pool del mismo día:
+  > la entrada de stock pasó a correr después del commit, así que "compra recibida sin stock" ya
+  > no se revierte nunca. Test con el disparador real (colaborador con permiso de proveedores y sin
+  > inventario) y control Owner: `src/app/app/(shell)/proveedores/avisos-stock.test.ts`.
+  > **Corrección a lo de arriba:** `descuentosStock` y `acreditacionProductos` sí se leían en
+  > sus wrappers, pero **ninguna pantalla** mostraba lo que devolvían — ver R-3.2 en el roadmap.
+
 - **DA-25 · Usuario huérfano de Supabase Auth** si la transacción de Postgres falla después
   de crearlo ([identidad/ANCLA.md:295-301](../src/modules/identidad/ANCLA.md#L295)). Auth y
   Postgres no comparten transacción. Limpieza manual documentada. **Vigente.**
@@ -675,6 +684,12 @@ no.
 **Justificación del aplazamiento:** vigente — el hotfix de pool va a producción con usuarios
 adentro y no debe arrastrar un cambio de concurrencia en el ledger de otro módulo.
 
+**Disparador para retomarlo:** el primer negocio con dos personas cobrando a la vez en el mismo
+punto de venta (o cualquier integración que registre ventas en lote). Hasta entonces la ventana es
+de milisegundos y el caché se corrige solo con el movimiento siguiente. **Cómo se detecta sin
+esperar el reclamo:** una consulta que compare `stock.cantidad_actual` contra la suma del ledger
+por producto/sucursal; si alguna vez difieren fuera de una operación en curso, ya pasó.
+
 ---
 
 ### DA-46 · Recetas carga una ficha por receta — la misma trampa del incidente, latente 🟡
@@ -696,6 +711,10 @@ agregada, como se hizo con Proveedores y Deudas.
 
 **Revisado y descartado en la misma pasada:** `consentimiento/solicitudes/page.tsx` busca una
 institución por id distinto (hoy como máximo 1 por tenant), sin transacción. No vale el cambio.
+
+**Disparador para retomarlo:** la migración de Nicho 1 a `comoUsuario()` (R-8.5) — va en la misma
+tanda, no después. Antes de eso, un tenant con más de ~15 recetas ya justifica el cambio por
+tiempo de carga aunque no cuelgue nada.
 
 ---
 
@@ -731,10 +750,37 @@ Proveedores/Patrimonio está entre dos consultas (milisegundos, desde que se sac
 externas en este mismo cambio). Por eso **no se agregó** el tope de transacción ociosa: fabricaría
 esos cortes.
 
+**Disparador para retomarlo:** cualquiera de estos tres, lo que pase primero — (1) un solo caso
+observado en producción de una operación a medias sin error (compra sin su recálculo, pasivo
+refinanciado a medias); (2) migrar otro módulo a `comoUsuario()`, porque multiplica el código
+expuesto; (3) subir el tráfico a varias instancias concurrentes de forma sostenida. **Cómo se
+detecta:** filas escritas por una transacción que no comiteó son invisibles como tales; la señal
+práctica es una request que nunca responde (la promesa que no resuelve) — en Vercel, un
+`Task timed out` sin error previo.
+
 **Arreglos posibles (a decidir):** (a) en `contexto.ts`, envolver el `sql` de la transacción para
 rechazar toda consulta cuando su conexión se cerró — requiere acceso a internos de postgres-js, igual
 que `clienteCrudoDeLaTransaccion`; (b) reportarlo upstream a postgres-js; (c) cambiar de driver para
 las transacciones con contexto. Cualquiera va con el mismo test de reproducción, en rojo primero.
+
+---
+
+### DA-48 · 81 claves foráneas sin índice, `tenant_id` incluido ⚪
+**Registrado el 2026-09-17**, evaluando el incidente de pool. Estaba solo en **R-8.8** del roadmap y
+no en este registro, así que no tenía disparador escrito.
+
+**Qué es:** el advisor de performance de Supabase marca 81 FKs sin índice que las cubra, incluidas
+todas las `tenant_id` y las de `compras`, `ventas`, `movimientos_stock`.
+
+**Por qué NO se hizo ahora, con evidencia:** se revisó como causa del incidente del 2026-09-17 y se
+descartó. La tabla más grande del proyecto tiene decenas de filas; con ese volumen Postgres elige
+*seq scan* igual y los índices solo agregarían costo de escritura. El cuelgue era de conexiones, no
+de plan de consulta.
+
+**Disparador para retomarlo:** el primero de — (1) cualquier tabla de negocio pasando ~10.000 filas
+en un tenant real; (2) un `EXPLAIN (ANALYZE)` de una pantalla real mostrando *seq scan* sobre más de
+unos pocos miles de filas; (3) el alta del negocio número ~20. Requiere migración, así que va con
+aviso previo y medición antes y después, no "por las dudas".
 
 ---
 

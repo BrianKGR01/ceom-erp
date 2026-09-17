@@ -236,3 +236,13 @@ Dos defectos propios de este módulo, además del borde compartido:
 días pura.
 
 Contexto completo: `docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`.
+
+## Última actualización: 2026-09-17 — R-3.2: la acreditación fallida de una producción llega a la pantalla
+`registrarProduccionAction` (`src/app/app/(shell)/produccion/actions.ts`) reducía
+`acreditacionProductos` a `acreditacionOk: boolean`, y **ninguna pantalla lo leía**. Ahora devuelve
+`errorAcreditacion: string | null` con el motivo, y el formulario de producción no navega mientras el
+aviso no se lea. Importa más que en otros casos porque la producción **ya consumió los insumos**: sin
+aviso, el insumo desaparecía y el producto terminado no aparecía, sin ninguna señal. Disparador real:
+un colaborador con `operativo:crear` y sin `inventario:crear`. Test:
+`src/app/app/(shell)/produccion/avisos-stock.test.ts` (control Owner + mutante). Sin cambio de contrato
+del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProduccion`.

@@ -16,7 +16,9 @@
   `tenant_id`/`sucursal_id` (patrón esperado). Eventos de otros módulos
   (Módulo Operativo, Proveedores, Ventas) que hoy **nadie dispara todavía**
   — ver pendientes abajo.
-- Salidas que expone (`actions.ts`): `consultarStock`, `consultarPrecioVenta`,
+- Salidas que expone (`actions.ts`): **`listarStockPorSucursal`** (2026-09-17, H-37: stock de
+  todos los productos del tenant en una sucursal, en una consulta, incluidos los de saldo 0 — gate
+  `inventario:ver`; lo consume el punto de venta), `consultarStock`, `consultarPrecioVenta`,
   `consultarCostoOperativo`, `enviarProductoAOperaciones` (contrato de
   Modulo_02 sección 3) + CRUD de catálogo (`crearCategoria`,
   `actualizarCategoria`, `eliminarCategoria`, `listarCategorias`,
@@ -255,3 +257,12 @@ real (sucursal_id nunca se validaba contra el tenant en los 5 escritores del led
 congelamiento de sucursal por downgrade de plan. Nueva función `consolidarStockDeSucursal` (Panel Admin
 CEOM). Sin cambios de schema — el ledger ya era 100% sucursal-consciente. Ver
 `docs/auditoria-prelanzamiento/antiguo/07-sucursales-multiples.md`.
+
+## Última actualización: 2026-09-17 — **cambio de contrato (aditivo)**: `listarStockPorSucursal`
+Para H-37 / R-3.2: el punto de venta necesitaba el stock de cada producto sin una consulta por producto.
+`repository.listarStockPorSucursal` hace `productos LEFT JOIN stock` filtrando la sucursal en la
+condición del join, así que un producto sin movimientos viene en 0 y no desaparece (a diferencia de
+`listarStockConSaldoPorSucursal`, que solo trae saldo positivo para consolidar). Gate
+`inventario:ver`, mismo mensaje que `consultarStockTotalPorSucursal`. Sin impacto en la matriz de
+dependencias: Ventas ya consumía Productos. Test en `src/app/app/(shell)/ventas/avisos-stock.test.ts`
+(valor exacto del producto con stock, 0 del producto sin movimientos, rechazo sin permiso).

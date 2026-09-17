@@ -82,6 +82,7 @@ export function NuevaProduccionCliente({
   const [fechaVencimientoTocada, setFechaVencimientoTocada] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const productoSeleccionado = productos.find((p) => p.id === productoId) ?? null;
 
@@ -122,6 +123,7 @@ export function NuevaProduccionCliente({
   async function confirmar() {
     setGuardando(true);
     setError(null);
+    setAviso(null);
     const resultado = await registrarProduccionAction({
       productoId,
       sucursalId,
@@ -134,6 +136,12 @@ export function NuevaProduccionCliente({
     setGuardando(false);
     if (!resultado.ok) {
       setError(resultado.error);
+      return;
+    }
+    // R-3.2: la producción ya quedó (y consumió sus insumos). Si el producto
+    // terminado no entró al stock, se muestra antes de salir de la pantalla.
+    if (resultado.data.errorAcreditacion) {
+      setAviso(resultado.data.errorAcreditacion);
       return;
     }
     router.push("/app/produccion");
@@ -388,11 +396,18 @@ export function NuevaProduccionCliente({
         </div>
 
         {error && <p className="text-xs text-error-text">{error}</p>}
+        {aviso && <p className="rounded-xl bg-warning-bg p-4 text-xs text-warning-text">{aviso}</p>}
 
-        <Button className="w-full justify-center" onClick={confirmar} disabled={guardando || !puedeConfirmar}>
-          <CheckCircle2 className="size-4" />
-          {guardando ? "Confirmando..." : "Confirmar Producción"}
-        </Button>
+        {aviso ? (
+          <Button className="w-full justify-center" onClick={() => router.push("/app/produccion")}>
+            Entendido, ir a producción
+          </Button>
+        ) : (
+          <Button className="w-full justify-center" onClick={confirmar} disabled={guardando || !puedeConfirmar}>
+            <CheckCircle2 className="size-4" />
+            {guardando ? "Confirmando..." : "Confirmar Producción"}
+          </Button>
+        )}
       </div>
     </div>
   );

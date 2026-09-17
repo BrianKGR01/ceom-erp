@@ -419,6 +419,25 @@ export async function listarStockConSaldoPorSucursal(tenantId: string, sucursalI
     );
 }
 
+/**
+ * Stock de TODOS los productos activos del tenant en una sucursal, en una sola
+ * consulta (H-37: el punto de venta muestra cuánto hay de cada producto). A
+ * diferencia de `listarStockConSaldoPorSucursal`, incluye los productos sin fila
+ * de stock o con saldo en cero o negativo: para vender, "no hay" es un dato, no
+ * una fila que sobra.
+ */
+export async function listarStockPorSucursal(tenantId: string, sucursalId: string) {
+  const filas = await db
+    .select({
+      productoId: productos.id,
+      cantidadActual: sql<string>`coalesce(${stock.cantidadActual}, 0)`,
+    })
+    .from(productos)
+    .leftJoin(stock, and(eq(stock.productoId, productos.id), eq(stock.sucursalId, sucursalId)))
+    .where(and(eq(productos.tenantId, tenantId), isNull(productos.eliminadoEn)));
+  return filas.map((f) => ({ productoId: f.productoId, cantidadActual: Number(f.cantidadActual) }));
+}
+
 export async function listarMovimientosStock(productoId: string, sucursalId: string) {
   return db
     .select()
