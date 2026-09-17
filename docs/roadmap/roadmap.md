@@ -249,6 +249,7 @@ vez. Evidencia por ítem: [01-estado-por-modulo.md](../auditoria-prelanzamiento/
       > *Disparador realista verificado para DA-24: un usuario con permisos solo-proveedores lo
       > produce en **cada** compra, porque la entrada de stock exige `operativo:crear` o
       > `inventario:crear`. La compra queda "recibido" con el stock sin entrar y sin ninguna señal.*
+      - [x] *(2026-09-17)* Compras: registrar y recibir (DA-24).
 - [ ] **R-3.3** **H-26** — los ajustes de venta afectan el total derivado y recalculan
       `estado_pago`. Es el espejo del patrón ya resuelto en Proveedores con H-31 (`derivarEstadoPago`
       contra monto efectivo). Hoy una venta anulada queda "pendiente de cobro" para siempre.

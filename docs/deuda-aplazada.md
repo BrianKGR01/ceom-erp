@@ -510,6 +510,15 @@ DA-06. El propio ANCLA ya dejó escrita la ruta de migración si se decide agreg
   > usuario no se entera nunca. El aplazamiento se aceptó tres veces con la condición *"el
   > caller lo detecta"*; se honró en dos. **Este sub-ítem sí merece arreglo** (🔴).
 
+  > ✅ **Sub-ítem de Proveedores cerrado el 2026-09-17 (R-3.2).** `registrarCompraAction` y
+  > `recibirCompraAction` devuelven `errorStock`, y la pantalla de nueva compra y el diálogo de
+  > recepción lo muestran sin cerrarse solos. Urgía más desde el incidente de pool del mismo día:
+  > la entrada de stock pasó a correr después del commit, así que "compra recibida sin stock" ya
+  > no se revierte nunca. Test con el disparador real (colaborador con permiso de proveedores y sin
+  > inventario) y control Owner: `src/app/app/(shell)/proveedores/avisos-stock.test.ts`.
+  > **Corrección a lo de arriba:** `descuentosStock` y `acreditacionProductos` sí se leían en
+  > sus wrappers, pero **ninguna pantalla** mostraba lo que devolvían — ver R-3.2 en el roadmap.
+
 - **DA-25 · Usuario huérfano de Supabase Auth** si la transacción de Postgres falla después
   de crearlo ([identidad/ANCLA.md:295-301](../src/modules/identidad/ANCLA.md#L295)). Auth y
   Postgres no comparten transacción. Limpieza manual documentada. **Vigente.**

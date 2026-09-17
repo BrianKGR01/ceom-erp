@@ -119,14 +119,24 @@ function RecibirDialog({
   const [fechaRecepcion, setFechaRecepcion] = useState(() => hoyLocal(ZONA_HORARIA_NEGOCIO));
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   async function confirmar() {
     setGuardando(true);
     setError(null);
+    setAviso(null);
     const resultado = await recibirCompraAction(compraId, { fechaRecepcion });
     setGuardando(false);
     if (!resultado.ok) {
       setError(resultado.error);
+      return;
+    }
+    // R-3.2 / DA-24: la compra ya quedó recibida y no se revierte; si el stock
+    // no entró, el diálogo lo dice y no se cierra solo (mismo criterio que el
+    // ajuste de compra).
+    if (resultado.data.errorStock) {
+      setAviso(resultado.data.errorStock);
+      onConfirmado();
       return;
     }
     onOpenChange(false);
@@ -157,14 +167,21 @@ function RecibirDialog({
         </div>
 
         {error && <p className="text-xs text-error-text">{error}</p>}
+        {aviso && <p className="rounded-xl bg-warning-bg p-4 text-xs text-warning-text">{aviso}</p>}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={confirmar} disabled={guardando}>
-            {guardando ? "Confirmando..." : "Confirmar recepción"}
-          </Button>
+          {aviso ? (
+            <Button onClick={() => onOpenChange(false)}>Entendido</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmar} disabled={guardando}>
+                {guardando ? "Confirmando..." : "Confirmar recepción"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

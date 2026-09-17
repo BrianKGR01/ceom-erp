@@ -51,6 +51,7 @@ export function NuevaCompraCliente({
   });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const tipo = form.watch("tipo");
 
   async function onSubmit(values: CompraFormInput) {
@@ -60,6 +61,12 @@ export function NuevaCompraCliente({
     setGuardando(false);
     if (!resultado.ok) {
       setError(resultado.error);
+      return;
+    }
+    // R-3.2 / DA-24: la compra ya quedó guardada. Si el stock no entró, no se
+    // navega: el aviso se queda en pantalla hasta que la persona lo lea.
+    if (resultado.data.errorStock) {
+      setAviso(resultado.data.errorStock);
       return;
     }
     router.push("/app/proveedores/compras");
@@ -263,11 +270,18 @@ export function NuevaCompraCliente({
       </div>
 
       {error && <p className="mt-4 text-xs text-error-text">{error}</p>}
+      {aviso && <p className="mt-4 rounded-xl bg-warning-bg p-4 text-xs text-warning-text">{aviso}</p>}
 
       <div className="mt-6 flex justify-end gap-2 border-t border-gray-border pt-4">
-        <Button type="submit" disabled={guardando}>
-          {guardando ? "Guardando..." : "Guardar compra"}
-        </Button>
+        {aviso ? (
+          <Button type="button" onClick={() => router.push("/app/proveedores/compras")}>
+            Entendido, ir a compras
+          </Button>
+        ) : (
+          <Button type="submit" disabled={guardando}>
+            {guardando ? "Guardando..." : "Guardar compra"}
+          </Button>
+        )}
       </div>
     </form>
   );

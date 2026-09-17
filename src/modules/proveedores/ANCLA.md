@@ -241,6 +241,18 @@
   a colgar el directorio con 10 proveedores. `src/db/agotamiento-pool.test.ts`
   lo detecta.
 
+## Última actualización: 2026-09-17 (2) — R-3.2 / DA-24: el problema de stock de una compra llega a la pantalla
+`registrarCompraAction`/`recibirCompraAction` (`src/app/app/(shell)/proveedores/actions.ts`)
+descartaban `entradaStock`. Ahora devuelven `errorStock: string | null` —mismo criterio que
+`registrarCompraDeAjusteAction`— y la pantalla de nueva compra y el diálogo de recepción lo muestran
+sin cerrarse solos. **Por qué urgía:** desde el fix del incidente de pool (abajo) la entrada de stock
+corre después del commit de la compra, así que el estado "recibida sin stock" ya no se revierte nunca;
+sin aviso era permanente e invisible. El disparador es cotidiano: un colaborador con permiso de
+`proveedores` y sin `inventario:crear`. **⛔ No volver a devolver solo `{ compraId }`** desde la
+acción de ruta. Test: `src/app/app/(shell)/proveedores/avisos-stock.test.ts` (llama a las Server
+Actions reales con la sesión simulada; control Owner; validado anulando la propagación). Sin cambio de
+contrato del módulo: `entradaStock` ya existía en el resultado.
+
 ## Última actualización: 2026-09-17 — Incidente en producción: el directorio se colgaba 300 s (pool agotado)
 
 **Síntoma.** CAFIATTO (10 proveedores) no podía abrir `/app/proveedores`: la navegación del cliente
