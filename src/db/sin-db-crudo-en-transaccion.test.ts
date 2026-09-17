@@ -116,23 +116,27 @@ function importsDeValor(sf: ts.SourceFile): ImportDeValor[] {
   return salida;
 }
 
+/** Recorrido completo del grafo desde `abs` — sin memo intermedio, que con
+ * imports circulares guardaría "no toca" a mitad de un ciclo. */
 const cacheTocaBase = new Map<string, boolean>();
-function tocaBase(abs: string, visitando = new Set<string>()): boolean {
+function tocaBase(abs: string): boolean {
   const cacheado = cacheTocaBase.get(abs);
   if (cacheado !== undefined) return cacheado;
-  if (visitando.has(abs)) return false;
-  visitando.add(abs);
-  const rel = path.relative(REPO_ROOT, abs).split(path.sep).join("/");
-  let resultado = rel === "src/db/client.ts";
-  if (!resultado) {
-    for (const imp of importsDeValor(fuente(abs))) {
-      if (PAQUETES_DE_BASE.has(imp.especificador) || (imp.resuelto && tocaBase(imp.resuelto, visitando))) {
-        resultado = true;
-        break;
+  const CLIENTE = path.join(SRC, "db", "client.ts");
+  const vistos = new Set<string>([abs]);
+  const pendientes = [abs];
+  let resultado = false;
+  while (pendientes.length && !resultado) {
+    const actual = pendientes.pop()!;
+    if (actual === CLIENTE) resultado = true;
+    for (const imp of importsDeValor(fuente(actual))) {
+      if (PAQUETES_DE_BASE.has(imp.especificador)) resultado = true;
+      if (imp.resuelto && !vistos.has(imp.resuelto)) {
+        vistos.add(imp.resuelto);
+        pendientes.push(imp.resuelto);
       }
     }
   }
-  visitando.delete(abs);
   cacheTocaBase.set(abs, resultado);
   return resultado;
 }
