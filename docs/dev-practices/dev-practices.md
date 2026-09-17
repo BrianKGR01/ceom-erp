@@ -374,6 +374,21 @@ aproximar la realidad, la migración está escrita para la realidad.
 
 ## 7.3. Auto-merge de PRs: por qué se puede hoy, y qué lo termina
 
+> ⛔ **VENCIDA — verificado el 2026-09-17.** `https://ceom.lat` tiene dos negocios reales sobre el
+> único proyecto de Supabase, que es a la vez desarrollo y producción. Las tres condiciones de abajo
+> ya no se cumplen. Desde ahora:
+> - **Los PRs se revisan antes de mergear.** Ningún agente mergea.
+> - **Ningún test de integración corre contra la base del `.env.local`.** La suite crea y borra
+>   datos y el candado de `vitest.global-setup.ts` bloquea la base ~9 minutos.
+> - **Cómo se corren, entonces** (lo que se usó en el incidente del 2026-09-17): un `git worktree`
+>   aparte —no tiene `.env.local`, así que nada puede resolver la URL real por accidente—, un
+>   `postgres:16` en Docker, `scripts/ci/apply-stub.mjs` + `drizzle-kit migrate` contra él (§7.2),
+>   y `pnpm exec vitest run <archivos>` con `DATABASE_URL`/`DIRECT_URL` apuntando al contenedor.
+>   Solo corren las suites gateadas en `DATABASE_URL`; las que necesitan Supabase Auth real se
+>   saltean, y eso se dice en el PR.
+>
+> Se conserva el texto original porque explica por qué existía la excepción.
+
 **Hoy un agente puede abrir un PR de `dev` a `main` y mergearlo él mismo, sin esperar
 aprobación.** No es una relajación del estándar: es que el radio de impacto de un error es una base
 de prueba.
