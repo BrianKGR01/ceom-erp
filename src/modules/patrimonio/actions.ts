@@ -1,6 +1,10 @@
 import { comoUsuario } from "@/db/contexto";
 import { generarGastoCuotaPasivo } from "@/modules/gastos/actions";
-import { listarSucursalesPorTenant, tienePermiso } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  preautorizarSobreRecurso,
+  tienePermiso,
+} from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import * as repo from "./repository";
 import type {
@@ -64,10 +68,12 @@ export async function consultarCapacidad(
   disponibilidadHorariaSemanal: string | null;
   tiempoEstimadoPorCicloMinutos: string | null;
 }>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este activo." };
     }
 
@@ -89,10 +95,12 @@ export async function consultarValorActual(
   solicitante: UsuarioConRol,
   activoId: string
 ): Promise<Resultado<{ valorActual: number }>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este activo." };
     }
 
@@ -104,10 +112,12 @@ export async function consultarPasivoDeActivo(
   solicitante: UsuarioConRol,
   activoId: string
 ): Promise<Resultado<Array<{ pasivoId: string; saldoPendiente: number }>>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este activo." };
     }
 
@@ -140,10 +150,12 @@ export async function obtenerActivoPorId(
   solicitante: UsuarioConRol,
   activoId: string
 ): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerActivoPorId>>>>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este activo." };
     }
     return { ok: true, data: activo };
@@ -168,10 +180,12 @@ export async function obtenerPasivoPorId(
   solicitante: UsuarioConRol,
   pasivoId: string
 ): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerPasivoPorId>>>>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const pasivo = await repo.obtenerPasivoPorId(tx, pasivoId);
     if (!pasivo) return { ok: false, error: "Pasivo no encontrado." };
-    if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(pasivo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este pasivo." };
     }
     return { ok: true, data: pasivo };
@@ -191,10 +205,12 @@ export async function fichaPasivo(
     pagos: Awaited<ReturnType<typeof repo.listarPagosPorPasivo>>;
   }>
 > {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "patrimonio", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const pasivo = await repo.obtenerPasivoPorId(tx, pasivoId);
     if (!pasivo) return { ok: false, error: "Pasivo no encontrado." };
-    if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "ver"))) {
+    if (!puedeVer(pasivo.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este pasivo." };
     }
 
@@ -337,10 +353,12 @@ export async function actualizarActivo(
   activoId: string,
   input: Partial<DatosActivo>
 ): Promise<Resultado<true>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeEditar = await preautorizarSobreRecurso(solicitante, "patrimonio", "editar");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "editar"))) {
+    if (!puedeEditar(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para editar este activo." };
     }
     if (input.sucursalId !== undefined) {
@@ -369,12 +387,12 @@ export async function darDeBajaActivo(
   activoId: string,
   motivo: string
 ): Promise<Resultado<true>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeDarDeBaja = await preautorizarSobreRecurso(solicitante, "patrimonio", "anular_ajustar");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (
-      !(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "anular_ajustar"))
-    ) {
+    if (!puedeDarDeBaja(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para dar de baja este activo." };
     }
     if (!motivo.trim()) {
@@ -393,10 +411,12 @@ export async function transferirActivo(
   activoId: string,
   nuevaSucursalId: string
 ): Promise<Resultado<true>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeEditar = await preautorizarSobreRecurso(solicitante, "patrimonio", "editar");
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!(await tienePermiso(solicitante, activo.tenantId, "patrimonio", "editar"))) {
+    if (!puedeEditar(activo.tenantId)) {
       return { ok: false, error: "No tenés permiso para transferir este activo." };
     }
     // Se valida AMBOS extremos (mismo criterio que registrarTransferenciaStock
@@ -456,10 +476,12 @@ export async function refinanciarPasivo(
   pasivoAnteriorId: string,
   nuevosTerminos: DatosPasivo
 ): Promise<Resultado<{ pasivoId: string }>> {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedeEditar = await preautorizarSobreRecurso(solicitante, "patrimonio", "editar");
   return comoUsuario(solicitante.id, async (tx) => {
     const anterior = await repo.obtenerPasivoPorId(tx, pasivoAnteriorId);
     if (!anterior) return { ok: false, error: "Pasivo no encontrado." };
-    if (!(await tienePermiso(solicitante, anterior.tenantId, "patrimonio", "editar"))) {
+    if (!puedeEditar(anterior.tenantId)) {
       return { ok: false, error: "No tenés permiso para refinanciar este pasivo." };
     }
 
@@ -513,10 +535,12 @@ export async function registrarPagoPasivo(
     gastoCuota: Awaited<ReturnType<typeof generarGastoCuotaPasivo>>;
   }>
 > {
+  // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
+  const puedePagar = await preautorizarSobreRecurso(solicitante, "patrimonio", "crear");
   const pago = await comoUsuario(solicitante.id, async (tx) => {
     const pasivo = await repo.obtenerPasivoPorId(tx, pasivoId);
     if (!pasivo) return { ok: false as const, error: "Pasivo no encontrado." };
-    if (!(await tienePermiso(solicitante, pasivo.tenantId, "patrimonio", "crear"))) {
+    if (!puedePagar(pasivo.tenantId)) {
       return { ok: false as const, error: "No tenés permiso para registrar pagos en este pasivo." };
     }
 

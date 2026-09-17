@@ -132,6 +132,26 @@
   este módulo quedó afuera del freeze en la implementación original de H-02
   y se cerró en una segunda tanda junto con Gastos, Proveedores y Operativo
   Nicho 1.
+- **⛔ Nunca llamar, desde adentro del callback de `comoUsuario()`, a una
+  función que toque la base por fuera del `tx`** (`tienePermiso()`,
+  `listarSucursalesPorTenant()`, un `actions.ts` no migrado). Cada una pide
+  otra conexión del pool mientras la transacción retiene la suya; con tantas
+  transacciones simultáneas como conexiones, se cuelga todo sin error. Los
+  permisos por-id van con `preautorizarSobreRecurso()` antes del `tx`. El
+  mecanismo completo está en `proveedores/ANCLA.md` (incidente del
+  2026-09-17), porque ahí se manifestó; acá la trampa era idéntica en
+  `fichaPasivo` y no explotó solo porque ningún negocio tiene más de 2 deudas.
+  `registrarPagoPasivo` ya sacaba el gasto de la cuota fuera del `tx` por este
+  motivo desde H-27 — el comentario lo decía ("arriesgando quedarse sin
+  conexiones del pool") y no se había aplicado al resto del módulo.
+
+## Última actualización: 2026-09-17 — Incidente de pool: `tienePermiso()` fuera de las transacciones
+Mismo fix que Proveedores (ver su `ANCLA.md`): `consultarCapacidad`, `consultarValorActual`,
+`consultarPasivoDeActivo`, `obtenerActivoPorId`, `obtenerPasivoPorId`, `fichaPasivo`,
+`actualizarActivo`, `darDeBajaActivo`, `transferirActivo`, `refinanciarPasivo` y
+`registrarPagoPasivo` resuelven el permiso con `preautorizarSobreRecurso()` antes de
+`comoUsuario()`. Sin cambio de firma. Reproducción de `fichaPasivo` en
+`src/db/agotamiento-pool.test.ts` (roja antes del fix con max+2 pasivos).
 
 ## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `crearActivo`/`actualizarActivo`/

@@ -67,6 +67,9 @@
   (`src/lib/security/access-manifest.ts`). No es un helper interno: es la
   respuesta canónica a "¿este id es de mi tenant?", y reimplementarla a mano
   es cómo nacieron los huecos M-01/M-02.
+  **Agregado el 2026-09-17:** `preautorizarSobreRecurso(solicitante, modulo,
+  accion)` — `tienePermiso()` + pertenencia, resuelto antes de abrir una
+  transacción de `comoUsuario()`. Ver la actualización de esa fecha abajo.
 
 ## Estado actual
 - [x] Schema Drizzle (7 tablas) + RLS (`.enableRLS()` + policies) + función
@@ -646,6 +649,24 @@
   `requireSucursalOperable()` (o su variante local) a Patrimonio, Gastos,
   Proveedores y Operativo Nicho 1 — ver el `ANCLA.md` de cada uno. Freeze
   hoy cubre los 6 módulos, sin excepción.
+
+## Última actualización: 2026-09-17 — **cambio de contrato (aditivo)**: `preautorizarSobreRecurso()`
+Nueva salida pública en `actions.ts`, junto a `recursoPerteneceAlTenant()`:
+`preautorizarSobreRecurso(solicitante, modulo, accion)` resuelve `tienePermiso()` contra el tenant
+del solicitante y devuelve una función **pura** `(recursoTenantId) => boolean` que exige además la
+pertenencia. Existe para los módulos migrados a `comoUsuario()`: `tienePermiso()` lee con `db`
+crudo, y llamado desde adentro de una transacción pide una segunda conexión del pool — con suficientes
+transacciones a la vez, el pool se agota y todo se cuelga sin error (incidente de producción del
+2026-09-17, mecanismo completo en `proveedores/ANCLA.md`).
+
+**Equivalencia con `tienePermiso(solicitante, recurso.tenantId, …)`** — probada contra la matriz
+Owner / rol con matriz / tenant bloqueado / solo lectura / `ceom_admin` × 5 tenants × 2 acciones en
+`preautorizar-recurso.test.ts`: idéntica en todos los casos salvo el Gateway de Consentimiento, que
+queda **más** restringido (antes `ver` en cualquier tenant, ahora solo con pertenencia). No debilita
+la defensa de aplicación en ningún caso. **No reemplaza a `tienePermiso()` para operaciones a nivel
+tenant** (listar, crear): ahí el `tenantId` es un parámetro y el chequeo va antes del `tx` como
+siempre. Consumidores hoy: Proveedores y Patrimonio. Sin impacto en la matriz de dependencias
+(`CEOM_Arquitectura.md` §7): ambos ya dependían de Identidad.
 
 ## Última actualización: 2026-07-27 — H-02: ABM de sucursales, tope de plan (`max_sucursales`) y
 freeze atómico en downgrade. **Cambio de contrato:** `cambiarPlanTenant` devuelve

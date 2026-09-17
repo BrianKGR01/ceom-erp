@@ -145,6 +145,47 @@ export function recursoPerteneceAlTenant(
 }
 
 /**
+ * `tienePermiso()` para una operación por-id, resuelto ANTES de abrir la
+ * transacción de un módulo migrado a `comoUsuario()`. Devuelve una función
+ * pura que se evalúa adentro, cuando ya se leyó el recurso y se conoce su
+ * tenant.
+ *
+ * **Por qué existe** (incidente del 2026-09-17, `proveedores/ANCLA.md`):
+ * `tienePermiso()` lee con `db` crudo, o sea pide OTRA conexión del pool.
+ * Llamada desde adentro de `comoUsuario()` —que ya retiene una— basta con
+ * tantas transacciones simultáneas como conexiones tiene el pool para que
+ * todas esperen una que ninguna suelta. La función que devuelve esto no toca
+ * la base: no puede agotar nada.
+ *
+ * **Equivalencia con `tienePermiso(solicitante, recursoTenantId, …)`**, caso
+ * por caso:
+ * - Usuario de un tenant, recurso de su tenant: idéntico — `tienePermiso` con
+ *   `tenantObjetivo = solicitante.tenantId` evalúa el mismo tenant (estado de
+ *   acceso, Owner, matriz), y la pertenencia da `true`.
+ * - Usuario de un tenant, recurso de otro: `tienePermiso` daba `false` (el
+ *   chequeo de tenant de la línea de arriba); acá también, por la pertenencia.
+ * - `ceom_admin`: `tienePermiso` da `true` antes de mirar el tenant, y
+ *   `recursoPerteneceAlTenant` también — idéntico.
+ * - Gateway de Consentimiento: `tienePermiso` le daba `accion === "ver"` para
+ *   CUALQUIER tenant; acá además se exige la pertenencia, que para ese id solo
+ *   vale en CEOM Ops. **Más estricto, nunca más laxo.** Ningún camino del
+ *   Gateway llega hoy a una función por-id de Proveedores ni de Patrimonio
+ *   (solo a los agregados por período, que no usan esto).
+ *
+ * El `tenantId` del recurso tiene que venir de la fila leída dentro de la
+ * transacción, nunca de un parámetro del cliente: es la misma regla que
+ * `recursoPerteneceAlTenant`.
+ */
+export async function preautorizarSobreRecurso(
+  solicitante: UsuarioConRol,
+  modulo: Modulo,
+  accion: Accion
+): Promise<(recursoTenantId: string | null | undefined) => boolean> {
+  const permitido = await tienePermiso(solicitante, solicitante.tenantId, modulo, accion);
+  return (recursoTenantId) => permitido && recursoPerteneceAlTenant(solicitante, recursoTenantId);
+}
+
+/**
  * Lectura basica de un Tenant (plan_id, nicho_id, estado_suscripcion, etc).
  * El repository ya tenia esta consulta (la usa tienePermiso() internamente);
  * faltaba exponerla como parte del contrato publico. Mismo criterio de

@@ -15,18 +15,18 @@
 
 ---
 
-## Estado real — 2026-08-06
+## Estado real — 2026-08-06 (+ H-50, 2026-09-17)
 
 Este registro venía declarando **7 corregidos / 38 abiertos**. La reconciliación de la R-2.2
 verificó los 49 hallazgos contra el código y la cuenta real es:
 
 | | Cuántos | Cuáles |
 |---|---|---|
-| ✅ **Corregidos** | **10** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, H-42, H-49 |
+| ✅ **Corregidos** | **11** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, H-42, H-49, H-50 |
 | 🟨 **Parciales** | **4** | H-01, H-05, H-12, H-32 |
 | 🔴🟠🟡 **Abiertos** | **31** | el resto, con **un solo 🔴: H-33** |
 | ⚪ **Anotados** (decisión de alcance, no defecto) | **4** | H-17, H-20, H-23, H-48 |
-| | **49** | total |
+| | **50** | total |
 
 En **negrita** los tres que estaban cerrados con tests y este documento seguía contando como
 abiertos. El más grave era **H-30**, que el índice mostraba con un 🔴 falso siendo "el peor
@@ -124,6 +124,7 @@ corregidos-sin-registrar se cerraron en tandas que no volvieron acá.
 | ID | Severidad | Hallazgo |
 |---|---|---|
 | [H-49](#h-49) | ✅ | ~~El día de hoy no aparece en ningún reporte~~ — **corregido** |
+| [H-50](#h-50) | ✅ | ~~Proveedores no abre: la pantalla se queda en el módulo anterior, o da 504~~ — **corregido** (incidente de producción, 2026-09-17) |
 
 ---
 
@@ -1345,3 +1346,32 @@ habría contado un día antes, en silencio. 10 filas ya cargadas se reanclaron c
 
 Desarrollo completo, inventario de los 11 lugares y plan de pruebas en
 [`docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`](../auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md).
+
+---
+
+<a id="h-50"></a>
+## H-50 ✅ Proveedores no abre: la pantalla se queda en el módulo anterior, o da 504 — corregido el 2026-09-17
+
+**Qué pasaba (en producción, con usuarios reales).** Un negocio con 10 proveedores tocaba
+"Proveedores" y no pasaba nada: la pantalla se quedaba en el módulo en el que estaba, sin error. Una
+recarga terminaba, cinco minutos después, en `504 FUNCTION_INVOCATION_TIMEOUT` o en "This page
+couldn't load". Mientras tanto se colgaban también Inicio, Productos, Patrimonio y Compras.
+
+**Por qué "no pasa nada" y no un error.** Ninguna ruta de `/app` tiene `loading.tsx`: en una
+navegación del cliente, Next.js deja la pantalla anterior hasta que llega la nueva. Como la nueva
+nunca llegaba, el usuario no veía nada distinto de un clic que no se registró.
+
+**Por qué se colgaba.** El directorio pedía la ficha de cada proveedor en paralelo, y cada ficha
+abría una transacción que, adentro, chequeaba el permiso por una conexión aparte. Con 10 proveedores
+se tomaban las 10 conexiones del pool y cada transacción esperaba una undécima que no existía.
+Mecanismo completo, evidencia y reproducción: `src/modules/proveedores/ANCLA.md` (incidente del
+2026-09-17).
+
+**Cómo se arregló.** El permiso se resuelve antes de abrir la transacción
+(`preautorizarSobreRecurso()`), en Proveedores y en Patrimonio, que tenía la misma trampa en
+Deudas. La reproducción (`src/db/agotamiento-pool.test.ts`) se colgaba antes del arreglo y pasa
+después.
+
+**Lo que el manual tiene que saber:** nada cambia para el usuario. Si alguien vuelve a describir
+"toco un módulo y no pasa nada", no es un clic perdido: es una pantalla que no termina de cargar, y
+hay que mirar los logs de Vercel, no pedirle que pruebe de nuevo.
