@@ -474,7 +474,8 @@ la Fase 2 del roadmap original, por fin cumplido.
       **DA-12**.
 - [ ] **R-8.7** Exportación de reportes PDF/Excel (**DA-05/H-20**) — según demanda real del piloto.
       Es el único compromiso documental del MVP sin una línea de código.
-- [ ] **R-8.8** Resto del P2 histórico: paginación de `listarTenants`, 81 FKs sin índice, 57
+- [ ] **R-8.8** Resto del P2 histórico: paginación de `listarTenants`, 81 FKs sin índice (**DA-48**,
+      con su disparador y la medición que lo justificaría), 57
       policies permisivas múltiples, **DA-38** (registro de auditoría completo de lecturas
       `ceom_admin`), y los ~21 ítems "dejar dormir" de `deuda-aplazada.md` §4.
 - [ ] **R-8.9** Mover de schema las 4 funciones `SECURITY DEFINER` con `EXECUTE` de `authenticated`.
