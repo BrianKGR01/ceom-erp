@@ -153,6 +153,12 @@ Mismo fix que Proveedores (ver su `ANCLA.md`): `consultarCapacidad`, `consultarV
 `comoUsuario()`. Sin cambio de firma. Reproducción de `fichaPasivo` en
 `src/db/agotamiento-pool.test.ts` (roja antes del fix con max+2 pasivos).
 
+Segundo paso: `actualizarActivo` y `transferirActivo` llamaban a `requireSucursalOperable()`
+(Identidad, otra conexión) con la transacción abierta. Ahora leen y autorizan en una transacción
+(`leerActivoAutorizado`), chequean la sucursal sin transacción abierta y escriben en una segunda.
+12 `transferirActivo` simultáneos se colgaban antes y terminan después
+(`src/db/agotamiento-pool-escrituras.test.ts`).
+
 ## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `crearActivo`/`actualizarActivo`/
 `transferirActivo`. Antes del cierre de esta tanda, una sucursal congelada por downgrade de plan

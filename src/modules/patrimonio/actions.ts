@@ -355,17 +355,16 @@ export async function actualizarActivo(
 ): Promise<Resultado<true>> {
   // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
   const puedeEditar = await preautorizarSobreRecurso(solicitante, "patrimonio", "editar");
-  return comoUsuario(solicitante.id, async (tx) => {
-    const activo = await repo.obtenerActivoPorId(tx, activoId);
-    if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!puedeEditar(activo.tenantId)) {
-      return { ok: false, error: "No tenés permiso para editar este activo." };
-    }
-    if (input.sucursalId !== undefined) {
-      const sucursalOperable = await requireSucursalOperable(solicitante, activo.tenantId, input.sucursalId);
-      if (sucursalOperable) return sucursalOperable;
-    }
+  const leido = await leerActivoAutorizado(solicitante, activoId, puedeEditar, "editar");
+  if (!leido.ok) return leido;
+  // requireSucursalOperable lee sucursales por otra conexión: entre las dos
+  // transacciones, nunca adentro de una (patrimonio/ANCLA.md, incidente 2026-09-17).
+  if (input.sucursalId !== undefined) {
+    const sucursalOperable = await requireSucursalOperable(solicitante, leido.data.tenantId, input.sucursalId);
+    if (sucursalOperable) return sucursalOperable;
+  }
 
+  return comoUsuario(solicitante.id, async (tx) => {
     await repo.actualizarActivo(tx, activoId, {
       ...input,
       valorCompra: input.valorCompra !== undefined ? String(input.valorCompra) : undefined,
@@ -413,23 +412,45 @@ export async function transferirActivo(
 ): Promise<Resultado<true>> {
   // Antes de abrir la transacción, nunca adentro: patrimonio/ANCLA.md, incidente 2026-09-17.
   const puedeEditar = await preautorizarSobreRecurso(solicitante, "patrimonio", "editar");
+  const leido = await leerActivoAutorizado(solicitante, activoId, puedeEditar, "transferir");
+  if (!leido.ok) return leido;
+  const activo = leido.data;
+  // Se valida AMBOS extremos (mismo criterio que registrarTransferenciaStock
+  // en Productos): el origen actual del activo, si tiene uno, y el destino.
+  // Entre las dos transacciones, nunca adentro (incidente 2026-09-17).
+  if (activo.sucursalId) {
+    const origenOperable = await requireSucursalOperable(solicitante, activo.tenantId, activo.sucursalId);
+    if (origenOperable) return origenOperable;
+  }
+  const destinoOperable = await requireSucursalOperable(solicitante, activo.tenantId, nuevaSucursalId);
+  if (destinoOperable) return destinoOperable;
+
+  return comoUsuario(solicitante.id, async (tx) => {
+    await repo.actualizarSucursalActivo(tx, activoId, nuevaSucursalId, solicitante.id);
+    return { ok: true, data: true };
+  });
+}
+
+/**
+ * Lectura + autorización de un activo en su propia transacción, cerrada antes
+ * de devolver. Para las escrituras que además necesitan un chequeo de otro
+ * módulo (sucursal operable): ese chequeo usa otra conexión del pool y no
+ * puede correr con un `tx` abierto (patrimonio/ANCLA.md, incidente
+ * 2026-09-17). La escritura va en una segunda transacción, con RLS igual.
+ */
+async function leerActivoAutorizado(
+  solicitante: UsuarioConRol,
+  activoId: string,
+  puede: (recursoTenantId: string) => boolean,
+  verbo: string
+): Promise<Resultado<NonNullable<Awaited<ReturnType<typeof repo.obtenerActivoPorId>>>>> {
   return comoUsuario(solicitante.id, async (tx) => {
     const activo = await repo.obtenerActivoPorId(tx, activoId);
     if (!activo) return { ok: false, error: "Activo no encontrado." };
-    if (!puedeEditar(activo.tenantId)) {
-      return { ok: false, error: "No tenés permiso para transferir este activo." };
+    if (!puede(activo.tenantId)) {
+      return { ok: false, error: `No tenés permiso para ${verbo} este activo.` };
     }
-    // Se valida AMBOS extremos (mismo criterio que registrarTransferenciaStock
-    // en Productos): el origen actual del activo, si tiene uno, y el destino.
-    if (activo.sucursalId) {
-      const origenOperable = await requireSucursalOperable(solicitante, activo.tenantId, activo.sucursalId);
-      if (origenOperable) return origenOperable;
-    }
-    const destinoOperable = await requireSucursalOperable(solicitante, activo.tenantId, nuevaSucursalId);
-    if (destinoOperable) return destinoOperable;
-
-    await repo.actualizarSucursalActivo(tx, activoId, nuevaSucursalId, solicitante.id);
-    return { ok: true, data: true };
+    return { ok: true, data: activo };
   });
 }
 

@@ -636,6 +636,48 @@ que solo le falta la última capa.
 
 ---
 
+## 8. Registrados después del barrido
+
+Deuda que apareció después del 2026-07-22 y se aplazó **a conciencia**, con el mismo formato. No
+viene de un `ANCLA.md`: viene de trabajo que la encontró.
+
+### DA-45 · El caché de stock de Productos pierde movimientos simultáneos 🟠
+**Encontrado el 2026-09-17**, al escribir `src/db/agotamiento-pool-escrituras.test.ts` (incidente de
+pool de Proveedores). No es parte de ese incidente ni de su fix.
+
+**Dónde:** `recalcularCantidadActualTx()` en `src/modules/productos/repository.ts` (~línea 223),
+usada por `crearMovimientoTx` y sus hermanas.
+
+**Qué hace mal.** Cada movimiento se inserta en el ledger (`movimientos_stock`, append-only, correcto)
+y después recalcula el caché `stock.cantidad_actual` sumando el ledger **con READ COMMITTED y sin
+lock**, y hace *select-then-insert* de la fila de `stock`. Con dos movimientos simultáneos sobre el
+**mismo producto y sucursal**:
+
+1. Cada transacción suma el ledger sin ver el movimiento no comiteado de la otra → la última en
+   escribir deja un `cantidad_actual` **menor** que la suma real. Reproducido con 12 recepciones
+   simultáneas: el caché quedó en 14 unidades cuando lo esperado era 30.
+2. Si la fila de `stock` todavía no existía, las dos intentan el `insert` → una falla con
+   `23505 stock_producto_sucursal_unique` y **su movimiento se revierte entero**.
+
+**Por qué no es pérdida de datos permanente.** El ledger de (1) está completo, y el próximo
+movimiento de ese producto recalcula desde cero y corrige el caché. Lo de (2) sí pierde el
+movimiento, pero el llamador recibe el error (en Compras, `entradaStock.ok = false`).
+
+**Por qué importa igual.** Mientras el caché está corrido, `descontarStockVenta` y las pantallas
+leen ese número: dos ventas del mismo producto en el mismo segundo pueden dejar stock de más a la
+vista y habilitar una sobreventa. Con dos negocios chicos es improbable; con un POS de varias cajas
+no.
+
+**Arreglo probable (no hecho):** tomar un lock por `(producto_id, sucursal_id)` antes de sumar
+(`pg_advisory_xact_lock` o `SELECT … FOR UPDATE` sobre la fila de `stock` creada con
+`INSERT … ON CONFLICT DO NOTHING`). Revisar si Nicho 1 (`stock_insumo`) tiene el mismo patrón.
+
+**Justificación del aplazamiento:** vigente — el hotfix de pool va a producción con usuarios
+adentro y no debe arrastrar un cambio de concurrencia en el ledger de otro módulo.
+
+---
+
+
 *Barrido generado el 2026-07-22 sobre los 15 `ANCLA.md` de `src/modules/**`. Cada ítem se
 verificó contra el código real — no solo contra lo que el ANCLA dice de sí mismo. No se
 modificó ningún archivo fuera de este documento.*

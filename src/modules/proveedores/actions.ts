@@ -377,7 +377,7 @@ export async function registrarCompra(
   const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
   if (sucursalOperable) return sucursalOperable;
 
-  return comoUsuario(solicitante.id, async (tx) => {
+  const creada = await comoUsuario(solicitante.id, async (tx) => {
     // Si se indica proveedor, debe ser del tenant — sin esto la compra
     // referenciaba un proveedor ajeno (auditoría de autorización). proveedorId
     // es opcional (compra sin proveedor registrado). El insumoId/productoId se
@@ -386,7 +386,7 @@ export async function registrarCompra(
     if (input.proveedorId) {
       const proveedor = await repo.obtenerProveedorPorId(tx, input.proveedorId);
       if (!proveedor || proveedor.tenantId !== tenantId) {
-        return { ok: false, error: "Proveedor no encontrado." };
+        return { ok: false as const, error: "Proveedor no encontrado." };
       }
     }
 
@@ -415,14 +415,21 @@ export async function registrarCompra(
       fechaRecepcion: estado === "recibido" ? input.fechaCompra : undefined,
       creadoPor: solicitante.id,
     });
-
-    if (estado !== "recibido") {
-      return { ok: true, data: { compraId: compra.id, costoUnitario } };
-    }
-
-    const entradaStock = await dispararEntradaStock(solicitante, tenantId, compra);
-    return { ok: true, data: { compraId: compra.id, costoUnitario, entradaStock } };
+    return { ok: true as const, data: { compra, costoUnitario } };
   });
+  if (!creada.ok) return creada;
+  const { compra, costoUnitario } = creada.data;
+
+  if (compra.estado !== "recibido") {
+    return { ok: true, data: { compraId: compra.id, costoUnitario } };
+  }
+
+  // Después del commit, no adentro del `tx`: Productos/Nicho 1 usan otra
+  // conexión del pool (proveedores/ANCLA.md, incidente 2026-09-17). Además es
+  // la semántica que este módulo ya documentaba: si la entrada de stock falla,
+  // la Compra queda registrada igual y el error viaja en `entradaStock`.
+  const entradaStock = await dispararEntradaStock(solicitante, tenantId, compra);
+  return { ok: true, data: { compraId: compra.id, costoUnitario, entradaStock } };
 }
 
 /** Transiciona una Compra "pedido" -> "recibido" y recien ahi dispara la
@@ -438,33 +445,48 @@ export async function recibirCompra(
 ): Promise<Resultado<{ entradaStock: DatosEntradaStock }>> {
   // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
   const puedeRecibir = await preautorizarSobreRecurso(solicitante, "proveedores", "crear");
-  return comoUsuario(solicitante.id, async (tx) => {
+
+  // Tres pasos y no una sola transacción: el chequeo de sucursal (Identidad)
+  // y la entrada de stock (Productos/Nicho 1) usan otra conexión del pool, y
+  // no pueden correr con un `tx` abierto (proveedores/ANCLA.md, incidente
+  // 2026-09-17).
+  const leida = await comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
-    if (!compra) return { ok: false, error: "Compra no encontrada." };
+    if (!compra) return { ok: false as const, error: "Compra no encontrada." };
     if (!puedeRecibir(compra.tenantId)) {
-      return { ok: false, error: "No tenés permiso para recibir compras." };
+      return { ok: false as const, error: "No tenés permiso para recibir compras." };
     }
     if (compra.estado === "recibido") {
-      return { ok: false, error: "Esta compra ya está recibida." };
+      return { ok: false as const, error: "Esta compra ya está recibida." };
     }
-    // Chequeo temprano, antes de marcar la compra como "recibido" — si la
-    // sucursal se congeló DESPUÉS de crear la compra (estado "pedido"),
-    // esto evita el estado parcial "recibido pero sin entrada de stock"
-    // (gap de atomicidad cruzada ya documentado y aceptado, no hay que
-    // sumarle un caso más).
-    const sucursalOperable = await requireSucursalOperable(solicitante, compra.tenantId, compra.sucursalId);
-    if (sucursalOperable) return sucursalOperable;
-
-    const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
-    const compraRecibida = await repo.marcarCompraRecibida(tx, compraId, fecha);
-    const entradaStock = await dispararEntradaStock(
-      solicitante,
-      compra.tenantId,
-      compraRecibida
-    );
-
-    return { ok: true, data: { entradaStock } };
+    return { ok: true as const, data: compra };
   });
+  if (!leida.ok) return leida;
+  const compra = leida.data;
+
+  // Chequeo temprano, antes de marcar la compra como "recibido" — si la
+  // sucursal se congeló DESPUÉS de crear la compra (estado "pedido"),
+  // esto evita el estado parcial "recibido pero sin entrada de stock"
+  // (gap de atomicidad cruzada ya documentado y aceptado, no hay que
+  // sumarle un caso más).
+  const sucursalOperable = await requireSucursalOperable(solicitante, compra.tenantId, compra.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+
+  const fecha = fechaRecepcion ?? new Date().toISOString().slice(0, 10);
+  const marcada = await comoUsuario(solicitante.id, async (tx) => {
+    // Se vuelve a mirar el estado en la transacción que escribe: entre la
+    // lectura de arriba y ésta puede haber entrado otra recepción.
+    const actual = await repo.obtenerCompraPorId(tx, compraId);
+    if (!actual) return { ok: false as const, error: "Compra no encontrada." };
+    if (actual.estado === "recibido") {
+      return { ok: false as const, error: "Esta compra ya está recibida." };
+    }
+    return { ok: true as const, data: await repo.marcarCompraRecibida(tx, compraId, fecha) };
+  });
+  if (!marcada.ok) return marcada;
+
+  const entradaStock = await dispararEntradaStock(solicitante, compra.tenantId, marcada.data);
+  return { ok: true, data: { entradaStock } };
 }
 
 /** historial_precio(item) — Modulo_08 seccion 2. "item" es insumo o
@@ -699,7 +721,16 @@ export async function registrarCompraDeAjuste(
 > {
   // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
   const puedeAjustar = await preautorizarSobreRecurso(solicitante, "proveedores", "anular_ajustar");
-  return comoUsuario(solicitante.id, async (tx) => {
+  const registrado = await comoUsuario<
+    Resultado<{
+      compra: NonNullable<Awaited<ReturnType<typeof repo.obtenerCompraPorId>>>;
+      ajusteId: string;
+      cantidadADevolver: number | null;
+      estadoPago: EstadoPagoCompra;
+      totalPagado: number;
+      montoTotalEfectivo: number;
+    }>
+  >(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
     if (!puedeAjustar(compra.tenantId)) {
@@ -781,40 +812,50 @@ export async function registrarCompraDeAjuste(
     const { estadoPago, totalPagado, montoTotalEfectivo } =
       await repo.recalcularEstadoPagoTx(tx, compraId);
 
-    // La reversión de stock va DESPUÉS del ajuste y fuera de su transacción,
-    // igual que la entrada de stock al recibir la compra (`dispararEntradaStock`)
-    // y que el descuento de stock al confirmar una venta: mismo gap de
-    // atomicidad cruzada ya documentado y aceptado en Módulos 3/6/8. Su fallo
-    // NO anula el ajuste — la corrección financiera queda hecha y el problema
-    // de stock viaja en `reversionStock` para que la pantalla lo muestre.
-    let reversionStock: ReversionStock | null = null;
-    if (cantidadADevolver !== null) {
-      reversionStock = await revertirStockDeAjuste(
-        solicitante,
-        compra,
-        cantidadADevolver,
-        `Ajuste de Compra ${compraId}: ${input.motivo}`
-      );
-      if (reversionStock.devuelta > 0) {
-        await repo.actualizarCantidadDevueltaAjuste(
-          tx,
-          ajuste.id,
-          reversionStock.devuelta
-        );
-      }
-    }
-
     return {
       ok: true,
-      data: {
-        ajusteId: ajuste.id,
-        montoTotalEfectivo,
-        estadoPago,
-        saldoPendiente: Math.max(0, montoTotalEfectivo - totalPagado),
-        reversionStock,
-      },
+      data: { compra, ajusteId: ajuste.id, cantidadADevolver, estadoPago, totalPagado, montoTotalEfectivo },
     };
   });
+  if (!registrado.ok) return registrado;
+  const { compra, ajusteId, cantidadADevolver, estadoPago, totalPagado, montoTotalEfectivo } =
+    registrado.data;
+
+  // La reversión de stock va DESPUÉS del ajuste y fuera de su transacción,
+  // igual que la entrada de stock al recibir la compra (`dispararEntradaStock`)
+  // y que el descuento de stock al confirmar una venta: mismo gap de
+  // atomicidad cruzada ya documentado y aceptado en Módulos 3/6/8. Su fallo
+  // NO anula el ajuste — la corrección financiera queda hecha y el problema
+  // de stock viaja en `reversionStock` para que la pantalla lo muestre.
+  // "Fuera" quiere decir después del commit, no solo en otra conexión: con el
+  // `tx` abierto, Productos/Nicho 1 compiten por el pool (incidente
+  // 2026-09-17, proveedores/ANCLA.md).
+  let reversionStock: ReversionStock | null = null;
+  if (cantidadADevolver !== null) {
+    reversionStock = await revertirStockDeAjuste(
+      solicitante,
+      compra,
+      cantidadADevolver,
+      `Ajuste de Compra ${compraId}: ${input.motivo}`
+    );
+    const devuelta = reversionStock.devuelta;
+    if (devuelta > 0) {
+      await comoUsuario(solicitante.id, (tx) =>
+        repo.actualizarCantidadDevueltaAjuste(tx, ajusteId, devuelta)
+      );
+    }
+  }
+
+  return {
+    ok: true,
+    data: {
+      ajusteId,
+      montoTotalEfectivo,
+      estadoPago,
+      saldoPendiente: Math.max(0, montoTotalEfectivo - totalPagado),
+      reversionStock,
+    },
+  };
 }
 
 // --- Agregados por periodo para Financiero (Modulo_07, seccion 2) ---------------------------------------------------------

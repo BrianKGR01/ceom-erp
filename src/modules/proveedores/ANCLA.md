@@ -282,9 +282,26 @@ de este módulo — ningún camino del Gateway las alcanza. Aplicado a `actualiz
 `eliminarProveedor`, `fichaProveedor`, `recibirCompra`, `consultarSaldoCompra`,
 `registrarPagoCompra` y `registrarCompraDeAjuste`. **Sin cambio de firma en ninguna función.**
 
-**Queda para los commits siguientes de la misma tanda** (no son parte del hotfix): las otras llamadas
-cruzadas que siguen dentro del `tx` (`requireSucursalOperable`, `dispararEntradaStock`,
-`revertirStockDeAjuste`), el N+1 del directorio y los topes de pool/timeouts.
+**Segundo commit de la tanda — las otras llamadas cruzadas, fuera del `tx`.** Mismo bug, disparado
+por concurrencia de escrituras en vez de un `Promise.all` de lecturas (reproducido: 12
+`registrarCompra` recibidas, 12 `recibirCompra` y 12 `transferirActivo` simultáneos se colgaban aun
+con el hotfix, `src/db/agotamiento-pool-escrituras.test.ts`):
+- `registrarCompra`: la Compra se comitea y **después** corre `dispararEntradaStock`.
+- `recibirCompra`: tres pasos — transacción de lectura y autorización, `requireSucursalOperable`
+  sin transacción abierta, transacción de escritura que **vuelve a mirar el estado** antes de marcar
+  `recibido` (una recepción concurrente sigue rechazada), y la entrada de stock después del commit.
+- `registrarCompraDeAjuste`: el ajuste y el estado de pago se comitean, después corre
+  `revertirStockDeAjuste`, y `cantidad_devuelta` se persiste en una transacción propia.
+
+**Qué cambia en la semántica, y por qué es la correcta.** Antes, una **excepción** (no un
+`{ ok: false }`) de la entrada de stock hacía rollback de la Compra o del ajuste — mientras el movimiento
+de stock de la otra conexión podía haber quedado comiteado. Ahora la Compra/el ajuste quedan y la
+excepción se propaga. Es exactamente lo que este archivo ya documentaba ("si esa llamada falla, la
+Compra ya quedó `recibido` igual"; "su fallo NO anula el ajuste"), y cierra la ventana de §9.3 del
+plan de RLS: ya no puede quedar un movimiento de stock apuntando a una Compra revertida.
+
+Lo que la concurrencia destapó y **no** es de este módulo: el caché de stock de Productos pierde
+movimientos simultáneos del mismo producto (DA-45 en `docs/deuda-aplazada.md`).
 
 ## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarCompra`/`recibirCompra`.
