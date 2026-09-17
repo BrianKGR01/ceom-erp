@@ -700,6 +700,45 @@ institución por id distinto (hoy como máximo 1 por tenant), sin transacción. 
 ---
 
 
+### DA-47 · Si la conexión de una transacción se corta a mitad del callback, lo que sigue se escribe fuera de la transacción 🔴
+**Encontrado y reproducido el 2026-09-17**, evaluando topes de tiempo para el incidente de pool (ver
+"Topes evaluados" en `src/modules/proveedores/ANCLA.md`). **No es un aplazamiento cómodo: está acá
+porque arreglarlo toca `src/db/contexto.ts`, el mecanismo del backstop de RLS, y eso no entra en un
+hotfix sin decisión del dueño.**
+
+**Qué pasa.** `comoUsuario()` corre sobre `sql.begin()` de postgres-js. Si la conexión de esa
+transacción se cierra mientras el callback todavía está corriendo —por un timeout del servidor, un
+corte de red, un reinicio de Supavisor—:
+1. Postgres revierte la transacción.
+2. `sql.begin()` **a veces nunca resuelve ni rechaza**: la request queda colgada.
+3. El callback sigue vivo, y la próxima consulta que haga sobre su `tx` se manda directo al objeto
+   de conexión (`postgres@3.4.9/src/index.js`, `begin` → `scope` → `handler`, sin chequear si la
+   transacción terminó). El pool ya lo reconectó: la consulta corre **fuera de la transacción, con
+   el rol `postgres` (sin RLS) y en autocommit.**
+
+**Reproducción** (contra `postgres:16` efímero, descartable, no commiteada): 12 `comoUsuario()` con
+`set local idle_in_transaction_session_timeout = 3000` + una consulta por `db` crudo (para forzar la
+espera) + un `tx.insert` al final. Dos corridas: 5 y 7 transacciones **revertidas por el servidor
+dejaron su fila escrita**, y sus promesas nunca terminaron.
+
+**Consecuencia posible:** mitades de operaciones que se creen atómicas. Ej.: en
+`registrarCompraDeAjuste`, el ajuste revertido y el `recalcularEstadoPagoTx` posterior aplicado
+suelto. Los chequeos de tenant ya corrieron antes, así que no es una fuga cross-tenant directa; es
+integridad.
+
+**Por qué hoy es poco probable:** hace falta un corte de conexión justo mientras un callback de
+Proveedores/Patrimonio está entre dos consultas (milisegundos, desde que se sacaron las esperas
+externas en este mismo cambio). Por eso **no se agregó** el tope de transacción ociosa: fabricaría
+esos cortes.
+
+**Arreglos posibles (a decidir):** (a) en `contexto.ts`, envolver el `sql` de la transacción para
+rechazar toda consulta cuando su conexión se cerró — requiere acceso a internos de postgres-js, igual
+que `clienteCrudoDeLaTransaccion`; (b) reportarlo upstream a postgres-js; (c) cambiar de driver para
+las transacciones con contexto. Cualquiera va con el mismo test de reproducción, en rojo primero.
+
+---
+
+
 *Barrido generado el 2026-07-22 sobre los 15 `ANCLA.md` de `src/modules/**`. Cada ítem se
 verificó contra el código real — no solo contra lo que el ANCLA dice de sí mismo. No se
 modificó ningún archivo fuera de este documento.*
