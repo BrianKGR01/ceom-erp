@@ -145,7 +145,7 @@ export function AdminShell({
           ))}
         </nav>
 
-        <div className="space-y-3 border-t border-white/10 px-3 py-4">
+        <div className="space-y-4 border-t border-white/10 px-3 py-4">
           <div className="flex items-center gap-2.5">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white">
               {nombreCompleto.charAt(0).toUpperCase()}

@@ -36,7 +36,7 @@ export function OptionCard({
         onClick={onSelect}
         aria-pressed={selected}
         className={cn(
-          "relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+          "relative flex flex-col items-center gap-1.5 rounded-xl border p-4 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-60",
           selected ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
         )}
       >
@@ -63,7 +63,7 @@ export function OptionCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         selected ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
       )}
     >
@@ -71,7 +71,7 @@ export function OptionCard({
         {Icon && <Icon className="size-4 shrink-0 text-primary" />}
         <p className="text-sm font-medium text-navy">{label}</p>
       </div>
-      {description && <p className="mt-0.5 text-xs text-text-muted">{description}</p>}
+      {description && <p className="mt-1 text-xs text-text-muted">{description}</p>}
     </button>
   );
 }

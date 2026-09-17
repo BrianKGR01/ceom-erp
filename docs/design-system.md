@@ -160,14 +160,36 @@ El componente `Label` de formulario va a 12px (`base`), **no** al token `label` 
 
 ### Espaciado — base 8px
 
-| Token | px | Uso |
-|---|---|---|
-| `space-1` | 8 | Gap entre elementos internos de un control |
-| `space-2` | 16 | Gap de grillas de tarjetas y separación de campos |
-| `space-3` | 24 | Padding de tarjetas y del área de trabajo estándar |
-| `space-4` | 32 | Padding del área de trabajo en pantallas grandes |
-| `space-6` | 48 | Separación entre bloques mayores de una pantalla |
-| `space-8` | 64 | Separación entre secciones de documentación |
+| Token | px | Utilidad | Uso |
+|---|---|---|---|
+| `space-1` | 8 | `-2` | Gap entre elementos internos de un control (Label ↔ Input) |
+| `space-2` | 16 | `-4` | Gap de grillas de tarjetas y separación de campos |
+| `space-3` | 24 | `-6` | Padding de tarjetas y del área de trabajo estándar |
+| `space-4` | 32 | `-8` | Padding del área de trabajo en pantallas grandes (>1280px) |
+| `space-6` | 48 | `-12` | Separación entre bloques mayores de una pantalla |
+| `space-8` | 64 | `-16` | Separación entre secciones de documentación |
+
+#### Espaciado de layout vs. ajuste óptico
+
+Es la distinción que decide si un valor está mal o no, y sin ella la regla de
+los 8px se vuelve imposible de cumplir sin romper la densidad:
+
+- **Espaciado de layout — obligatorio múltiplo de 8.** Todo lo que separa
+  *bloques*: padding de página y de tarjeta, `space-y-*` entre secciones y
+  entre campos, `gap-*` de una grilla, márgenes entre bloques. Acá no hay
+  excepciones.
+- **Ajuste óptico — se permite el paso de 4px.** Lo que separa *partes de un
+  mismo control*: el gap entre un ícono y su etiqueta en una fila, el padding
+  lateral interno de un botón o un badge. El propio sistema los fija fuera de
+  la grilla de 8 (botón `0 18px`, badge `3px 11px`, ítem de sidebar `gap:12px`),
+  así que forzarlos a 8 contradiría la referencia.
+
+Regla práctica: si el valor separa dos cosas que podrían existir por separado,
+es layout. Si separa dos partes que siempre viajan juntas, es óptico.
+
+> El código traía 445 valores de layout fuera de la grilla (el sistema anterior
+> no tenía esta regla). Se corrigieron todos; los 86 `gap-3` de fila flex se
+> mantuvieron a propósito por ser ópticos.
 
 ### Radios
 
@@ -246,6 +268,12 @@ El componente `Label` de formulario va a 12px (`base`), **no** al token `label` 
 ### 6.6 Tablas
 - Cabecera sobre `--brand-bg`, divisores `--border-subtle`, fila de 48px.
 - **Sin sombra sobre las filas.** Zebra opcional con `--stripe`.
+- Celda: `px-4 py-3`. Lo que el sistema fija es **la altura de fila (48px)**, no
+  el padding — y 48 sí es múltiplo de 8. El `py-3` (12px) es el valor que la
+  consigue con el texto a 12px y un badge dentro: medido, da 47.5px. Subirlo a
+  `py-4` "para respetar los 8px" lleva la fila a 55.5px, o sea rompe la regla
+  real por cumplir una que no aplicaba. Es el mismo criterio de layout vs.
+  óptico de §4.
 
 ### 6.7 Login
 - Se mantiene la estructura aprobada por el cliente (panel izquierdo de marca con
@@ -280,12 +308,41 @@ El componente `Label` de formulario va a 12px (`base`), **no** al token `label` 
 
 | Breakpoint | Ancho | Sidebar | Grid | Master-detail |
 |---|---|---|---|---|
-| Mobile | < 768px | Oculto · drawer con hamburguesa | 1 columna | Vista única apilada |
-| Tablet | 768–1024px | Colapsado a 64px con tooltips | 2 columnas | Alterna lista/detalle |
-| Desktop | 1024–1280px | Expandido 240px fijo | 3 columnas | Lista 320px + detalle flexible |
-| Desktop XL | > 1280px | Expandido 240px fijo | 4 columnas | Master-detail en paralelo, padding 32px |
+| Breakpoint | Ancho | Prefijo Tailwind | Sidebar | Grid | Master-detail |
+|---|---|---|---|---|---|
+| Mobile | < 768px | (base) | Oculto · drawer con hamburguesa | 1 columna | Vista única apilada |
+| Tablet | 768–1024px | `md:` | Colapsado a 64px con tooltips | 2 columnas | Alterna lista/detalle |
+| Desktop | 1024–1280px | `lg:` | Expandido 240px fijo | 3 columnas | Lista 320px + detalle flexible |
+| Desktop XL | > 1280px | `xl:` | Expandido 240px fijo | 4 columnas | Master-detail en paralelo, padding 32px |
 
 Anatomía de pantalla: sidebar 240px · top header 60px · sub-navbar contextual 52px.
+
+### Escalera de columnas
+
+**El escalón de tablet entra en `md:` (768px), nunca en `sm:` (640px)** — para
+este sistema 640px sigue siendo mobile. Ese fue el defecto más repetido del
+código anterior: un teléfono en horizontal ya recibía 3 columnas.
+
+```
+grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4
+```
+
+Una grilla no tiene por qué recorrer los cuatro escalones; sí tiene que
+respetar el orden y no saltarse el de tablet. Las formas válidas son:
+
+| Escalera | Cuándo |
+|---|---|
+| `1 md:2` | Dos bloques de contenido lado a lado |
+| `1 md:3` | Fila fija de 3 KPIs o resúmenes |
+| `1 md:2 lg:3` | Listado de tarjetas de tamaño medio |
+| `1 md:2 lg:3 xl:4` | Catálogo de tarjetas (Productos, Insumos, Gastos recurrentes) |
+
+Fuera de la escalera quedan dos patrones legítimos, que no son grillas de
+tarjetas: los **master-detail** de columna fija (`lg:grid-cols-[280px_1fr]`,
+`lg:grid-cols-[1fr_320px]`) y los **pares etiqueta/valor dentro de una card**
+(`grid-cols-2` sin escalones), que a 375px dan ~160px por celda — suficiente
+para un monto. El límite está ahí: un `grid-cols-3` fijo da ~106px por celda y
+sí necesita escalón móvil.
 
 ---
 
@@ -357,7 +414,7 @@ Toda pantalla de `/app` y `/admin` (excepto `/login` y `/portal`, que tienen su 
 pantalla completa) usa exactamente:
 
 ```tsx
-<div className="min-h-screen bg-gray-bg p-6">
+<div className="min-h-screen bg-gray-bg p-6 xl:p-8">
   <div className="mx-auto max-w-{TOKEN} space-y-4 py-6">
     {/* contenido de la pantalla */}
   </div>
@@ -367,6 +424,10 @@ pantalla completa) usa exactamente:
 `space-y-4` es el valor por defecto; el Dashboard/Inicio y el Catálogo de Productos usan `space-y-6`
 porque agrupan secciones más grandes (varias cards por bloque) — mantenido tal cual, no es una
 inconsistencia a corregir.
+
+`p-6 xl:p-8` es el área de trabajo del sistema: 24px (`space-3`) estándar y 32px (`space-4`) a
+partir de 1280px, tal como lo piden §4 y la tabla de breakpoints de §8. El wrapper era `p-6` fijo
+hasta el rebranding de 2026-08-18.
 
 ### 11.2 Tabla de `max-w` por tipo de pantalla
 
@@ -385,6 +446,12 @@ inconsistencia a corregir.
 directamente. Si una pantalla nueva no encaja claramente en ningún tipo, es señal de que puede
 necesitar descomponerse (¿es en realidad un formulario multi-columna disfrazado de ficha?) antes de
 inventar un noveno valor de ancho.
+
+> **Repaso del 2026-08-18.** El noveno valor había aparecido igual: 7 pantallas usaban `max-w-3xl`,
+> que no está en la tabla. Se reasignaron por tipo — Consentimiento y sus tres subpantallas más
+> Métodos de Pago a `4xl` (listado denso); Capacidad de Producción y Simulación de Margen a `5xl`
+> (resumen con cards en grid). Hoy `/app` usa **solo** los cuatro anchos sancionados: `2xl`, `4xl`,
+> `5xl` y `6xl`.
 
 ## 12. Componentes compartidos (Fase A en adelante)
 

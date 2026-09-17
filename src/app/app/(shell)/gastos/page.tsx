@@ -22,7 +22,7 @@ export default async function GastosPage() {
   const proveedorPorId = new Map(proveedores.map((p) => [p.id, p.nombre]));
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-4 py-6">
         <GastosCliente
           gastos={gastos

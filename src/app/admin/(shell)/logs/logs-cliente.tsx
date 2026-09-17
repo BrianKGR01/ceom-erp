@@ -133,7 +133,7 @@ export function LogsCliente({
 
       <div className={cn("rounded-2xl bg-card shadow-card transition-opacity", cargando && "opacity-60")}>
         {!datos.ok ? (
-          <p className="p-5 text-sm text-error-text">{datos.error}</p>
+          <p className="p-6 text-sm text-error-text">{datos.error}</p>
         ) : filas.length === 0 ? (
           <div className="flex flex-col items-center gap-2 p-8 text-center">
             <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
@@ -145,19 +145,19 @@ export function LogsCliente({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-border text-left text-[11px] tracking-wide text-text-muted uppercase">
-                <th className="px-5 py-3 font-medium">Negocio</th>
-                <th className="px-5 py-3 font-medium">Módulo consultado</th>
-                <th className="px-5 py-3 font-medium">Usuario CEOM</th>
-                <th className="px-5 py-3 text-right font-medium">Fecha</th>
+                <th className="px-4 py-3 font-medium">Negocio</th>
+                <th className="px-4 py-3 font-medium">Módulo consultado</th>
+                <th className="px-4 py-3 font-medium">Usuario CEOM</th>
+                <th className="px-4 py-3 text-right font-medium">Fecha</th>
               </tr>
             </thead>
             <tbody>
               {filas.map((fila, index) => (
                 <tr key={`${fila.tenantId}-${fila.creadoEn}-${index}`} className="border-b border-gray-border last:border-0">
-                  <td className="px-5 py-3 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Sin especificar"}</td>
-                  <td className="px-5 py-3 text-text-body">{formatoModulo(fila.moduloConsultado)}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-text-muted">{fila.usuarioCeomId.slice(0, 8)}…</td>
-                  <td className="px-5 py-3 text-right text-text-muted">{formatoFechaHora(fila.creadoEn)}</td>
+                  <td className="px-4 py-3 font-medium text-navy">{tenantNombre.get(fila.tenantId) ?? "Sin especificar"}</td>
+                  <td className="px-4 py-3 text-text-body">{formatoModulo(fila.moduloConsultado)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{fila.usuarioCeomId.slice(0, 8)}…</td>
+                  <td className="px-4 py-3 text-right text-text-muted">{formatoFechaHora(fila.creadoEn)}</td>
                 </tr>
               ))}
             </tbody>

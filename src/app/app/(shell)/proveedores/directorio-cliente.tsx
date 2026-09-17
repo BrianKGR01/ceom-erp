@@ -27,7 +27,7 @@ export function DirectorioCliente({ proveedores }: { proveedores: ProveedorDirec
   );
 
   return (
-    <aside className="w-72 shrink-0 space-y-3">
+    <aside className="w-72 shrink-0 space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-heading text-sm font-extrabold text-navy">
           Directorio <span className="text-xs font-normal text-text-muted">({proveedores.length})</span>
@@ -56,7 +56,7 @@ export function DirectorioCliente({ proveedores }: { proveedores: ProveedorDirec
               <Link
                 key={proveedor.id}
                 href={`/app/proveedores/${proveedor.id}`}
-                className={`flex items-center gap-2.5 rounded-xl border p-3 text-sm transition-colors ${
+                className={`flex items-center gap-2.5 rounded-xl border p-4 text-sm transition-colors ${
                   activo
                     ? "border-primary bg-pastel-blue-bg"
                     : "border-gray-border bg-card hover:border-primary/50"

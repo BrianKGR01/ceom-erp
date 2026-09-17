@@ -70,7 +70,7 @@ export function InsumoForm({
           <CardTitle>Datos del insumo</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre del insumo</Label>
             <Input id="nombre" placeholder="Ej. Leche entera" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
@@ -78,7 +78,7 @@ export function InsumoForm({
             )}
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="unidadMedida">Unidad de medida</Label>
             <Select
               items={Object.fromEntries(UNIDADES.map((u) => [u.value, u.label]))}
@@ -101,7 +101,7 @@ export function InsumoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="vidaUtilDias">Vida útil en días (opcional)</Label>
               <Input
                 id="vidaUtilDias"
@@ -114,7 +114,7 @@ export function InsumoForm({
                 })}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="stockMinimo">Stock mínimo (opcional)</Label>
               <Input
                 id="stockMinimo"

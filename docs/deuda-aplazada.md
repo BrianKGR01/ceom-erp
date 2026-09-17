@@ -636,6 +636,109 @@ que solo le falta la última capa.
 
 ---
 
+## 8. Registrados después del barrido
+
+Deuda que apareció después del 2026-07-22 y se aplazó **a conciencia**, con el mismo formato. No
+viene de un `ANCLA.md`: viene de trabajo que la encontró.
+
+### DA-45 · El caché de stock de Productos pierde movimientos simultáneos 🟠
+**Encontrado el 2026-09-17**, al escribir `src/db/agotamiento-pool-escrituras.test.ts` (incidente de
+pool de Proveedores). No es parte de ese incidente ni de su fix.
+
+**Dónde:** `recalcularCantidadActualTx()` en `src/modules/productos/repository.ts` (~línea 223),
+usada por `crearMovimientoTx` y sus hermanas.
+
+**Qué hace mal.** Cada movimiento se inserta en el ledger (`movimientos_stock`, append-only, correcto)
+y después recalcula el caché `stock.cantidad_actual` sumando el ledger **con READ COMMITTED y sin
+lock**, y hace *select-then-insert* de la fila de `stock`. Con dos movimientos simultáneos sobre el
+**mismo producto y sucursal**:
+
+1. Cada transacción suma el ledger sin ver el movimiento no comiteado de la otra → la última en
+   escribir deja un `cantidad_actual` **menor** que la suma real. Reproducido con 12 recepciones
+   simultáneas: el caché quedó en 14 unidades cuando lo esperado era 30.
+2. Si la fila de `stock` todavía no existía, las dos intentan el `insert` → una falla con
+   `23505 stock_producto_sucursal_unique` y **su movimiento se revierte entero**.
+
+**Por qué no es pérdida de datos permanente.** El ledger de (1) está completo, y el próximo
+movimiento de ese producto recalcula desde cero y corrige el caché. Lo de (2) sí pierde el
+movimiento, pero el llamador recibe el error (en Compras, `entradaStock.ok = false`).
+
+**Por qué importa igual.** Mientras el caché está corrido, `descontarStockVenta` y las pantallas
+leen ese número: dos ventas del mismo producto en el mismo segundo pueden dejar stock de más a la
+vista y habilitar una sobreventa. Con dos negocios chicos es improbable; con un POS de varias cajas
+no.
+
+**Arreglo probable (no hecho):** tomar un lock por `(producto_id, sucursal_id)` antes de sumar
+(`pg_advisory_xact_lock` o `SELECT … FOR UPDATE` sobre la fila de `stock` creada con
+`INSERT … ON CONFLICT DO NOTHING`). Revisar si Nicho 1 (`stock_insumo`) tiene el mismo patrón.
+
+**Justificación del aplazamiento:** vigente — el hotfix de pool va a producción con usuarios
+adentro y no debe arrastrar un cambio de concurrencia en el ledger de otro módulo.
+
+---
+
+### DA-46 · Recetas carga una ficha por receta — la misma trampa del incidente, latente 🟡
+**Encontrado el 2026-09-17**, revisando el N+1 que originó el incidente de pool de Proveedores.
+
+**Dónde:** `src/app/app/(shell)/produccion/recetas/page.tsx` hace
+`Promise.all(recetas.map((r) => fichaReceta(usuario, r.id)))`; cada `fichaReceta` son 3-4 consultas.
+El comentario de la página cita *"mismo criterio que fichaProveedor() por fila en el Directorio de
+Proveedores"* — el patrón que se colgó.
+
+**Por qué hoy no se cuelga:** Nicho 1 no está migrado a `comoUsuario()`: sus consultas no abren
+transacción, así que no retienen conexiones mientras esperan otras. El tenant con más recetas tiene 7.
+
+**Por qué va a colgarse:** el día que Nicho 1 migre (R-8.5), si `fichaReceta` queda con
+`tienePermiso()` adentro del `tx` —la forma natural de migrarla—, 10 recetas reproducen el incidente
+exacto. El guard `src/db/sin-db-crudo-en-transaccion.test.ts` detecta la mitad de `tienePermiso`
+adentro; la otra mitad es este `Promise.all` y hay que cambiarlo por un listado con la composición
+agregada, como se hizo con Proveedores y Deudas.
+
+**Revisado y descartado en la misma pasada:** `consentimiento/solicitudes/page.tsx` busca una
+institución por id distinto (hoy como máximo 1 por tenant), sin transacción. No vale el cambio.
+
+---
+
+
+### DA-47 · Si la conexión de una transacción se corta a mitad del callback, lo que sigue se escribe fuera de la transacción 🔴
+**Encontrado y reproducido el 2026-09-17**, evaluando topes de tiempo para el incidente de pool (ver
+"Topes evaluados" en `src/modules/proveedores/ANCLA.md`). **No es un aplazamiento cómodo: está acá
+porque arreglarlo toca `src/db/contexto.ts`, el mecanismo del backstop de RLS, y eso no entra en un
+hotfix sin decisión del dueño.**
+
+**Qué pasa.** `comoUsuario()` corre sobre `sql.begin()` de postgres-js. Si la conexión de esa
+transacción se cierra mientras el callback todavía está corriendo —por un timeout del servidor, un
+corte de red, un reinicio de Supavisor—:
+1. Postgres revierte la transacción.
+2. `sql.begin()` **a veces nunca resuelve ni rechaza**: la request queda colgada.
+3. El callback sigue vivo, y la próxima consulta que haga sobre su `tx` se manda directo al objeto
+   de conexión (`postgres@3.4.9/src/index.js`, `begin` → `scope` → `handler`, sin chequear si la
+   transacción terminó). El pool ya lo reconectó: la consulta corre **fuera de la transacción, con
+   el rol `postgres` (sin RLS) y en autocommit.**
+
+**Reproducción** (contra `postgres:16` efímero, descartable, no commiteada): 12 `comoUsuario()` con
+`set local idle_in_transaction_session_timeout = 3000` + una consulta por `db` crudo (para forzar la
+espera) + un `tx.insert` al final. Dos corridas: 5 y 7 transacciones **revertidas por el servidor
+dejaron su fila escrita**, y sus promesas nunca terminaron.
+
+**Consecuencia posible:** mitades de operaciones que se creen atómicas. Ej.: en
+`registrarCompraDeAjuste`, el ajuste revertido y el `recalcularEstadoPagoTx` posterior aplicado
+suelto. Los chequeos de tenant ya corrieron antes, así que no es una fuga cross-tenant directa; es
+integridad.
+
+**Por qué hoy es poco probable:** hace falta un corte de conexión justo mientras un callback de
+Proveedores/Patrimonio está entre dos consultas (milisegundos, desde que se sacaron las esperas
+externas en este mismo cambio). Por eso **no se agregó** el tope de transacción ociosa: fabricaría
+esos cortes.
+
+**Arreglos posibles (a decidir):** (a) en `contexto.ts`, envolver el `sql` de la transacción para
+rechazar toda consulta cuando su conexión se cerró — requiere acceso a internos de postgres-js, igual
+que `clienteCrudoDeLaTransaccion`; (b) reportarlo upstream a postgres-js; (c) cambiar de driver para
+las transacciones con contexto. Cualquiera va con el mismo test de reproducción, en rojo primero.
+
+---
+
+
 *Barrido generado el 2026-07-22 sobre los 15 `ANCLA.md` de `src/modules/**`. Cada ítem se
 verificó contra el código real — no solo contra lo que el ANCLA dice de sí mismo. No se
 modificó ningún archivo fuera de este documento.*

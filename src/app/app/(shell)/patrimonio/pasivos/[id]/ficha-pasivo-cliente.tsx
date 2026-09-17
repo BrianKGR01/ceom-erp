@@ -125,8 +125,8 @@ function RegistrarPagoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="monto">Monto a pagar</Label>
             <Input
               id="monto"
@@ -138,12 +138,12 @@ function RegistrarPagoDialog({
               onChange={(e) => setMonto(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaPago">Fecha de pago</Label>
             <Input id="fechaPago" type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} />
           </div>
 
-          <div className="space-y-1.5 rounded-xl bg-gray-bg p-3 text-sm">
+          <div className="space-y-2 rounded-xl bg-gray-bg p-4 text-sm">
             <p className="text-[11px] tracking-wide text-text-muted uppercase">Resumen financiero</p>
             <div className="flex items-center justify-between">
               <span className="text-text-muted">Saldo actual</span>
@@ -236,7 +236,7 @@ export function FichaPasivoCliente({
             <p className="font-medium text-warning-text">
               El pago se registró, pero no se pudo crear el gasto de la cuota.
             </p>
-            <p className="mt-0.5 text-text-muted">
+            <p className="mt-1 text-text-muted">
               {avisoGasto} Esta cuota todavía no resta en tu resultado del período — cargala como
               gasto a mano desde Egresos y Gastos.
             </p>
@@ -244,7 +244,7 @@ export function FichaPasivoCliente({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">

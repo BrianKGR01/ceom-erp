@@ -104,6 +104,34 @@ export async function listarPasivosPorTenant(
   return tx.select().from(pasivos).where(and(...condiciones));
 }
 
+/**
+ * Los pasivos del tenant con su saldo pendiente, en UNA consulta — misma
+ * fórmula que `obtenerSaldoPendiente` (monto_total − Σ pagos). Reemplaza a
+ * llamar `fichaPasivo()` por fila desde la pantalla de Deudas (incidente de
+ * pool del 2026-09-17, ver ANCLA).
+ */
+export async function listarPasivosConSaldoPorTenant(
+  tx: Ejecutor,
+  tenantId: string,
+  { soloActivos }: { soloActivos?: boolean } = {}
+) {
+  const condiciones = [eq(pasivos.tenantId, tenantId), isNull(pasivos.eliminadoEn)];
+  if (soloActivos) {
+    condiciones.push(eq(pasivos.estado, "activo"));
+  }
+  const filas = await tx
+    .select({ pasivo: pasivos, totalPagado: sql<string>`coalesce(sum(${pagosPasivo.monto}), 0)` })
+    .from(pasivos)
+    .leftJoin(pagosPasivo, eq(pagosPasivo.pasivoId, pasivos.id))
+    .where(and(...condiciones))
+    .groupBy(pasivos.id)
+    .orderBy(asc(pasivos.creadoEn));
+  return filas.map((f) => ({
+    ...f.pasivo,
+    saldoPendiente: Number(f.pasivo.montoTotal) - Number(f.totalPagado),
+  }));
+}
+
 export async function obtenerPasivoDeActivo(tx: Ejecutor, activoId: string) {
   const filas = await tx
     .select()

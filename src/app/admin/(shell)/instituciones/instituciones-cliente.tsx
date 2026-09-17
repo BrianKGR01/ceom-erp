@@ -118,7 +118,7 @@ export function InstitucionesCliente({
 
   return (
     <div className="mx-auto flex max-w-6xl gap-4 py-6">
-      <div className="w-72 shrink-0 space-y-3">
+      <div className="w-72 shrink-0 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h1 className="font-heading text-lg font-extrabold text-navy">Instituciones</h1>
           <Button size="sm" onClick={() => setDialogoNueva(true)}>
@@ -147,7 +147,7 @@ export function InstitucionesCliente({
                   type="button"
                   onClick={() => setSeleccionadaId(institucion.id)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
+                    "flex w-full items-center gap-3 rounded-xl border p-4 text-left transition-colors",
                     seleccionadaId === institucion.id
                       ? "border-primary bg-card shadow-card"
                       : "border-transparent hover:bg-card/60"
@@ -237,7 +237,7 @@ function InstitucionDetalle({
 
   return (
     <div className="rounded-2xl bg-card shadow-card">
-      <div className="flex items-center justify-between gap-3 p-5">
+      <div className="flex items-center justify-between gap-3 p-6">
         <div className="flex items-center gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-pastel-blue-bg text-primary">
             <Icon className="size-6" />
@@ -268,9 +268,9 @@ function InstitucionDetalle({
         )}
       </div>
 
-      {error && <p className="px-5 pb-2 text-xs text-error-text">{error}</p>}
+      {error && <p className="px-4 pb-2 text-xs text-error-text">{error}</p>}
 
-      <div className="flex border-t border-b border-gray-border px-5">
+      <div className="flex border-t border-b border-gray-border px-4">
         <button
           type="button"
           onClick={() => setTab("cartera")}
@@ -293,7 +293,7 @@ function InstitucionDetalle({
         </button>
       </div>
 
-      <div className="p-5">
+      <div className="p-6">
         {tab === "cartera" ? (
           <CarteraTab institucion={institucion} tenants={tenants} planes={planes} />
         ) : (
@@ -354,7 +354,7 @@ function CarteraTab({
   const tenantsDisponibles = tenants.filter((t) => !tenantsEnCartera.has(t.id));
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="font-heading text-sm font-extrabold text-navy">Negocios asignados</p>
         <div className="flex gap-2">
@@ -492,12 +492,12 @@ function DatosContactoTab({
   }
 
   return (
-    <div className="max-w-sm space-y-3">
-      <div className="space-y-1.5">
+    <div className="max-w-sm space-y-4">
+      <div className="space-y-2">
         <Label htmlFor="nombre-contacto">Nombre</Label>
         <Input id="nombre-contacto" value={nombre} onChange={(e) => setNombre(e.target.value)} />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="tipo-contacto">Tipo</Label>
         <Select
           items={Object.fromEntries((Object.keys(LABEL_TIPO) as TipoInstitucion[]).map((t) => [t, LABEL_TIPO[t]]))}
@@ -516,7 +516,7 @@ function DatosContactoTab({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="email-contacto">Email</Label>
         <Input
           id="email-contacto"
@@ -526,7 +526,7 @@ function DatosContactoTab({
           placeholder="Habilita el magic link de reingreso a /portal"
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="contacto-contacto">Otro contacto (opcional)</Label>
         <Input id="contacto-contacto" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Teléfono, por ejemplo" />
       </div>
@@ -594,12 +594,12 @@ function InstitucionFormDialog({
           <DialogTitle>Nueva institución</DialogTitle>
           <DialogDescription>Alta manual — la institución también puede crearse sola al canjear un código.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre-nueva">Nombre</Label>
             <Input id="nombre-nueva" value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="tipo-nueva">Tipo</Label>
             <Select
               items={Object.fromEntries((Object.keys(LABEL_TIPO) as TipoInstitucion[]).map((t) => [t, LABEL_TIPO[t]]))}
@@ -618,7 +618,7 @@ function InstitucionFormDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="email-nueva">Email (opcional)</Label>
             <Input
               id="email-nueva"
@@ -628,7 +628,7 @@ function InstitucionFormDialog({
               placeholder="Habilita el magic link de reingreso a /portal"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="contacto-nueva">Otro contacto (opcional)</Label>
             <Input id="contacto-nueva" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Teléfono, por ejemplo" />
           </div>
@@ -696,8 +696,8 @@ function VincularTenantDialog({
           <DialogTitle>Vincular negocio a la cartera</DialogTitle>
           <DialogDescription>Asigná un negocio existente a esta institución.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="tenant-vincular">Negocio</Label>
             {tenantsDisponibles.length === 0 ? (
               <p className="text-xs text-text-muted">Todos los negocios ya están en esta cartera.</p>
@@ -720,7 +720,7 @@ function VincularTenantDialog({
               </Select>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fecha-inicio-vincular">Fecha de inicio</Label>
             <Input
               id="fecha-inicio-vincular"
@@ -729,7 +729,7 @@ function VincularTenantDialog({
               onChange={(e) => setFechaInicio(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="cohorte-vincular">Cohorte (opcional)</Label>
             <Input id="cohorte-vincular" value={cohorte} onChange={(e) => setCohorte(e.target.value)} placeholder="Ej. 2026-A" />
           </div>
@@ -801,8 +801,8 @@ function NuevaSolicitudDialog({
             CEOM registra el pedido en nombre de la institución — el dueño del negocio decide qué aprueba.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="tenant-solicitud">Negocio</Label>
             <Select
               items={Object.fromEntries(tenantsEnCartera.map((t) => [t.id, t.nombreNegocio]))}

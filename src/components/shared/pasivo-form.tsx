@@ -97,8 +97,8 @@ export function PasivoForm({
   return (
     <form onSubmit={form.handleSubmit(handleSubmit)} className="mx-auto max-w-2xl space-y-4">
       {mode === "refinanciar" && (
-        <div className="flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-3 text-sm text-primary">
-          <Info className="mt-0.5 size-4 shrink-0" />
+        <div className="flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-4 text-sm text-primary">
+          <Info className="mt-1 size-4 shrink-0" />
           <p>
             Refinanciación en curso: al guardar, el pasivo anterior se marca como{" "}
             <span className="font-medium">refinanciado</span> — nunca se edita el original.
@@ -107,14 +107,14 @@ export function PasivoForm({
       )}
 
       <div className="rounded-2xl bg-card p-6 shadow-card">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <Label>Activo relacionado (opcional)</Label>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <button
               type="button"
               onClick={() => form.setValue("activoId", "")}
               className={cn(
-                "relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-colors",
+                "relative flex flex-col items-center gap-1.5 rounded-xl border p-4 text-center transition-colors",
                 !activoIdElegido
                   ? "border-primary bg-pastel-blue-bg"
                   : "border-gray-border hover:border-primary/50"
@@ -134,7 +134,7 @@ export function PasivoForm({
                   type="button"
                   onClick={() => form.setValue("activoId", activo.id)}
                   className={cn(
-                    "relative flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-colors",
+                    "relative flex flex-col items-center gap-1.5 rounded-xl border p-4 text-center transition-colors",
                     elegido ? "border-primary bg-pastel-blue-bg" : "border-gray-border hover:border-primary/50"
                   )}
                 >
@@ -154,8 +154,8 @@ export function PasivoForm({
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-4 border-t border-gray-border pt-5">
-          <div className="space-y-1.5">
+        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-gray-border pt-5">
+          <div className="space-y-2">
             <Label htmlFor="montoTotal">Monto total</Label>
             <Input
               id="montoTotal"
@@ -169,7 +169,7 @@ export function PasivoForm({
               <p className="text-xs text-error-text">{form.formState.errors.montoTotal.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="fechaInicio">Fecha de inicio</Label>
             <Input id="fechaInicio" type="date" {...form.register("fechaInicio")} />
             {form.formState.errors.fechaInicio && (
@@ -179,7 +179,7 @@ export function PasivoForm({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="cuotaPeriodica">Cuota periódica</Label>
             <Input
               id="cuotaPeriodica"
@@ -193,7 +193,7 @@ export function PasivoForm({
               <p className="text-xs text-error-text">{form.formState.errors.cuotaPeriodica.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="frecuenciaCuota">Frecuencia</Label>
             <Select
               items={Object.fromEntries(FRECUENCIAS.map((f) => [f.value, f.label]))}
@@ -216,7 +216,7 @@ export function PasivoForm({
           </div>
         </div>
 
-        <div className="mt-4 w-1/2 pr-2 space-y-1.5">
+        <div className="mt-4 w-1/2 pr-2 space-y-2">
           <Label htmlFor="plazoCuotas">Plazo (cuotas)</Label>
           <Input
             id="plazoCuotas"

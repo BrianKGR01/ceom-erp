@@ -77,8 +77,8 @@ function MetodoFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" placeholder="Ej. Transferencia bancaria" {...form.register("nombre")} />
             {form.formState.errors.nombre && (

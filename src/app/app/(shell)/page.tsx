@@ -42,7 +42,7 @@ export default async function AppHomePage() {
   const datosIniciales = datosInicialesRes.data;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-5xl space-y-6 py-6">
         <InicioContenido
           tenantId={usuario.tenantId}

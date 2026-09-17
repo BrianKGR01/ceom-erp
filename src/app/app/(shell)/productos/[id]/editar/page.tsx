@@ -26,7 +26,7 @@ export default async function EditarProductoPage({
   const categorias = categoriasResultado.ok ? categoriasResultado.data : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-4xl space-y-4 py-6">
         <Breadcrumb
           items={[

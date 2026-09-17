@@ -102,15 +102,15 @@ function NuevaSucursalDialog({
           <DialogDescription>El stock, las ventas y los reportes se pueden ver por sucursal.</DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre-sucursal">Nombre</Label>
             <Input id="nombre-sucursal" placeholder="Ej. Sucursal Centro" autoFocus {...form.register("nombre")} />
             {form.formState.errors.nombre && (
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="direccion-sucursal">Dirección (opcional)</Label>
             <Input id="direccion-sucursal" placeholder="Ej. Av. Siempre Viva 123" {...form.register("direccion")} />
           </div>
@@ -167,15 +167,15 @@ function EditarSucursalDialog({
           <DialogTitle>Editar sucursal</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre-sucursal-editar">Nombre</Label>
             <Input id="nombre-sucursal-editar" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="direccion-sucursal-editar">Dirección (opcional)</Label>
             <Input id="direccion-sucursal-editar" {...form.register("direccion")} />
           </div>
@@ -208,7 +208,7 @@ export function SucursalesCliente({
   const limiteAlcanzado = maxSucursales !== null && operables >= maxSucursales;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio />
       <PageHeader
         title="Sucursales"
@@ -230,9 +230,9 @@ export function SucursalesCliente({
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {sucursales.map((s) => (
-          <div key={s.id} className="rounded-2xl bg-card p-5 shadow-card">
+          <div key={s.id} className="rounded-2xl bg-card p-6 shadow-card">
             <div className="flex items-start justify-between">
               <span className="flex size-11 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <Building2 className="size-5" />
@@ -247,7 +247,7 @@ export function SucursalesCliente({
                 )}
               </div>
             </div>
-            <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{s.nombre}</h2>
+            <h2 className="mt-4 font-heading text-base font-extrabold text-navy">{s.nombre}</h2>
             <p className="text-xs text-text-muted">{s.direccion || "Sin dirección cargada"}</p>
             {s.congeladaEn && s.congeladaMotivo && (
               <p className="mt-2 text-xs text-warning-text">{s.congeladaMotivo}</p>

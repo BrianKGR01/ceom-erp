@@ -91,8 +91,8 @@ function NuevaRecetaDialog({
         <DialogHeader>
           <DialogTitle>Nueva receta</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombreReceta">Nombre de la receta</Label>
             <Input
               id="nombreReceta"
@@ -102,7 +102,7 @@ function NuevaRecetaDialog({
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="rendimientoPorLote">Rendimiento por lote</Label>
               <Input
                 id="rendimientoPorLote"
@@ -113,7 +113,7 @@ function NuevaRecetaDialog({
                 onChange={(e) => setRendimientoPorLote(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="unidadRendimiento">Unidad</Label>
               <Input
                 id="unidadRendimiento"
@@ -222,7 +222,7 @@ function RecetaDetalle({
   }
 
   return (
-    <div className="rounded-2xl bg-card p-5 shadow-card">
+    <div className="rounded-2xl bg-card p-6 shadow-card">
       <div className="mb-4 flex items-center justify-between border-b border-gray-border pb-4">
         <h2 className="font-heading text-lg font-extrabold text-navy">{receta.nombre}</h2>
         {confirmandoBaja ? (
@@ -242,12 +242,12 @@ function RecetaDetalle({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="nombreEdit">Nombre de la Receta</Label>
           <Input id="nombreEdit" value={nombre} onChange={(e) => setNombre(e.target.value)} />
         </div>
         <div className="grid grid-cols-2 gap-2 sm:w-56">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="rendimientoEdit">Rendimiento por lote</Label>
             <Input
               id="rendimientoEdit"
@@ -258,14 +258,14 @@ function RecetaDetalle({
               onChange={(e) => setRendimientoPorLote(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="unidadEdit">Unidad</Label>
             <Input id="unidadEdit" value={unidadRendimiento} onChange={(e) => setUnidadRendimiento(e.target.value)} />
           </div>
         </div>
       </div>
 
-      <div className="mt-5 space-y-3 border-t border-gray-border pt-4">
+      <div className="mt-6 space-y-4 border-t border-gray-border pt-4">
         <h3 className="font-heading text-sm font-extrabold text-navy">Composición de la Receta</h3>
 
         {composicion.length === 0 && (
@@ -320,13 +320,13 @@ function RecetaDetalle({
           Agregar insumo
         </Button>
 
-        <div className="flex items-center justify-between rounded-xl bg-gray-bg p-3 text-sm">
+        <div className="flex items-center justify-between rounded-xl bg-gray-bg p-4 text-sm">
           <span className="text-text-muted">Total de insumos:</span>
           <span className="font-semibold text-navy">{composicion.length}</span>
         </div>
       </div>
 
-      {error && <p className="mt-3 text-xs text-error-text">{error}</p>}
+      {error && <p className="mt-4 text-xs text-error-text">{error}</p>}
 
       <div className="mt-4 flex justify-end gap-2 border-t border-gray-border pt-4">
         <Button onClick={guardar} disabled={guardando}>
@@ -375,7 +375,7 @@ export function RecetasCliente({
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
               <Input
@@ -391,7 +391,7 @@ export function RecetasCliente({
                   key={receta.id}
                   type="button"
                   onClick={() => setRecetaSeleccionadaId(receta.id)}
-                  className={`flex w-full items-center justify-between gap-2 rounded-2xl border p-3 text-left transition-colors ${
+                  className={`flex w-full items-center justify-between gap-2 rounded-2xl border p-4 text-left transition-colors ${
                     receta.id === recetaSeleccionadaId
                       ? "border-primary bg-pastel-blue-bg"
                       : "border-transparent bg-card shadow-card hover:border-primary/40"

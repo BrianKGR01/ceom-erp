@@ -22,7 +22,7 @@ export default async function ManualLayout({ children }: { children: React.React
   const guias = await listarGuias();
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       {/* max-w-5xl y no el 6xl que la tabla de docs/design-system.md 7.2 da
           para maestro-detalle: acá el panel derecho es texto corrido, y con
           6xl la línea de lectura se va a ~88 caracteres. Con 5xl queda en

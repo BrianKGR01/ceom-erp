@@ -17,8 +17,8 @@ export default async function CapacidadPage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
-      <div className="mx-auto max-w-3xl space-y-4 py-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
+      <div className="mx-auto max-w-5xl space-y-4 py-6">
         <Breadcrumb items={[{ label: "Producción", href: "/app/produccion" }, { label: "Capacidad de producción" }]} />
         <PageHeader
           title="Capacidad de producción"

@@ -253,7 +253,7 @@ export function SimuladorCliente({
         {productos.length === 0 ? (
           <p className="text-sm text-text-muted">No hay productos cargados todavía.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {productos.map((p) => (
               <button
                 key={p.id}
@@ -279,7 +279,7 @@ export function SimuladorCliente({
 
       {productoId && (
         <div className={cn("space-y-4 transition-opacity", cargandoPreview && "opacity-60")}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <KpiCard
               icon={RefreshCcw}
               label={`Rotación (${PERIODOS_PRESET.find((p) => p.id === periodoId)?.label.toLowerCase()})`}
@@ -321,10 +321,10 @@ export function SimuladorCliente({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label htmlFor="frecuencia">Frecuencia</Label>
                     <Select
                       items={Object.fromEntries(FRECUENCIAS.map((f) => [f.value, f.label]))}
@@ -343,7 +343,7 @@ export function SimuladorCliente({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label htmlFor="periodo">Período</Label>
                     <Select
                       items={Object.fromEntries(PERIODOS_PRESET.map((p) => [p.id, p.label]))}
@@ -366,7 +366,7 @@ export function SimuladorCliente({
 
                 {tab === "simular_precio" ? (
                   <>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <Label htmlFor="costoProduccion">Costo de Producción</Label>
                         {!costoEsManual && <Badge variant="info">auto</Badge>}
@@ -406,7 +406,7 @@ export function SimuladorCliente({
                       </p>
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <Label htmlFor="margenDeseado">Margen Deseado (%)</Label>
                       <div className="relative">
                         <Input
@@ -453,13 +453,13 @@ export function SimuladorCliente({
               </div>
 
               {tab === "simular_precio" ? (
-                <div className="rounded-2xl bg-brand-dark p-5 text-white">
+                <div className="rounded-2xl bg-brand-dark p-6 text-white">
                   <p className="text-sm font-semibold">Proyección de Precio</p>
-                  <p className="mt-3 text-[11px] tracking-wide text-white/60 uppercase">Precio Sugerido</p>
+                  <p className="mt-4 text-[11px] tracking-wide text-white/60 uppercase">Precio Sugerido</p>
                   <p className="text-3xl font-bold">
                     {precioSugerido !== null ? formatoMoneda(precioSugerido) : "—"}
                   </p>
-                  <div className="mt-4 rounded-xl bg-white/10 p-3">
+                  <div className="mt-4 rounded-xl bg-white/10 p-4">
                     <p className="text-[11px] tracking-wide text-white/60 uppercase">Impacto Proyectado</p>
                     <p className="mt-1 flex items-center gap-1 text-lg font-semibold">
                       {impactoProyectadoBs !== null ? (
@@ -482,16 +482,16 @@ export function SimuladorCliente({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-2xl bg-brand-dark p-5 text-white">
+                <div className="rounded-2xl bg-brand-dark p-6 text-white">
                   <p className="text-sm font-semibold">Punto de Equilibrio</p>
                   {advertenciaPuntoEquilibrio ? (
-                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-warning-bg p-3 text-xs text-warning-text">
-                      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    <div className="mt-4 flex items-start gap-2 rounded-lg bg-warning-bg p-4 text-xs text-warning-text">
+                      <AlertTriangle className="mt-1 size-4 shrink-0" />
                       <p>{advertenciaPuntoEquilibrio}</p>
                     </div>
                   ) : (
                     <>
-                      <p className="mt-3 text-[11px] tracking-wide text-white/60 uppercase">
+                      <p className="mt-4 text-[11px] tracking-wide text-white/60 uppercase">
                         Unidades a vender en el período
                       </p>
                       <p className="text-3xl font-bold">
@@ -503,7 +503,7 @@ export function SimuladorCliente({
               )}
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-gray-border p-5">
+            <div className="flex flex-col gap-2 border-t border-gray-border p-6">
               {error && <p className="text-xs text-error-text">{error}</p>}
               {mensajeExito && <p className="text-xs text-success-text">{mensajeExito}</p>}
               <Button

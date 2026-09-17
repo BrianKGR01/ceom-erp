@@ -35,7 +35,9 @@
   `montoTotalEfectivo`/`estadoPago`/`saldoPendiente`, no solo el `ajusteId`),
   **`listarComprasConAjustes`** (H-31: el listado con los ajustes de cada
   compra y su monto efectivo, en 2 consultas para todo el tenant y no una por
-  fila), `consultarPagosCompraEnPeriodo` y
+  fila), **`listarProveedoresConCantidadCompras`** (2026-09-17: el directorio
+  con el conteo de compras por fila en UNA consulta, reemplaza llamar
+  `fichaProveedor` por proveedor — ver el incidente), `consultarPagosCompraEnPeriodo` y
   **`consultarCostoExtraAjustesCompraEnPeriodo`** (agregados de solo lectura
   por período, para que Financiero consuma Proveedores sin importar
   `compras`/`pagos_compra`/`compras_ajuste` directo).
@@ -225,6 +227,123 @@
   crear una Compra en estado `pedido`, la transición a `recibido` (que
   dispara entrada de stock) queda bloqueada, la compra se queda en
   `pedido` en vez de quedar a medio camino.
+- **⛔ Nunca llamar, desde adentro del callback de `comoUsuario()`, a una
+  función que toque la base por fuera del `tx`** — `tienePermiso()`,
+  `listarSucursalesPorTenant()`, cualquier `actions.ts` de un módulo todavía
+  no migrado. No es un problema de RLS ni de atomicidad: es de **conexiones**.
+  Ver "Incidente del 2026-09-17" abajo. Los permisos por-id se resuelven con
+  `preautorizarSobreRecurso()` **antes** de abrir la transacción, y adentro
+  solo se evalúa la función pura que devuelve.
+  **El "arreglo" que lo reintroduce:** mover el chequeo de permiso adentro del
+  `tx` "para que quede junto a la lectura del recurso", o reemplazar
+  `puedeVer(proveedor.tenantId)` por `await tienePermiso(solicitante,
+  proveedor.tenantId, …)` porque "es más directo". Se lee más prolijo y vuelve
+  a colgar el directorio con 10 proveedores. `src/db/agotamiento-pool.test.ts`
+  lo detecta.
+
+## Última actualización: 2026-09-17 — Incidente en producción: el directorio se colgaba 300 s (pool agotado)
+
+**Síntoma.** CAFIATTO (10 proveedores) no podía abrir `/app/proveedores`: la navegación del cliente
+se quedaba en la pantalla anterior sin error (no hay `loading.tsx`), una carga directa terminaba en
+`504 FUNCTION_INVOCATION_TIMEOUT`, y en el mismo intervalo se colgaban `/app`, `/app/productos`,
+`/app/patrimonio` y `/app/proveedores/compras`. Logs de Vercel del 17/09 09:44–09:47 (hora Bolivia):
+`Task timed out after 300 seconds`.
+
+**Mecanismo, verificado y no solo razonado** (reproducción en `src/db/agotamiento-pool.test.ts`,
+roja antes del fix):
+
+1. `src/db/client.ts` crea el pool de postgres-js sin `max`: **10 conexiones** por instancia.
+2. `comoUsuario()` (`src/db/contexto.ts`) abre una transacción → **reserva una conexión** hasta el
+   commit. postgres-js no la presta a nadie más mientras tanto.
+3. `fichaProveedor()` llamaba a `tienePermiso()` **dentro** del callback. `tienePermiso()` lee el
+   tenant con `repo.obtenerTenantPorId()` de Identidad, que usa `db` crudo → pide **otra** conexión
+   del mismo pool. (El plan de RLS ya lo había medido en §9.3: *"`pid` distinto"* — se evaluó rol,
+   contexto y atomicidad, nunca agotamiento.)
+4. El directorio (`(directorio)/layout.tsx`) hacía `Promise.all(proveedores.map(fichaProveedor))`:
+   10 transacciones a la vez. Las 10 conexiones quedaban reservadas y las 10 esperaban una undécima.
+   **postgres-js encola sin timeout**, así que no hay error: hay espera infinita, hasta que Vercel
+   mata la función a los 300 s. Contra `postgres:16` efímero: `pg_stat_activity` muestra exactamente
+   10 sesiones `idle in transaction` detenidas tras `obtenerProveedorPorId`.
+5. **Por qué arrastra otras rutas.** Con Fluid Compute una instancia atiende varias requests con el
+   mismo pool: una vez trabado, cualquier render de esa instancia que toque la base se cuelga (el
+   layout del shell ya llama a `obtenerTenantPorId()`). Y hay una segunda capa, entre instancias:
+   en modo transacción Supavisor fija un backend por transacción abierta, así que esas 10
+   transacciones colgadas retienen 10 backends del pooler compartido. Los logs de Supavisor del
+   mismo intervalo muestran `ECHECKOUTTIMEOUT: unable to check out connection from the pool after
+   60000ms` (13:55:22Z) en otras conexiones — de ahí el "This page couldn't load" (un error, no un
+   timeout) que vio otra usuaria.
+6. **Por qué pega en Proveedores y no en Patrimonio:** misma trampa en `fichaPasivo` (Deudas), pero
+   ningún tenant tiene hoy más de 2 pasivos. CAFIATTO cargó su proveedor número 10 el 2026-09-14.
+
+**Fix (hotfix):** `tienePermiso(solicitante, recurso.tenantId, …)` adentro de la transacción →
+`preautorizarSobreRecurso(solicitante, modulo, accion)` antes, y `puede(recurso.tenantId)` adentro
+(pura, sin base). Equivalencia con el chequeo anterior demostrada caso por caso en
+`identidad/preautorizar-recurso.test.ts` (validado rompiéndolo: los dos mutantes quedan en rojo). La
+única diferencia es el Gateway de Consentimiento, que queda **más** restringido en funciones por-id
+de este módulo — ningún camino del Gateway las alcanza. Aplicado a `actualizarProveedor`,
+`eliminarProveedor`, `fichaProveedor`, `recibirCompra`, `consultarSaldoCompra`,
+`registrarPagoCompra` y `registrarCompraDeAjuste`. **Sin cambio de firma en ninguna función.**
+
+**Segundo commit de la tanda — las otras llamadas cruzadas, fuera del `tx`.** Mismo bug, disparado
+por concurrencia de escrituras en vez de un `Promise.all` de lecturas (reproducido: 12
+`registrarCompra` recibidas, 12 `recibirCompra` y 12 `transferirActivo` simultáneos se colgaban aun
+con el hotfix, `src/db/agotamiento-pool-escrituras.test.ts`):
+- `registrarCompra`: la Compra se comitea y **después** corre `dispararEntradaStock`.
+- `recibirCompra`: tres pasos — transacción de lectura y autorización, `requireSucursalOperable`
+  sin transacción abierta, transacción de escritura que **vuelve a mirar el estado** antes de marcar
+  `recibido` (una recepción concurrente sigue rechazada), y la entrada de stock después del commit.
+- `registrarCompraDeAjuste`: el ajuste y el estado de pago se comitean, después corre
+  `revertirStockDeAjuste`, y `cantidad_devuelta` se persiste en una transacción propia.
+
+**Qué cambia en la semántica, y por qué es la correcta.** Antes, una **excepción** (no un
+`{ ok: false }`) de la entrada de stock hacía rollback de la Compra o del ajuste — mientras el movimiento
+de stock de la otra conexión podía haber quedado comiteado. Ahora la Compra/el ajuste quedan y la
+excepción se propaga. Es exactamente lo que este archivo ya documentaba ("si esa llamada falla, la
+Compra ya quedó `recibido` igual"; "su fallo NO anula el ajuste"), y cierra la ventana de §9.3 del
+plan de RLS: ya no puede quedar un movimiento de stock apuntando a una Compra revertida.
+
+**Tercer commit — el N+1.** El directorio hacía 1 + 4N consultas y N transacciones para mostrar un
+contador. Ahora `listarProveedoresConCantidadCompras()` (`repository.ts`, `LEFT JOIN compras` +
+`count` con el mismo filtro `eliminado_en is null` que `resumenComprasPorProveedor`) lo resuelve en
+una. Equivalencia con `fichaProveedor` probada con valores distinguibles —compra eliminada,
+proveedor sin compras— en `src/db/agregados-listado.test.ts`, validada con un mutante sin el filtro
+de eliminadas. El orden del listado pasa a ser explícito (`creado_en`); antes no tenía `ORDER BY`.
+**⛔ No volver a llamar una ficha por fila desde un listado**, aunque el hotfix ya impida el cuelgue:
+son N transacciones que ocupan N conexiones a la vez.
+
+Lo que la concurrencia destapó y **no** es de este módulo: el caché de stock de Productos pierde
+movimientos simultáneos del mismo producto (DA-45 en `docs/deuda-aplazada.md`).
+
+### Topes evaluados (cuarto commit): qué se puso, qué se descartó y por qué
+
+**Puestos (sin migración):**
+- `src/db/client.ts`: `max: 10` explícito (el default, visible), `idle_timeout: 20`,
+  `connect_timeout: 10`.
+- `src/app/app/(shell)/layout.tsx`: `export const maxDuration = 60` — toda página y Server Action del
+  shell muere a los 60 s y no a los 300 s. **No verificado todavía en Vercel** si al vencer libera
+  también la instancia con el pool trabado; lo seguro es que la usuaria ve el error 5 veces antes.
+
+**Descartado con evidencia: `idle_in_transaction_session_timeout` por transacción** (`SET LOCAL`
+dentro de `comoUsuario()`). Se implementó y se probó contra `postgres:16` provocando el
+autobloqueo a propósito:
+- ✅ Postgres mata las 10 sesiones a los 15 s, el pool se recupera (con el backoff de reconexión de
+  postgres-js, hasta ~20 s más) y las transacciones que esperaban turno terminan bien.
+- ❌ **Las 10 promesas de `comoUsuario()` a veces no se resuelven ni se rechazan nunca** (2 de 3
+  corridas; instrumentado paso a paso: el callback llega al final, `begin()` no termina). postgres-js
+  no siempre propaga ese cierre a `sql.begin()`. O sea: no convierte el cuelgue en un error visible.
+- ❌ **Y abre un riesgo de integridad.** Tras el cierre, una consulta que el callback haga sobre su
+  `tx` se manda directo al objeto de conexión (`postgres/src/index.js`, `begin` → `scope` →
+  `handler`), que el pool ya reconectó y prestó a otra request: correría **fuera de la transacción,
+  como `postgres`, sin RLS y en autocommit**. Una guarda que invalide el `tx` cuando `begin()`
+  termina no alcanza, porque en el caso malo `begin()` no termina.
+
+Este último mecanismo **no lo crea el tope**: cualquier corte de conexión a mitad de un callback
+(red, reinicio de Supavisor) lo dispara hoy igual. Queda registrado como DA-47. Lo que hace el tope
+es fabricar esos cortes a propósito, por eso no va.
+
+**Propuestos, no aplicados (requieren decisión):** índices en `tenant_id`/FKs (R-8.8, 81 FKs sin
+índice — hoy no causan nada: la tabla más grande tiene decenas de filas) y `@vercel/functions`
+`attachDatabasePool()` (librería nueva). Ver el PR.
 
 ## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarCompra`/`recibirCompra`.

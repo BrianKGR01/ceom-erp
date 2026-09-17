@@ -23,7 +23,7 @@ export function CambiarContrasenaForm() {
         </p>
 
         <form action={formAction} className="mt-4">
-          {estado && !estado.ok && <FormError className="mb-3">{estado.error}</FormError>}
+          {estado && !estado.ok && <FormError className="mb-4">{estado.error}</FormError>}
           {estado?.ok ? (
             <p
               role="status"

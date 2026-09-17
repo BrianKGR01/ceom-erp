@@ -52,7 +52,7 @@ export default async function NuevaProduccionPage() {
     .filter((p): p is NonNullable<typeof p> => p !== null);
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-6xl space-y-4 py-6">
         <Breadcrumb items={[{ label: "Producción", href: "/app/produccion" }, { label: "Registrar Lote" }]} />
         <PageHeader

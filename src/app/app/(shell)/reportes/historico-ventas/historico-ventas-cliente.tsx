@@ -171,7 +171,7 @@ export function HistoricoVentasCliente({
         </Select>
       </div>
 
-      <div className={cn("rounded-2xl bg-card p-5 shadow-card transition-opacity", cargando && "pointer-events-none opacity-60")}>
+      <div className={cn("rounded-2xl bg-card p-6 shadow-card transition-opacity", cargando && "pointer-events-none opacity-60")}>
         <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-text-muted">
           <span className="flex items-center gap-1.5">
             <span className="size-2.5 rounded-full" style={{ backgroundColor: COLOR_REGULAR }} />

@@ -158,7 +158,7 @@ export function NuevaProduccionCliente({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <div className="mb-5 flex items-center justify-center gap-8">
             {[
               { n: 1, label: "Producto" },
@@ -187,7 +187,7 @@ export function NuevaProduccionCliente({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {filtrados.map((p) => (
                 <button
                   key={p.id}
@@ -218,13 +218,13 @@ export function NuevaProduccionCliente({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
             <Calendar className="size-4 text-primary" />
             Equipo y Fecha
           </h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
               <Label htmlFor="activoId">Activo / Equipo de Producción</Label>
               <Select
                 items={Object.fromEntries(activos.map((a) => [a.id, a.nombre]))}
@@ -243,7 +243,7 @@ export function NuevaProduccionCliente({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="fechaProduccion">Fecha de Producción</Label>
               <Input
                 id="fechaProduccion"
@@ -252,7 +252,7 @@ export function NuevaProduccionCliente({
                 onChange={(e) => setFechaProduccion(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="cantidadLotes">Cantidad de lotes a iniciar</Label>
               <div className="flex items-center gap-2">
                 <Button
@@ -283,7 +283,7 @@ export function NuevaProduccionCliente({
               </div>
             </div>
             {sucursales.length > 1 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="sucursalId">Sucursal</Label>
                 <Select
                   items={Object.fromEntries(sucursales.map((s) => [s.id, s.nombre]))}
@@ -306,12 +306,12 @@ export function NuevaProduccionCliente({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <h3 className="mb-4 flex items-center gap-2 font-heading text-sm font-extrabold text-navy">
             <BarChart3 className="size-4 text-primary" />
             Resultados
           </h3>
-          <div className="max-w-xs space-y-1.5">
+          <div className="max-w-xs space-y-2">
             <Label htmlFor="cantidadRealObtenida">Cantidad real obtenida</Label>
             <Input
               id="cantidadRealObtenida"
@@ -326,8 +326,8 @@ export function NuevaProduccionCliente({
         </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="rounded-2xl bg-card p-5 shadow-card">
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-card p-6 shadow-card">
           <div className="mb-4 flex items-center gap-2">
             <span className="flex size-9 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
               <BarChart3 className="size-4" />
@@ -368,7 +368,7 @@ export function NuevaProduccionCliente({
             </div>
           </div>
 
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-4 space-y-2">
             <Label htmlFor="fechaVencimientoLote">Fecha de Vencimiento Estimada</Label>
             <Input
               id="fechaVencimientoLote"

@@ -27,6 +27,9 @@
   "Actualización 2026-07-17"), `transferirActivo`,
   `crearPasivo`, `refinanciarPasivo`, `registrarPagoPasivo`,
   `listarActivos`, `obtenerActivoPorId`, `listarPasivos`,
+  **`listarPasivosConSaldo`** (2026-09-17: el listado con `saldoPendiente` por
+  fila en UNA consulta, misma fórmula que `obtenerSaldoPendiente`; reemplaza
+  llamar `fichaPasivo` por fila desde Deudas),
   `obtenerPasivoPorId`, `fichaPasivo` (agregados para la UI de Patrimonio —
   ver "Última actualización").
 
@@ -112,8 +115,12 @@
   siguiendo la misma regla de nunca editar una migración ya aplicada.
 - **Patrón de autorización por recurso:** las acciones que reciben
   `activoId`/`pasivoId` primero buscan la fila (para conocer su
-  `tenant_id` real) y recién ahí llaman a `tienePermiso()` — nunca confían
-  en un `tenantId` que mande el llamador.
+  `tenant_id` real) y recién ahí evalúan el permiso — nunca confían
+  en un `tenantId` que mande el llamador. **Desde el 2026-09-17** el permiso
+  se resuelve con `preautorizarSobreRecurso()` antes de abrir la transacción
+  y adentro se evalúa `puede(fila.tenantId)`, que no toca la base. No volver
+  a `await tienePermiso(…, fila.tenantId, …)` adentro del `tx`: es el bug del
+  incidente de pool.
 - **Transferencia entre sucursales no lleva ledger** (a diferencia de
   Stock, Módulo 2) — un activo es un bien físico único, no fungible;
   alcanza con `sucursal_id` + auditoría `modificado_por`/`modificado_en`
@@ -132,6 +139,38 @@
   este módulo quedó afuera del freeze en la implementación original de H-02
   y se cerró en una segunda tanda junto con Gastos, Proveedores y Operativo
   Nicho 1.
+- **⛔ Nunca llamar, desde adentro del callback de `comoUsuario()`, a una
+  función que toque la base por fuera del `tx`** (`tienePermiso()`,
+  `listarSucursalesPorTenant()`, un `actions.ts` no migrado). Cada una pide
+  otra conexión del pool mientras la transacción retiene la suya; con tantas
+  transacciones simultáneas como conexiones, se cuelga todo sin error. Los
+  permisos por-id van con `preautorizarSobreRecurso()` antes del `tx`. El
+  mecanismo completo está en `proveedores/ANCLA.md` (incidente del
+  2026-09-17), porque ahí se manifestó; acá la trampa era idéntica en
+  `fichaPasivo` y no explotó solo porque ningún negocio tiene más de 2 deudas.
+  `registrarPagoPasivo` ya sacaba el gasto de la cuota fuera del `tx` por este
+  motivo desde H-27 — el comentario lo decía ("arriesgando quedarse sin
+  conexiones del pool") y no se había aplicado al resto del módulo.
+
+## Última actualización: 2026-09-17 — Incidente de pool: `tienePermiso()` fuera de las transacciones
+Mismo fix que Proveedores (ver su `ANCLA.md`): `consultarCapacidad`, `consultarValorActual`,
+`consultarPasivoDeActivo`, `obtenerActivoPorId`, `obtenerPasivoPorId`, `fichaPasivo`,
+`actualizarActivo`, `darDeBajaActivo`, `transferirActivo`, `refinanciarPasivo` y
+`registrarPagoPasivo` resuelven el permiso con `preautorizarSobreRecurso()` antes de
+`comoUsuario()`. Sin cambio de firma. Reproducción de `fichaPasivo` en
+`src/db/agotamiento-pool.test.ts` (roja antes del fix con max+2 pasivos).
+
+Segundo paso: `actualizarActivo` y `transferirActivo` llamaban a `requireSucursalOperable()`
+(Identidad, otra conexión) con la transacción abierta. Ahora leen y autorizan en una transacción
+(`leerActivoAutorizado`), chequean la sucursal sin transacción abierta y escriben en una segunda.
+12 `transferirActivo` simultáneos se colgaban antes y terminan después
+(`src/db/agotamiento-pool-escrituras.test.ts`).
+
+Tercer paso: la pantalla de Deudas usa `listarPasivosConSaldo()` (`LEFT JOIN pagos_pasivo` + `sum`)
+en vez de `fichaPasivo()` por fila. Saldo exacto (1000 − 100 − 250 = 650) e igual al de la ficha en
+`src/db/agregados-listado.test.ts`. `consultarValorPatrimonialTotal` sigue sumando saldos con una
+consulta por pasivo, pero dentro de su propia transacción (misma conexión): no agota el pool, y se
+dejó igual para no ampliar este cambio.
 
 ## Última actualización: 2026-07-27 — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `crearActivo`/`actualizarActivo`/

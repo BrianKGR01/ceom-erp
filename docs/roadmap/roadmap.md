@@ -74,6 +74,29 @@ condiciona tres ítems del plan que antes se daban por resueltos.
 3. **Pausa por inactividad** tras ~7 días de poca actividad de base. Un piloto de 3-10 negocios con
    uso esporádico es exactamente ese perfil. → **R-6.4** y **R-7.1**.
 
+### ⚠️ Incidente de producción del 2026-09-17 — y un aviso sobre esta tabla
+
+**Esta tabla quedó vieja.** Dice "1 proyecto (dev)" y ubica el despliegue real en la Fase 6: hoy
+`https://ceom.lat` tiene **dos negocios reales** sobre ese mismo y único proyecto de Supabase, así
+que **la base de desarrollo ES la de producción**, y los previews de Vercel apuntan a ella. No se
+reescribe acá (es trabajo de reconciliación, no de este incidente), pero hasta que se haga:
+**ningún test de integración corre contra `DATABASE_URL` del `.env.local`** (ver
+`dev-practices.md` §7.3).
+
+**El incidente.** `/app/proveedores` de un negocio con 10 proveedores se colgaba hasta el timeout
+de 300 s de Vercel y arrastraba otras rutas: autobloqueo del pool de conexiones por llamadas a
+funciones con `db` crudo desde adentro de `comoUsuario()`. Diagnóstico, reproducción y fix en
+`src/modules/proveedores/ANCLA.md`; registro de usuario en **H-50** (hallazgos). Lo que toca de este
+roadmap:
+- **R-8.5** (migración RLS módulo por módulo) gana una regla y un guard: regla 11 de `AGENTS.md`,
+  `src/db/sin-db-crudo-en-transaccion.test.ts`. **Cada módulo que se migre tiene que pasarlo**;
+  migrar una función moviendo su cuerpo entero adentro del callback reintroduce el incidente.
+- **R-8.8** (81 FKs sin índice): **evaluado y descartado como causa** — la tabla más grande tiene
+  decenas de filas. Sigue siendo higiene pendiente, no urgencia.
+- **Deuda nueva:** **DA-45** (caché de stock de Productos sin lock), **DA-46** (Recetas, mismo patrón
+  latente) y **DA-47 🔴** (escrituras fuera de la transacción si se corta la conexión a mitad de un
+  callback — reproducido; decisión del dueño: registrar y tratar aparte).
+
 ---
 
 ## Fase 0 — Base limpia y acceso de prueba ✅ CERRADA
@@ -431,6 +454,8 @@ la Fase 2 del roadmap original, por fin cumplido.
       `comoUsuario()` y escribir sus policies de Gateway). **La consecuencia comercial está escrita
       en la Fase 7 y no se borra hasta que este ítem cierre.**
 - [ ] **R-8.5** Migración RLS módulo por módulo (checklist ya escrito: `CHECKLIST-MIGRACION-RLS.md`)
+      *(2026-09-17: cada módulo migrado debe pasar `src/db/sin-db-crudo-en-transaccion.test.ts` —
+      regla 11 de `AGENTS.md`, nacida del incidente de pool de Proveedores.)*
       + `FORCE` en Patrimonio; al completar, eliminar el export crudo `db`.
       *Hoy: solo Patrimonio y Proveedores migrados; los otros 7 corren como rol dueño, o sea que
       sus `crudPolicy()` son invisibles al tráfico real.*

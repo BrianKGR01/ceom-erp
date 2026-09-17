@@ -82,7 +82,7 @@ function CanjearOtroCodigoDialog({
             Sumá otro negocio a tu cartera con el código que te dio su dueño.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="codigo-extra">Código de acceso</Label>
           <Input
             id="codigo-extra"
@@ -276,7 +276,7 @@ export function CarteraCliente({
         ) : filtrados.length === 0 ? (
           <p className="mt-10 text-center text-sm text-text-muted">Ningún negocio coincide con esta búsqueda.</p>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filtrados.map((fila) => {
               const estado = ESTADO_INFO[fila.estadoAcceso as EstadoAcceso] ?? ESTADO_INFO.bloqueado;
               const IconoNicho = (fila.nichoId && NICHO_ICONO[fila.nichoId]) || Building2;
@@ -287,14 +287,14 @@ export function CarteraCliente({
                   className="block overflow-hidden rounded-2xl bg-card shadow-card transition-shadow hover:shadow-md"
                 >
                   <div className={cn("h-1.5 w-full", estado.borde)} />
-                  <div className="p-5">
+                  <div className="p-6">
                     <div className="flex items-start justify-between">
                       <span className="flex size-11 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                         <IconoNicho className="size-5" />
                       </span>
                       <Badge variant={estado.variant}>{estado.label}</Badge>
                     </div>
-                    <h2 className="mt-3 font-heading text-base font-extrabold text-navy">{fila.nombreNegocio}</h2>
+                    <h2 className="mt-4 font-heading text-base font-extrabold text-navy">{fila.nombreNegocio}</h2>
                     <p className="text-xs text-text-muted">
                       Rubro: {fila.nichoId ? (NICHO_LABEL[fila.nichoId] ?? "Sin especificar") : "Modo Básico"}
                     </p>

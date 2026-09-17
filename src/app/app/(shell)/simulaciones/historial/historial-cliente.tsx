@@ -126,7 +126,7 @@ export function HistorialCliente({
 
       <div className="divide-y divide-gray-border rounded-2xl bg-card shadow-card transition-opacity" style={{ opacity: cargando ? 0.6 : 1 }}>
         {!datos.ok ? (
-          <p className="p-5 text-sm text-error-text">{datos.error}</p>
+          <p className="p-6 text-sm text-error-text">{datos.error}</p>
         ) : filas.length === 0 ? (
           <p className="p-8 text-center text-sm text-text-muted">Todavía no guardaste ninguna simulación.</p>
         ) : (
@@ -145,7 +145,7 @@ export function HistorialCliente({
                   </Badge>
                   {fila.costoEsManual && <Badge variant="warning">Costo manual</Badge>}
                 </div>
-                <p className="mt-0.5 text-xs text-text-muted">
+                <p className="mt-1 text-xs text-text-muted">
                   {fila.frecuencia === "semanal" ? "Semanal" : "Mensual"} · {formatoPeriodo(fila.periodo)}
                 </p>
               </div>
@@ -168,7 +168,7 @@ export function HistorialCliente({
                       : "Sin punto de equilibrio"}
                   </p>
                 )}
-                <p className="mt-0.5 text-[11px] text-text-muted">{formatoFecha(fila.creadoEn)}</p>
+                <p className="mt-1 text-[11px] text-text-muted">{formatoFecha(fila.creadoEn)}</p>
               </div>
             </div>
           ))

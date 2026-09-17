@@ -92,19 +92,19 @@ export function ProveedorFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <div className="space-y-1.5">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
             <Label htmlFor="nombre">Nombre</Label>
             <Input id="nombre" placeholder="Ej. Distribuidora del Norte" {...form.register("nombre")} />
             {form.formState.errors.nombre && (
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="contacto">Contacto (opcional)</Label>
             <Input id="contacto" placeholder="Nombre de la persona de contacto" {...form.register("contacto")} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="notas">Notas (opcional)</Label>
             <Textarea id="notas" placeholder="Información adicional sobre el proveedor..." {...form.register("notas")} />
           </div>

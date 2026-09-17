@@ -68,13 +68,13 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="rounded-2xl bg-card p-6 shadow-card">
       <div className="space-y-6">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-primary" />
             <h2 className="font-heading text-base font-extrabold text-navy">Datos del Negocio</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
               <Label htmlFor="nombreNegocio">Nombre del negocio</Label>
               <Input
                 id="nombreNegocio"
@@ -85,7 +85,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
                 <p className="text-xs text-error-text">{form.formState.errors.nombreNegocio.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="monedaPrincipal">Moneda principal</Label>
               <Select
                 items={Object.fromEntries(MONEDAS.map((m) => [m.value, m.label]))}
@@ -108,21 +108,21 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
         </div>
 
         <div className="border-t border-gray-border pt-6">
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2">
             <Building2 className="size-4 text-primary" />
             <h2 className="font-heading text-base font-extrabold text-navy">Configuración de Plan</h2>
           </div>
           {planes.length === 0 ? (
             <p className="text-sm text-text-muted">No hay planes activos disponibles.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               {planes.map((plan) => (
                 <button
                   key={plan.id}
                   type="button"
                   onClick={() => form.setValue("planId", plan.id)}
                   className={cn(
-                    "rounded-xl border p-3 text-left transition-colors",
+                    "rounded-xl border p-4 text-left transition-colors",
                     planId === plan.id
                       ? "border-primary bg-pastel-blue-bg"
                       : "border-gray-border hover:border-primary/50"
@@ -140,7 +140,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             <p className="mt-2 text-xs text-error-text">{form.formState.errors.planId.message}</p>
           )}
 
-          <div className="mt-4 max-w-xs space-y-1.5">
+          <div className="mt-4 max-w-xs space-y-2">
             <Label htmlFor="fechaInicioSuscripcion">Fecha de inicio de suscripción</Label>
             <Input
               id="fechaInicioSuscripcion"
@@ -160,9 +160,9 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             <UserPlus className="size-4 text-primary" />
             <h2 className="font-heading text-base font-extrabold text-navy">Dueño inicial</h2>
           </div>
-          <p className="mb-3 text-sm text-text-muted">La persona que va a administrar este negocio.</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <p className="mb-4 text-sm text-text-muted">La persona que va a administrar este negocio.</p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
               <Label htmlFor="ownerNombreCompleto">Nombre completo</Label>
               <Input
                 id="ownerNombreCompleto"
@@ -175,7 +175,7 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
                 </p>
               )}
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="ownerEmail">Email corporativo</Label>
               <Input
                 id="ownerEmail"
@@ -189,8 +189,8 @@ export function NuevoTenantCliente({ planes }: { planes: Plan[] }) {
             </div>
           </div>
 
-          <div className="mt-4 flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-3 text-sm text-primary">
-            <Info className="mt-0.5 size-4 shrink-0" />
+          <div className="mt-4 flex items-start gap-2 rounded-xl bg-pastel-blue-bg p-4 text-sm text-primary">
+            <Info className="mt-1 size-4 shrink-0" />
             <p>
               <span className="font-medium">Nota:</span> Se creará la sucursal principal
               automáticamente y se enviará una invitación por correo a este dueño para que fije su

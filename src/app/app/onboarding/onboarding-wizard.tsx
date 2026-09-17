@@ -146,7 +146,7 @@ function PasoRubro({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {OPCIONES_RUBRO.map((opcion) => (
           <button
             key={opcion.valor}
@@ -174,8 +174,8 @@ function PasoRubro({
       </div>
 
       {seleccion && (
-        <div className="flex items-start gap-2 rounded-lg bg-warning-bg p-3 text-xs text-warning-text">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+        <div className="flex items-start gap-2 rounded-lg bg-warning-bg p-4 text-xs text-warning-text">
+          <AlertTriangle className="mt-1 size-4 shrink-0" />
           <p>
             {seleccion === "basico"
               ? "Vas a operar en Modo Básico. Vas a poder elegir un rubro más adelante si querés — pero una vez que elijas uno, no vas a poder cambiarlo."

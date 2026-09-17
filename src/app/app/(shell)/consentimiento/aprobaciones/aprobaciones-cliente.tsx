@@ -80,7 +80,7 @@ export function AprobacionesCliente({ filas: filasIniciales }: { filas: FilaApro
                     <p className="font-medium text-navy">{fila.institucionNombre}</p>
                     <Badge variant={estado.variant}>{estado.label}</Badge>
                   </div>
-                  <p className="mt-0.5 text-xs text-text-muted">
+                  <p className="mt-1 text-xs text-text-muted">
                     {fila.modulosAprobados.map((m) => MODULOS_VEEDOR_INFO[m].label).join(", ")} · aprobado{" "}
                     {formatoFecha(fila.fechaAprobacion)}
                     {fila.revocadoEn && ` · revocado ${formatoFecha(fila.revocadoEn)}`}

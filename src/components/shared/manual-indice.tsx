@@ -50,7 +50,7 @@ export function ManualIndice({
         onClick={() => setAbierto((v) => !v)}
         aria-expanded={abierto}
         aria-controls="manual-indice"
-        className="manual-indice-toggle mb-3 w-full items-center justify-between gap-2 rounded-2xl bg-card px-4 py-3 text-sm font-medium text-navy shadow-card"
+        className="manual-indice-toggle mb-4 w-full items-center justify-between gap-2 rounded-2xl bg-card px-4 py-3 text-sm font-medium text-navy shadow-card"
       >
         <span className="flex min-w-0 items-center gap-2">
           <List className="size-4 shrink-0 text-primary" />
@@ -66,7 +66,7 @@ export function ManualIndice({
         id="manual-indice"
         aria-label="Índice del manual"
         className={cn(
-          "manual-indice rounded-2xl bg-card p-3 shadow-card",
+          "manual-indice rounded-2xl bg-card p-4 shadow-card",
           abierto && "manual-indice--abierto"
         )}
       >

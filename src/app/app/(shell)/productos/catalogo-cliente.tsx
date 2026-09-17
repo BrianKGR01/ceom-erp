@@ -72,7 +72,7 @@ export function CatalogoCliente({
           Ningún producto coincide con esta búsqueda.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtrados.map((producto) => (
             <ProductCard
               key={producto.id}

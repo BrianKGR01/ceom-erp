@@ -26,7 +26,7 @@ export function CampoContrasena({
   const [mostrar, setMostrar] = useState(false);
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label
         htmlFor={id}
         className="text-[11px] font-normal tracking-wide text-text-muted uppercase"

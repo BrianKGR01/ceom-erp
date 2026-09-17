@@ -79,7 +79,7 @@ export default async function MiPlanPage() {
     resultado.ok && resultado.data.plan !== null && resultado.data.plan.maxSucursales !== 1;
 
   return (
-    <div className="min-h-screen bg-gray-bg p-6">
+    <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <SubnavMiNegocio mostrarSucursales={mostrarSucursales} />
       <PageHeader title="Mi Plan" description="El plan vigente de tu negocio — solo lectura." />
 
@@ -104,7 +104,7 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
 
   return (
     <div className="mt-4 space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="flex items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
             <CreditCard className="size-5" />
@@ -153,13 +153,13 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
           <CardTitle>Qué incluye tu plan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex items-start gap-2.5">
               <span
                 className={
                   plan.maxSucursales !== 1
-                    ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
-                    : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
+                    ? "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
+                    : "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
                 }
               >
                 {plan.maxSucursales !== 1 ? <Check className="size-3" /> : <X className="size-3" />}
@@ -182,8 +182,8 @@ function MiPlanContenido({ datos }: { datos: DatosMiPlan }) {
                   <span
                     className={
                       incluido
-                        ? "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
-                        : "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
+                        ? "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-success-bg text-success-text"
+                        : "mt-1 flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-bg text-text-muted"
                     }
                   >
                     {incluido ? <Check className="size-3" /> : <X className="size-3" />}

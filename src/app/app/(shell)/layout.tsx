@@ -8,6 +8,14 @@ import { calcularEstadoAcceso, obtenerTenantPorId, obtenerUsuarioActual } from "
 // route group (shell) separado de /app/onboarding a proposito — asi
 // Onboarding nunca lleva este sidebar y nunca puede quedar en loop de
 // redirect (ver identidad/ANCLA.md, decision de "onboardingCompletadoEn").
+
+// Tope de ejecución de toda página y Server Action bajo el shell. El default
+// de Vercel con Fluid Compute es 300 s: en el incidente de pool del
+// 2026-09-17 (proveedores/ANCLA.md) una usuaria esperó cinco minutos a un 504.
+// Ninguna pantalla de /app necesita más de unos segundos; 60 deja margen
+// amplio y convierte un cuelgue en un error cinco veces antes.
+export const maxDuration = 60;
+
 export default async function ShellLayout({
   children,
 }: {
