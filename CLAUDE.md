@@ -78,6 +78,14 @@ docs/architecture/CEOM_Arquitectura.md)
    distinto del #9 y ningún chequeo de exhaustividad lo detecta: sería una función nueva, no
    un campo faltante. Justificación completa de #9 y #10:
    `docs/architecture/CEOM_Arquitectura.md` §3 principio 7 y §3.1.
+11. **Adentro de `comoUsuario()` (y sus hermanas) la base se toca solo por el `tx`.** Nada de
+   `tienePermiso()`, ni el `actions.ts` de otro módulo, ni `db` crudo, ni otra transacción
+   dentro del callback: cada una pide otra conexión del pool mientras la transacción retiene la
+   suya, y con tantas requests simultáneas como conexiones todo se cuelga sin error (incidente de
+   producción del 2026-09-17, `src/modules/proveedores/ANCLA.md`). Permisos por id:
+   `preautorizarSobreRecurso()` **antes** de abrir la transacción. Llamadas a otros módulos:
+   **después** del commit. Un listado tampoco pide una ficha por fila: agrega en una consulta.
+   Lo hace cumplir `src/db/sin-db-crudo-en-transaccion.test.ts` — no se exceptúa, se reordena.
 
 ## Qué NO hacer nunca
 - No tocar migraciones ya aplicadas en `drizzle/migrations/` — solo generar nuevas.
