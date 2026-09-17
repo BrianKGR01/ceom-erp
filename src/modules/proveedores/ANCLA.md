@@ -314,6 +314,37 @@ son N transacciones que ocupan N conexiones a la vez.
 Lo que la concurrencia destapó y **no** es de este módulo: el caché de stock de Productos pierde
 movimientos simultáneos del mismo producto (DA-45 en `docs/deuda-aplazada.md`).
 
+### Topes evaluados (cuarto commit): qué se puso, qué se descartó y por qué
+
+**Puestos (sin migración):**
+- `src/db/client.ts`: `max: 10` explícito (el default, visible), `idle_timeout: 20`,
+  `connect_timeout: 10`.
+- `src/app/app/(shell)/layout.tsx`: `export const maxDuration = 60` — toda página y Server Action del
+  shell muere a los 60 s y no a los 300 s. **No verificado todavía en Vercel** si al vencer libera
+  también la instancia con el pool trabado; lo seguro es que la usuaria ve el error 5 veces antes.
+
+**Descartado con evidencia: `idle_in_transaction_session_timeout` por transacción** (`SET LOCAL`
+dentro de `comoUsuario()`). Se implementó y se probó contra `postgres:16` provocando el
+autobloqueo a propósito:
+- ✅ Postgres mata las 10 sesiones a los 15 s, el pool se recupera (con el backoff de reconexión de
+  postgres-js, hasta ~20 s más) y las transacciones que esperaban turno terminan bien.
+- ❌ **Las 10 promesas de `comoUsuario()` a veces no se resuelven ni se rechazan nunca** (2 de 3
+  corridas; instrumentado paso a paso: el callback llega al final, `begin()` no termina). postgres-js
+  no siempre propaga ese cierre a `sql.begin()`. O sea: no convierte el cuelgue en un error visible.
+- ❌ **Y abre un riesgo de integridad.** Tras el cierre, una consulta que el callback haga sobre su
+  `tx` se manda directo al objeto de conexión (`postgres/src/index.js`, `begin` → `scope` →
+  `handler`), que el pool ya reconectó y prestó a otra request: correría **fuera de la transacción,
+  como `postgres`, sin RLS y en autocommit**. Una guarda que invalide el `tx` cuando `begin()`
+  termina no alcanza, porque en el caso malo `begin()` no termina.
+
+Este último mecanismo **no lo crea el tope**: cualquier corte de conexión a mitad de un callback
+(red, reinicio de Supavisor) lo dispara hoy igual. Queda registrado como DA-47. Lo que hace el tope
+es fabricar esos cortes a propósito, por eso no va.
+
+**Propuestos, no aplicados (requieren decisión):** índices en `tenant_id`/FKs (R-8.8, 81 FKs sin
+índice — hoy no causan nada: la tabla más grande tiene decenas de filas) y `@vercel/functions`
+`attachDatabasePool()` (librería nueva). Ver el PR.
+
 ## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarCompra`/`recibirCompra`.
 Antes del cierre de esta tanda, una sucursal congelada por downgrade de plan rechazaba escritura en
