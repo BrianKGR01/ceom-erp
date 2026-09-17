@@ -53,7 +53,7 @@ describe.skipIf(!hasPostgres)("Pool de conexiones — comoUsuario() no se autobl
   let tenantId: string;
   let ownerId: string;
   let proveedorIds: string[] = [];
-  let pasivoIds: string[] = [];
+  const pasivoIds: string[] = [];
 
   beforeAll(async () => {
     ownerId = randomUUID();

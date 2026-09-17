@@ -15,7 +15,11 @@ import {
   registrarAjusteManualInsumo,
   registrarEntradaCompraInsumo,
 } from "@/modules/operativo/nichos/nicho-1/actions";
-import { listarSucursalesPorTenant, tienePermiso } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  preautorizarSobreRecurso,
+  tienePermiso,
+} from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
 import {
   consultarStock,
@@ -89,12 +93,12 @@ export async function actualizarProveedor(
   proveedorId: string,
   input: Partial<DatosProveedor>
 ): Promise<Resultado<true>> {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeEditar = await preautorizarSobreRecurso(solicitante, "proveedores", "editar");
   return comoUsuario(solicitante.id, async (tx) => {
     const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
     if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-    if (
-      !(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "editar"))
-    ) {
+    if (!puedeEditar(proveedor.tenantId)) {
       return { ok: false, error: "No tenés permiso para editar este proveedor." };
     }
 
@@ -107,17 +111,12 @@ export async function eliminarProveedor(
   solicitante: UsuarioConRol,
   proveedorId: string
 ): Promise<Resultado<true>> {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeEliminar = await preautorizarSobreRecurso(solicitante, "proveedores", "anular_ajustar");
   return comoUsuario(solicitante.id, async (tx) => {
     const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
     if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-    if (
-      !(await tienePermiso(
-        solicitante,
-        proveedor.tenantId,
-        "proveedores",
-        "anular_ajustar"
-      ))
-    ) {
+    if (!puedeEliminar(proveedor.tenantId)) {
       return { ok: false, error: "No tenés permiso para eliminar este proveedor." };
     }
 
@@ -150,10 +149,12 @@ export async function fichaProveedor(
   montoTotalComprado: number;
   compras: Awaited<ReturnType<typeof repo.listarComprasPorProveedor>>;
 }>> {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "proveedores", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const proveedor = await repo.obtenerProveedorPorId(tx, proveedorId);
     if (!proveedor) return { ok: false, error: "Proveedor no encontrado." };
-    if (!(await tienePermiso(solicitante, proveedor.tenantId, "proveedores", "ver"))) {
+    if (!puedeVer(proveedor.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver este proveedor." };
     }
 
@@ -435,10 +436,12 @@ export async function recibirCompra(
   compraId: string,
   fechaRecepcion?: string
 ): Promise<Resultado<{ entradaStock: DatosEntradaStock }>> {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeRecibir = await preautorizarSobreRecurso(solicitante, "proveedores", "crear");
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
-    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
+    if (!puedeRecibir(compra.tenantId)) {
       return { ok: false, error: "No tenés permiso para recibir compras." };
     }
     if (compra.estado === "recibido") {
@@ -584,10 +587,12 @@ export async function consultarSaldoCompra(
     totalPagado: number;
   }>
 > {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeVer = await preautorizarSobreRecurso(solicitante, "proveedores", "ver");
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
-    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "ver"))) {
+    if (!puedeVer(compra.tenantId)) {
       return { ok: false, error: "No tenés permiso para ver esta compra." };
     }
 
@@ -612,10 +617,12 @@ export async function registrarPagoCompra(
   compraId: string,
   input: { monto: string | number; fechaPago: string }
 ): Promise<Resultado<{ estadoPago: EstadoPagoCompra; totalPagado: number }>> {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedePagar = await preautorizarSobreRecurso(solicitante, "proveedores", "crear");
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
-    if (!(await tienePermiso(solicitante, compra.tenantId, "proveedores", "crear"))) {
+    if (!puedePagar(compra.tenantId)) {
       return { ok: false, error: "No tenés permiso para registrar pagos en esta compra." };
     }
 
@@ -690,12 +697,12 @@ export async function registrarCompraDeAjuste(
     reversionStock: ReversionStock | null;
   }>
 > {
+  // Antes de abrir la transacción, nunca adentro: proveedores/ANCLA.md, incidente 2026-09-17.
+  const puedeAjustar = await preautorizarSobreRecurso(solicitante, "proveedores", "anular_ajustar");
   return comoUsuario(solicitante.id, async (tx) => {
     const compra = await repo.obtenerCompraPorId(tx, compraId);
     if (!compra) return { ok: false, error: "Compra no encontrada." };
-    if (
-      !(await tienePermiso(solicitante, compra.tenantId, "proveedores", "anular_ajustar"))
-    ) {
+    if (!puedeAjustar(compra.tenantId)) {
       return { ok: false, error: "No tenés permiso para ajustar esta compra." };
     }
     if (!input.motivo.trim()) {

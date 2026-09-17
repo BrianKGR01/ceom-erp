@@ -225,6 +225,66 @@
   crear una Compra en estado `pedido`, la transición a `recibido` (que
   dispara entrada de stock) queda bloqueada, la compra se queda en
   `pedido` en vez de quedar a medio camino.
+- **⛔ Nunca llamar, desde adentro del callback de `comoUsuario()`, a una
+  función que toque la base por fuera del `tx`** — `tienePermiso()`,
+  `listarSucursalesPorTenant()`, cualquier `actions.ts` de un módulo todavía
+  no migrado. No es un problema de RLS ni de atomicidad: es de **conexiones**.
+  Ver "Incidente del 2026-09-17" abajo. Los permisos por-id se resuelven con
+  `preautorizarSobreRecurso()` **antes** de abrir la transacción, y adentro
+  solo se evalúa la función pura que devuelve.
+  **El "arreglo" que lo reintroduce:** mover el chequeo de permiso adentro del
+  `tx` "para que quede junto a la lectura del recurso", o reemplazar
+  `puedeVer(proveedor.tenantId)` por `await tienePermiso(solicitante,
+  proveedor.tenantId, …)` porque "es más directo". Se lee más prolijo y vuelve
+  a colgar el directorio con 10 proveedores. `src/db/agotamiento-pool.test.ts`
+  lo detecta.
+
+## Última actualización: 2026-09-17 — Incidente en producción: el directorio se colgaba 300 s (pool agotado)
+
+**Síntoma.** CAFIATTO (10 proveedores) no podía abrir `/app/proveedores`: la navegación del cliente
+se quedaba en la pantalla anterior sin error (no hay `loading.tsx`), una carga directa terminaba en
+`504 FUNCTION_INVOCATION_TIMEOUT`, y en el mismo intervalo se colgaban `/app`, `/app/productos`,
+`/app/patrimonio` y `/app/proveedores/compras`. Logs de Vercel del 17/09 09:44–09:47 (hora Bolivia):
+`Task timed out after 300 seconds`.
+
+**Mecanismo, verificado y no solo razonado** (reproducción en `src/db/agotamiento-pool.test.ts`,
+roja antes del fix):
+
+1. `src/db/client.ts` crea el pool de postgres-js sin `max`: **10 conexiones** por instancia.
+2. `comoUsuario()` (`src/db/contexto.ts`) abre una transacción → **reserva una conexión** hasta el
+   commit. postgres-js no la presta a nadie más mientras tanto.
+3. `fichaProveedor()` llamaba a `tienePermiso()` **dentro** del callback. `tienePermiso()` lee el
+   tenant con `repo.obtenerTenantPorId()` de Identidad, que usa `db` crudo → pide **otra** conexión
+   del mismo pool. (El plan de RLS ya lo había medido en §9.3: *"`pid` distinto"* — se evaluó rol,
+   contexto y atomicidad, nunca agotamiento.)
+4. El directorio (`(directorio)/layout.tsx`) hacía `Promise.all(proveedores.map(fichaProveedor))`:
+   10 transacciones a la vez. Las 10 conexiones quedaban reservadas y las 10 esperaban una undécima.
+   **postgres-js encola sin timeout**, así que no hay error: hay espera infinita, hasta que Vercel
+   mata la función a los 300 s. Contra `postgres:16` efímero: `pg_stat_activity` muestra exactamente
+   10 sesiones `idle in transaction` detenidas tras `obtenerProveedorPorId`.
+5. **Por qué arrastra otras rutas.** Con Fluid Compute una instancia atiende varias requests con el
+   mismo pool: una vez trabado, cualquier render de esa instancia que toque la base se cuelga (el
+   layout del shell ya llama a `obtenerTenantPorId()`). Y hay una segunda capa, entre instancias:
+   en modo transacción Supavisor fija un backend por transacción abierta, así que esas 10
+   transacciones colgadas retienen 10 backends del pooler compartido. Los logs de Supavisor del
+   mismo intervalo muestran `ECHECKOUTTIMEOUT: unable to check out connection from the pool after
+   60000ms` (13:55:22Z) en otras conexiones — de ahí el "This page couldn't load" (un error, no un
+   timeout) que vio otra usuaria.
+6. **Por qué pega en Proveedores y no en Patrimonio:** misma trampa en `fichaPasivo` (Deudas), pero
+   ningún tenant tiene hoy más de 2 pasivos. CAFIATTO cargó su proveedor número 10 el 2026-09-14.
+
+**Fix (hotfix):** `tienePermiso(solicitante, recurso.tenantId, …)` adentro de la transacción →
+`preautorizarSobreRecurso(solicitante, modulo, accion)` antes, y `puede(recurso.tenantId)` adentro
+(pura, sin base). Equivalencia con el chequeo anterior demostrada caso por caso en
+`identidad/preautorizar-recurso.test.ts` (validado rompiéndolo: los dos mutantes quedan en rojo). La
+única diferencia es el Gateway de Consentimiento, que queda **más** restringido en funciones por-id
+de este módulo — ningún camino del Gateway las alcanza. Aplicado a `actualizarProveedor`,
+`eliminarProveedor`, `fichaProveedor`, `recibirCompra`, `consultarSaldoCompra`,
+`registrarPagoCompra` y `registrarCompraDeAjuste`. **Sin cambio de firma en ninguna función.**
+
+**Queda para los commits siguientes de la misma tanda** (no son parte del hotfix): las otras llamadas
+cruzadas que siguen dentro del `tx` (`requireSucursalOperable`, `dispararEntradaStock`,
+`revertirStockDeAjuste`), el N+1 del directorio y los topes de pool/timeouts.
 
 ## Última actualización: 2026-07-27 (2) — H-02 completado: freeze de sucursal también en escritura
 `requireSucursalOperable()` (ver "Decisiones tomadas") ahora gatea `registrarCompra`/`recibirCompra`.
