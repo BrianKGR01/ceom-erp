@@ -39,6 +39,36 @@ export type ResultadoAccion<T = undefined> =
 // Server Actions delgadas (mismo patron que src/app/app/productos/actions.ts):
 // resuelven la sesion server-side y delegan en ventas/actions.ts.
 
+/**
+ * R-3.2 / H-37 — qué pasó con el stock de cada línea, para la pantalla. Antes
+ * se calculaba y se descartaba: la venta se registraba y el usuario no sabía
+ * si el stock bajó. Dos casos: el descuento falló (sin permiso de inventario,
+ * stock insuficiente sin "vender sin stock", sucursal congelada) y la venta
+ * queda con el stock intacto; o se descontó y el stock quedó en negativo.
+ * `descuentosStock` viene en el mismo orden que las líneas de la venta.
+ */
+function avisosDeStock(
+  lineas: Array<{ productoId: string }>,
+  descuentos: Array<{ ok: true; data: { cantidadActual: number } } | { ok: false; error: string }>
+): Array<{ productoId: string; mensaje: string }> {
+  return descuentos.flatMap((d, i) => {
+    const productoId = lineas[i]?.productoId;
+    if (!productoId) return [];
+    if (!d.ok) {
+      return [{ productoId, mensaje: `La venta quedó registrada, pero no se descontó del stock: ${d.error}` }];
+    }
+    if (d.data.cantidadActual < 0) {
+      return [
+        {
+          productoId,
+          mensaje: `El stock quedó en negativo: ${d.data.cantidadActual}. Revisá el conteo o cargá la entrada que falta.`,
+        },
+      ];
+    }
+    return [];
+  });
+}
+
 export async function registrarVentaAction(
   sucursalId: string,
   input: unknown
@@ -46,7 +76,7 @@ export async function registrarVentaAction(
   ResultadoAccion<{
     ventaId: string;
     totalVenta: number;
-    avisosStock: string[];
+    avisosStock: Array<{ productoId: string; mensaje: string }>;
   }>
 > {
   const usuario = await obtenerUsuarioActual();
@@ -63,9 +93,7 @@ export async function registrarVentaAction(
   });
   if (!resultado.ok) return resultado;
 
-  const avisosStock = resultado.data.descuentosStock
-    .filter((d) => !d.ok)
-    .map((d) => (!d.ok ? d.error : ""));
+  const avisosStock = avisosDeStock(parsed.data.lineas, resultado.data.descuentosStock);
 
   return {
     ok: true,
@@ -242,7 +270,7 @@ export async function registrarPagoVentaAction(
 export async function registrarAjusteVentaAction(
   ventaId: string,
   input: unknown
-): Promise<ResultadoAccion<{ ajusteId: string }>> {
+): Promise<ResultadoAccion<{ ajusteId: string; errorStock: string | null }>> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
@@ -253,7 +281,18 @@ export async function registrarAjusteVentaAction(
 
   const resultado = await registrarAjusteVenta(usuario, ventaId, parsed.data);
   if (!resultado.ok) return resultado;
-  return { ok: true, data: { ajusteId: resultado.data.ajusteId } };
+  // R-3.2: el ajuste ya quedó; si el stock no volvió, se dice (antes se descartaba).
+  const { ajusteStock } = resultado.data;
+  return {
+    ok: true,
+    data: {
+      ajusteId: resultado.data.ajusteId,
+      errorStock:
+        ajusteStock && !ajusteStock.ok
+          ? `El ajuste quedó registrado, pero el stock no volvió: ${ajusteStock.error} Pedile a alguien con permiso de inventario que cargue la entrada a mano.`
+          : null,
+    },
+  };
 }
 
 export async function abrirEventoAction(

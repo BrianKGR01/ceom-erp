@@ -22,9 +22,9 @@ verificó los 49 hallazgos contra el código y la cuenta real es:
 
 | | Cuántos | Cuáles |
 |---|---|---|
-| ✅ **Corregidos** | **11** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, H-42, H-49, H-50 |
+| ✅ **Corregidos** | **12** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, **H-37**, H-42, H-49, H-50 |
 | 🟨 **Parciales** | **4** | H-01, H-05, H-12, H-32 |
-| 🔴🟠🟡 **Abiertos** | **31** | el resto, con **un solo 🔴: H-33** |
+| 🔴🟠🟡 **Abiertos** | **30** | el resto, con **un solo 🔴: H-33** |
 | ⚪ **Anotados** (decisión de alcance, no defecto) | **4** | H-17, H-20, H-23, H-48 |
 | | **50** | total |
 
@@ -101,7 +101,7 @@ corregidos-sin-registrar se cerraron en tandas que no volvieron acá.
 | [H-34](#h-34) | 🟠 | La pantalla de capacidad de producción nunca puede mostrar datos |
 | [H-35](#h-35) | 🟠 | No hay roles predefinidos: la grilla de permisos arranca en blanco |
 | [H-36](#h-36) | 🟡 | Tres de los cuatro atributos del plan no tienen efecto |
-| [H-37](#h-37) | 🟠 | La pantalla de venta no muestra el stock ni avisa al sobrevender |
+| [H-37](#h-37) | ✅ | ~~La pantalla de venta no muestra el stock ni avisa al sobrevender~~ — **corregido** (R-3.2, 2026-09-17) |
 | [H-38](#h-38) | 🟡 | Las deudas no tienen ni interés ni calendario |
 | [H-39](#h-39) | 🟡 | Guardar una receta reemplaza su composición completa |
 | [H-40](#h-40) | 🟡 | La producción no es atómica y falla en silencio |
@@ -1033,7 +1033,18 @@ promesas que el producto no puede cumplir hoy.
 ---
 
 <a id="h-37"></a>
-## H-37 🟠 La pantalla de venta no muestra el stock ni avisa al sobrevender
+## H-37 ✅ La pantalla de venta no muestra el stock ni avisa al sobrevender — corregido el 2026-09-17
+
+> **Cierre (R-3.2).** El punto de venta muestra el stock de cada producto en la sucursal (una sola
+> consulta, `listarStockPorSucursal`; sin permiso de ver inventario no muestra números), avisa en el
+> carrito cuando una línea pide más de lo que hay, y después de confirmar **no se va de la pantalla**
+> si el stock no se movió como se esperaba: la venta quedó registrada pero el descuento falló (sin
+> permiso de inventario, stock insuficiente, sucursal congelada), o se descontó y quedó en negativo
+> (vender sin stock). Test: `src/app/app/(shell)/ventas/avisos-stock.test.ts`. Con eso el permiso
+> *vender sin stock* tiene por fin una diferencia observable: quien lo tiene ve "quedó en negativo",
+> quien no lo tiene ve que el stock no bajó.
+>
+> El texto original queda abajo.
 
 **Qué pasa.** El punto de venta lista los productos con nombre, imagen y precio, sin la cantidad
 disponible. Al confirmar, `descontarStockVenta` corre por cada línea y sus resultados vuelven en

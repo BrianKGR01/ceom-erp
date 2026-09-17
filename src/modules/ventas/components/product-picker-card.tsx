@@ -21,10 +21,13 @@ export interface ProductoParaVenta {
 export function ProductPickerCard({
   producto,
   categoriaNombre,
+  stock,
   onAgregar,
 }: {
   producto: ProductoParaVenta;
   categoriaNombre?: string;
+  /** H-37. `null` = sin permiso para ver inventario: no se muestra nada. */
+  stock: number | null;
   onAgregar: () => void;
 }) {
   return (
@@ -53,6 +56,11 @@ export function ProductPickerCard({
             {Number(producto.precioVenta).toFixed(2)}{" "}
             <span className="text-[10px] font-normal text-text-muted">/ {producto.unidadVenta}</span>
           </p>
+          {stock !== null && (
+            <p className={stock > 0 ? "text-[10px] text-text-muted" : "text-[10px] font-medium text-warning-text"}>
+              {stock === 0 ? "Sin stock" : `Stock: ${stock}`}
+            </p>
+          )}
         </CardContent>
       </Card>
     </button>

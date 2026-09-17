@@ -377,6 +377,19 @@ export async function consultarStockTotalPorSucursal(
   return { ok: true, data: { stockTotal } };
 }
 
+/** Stock de cada producto del tenant en una sucursal, en una consulta — para
+ * el punto de venta (H-37 / R-3.2). Productos sin movimientos vienen en 0. */
+export async function listarStockPorSucursal(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  sucursalId: string
+): Promise<Resultado<Array<{ productoId: string; cantidadActual: number }>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "inventario", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver el stock." };
+  }
+  return { ok: true, data: await repo.listarStockPorSucursal(tenantId, sucursalId) };
+}
+
 /** Configura el umbral de alerta (Modulo_02 seccion 5) — no crea movimiento,
  * no toca cantidad_actual, solo el umbral con el que se compara. */
 export async function configurarStockMinimo(

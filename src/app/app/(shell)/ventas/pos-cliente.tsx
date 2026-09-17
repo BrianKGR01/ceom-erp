@@ -42,6 +42,7 @@ interface Opcion {
 
 export function PosCliente({
   sucursalId,
+  stockPorProducto,
   productos,
   categorias,
   clientesIniciales,
@@ -50,6 +51,8 @@ export function PosCliente({
   eventosIniciales,
 }: {
   sucursalId: string;
+  /** H-37. `null` = sin permiso para ver inventario. */
+  stockPorProducto: Record<string, number> | null;
   productos: ProductoParaVenta[];
   categorias: Opcion[];
   clientesIniciales: Opcion[];
@@ -86,6 +89,11 @@ export function PosCliente({
 
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  // R-3.2 / H-37: lo que pasó con el stock de la venta ya registrada.
+  const [ventaConAvisos, setVentaConAvisos] = useState<{
+    ventaId: string;
+    avisos: Array<{ nombre: string; mensaje: string }>;
+  } | null>(null);
 
   const productosFiltrados = productos
     .filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId)
@@ -110,6 +118,15 @@ export function PosCliente({
       ];
     });
   }
+
+  // H-37: líneas que piden más de lo que hay. Avisa, no bloquea — vender sin
+  // stock puede estar permitido, y si no lo está el servidor lo dice igual.
+  const excedenStock =
+    stockPorProducto === null
+      ? []
+      : carrito
+          .map((l) => ({ ...l, disponible: stockPorProducto[l.productoId] ?? 0 }))
+          .filter((l) => l.cantidad > l.disponible);
 
   // Las líneas del carrito cuyo producto no tiene costo cargado (H-15).
   const sinCostoEnCarrito = carrito.filter((linea) =>
@@ -194,6 +211,19 @@ export function PosCliente({
       setError(resultado.error);
       return;
     }
+    // La venta ya quedó. Si el stock no se movió como se esperaba, se muestra
+    // antes de salir de la pantalla (antes este aviso se descartaba).
+    if (resultado.data.avisosStock.length > 0) {
+      const nombrePorId = new Map(carrito.map((l) => [l.productoId, l.nombre]));
+      setVentaConAvisos({
+        ventaId: resultado.data.ventaId,
+        avisos: resultado.data.avisosStock.map((a) => ({
+          nombre: nombrePorId.get(a.productoId) ?? "Producto",
+          mensaje: a.mensaje,
+        })),
+      });
+      return;
+    }
     router.push(`/app/ventas/${resultado.data.ventaId}`);
   }
 
@@ -256,6 +286,7 @@ export function PosCliente({
                 categoriaNombre={
                   producto.categoriaId ? categoriaPorId.get(producto.categoriaId) : undefined
                 }
+                stock={stockPorProducto === null ? null : (stockPorProducto[producto.id] ?? 0)}
                 onAgregar={() => agregarProducto(producto)}
               />
             ))}
@@ -472,19 +503,55 @@ export function PosCliente({
               </button>
             </div>
 
+            {excedenStock.length > 0 && !ventaConAvisos && (
+              <div className="flex items-start gap-2 rounded-xl bg-warning-bg p-4">
+                <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
+                <div className="space-y-1 text-xs text-text-body">
+                  {excedenStock.map((l) => (
+                    <p key={l.productoId}>
+                      <span className="font-medium text-warning-text">{l.nombre}:</span> pedís {l.cantidad} y
+                      hay {l.disponible}.
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {error && (
               <p role="alert" className="text-xs text-error-text">
                 {error}
               </p>
             )}
 
-            <Button
-              onClick={confirmarVenta}
-              disabled={confirmando || carrito.length === 0}
-              className="w-full justify-center"
-            >
-              {confirmando ? "Registrando..." : "Confirmar venta"}
-            </Button>
+            {ventaConAvisos ? (
+              <div role="alert" className="space-y-3 rounded-xl bg-warning-bg p-4">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />
+                  <div className="space-y-1 text-xs text-text-body">
+                    <p className="font-medium text-warning-text">La venta quedó registrada, con avisos de stock:</p>
+                    {ventaConAvisos.avisos.map((a, i) => (
+                      <p key={i}>
+                        <span className="font-medium">{a.nombre}:</span> {a.mensaje}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => router.push(`/app/ventas/${ventaConAvisos.ventaId}`)}
+                  className="w-full justify-center"
+                >
+                  Entendido, ver la venta
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={confirmarVenta}
+                disabled={confirmando || carrito.length === 0}
+                className="w-full justify-center"
+              >
+                {confirmando ? "Registrando..." : "Confirmar venta"}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>

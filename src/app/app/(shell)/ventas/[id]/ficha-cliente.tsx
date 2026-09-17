@@ -159,6 +159,7 @@ export function FichaVentaCliente({
   const [ajusteCantidad, setAjusteCantidad] = useState("");
   const [ajusteMotivo, setAjusteMotivo] = useState("");
   const [ajusteError, setAjusteError] = useState<string | null>(null);
+  const [ajusteAviso, setAjusteAviso] = useState<string | null>(null);
   const [registrandoAjuste, setRegistrandoAjuste] = useState(false);
 
   const ajusteSuma = ajusteTipo === "correccion" && correccionSuma;
@@ -168,6 +169,7 @@ export function FichaVentaCliente({
   async function confirmarAjuste() {
     setRegistrandoAjuste(true);
     setAjusteError(null);
+    setAjusteAviso(null);
     const resultado = await registrarAjusteVentaAction(ventaId, {
       tipo: ajusteTipo,
       montoAjuste: montoAjusteFirmado,
@@ -191,12 +193,18 @@ export function FichaVentaCliente({
         creadoEn: new Date().toISOString(),
       },
     ]);
-    setAjusteAbierto(false);
     setAjusteMonto("");
     setCorreccionSuma(false);
     setAjusteMotivo("");
     setAjusteProductoId("ninguno");
     setAjusteCantidad("");
+    // R-3.2: el ajuste ya quedó. Si el stock no volvió, el diálogo lo dice y
+    // no se cierra solo (mismo criterio que el ajuste de compra).
+    if (resultado.data.errorStock) {
+      setAjusteAviso(resultado.data.errorStock);
+      return;
+    }
+    setAjusteAbierto(false);
   }
 
   return (
@@ -423,7 +431,13 @@ export function FichaVentaCliente({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={ajusteAbierto} onOpenChange={setAjusteAbierto}>
+      <Dialog
+        open={ajusteAbierto}
+        onOpenChange={(abierto) => {
+          if (abierto) setAjusteAviso(null);
+          setAjusteAbierto(abierto);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ajuste de venta</DialogTitle>
@@ -547,17 +561,33 @@ export function FichaVentaCliente({
               />
             </div>
             {ajusteError && <p className="text-xs text-error-text">{ajusteError}</p>}
+            {ajusteAviso && (
+              <p className="rounded-xl bg-warning-bg p-4 text-xs text-warning-text">{ajusteAviso}</p>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAjusteAbierto(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmarAjuste}
-              disabled={registrandoAjuste || magnitudAjuste <= 0 || !ajusteMotivo.trim()}
-            >
-              {registrandoAjuste ? "Guardando..." : "Confirmar ajuste"}
-            </Button>
+            {ajusteAviso ? (
+              <Button
+                onClick={() => {
+                  setAjusteAviso(null);
+                  setAjusteAbierto(false);
+                }}
+              >
+                Entendido
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setAjusteAbierto(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={confirmarAjuste}
+                  disabled={registrandoAjuste || magnitudAjuste <= 0 || !ajusteMotivo.trim()}
+                >
+                  {registrandoAjuste ? "Guardando..." : "Confirmar ajuste"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
