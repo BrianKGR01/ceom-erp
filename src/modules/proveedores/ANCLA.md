@@ -35,7 +35,9 @@
   `montoTotalEfectivo`/`estadoPago`/`saldoPendiente`, no solo el `ajusteId`),
   **`listarComprasConAjustes`** (H-31: el listado con los ajustes de cada
   compra y su monto efectivo, en 2 consultas para todo el tenant y no una por
-  fila), `consultarPagosCompraEnPeriodo` y
+  fila), **`listarProveedoresConCantidadCompras`** (2026-09-17: el directorio
+  con el conteo de compras por fila en UNA consulta, reemplaza llamar
+  `fichaProveedor` por proveedor — ver el incidente), `consultarPagosCompraEnPeriodo` y
   **`consultarCostoExtraAjustesCompraEnPeriodo`** (agregados de solo lectura
   por período, para que Financiero consuma Proveedores sin importar
   `compras`/`pagos_compra`/`compras_ajuste` directo).
@@ -299,6 +301,15 @@ de stock de la otra conexión podía haber quedado comiteado. Ahora la Compra/el
 excepción se propaga. Es exactamente lo que este archivo ya documentaba ("si esa llamada falla, la
 Compra ya quedó `recibido` igual"; "su fallo NO anula el ajuste"), y cierra la ventana de §9.3 del
 plan de RLS: ya no puede quedar un movimiento de stock apuntando a una Compra revertida.
+
+**Tercer commit — el N+1.** El directorio hacía 1 + 4N consultas y N transacciones para mostrar un
+contador. Ahora `listarProveedoresConCantidadCompras()` (`repository.ts`, `LEFT JOIN compras` +
+`count` con el mismo filtro `eliminado_en is null` que `resumenComprasPorProveedor`) lo resuelve en
+una. Equivalencia con `fichaProveedor` probada con valores distinguibles —compra eliminada,
+proveedor sin compras— en `src/db/agregados-listado.test.ts`, validada con un mutante sin el filtro
+de eliminadas. El orden del listado pasa a ser explícito (`creado_en`); antes no tenía `ORDER BY`.
+**⛔ No volver a llamar una ficha por fila desde un listado**, aunque el hotfix ya impida el cuelgue:
+son N transacciones que ocupan N conexiones a la vez.
 
 Lo que la concurrencia destapó y **no** es de este módulo: el caché de stock de Productos pierde
 movimientos simultáneos del mismo producto (DA-45 en `docs/deuda-aplazada.md`).

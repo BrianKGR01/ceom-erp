@@ -176,6 +176,23 @@ export async function listarPasivos(
   }));
 }
 
+/** Pantalla de Deudas: el listado con `saldoPendiente` por fila, en una sola
+ * consulta. Antes la pantalla llamaba `fichaPasivo()` por fila — ver el
+ * incidente del 2026-09-17 en `ANCLA.md`. */
+export async function listarPasivosConSaldo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  opts: { soloActivos?: boolean } = {}
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarPasivosConSaldoPorTenant>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "patrimonio", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver pasivos." };
+  }
+  return comoUsuario(solicitante.id, async (tx) => ({
+    ok: true,
+    data: await repo.listarPasivosConSaldoPorTenant(tx, tenantId, opts),
+  }));
+}
+
 export async function obtenerPasivoPorId(
   solicitante: UsuarioConRol,
   pasivoId: string

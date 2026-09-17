@@ -138,6 +138,22 @@ export async function listarProveedores(
   }));
 }
 
+/** Directorio de Proveedores: el listado con `cantidadCompras` por fila, en
+ * una sola consulta. Antes la pantalla llamaba `fichaProveedor()` por fila —
+ * ver el incidente del 2026-09-17 en `ANCLA.md`. */
+export async function listarProveedoresConCantidadCompras(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarProveedoresConCantidadCompras>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "proveedores", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver proveedores." };
+  }
+  return comoUsuario(solicitante.id, async (tx) => ({
+    ok: true,
+    data: await repo.listarProveedoresConCantidadCompras(tx, tenantId),
+  }));
+}
+
 /** ficha_proveedor(proveedor_id) — resumen de compras a ese proveedor
  * (Modulo_08 seccion 2). */
 export async function fichaProveedor(

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { fichaProveedor, listarProveedores } from "@/modules/proveedores/actions";
+import { listarProveedoresConCantidadCompras } from "@/modules/proveedores/actions";
 import { DirectorioCliente } from "../directorio-cliente";
 
 // Maestro-detalle (design-system.md seccion 5.6): el panel izquierdo
@@ -14,28 +14,22 @@ export default async function ProveedoresLayout({
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const proveedoresResultado = await listarProveedores(usuario, usuario.tenantId);
-  const proveedores = proveedoresResultado.ok ? proveedoresResultado.data : [];
-
-  // cantidadCompras por proveedor (fichaProveedor por fila) — mismo
-  // criterio de "volumen esperado bajo" ya aceptado en Pasivos/Ventas para
-  // agregados que no vienen en el listado base.
-  const conteos = await Promise.all(
-    proveedores.map(async (p) => {
-      const ficha = await fichaProveedor(usuario, p.id);
-      return ficha.ok ? ficha.data.cantidadCompras : 0;
-    })
-  );
+  // Una sola consulta con el conteo por fila. ⛔ No volver a llamar
+  // fichaProveedor() por proveedor acá: fue el disparador del incidente de
+  // pool del 2026-09-17 (proveedores/ANCLA.md) — con 10 proveedores la
+  // pantalla se colgaba 300 s.
+  const resultado = await listarProveedoresConCantidadCompras(usuario, usuario.tenantId);
+  const proveedores = resultado.ok ? resultado.data : [];
 
   return (
     <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto flex max-w-6xl gap-4 py-6">
         <DirectorioCliente
-          proveedores={proveedores.map((p, i) => ({
+          proveedores={proveedores.map((p) => ({
             id: p.id,
             nombre: p.nombre,
             contacto: p.contacto,
-            cantidadCompras: conteos[i],
+            cantidadCompras: p.cantidadCompras,
           }))}
         />
         <div className="min-w-0 flex-1">{children}</div>
