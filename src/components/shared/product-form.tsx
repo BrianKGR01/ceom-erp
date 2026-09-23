@@ -213,13 +213,22 @@ export function ProductForm({
                 <Label htmlFor="costoOperativoVigente">
                   Costo por {form.watch("unidadVenta")} (opcional)
                 </Label>
+                {/* Dos defectos corregidos el 2026-09-23 (reporte de CAFIATTO: "error
+                    al querer cambiar el precio"):
+                    1. El bloqueo va en register(), no como atributo HTML suelto:
+                       react-hook-form ignora el `disabled` del DOM y enviaba igual
+                       el costo cargado, así que el servidor rechazaba TODO el
+                       guardado de los productos con receta (regla 2).
+                    2. step="any": el costo viene de promedios y compras con hasta 4
+                       decimales (ej. 5.4167). Con step="0.01" el navegador marcaba
+                       el campo como inválido y no dejaba guardar el producto. */}
                 <Input
                   id="costoOperativoVigente"
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0"
-                  disabled={costoBloqueado}
                   {...form.register("costoOperativoVigente", {
+                    disabled: costoBloqueado,
                     setValueAs: (v) => (v === "" ? undefined : Number(v)),
                   })}
                 />

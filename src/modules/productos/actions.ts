@@ -203,9 +203,20 @@ export async function actualizarProducto(
   // Regla 2 (Modulo_02 seccion 4): el costo operativo de un producto de
   // produccion nunca se edita a mano, solo lo actualiza el Modulo Operativo
   // (via registrarEntradaProduccion).
+  //
+  // Se rechaza solo si el costo CAMBIA. Hasta el 2026-09-23 se rechazaba con
+  // que llegara un costo, aunque fuera el mismo: el formulario de edicion lo
+  // mandaba siempre, y los productos con receta no se podian editar en nada
+  // (CAFIATTO no podia cambiarle el precio a ningun cafe). ⛔ No volver a
+  // chequear solo "viene un costo": cualquier cliente que reenvie el valor
+  // vigente vuelve a bloquear el precio, el nombre y la foto.
+  const esProduccion = producto.tipoOrigenProducto === "produccion_nicho";
+  const costoVigente =
+    producto.costoOperativoVigente !== null ? Number(producto.costoOperativoVigente) : null;
   if (
+    esProduccion &&
     input.costoOperativoVigente !== undefined &&
-    producto.tipoOrigenProducto === "produccion_nicho"
+    (costoVigente === null || Math.abs(Number(input.costoOperativoVigente) - costoVigente) > 0.00005)
   ) {
     return {
       ok: false,
@@ -220,11 +231,13 @@ export async function actualizarProducto(
     imagenUrl: input.imagenUrl,
     unidadVenta: input.unidadVenta,
     precioVenta: input.precioVenta !== undefined ? String(input.precioVenta) : undefined,
+    // En un producto con receta el costo nunca se escribe desde acá, ni siquiera
+    // con su mismo valor: es del Modulo Operativo.
     costoOperativoVigente:
-      input.costoOperativoVigente !== undefined
+      !esProduccion && input.costoOperativoVigente !== undefined
         ? String(input.costoOperativoVigente)
         : undefined,
-    origenCosto: input.origenCosto,
+    origenCosto: esProduccion ? undefined : input.origenCosto,
     fechaVencimientoReferencia: input.fechaVencimientoReferencia,
     vidaUtilDias: input.vidaUtilDias,
     activo: input.activo,
