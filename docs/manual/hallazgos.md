@@ -15,7 +15,7 @@
 
 ---
 
-## Estado real — 2026-08-06 (+ H-50, 2026-09-17)
+## Estado real — 2026-08-06 (+ H-50, 2026-09-17; + H-51, 2026-09-23)
 
 Este registro venía declarando **7 corregidos / 38 abiertos**. La reconciliación de la R-2.2
 verificó los 49 hallazgos contra el código y la cuenta real es:
@@ -23,10 +23,10 @@ verificó los 49 hallazgos contra el código y la cuenta real es:
 | | Cuántos | Cuáles |
 |---|---|---|
 | ✅ **Corregidos** | **12** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, **H-37**, H-42, H-49, H-50 |
-| 🟨 **Parciales** | **4** | H-01, H-05, H-12, H-32 |
+| 🟨 **Parciales** | **5** | H-01, H-05, H-12, H-32, H-51 |
 | 🔴🟠🟡 **Abiertos** | **30** | el resto, con **un solo 🔴: H-33** |
 | ⚪ **Anotados** (decisión de alcance, no defecto) | **4** | H-17, H-20, H-23, H-48 |
-| | **50** | total |
+| | **51** | total |
 
 En **negrita** los tres que estaban cerrados con tests y este documento seguía contando como
 abiertos. El más grave era **H-30**, que el índice mostraba con un 🔴 falso siendo "el peor
@@ -125,6 +125,7 @@ corregidos-sin-registrar se cerraron en tandas que no volvieron acá.
 |---|---|---|
 | [H-49](#h-49) | ✅ | ~~El día de hoy no aparece en ningún reporte~~ — **corregido** |
 | [H-50](#h-50) | ✅ | ~~Proveedores no abre: la pantalla se queda en el módulo anterior, o da 504~~ — **corregido** (incidente de producción, 2026-09-17) |
+| [H-51](#h-51) | 🟨 | Una venta se registra dos veces si se toca "Confirmar" mientras se abre la ficha — **parcial** (pantalla y guardas corregidas; falta idempotencia en el servidor) |
 
 ---
 
@@ -1391,3 +1392,37 @@ lado, así que una pantalla lenta se lee como lenta y no como un clic perdido.
 **Lo que el manual tiene que saber:** nada cambia para el usuario. Si alguien vuelve a describir
 "toco un módulo y no pasa nada", no es un clic perdido: es una pantalla que no termina de cargar, y
 hay que mirar los logs de Vercel, no pedirle que pruebe de nuevo.
+
+---
+
+<a id="h-51"></a>
+## H-51 🟨 Una venta se registra dos veces si se toca "Confirmar" mientras se abre la ficha — parcial (2026-09-23)
+
+**Qué pasaba (en producción).** La cajera de un negocio encontraba ventas repetidas: una cobrada y
+otra idéntica "pendiente de cobro". Entre el 20 y el 22/09 fueron **13 copias por Bs 229** y **20
+unidades de stock descontadas de más**; además, dos ventas **cobradas dos veces** y una **anulada dos
+veces** (en los reportes valía −37).
+
+**Por qué.** Después de guardar la venta, el punto de venta volvía a habilitar "Confirmar venta" y
+recién entonces empezaba a abrir la ficha, sin vaciar el carrito. Esa navegación tarda 2-4 s, y
+durante ese tiempo la pantalla se veía exactamente igual que antes de confirmar. La persona volvía a
+tocar, y el servidor —que no distingue un envío repetido de una venta nueva— registraba otra. Se
+volvió frecuente el 20/09, cuando el descuento de stock empezó a funcionar y cada producto sumó
+~2,5 s al tiempo de respuesta (las funciones corrían en Virginia y la base está en São Paulo).
+Informe completo con la evidencia: `src/modules/ventas/ANCLA.md` (2026-09-23).
+
+**Qué se corrigió (Tanda A).** El punto de venta ya no se puede reconfirmar: al guardar vacía el
+carrito, muestra "Venta registrada. Abriendo el detalle…" y no vuelve a mostrar el botón. La ficha de
+venta tiene su propia pantalla de carga. Nueva compra, nueva producción y alta de negocio (/admin),
+que tenían el mismo patrón, tampoco rehabilitan el botón al terminar bien. Y el servidor rechaza: un
+pago mayor al saldo ("Esta venta ya está pagada por completo"), un ajuste que deje la venta en
+negativo ("ya está anulada por completo"), y un pago inicial mayor al total.
+
+**Qué falta (Tanda B):** idempotencia en el servidor —que el mismo intento de venta, llegue por donde
+llegue (recarga, otra pestaña), no pueda crear dos ventas—. Requiere una migración.
+
+**Lo que el manual tiene que saber:** después de confirmar, la pantalla muestra "Venta registrada" y
+se va sola a la venta. Si una venta aparece repetida, se corrige con **Ajustar venta → Anulación
+total**, nunca borrándola; y hoy una venta anulada **sigue figurando como "pendiente de cobro"**
+porque los ajustes no recalculan el estado de pago (H-26, abierto). Eso llevó a que una venta se
+anulara dos veces: ahora el sistema lo impide.
