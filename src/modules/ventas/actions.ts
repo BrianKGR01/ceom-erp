@@ -527,6 +527,15 @@ export async function registrarVenta(
     .map((r) => r.data);
   const totalVenta = lineas.reduce((acc, l) => acc + Number(l.subtotal), 0);
 
+  // El pago inicial no puede superar el total: se valida ANTES de crear la
+  // venta, para no dejar una venta guardada con su pago rechazado.
+  if (input.pagoInicial && Number(input.pagoInicial.monto) > totalVenta + 0.005) {
+    return {
+      ok: false,
+      error: `El pago (${Number(input.pagoInicial.monto).toFixed(2)}) supera el total de la venta (${totalVenta.toFixed(2)}). Cargá el total, no el efectivo recibido.`,
+    };
+  }
+
   // Regla 5 / 4.3: comision por Evento si hay, si no por Canal.
   let porcentajeComision: number | null = null;
   if (input.eventoId) {
@@ -653,6 +662,28 @@ export async function registrarAjusteVenta(
   // cualquier otro modulo, no solo la Server Action.
   const errorSigno = errorSignoAjuste(input.tipo, Number(input.montoAjuste));
   if (errorSigno) return { ok: false, error: errorSigno };
+
+  // Una venta no puede terminar valiendo menos que nada (misma regla que la
+  // compra desde H-31). Encontrado en producción el 2026-09-23: una venta de
+  // Bs 37 quedó con DOS anulaciones totales (el ajuste no cambia el estado de
+  // pago, H-26, así que la cajera creyó que la primera no había funcionado) y
+  // los reportes la contaban como −37.
+  const [totalVenta, ajustesPrevios] = await Promise.all([
+    repo.obtenerTotalVenta(ventaId),
+    repo.obtenerTotalAjustesVenta(ventaId),
+  ]);
+  const efectivoResultante = totalVenta + ajustesPrevios + Number(input.montoAjuste);
+  if (efectivoResultante < 0) {
+    const disponible = totalVenta + ajustesPrevios;
+    return {
+      ok: false,
+      error:
+        disponible <= 0
+          ? "Esta venta ya está anulada por completo: no se le puede descontar más."
+          : `El ajuste no puede dejar la venta en negativo: hoy vale ${disponible.toFixed(2)}, y este ajuste la bajaría a ${efectivoResultante.toFixed(2)}.`,
+    };
+  }
+
   if (input.cantidadProductoAjustada !== undefined && !input.productoId) {
     return {
       ok: false,
@@ -724,15 +755,24 @@ export async function registrarPagoVenta(
   // roto en la misma dirección y los dos errores se tapan — pero arreglar la
   // lectura sin esto correría el Flujo de Caja un día entero, en silencio.
   const zona = await zonaHorariaTenant(venta.tenantId);
-  const { estadoPago, totalPagado } = await repo.registrarPagoVentaTx({
+  const pago = await repo.registrarPagoVentaTx({
     ventaId,
     monto: String(input.monto),
     metodoPagoId: input.metodoPagoId,
     fechaPago: input.fechaPago ? instanteDeDiaLocal(input.fechaPago, zona) : new Date(),
     creadoPor: solicitante.id,
   });
+  if (pago.rechazado) {
+    return {
+      ok: false,
+      error:
+        pago.saldo <= 0.005
+          ? "Esta venta ya está pagada por completo."
+          : `El pago supera el saldo pendiente de la venta (${pago.saldo.toFixed(2)}).`,
+    };
+  }
 
-  return { ok: true, data: { estadoPago, totalPagado } };
+  return { ok: true, data: { estadoPago: pago.estadoPago, totalPagado: pago.totalPagado } };
 }
 
 export async function listarVentas(

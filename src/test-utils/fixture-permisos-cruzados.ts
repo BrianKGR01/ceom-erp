@@ -123,6 +123,8 @@ async function limpiarTenant(tenantId: string, rolId: string, userIds: string[])
         `delete from productos where tenant_id = '${tenantId}'`,
         `delete from activos where tenant_id = '${tenantId}'`,
         `delete from canales_venta where tenant_id = '${tenantId}'`,
+        `delete from metodos_pago where tenant_id = '${tenantId}'`,
+        `delete from eventos where tenant_id = '${tenantId}'`,
         `delete from clientes where tenant_id = '${tenantId}'`,
         `delete from categorias_gasto where tenant_id = '${tenantId}'`,
         `delete from usuarios where tenant_id = '${tenantId}'`,
