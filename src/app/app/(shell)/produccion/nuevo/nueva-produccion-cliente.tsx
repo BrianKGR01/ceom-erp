@@ -133,8 +133,11 @@ export function NuevaProduccionCliente({
       cantidadRealObtenida: Number(cantidadRealObtenida),
       fechaVencimientoLote: fechaVencimientoMostrada || undefined,
     });
-    setGuardando(false);
+    // Solo se rehabilita si falló: en el camino exitoso el botón queda
+    // deshabilitado hasta que la navegación termina (ventas duplicadas por
+    // doble confirmación, informe del 2026-09-23).
     if (!resultado.ok) {
+      setGuardando(false);
       setError(resultado.error);
       return;
     }

@@ -263,6 +263,16 @@ export async function listarAjustesPorVenta(ventaId: string) {
   return db.select().from(ajustesVenta).where(eq(ajustesVenta.ventaId, ventaId));
 }
 
+/** Σ monto_ajuste de una venta (con signo). Insumo de la guarda "un ajuste no
+ * deja la venta en negativo" de `registrarAjusteVenta`. */
+export async function obtenerTotalAjustesVenta(ventaId: string): Promise<number> {
+  const [{ total }] = await db
+    .select({ total: sql<string>`coalesce(sum(${ajustesVenta.montoAjuste}), 0)` })
+    .from(ajustesVenta)
+    .where(eq(ajustesVenta.ventaId, ventaId));
+  return Number(total);
+}
+
 // --- Pago de Venta ---------------------------------------------------------
 
 export async function obtenerTotalPagado(ventaId: string): Promise<number> {
@@ -281,10 +291,17 @@ export async function listarPagosPorVenta(ventaId: string) {
  * Registra el pago y recalcula estado_pago (pendiente/parcial/pagado) en la
  * misma transaccion, contra el total derivado de detalles_venta (Venta no
  * persiste un monto_total propio) — mismo patron que registrarPagoCompraTx.
+ *
+ * **Rechaza un pago que supere el saldo pendiente** (`rechazado: true`). Se
+ * encontraron en producción ventas cobradas dos veces —de Bs 15 pagada 30, de
+ * Bs 27 pagada 54— por el mismo patrón de doble confirmación que duplicaba
+ * ventas (informe del 2026-09-23). El `FOR UPDATE` sobre la fila de la venta
+ * serializa dos pagos simultáneos de la misma venta: sin él, los dos leerían
+ * el mismo saldo y pasarían los dos.
  */
 export async function registrarPagoVentaTx(data: NuevoPagoVenta) {
   return db.transaction(async (tx) => {
-    const [pago] = await tx.insert(pagosVenta).values(data).returning();
+    await tx.select({ id: ventas.id }).from(ventas).where(eq(ventas.id, data.ventaId)).for("update");
 
     const [{ totalVenta }] = await tx
       .select({ totalVenta: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)` })
@@ -295,14 +312,22 @@ export async function registrarPagoVentaTx(data: NuevoPagoVenta) {
       .from(pagosVenta)
       .where(eq(pagosVenta.ventaId, data.ventaId));
 
-    const pagado = Number(totalPagado);
     const total = Number(totalVenta);
+    const pagadoAntes = Number(totalPagado);
+    const saldo = total - pagadoAntes;
+    // Medio centavo de tolerancia: numeric(12,2) contra aritmética de float.
+    if (Number(data.monto) > saldo + 0.005) {
+      return { rechazado: true as const, saldo };
+    }
+
+    const [pago] = await tx.insert(pagosVenta).values(data).returning();
+    const pagado = pagadoAntes + Number(data.monto);
     const estadoPago: (typeof ventas.$inferSelect)["estadoPago"] =
       pagado <= 0 ? "pendiente" : pagado >= total ? "pagado" : "parcial";
 
     await tx.update(ventas).set({ estadoPago }).where(eq(ventas.id, data.ventaId));
 
-    return { pago, estadoPago, totalPagado: pagado };
+    return { rechazado: false as const, pago, estadoPago, totalPagado: pagado };
   });
 }
 

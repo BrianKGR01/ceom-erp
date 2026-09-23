@@ -89,6 +89,9 @@ export function PosCliente({
 
   const [error, setError] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  // Venta ya guardada y navegación a su ficha en curso. Mientras esto no sea
+  // null el punto de venta NO se puede volver a confirmar: ver confirmarVenta.
+  const [ventaRegistradaId, setVentaRegistradaId] = useState<string | null>(null);
   // R-3.2 / H-37: lo que pasó con el stock de la venta ya registrada.
   const [ventaConAvisos, setVentaConAvisos] = useState<{
     ventaId: string;
@@ -190,6 +193,7 @@ export function PosCliente({
       return;
     }
 
+    if (confirmando || ventaRegistradaId) return;
     setConfirmando(true);
     const resultado = await registrarVentaAction(sucursalId, {
       clienteId: clienteId !== "sin_cliente" && clienteId !== "nuevo" ? clienteId : undefined,
@@ -205,16 +209,25 @@ export function PosCliente({
           ? { metodoPagoId, monto: Number(montoPagoInicial) }
           : undefined,
     });
-    setConfirmando(false);
-
     if (!resultado.ok) {
+      setConfirmando(false);
       setError(resultado.error);
       return;
     }
+
+    // Ventas duplicadas en producción (informe del 2026-09-23): acá antes se
+    // hacía setConfirmando(false) y recién después router.push, sin esperar la
+    // navegación ni vaciar el carrito. Durante los 2-4 s que tarda en cargar la
+    // ficha, el punto de venta quedaba igual que antes de confirmar y con el
+    // botón activo, y la cajera volvía a tocar: 13 ventas duplicadas en 3 días.
+    // ⛔ No volver a habilitar el botón en el camino exitoso. La venta ya está
+    // guardada: lo único que queda es irse de esta pantalla.
+    setCarrito([]);
     // La venta ya quedó. Si el stock no se movió como se esperaba, se muestra
     // antes de salir de la pantalla (antes este aviso se descartaba).
     if (resultado.data.avisosStock.length > 0) {
       const nombrePorId = new Map(carrito.map((l) => [l.productoId, l.nombre]));
+      setConfirmando(false);
       setVentaConAvisos({
         ventaId: resultado.data.ventaId,
         avisos: resultado.data.avisosStock.map((a) => ({
@@ -224,6 +237,7 @@ export function PosCliente({
       });
       return;
     }
+    setVentaRegistradaId(resultado.data.ventaId);
     router.push(`/app/ventas/${resultado.data.ventaId}`);
   }
 
@@ -523,7 +537,17 @@ export function PosCliente({
               </p>
             )}
 
-            {ventaConAvisos ? (
+            {ventaRegistradaId ? (
+              <div role="status" className="space-y-2 rounded-xl bg-success-bg p-4 text-center">
+                <p className="text-sm font-medium text-success-text">Venta registrada. Abriendo el detalle…</p>
+                <Link
+                  href={`/app/ventas/${ventaRegistradaId}`}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Si no se abre, tocá acá
+                </Link>
+              </div>
+            ) : ventaConAvisos ? (
               <div role="alert" className="space-y-3 rounded-xl bg-warning-bg p-4">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-1 size-4 shrink-0 text-warning-text" />

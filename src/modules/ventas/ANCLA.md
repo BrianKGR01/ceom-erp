@@ -384,3 +384,48 @@ apoya en que `descuentosStock` viene en el mismo orden que las líneas de entrad
 `registrarVenta` corta con error si alguna línea no resuelve—; si eso cambia, `avisosDeStock` tiene
 que dejar de parear por índice. Test con un cajero (productos:ver + ventas, sin inventario), control
 Owner, y sobreventa del Owner; validado con mutantes (POS: 2 rojos; ajuste: 1 rojo).
+
+## Última actualización: 2026-09-23 — Ventas duplicadas en producción: pantalla que no se reconfirma + guardas del servidor
+**Síntoma.** CAFIATTO encontró ventas repetidas (una cobrada, otra "pendiente"). Entre el 20 y el
+22/09: 12 grupos de duplicados (uno triple), 13 copias por Bs 229, 20 unidades de stock descontadas de
+más; además 2 ventas cobradas dos veces (Bs 15→30, Bs 27→54) y 1 anulada dos veces (Bs 37 → −37 en
+reportes). Detalle en H-51.
+
+**Mecanismo, con evidencia de la base (solo lectura).** Las dos ventas de cada par se completaron
+enteras (mismo tiempo de servidor, las dos descontaron stock). La segunda siempre empezó **8,2-16,6 s**
+después de la primera y **nunca antes de que la primera terminara**, con una separación que crece con
+la cantidad de líneas: una persona que vuelve a tocar mientras espera. En `pos-cliente.tsx`,
+`confirmarVenta` hacía `setConfirmando(false)` y recién después `router.push`, sin esperar la
+navegación ni vaciar el carrito. El `loading.tsx` de `(shell)` no se activa en `/app/ventas` →
+`/app/ventas/[id]` (el segmento `ventas` no cambia), así que el punto de venta quedaba en pantalla
+con el botón activo. Lo que abrió la ventana: desde el 20/09 cada línea cuesta ~2,5 s (el 19/09 casi
+ningún descuento de stock se ejecutaba y la venta respondía en ~2 s): funciones en `iad1` y base en
+`sa-east-1`, y ~12 idas y vueltas por línea en `descontarStockVenta`.
+
+**Qué se cambió:**
+- **Pantalla** (`pos-cliente.tsx`): en el camino exitoso el botón no se rehabilita, el carrito se
+  vacía y aparece "Venta registrada. Abriendo el detalle…" con un enlace de respaldo. Guarda al inicio
+  de `confirmarVenta` contra una segunda llamada. `ventas/[id]/loading.tsx` propio, que sí se activa
+  en esta navegación. **⛔ No volver a `setConfirmando(false)` antes de `router.push`.** Test:
+  `src/app/app/(shell)/ventas/pos-cliente.test.tsx` (con `router.push` congelado; falla contra el
+  código anterior).
+- **`registrarAjusteVenta`**: rechaza un ajuste que deje la venta en negativo (total + Σ ajustes +
+  nuevo < 0), con la misma regla que Compras tiene desde H-31. Nuevo `repo.obtenerTotalAjustesVenta`.
+- **`registrarPagoVenta` / `repo.registrarPagoVentaTx`**: rechaza un pago mayor al saldo pendiente.
+  Bloquea la fila de la venta (`SELECT … FOR UPDATE`) antes de leer el saldo, para que dos pagos
+  simultáneos no lean el mismo saldo y entren los dos. `registrarPagoVentaTx` ahora devuelve
+  `{ rechazado: true, saldo }` o el resultado de antes con `rechazado: false`.
+- **`registrarVenta`**: un `pagoInicial` mayor al total se rechaza **antes** de crear la venta
+  (antes quedaba registrado como pagado de más). *Nota:* si trae `clienteNuevo`, el cliente ya se creó
+  en ese punto; es un efecto menor y previo a este cambio.
+- Test de las guardas: `src/modules/ventas/doble-confirmacion.test.ts`, contra Postgres efímero. Cada
+  guarda validada rompiéndola: ajuste → 2 rojos, pago → 3 rojos, sin `FOR UPDATE` → el test de pagos
+  simultáneos queda en rojo (entran los dos), pago inicial → 1 rojo.
+
+**Sin cambio de firma pública** en `actions.ts`: las funciones devuelven `{ ok: false, error }` en los
+casos nuevos, como cualquier otra validación.
+
+**Lo que NO cierra este cambio** (H-51 queda parcial): **idempotencia** —el mismo intento de venta, por
+cualquier vía (recarga, otra pestaña, doble envío de red), todavía crearía dos ventas—. Va en la Tanda B,
+con migración. Y **H-26 / R-3.3** sigue abierto: un ajuste no recalcula `estado_pago`, así que una
+venta anulada sigue diciendo "pendiente de cobro". Fue lo que llevó a anular una venta dos veces.
