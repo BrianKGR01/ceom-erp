@@ -74,6 +74,23 @@ condiciona tres ítems del plan que antes se daban por resueltos.
 3. **Pausa por inactividad** tras ~7 días de poca actividad de base. Un piloto de 3-10 negocios con
    uso esporádico es exactamente ese perfil. → **R-6.4** y **R-7.1**.
 
+### ⚠️ Ventas duplicadas — 2026-09-23 (H-51)
+
+El punto de venta registraba dos veces la misma venta cuando se tocaba "Confirmar" mientras se abría
+la ficha (13 copias en 3 días). Informe y mecanismo en `src/modules/ventas/ANCLA.md`. Plan por tandas:
+- [x] **Tanda A** *(2026-09-23)* — la pantalla no se puede reconfirmar (punto de venta, nueva compra,
+      nueva producción, alta de negocio); guardas del servidor (pago > saldo, ajuste que deja la venta
+      en negativo, pago inicial > total); **funciones de Vercel movidas a `gru1` (São Paulo)**, junto a
+      la base (`vercel.json`). Sin migraciones.
+- [ ] **Tanda B** — idempotencia de la venta (clave por intento, índice único): **requiere migración**,
+      que se revisa antes de aplicar. Junto con **R-3.3 / H-26** (el ajuste recalcula el estado de pago),
+      porque es lo que hizo anular una venta dos veces.
+- [ ] **Tanda C** — compatibilidad con navegadores viejos (la PC del negocio usa Chrome 109; Next 16 y
+      Tailwind 4 exigen 111+): `browserslist` + auditoría del CSS generado + respaldos, verificado en un
+      Chromium 109 real.
+- [ ] Corrección de las 13 ventas duplicadas: la carga el negocio con **Anulación total**, a partir de la
+      lista validada con ellos (nunca borrando).
+
 ### ⚠️ Incidente de producción del 2026-09-17 — y un aviso sobre esta tabla
 
 **Esta tabla quedó vieja.** Dice "1 proyecto (dev)" y ubica el despliegue real en la Fase 6: hoy
