@@ -682,6 +682,21 @@ trabajo de **una etapa intermedia**, no definitivo.
 sube de la Fase 8 a R-3.8, porque la tabla `instituciones` pasa a tener correos reales de terceros.
 Y hay que decirle al piloto lo de **G-12** (ver Fase 7).
 
+### DP-04 — Política de costeo de productos: **promedio ponderado** *(decidida el 2026-09-23)*
+
+**Qué se decidió:** el costo vigente de un producto se calcula por **promedio ponderado** con el stock
+existente, tanto al recibir una compra de reventa como una producción. Hoy se reemplaza por el de la
+última entrada (H-25).
+
+**Por qué:** es lo que ya hacen los insumos (Módulo 6 §2.4), lo que espera cualquiera que haya usado
+un sistema de inventario, y lo que acepta la norma contable (NIC 2: promedio ponderado o FIFO). Con
+"último costo", 5 unidades compradas caras de urgencia cambian el margen de todo el stock.
+
+**Estado:** decidida, **pendiente de implementar**. Coordinar con H-53: un producto *preparado al
+momento* no tiene stock propio, así que su costo es el de la receta al vender, no un promedio.
+
+**Qué la revisaría:** que el negocio pida costeo por lote (FIFO) con trazabilidad real.
+
 ### DEC-06 — *(pendiente)* Contra qué base corren los tests automatizados
 
 **Se decide en R-1.4.** Las tres opciones y su costo están ahí. **Anotar acá el resultado**, porque

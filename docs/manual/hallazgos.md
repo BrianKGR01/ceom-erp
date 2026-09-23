@@ -15,18 +15,18 @@
 
 ---
 
-## Estado real — 2026-08-06 (+ H-50, 2026-09-17; + H-51, 2026-09-23)
+## Estado real — 2026-08-06 (+ H-50, 2026-09-17; + H-51, H-52, H-53, 2026-09-23)
 
 Este registro venía declarando **7 corregidos / 38 abiertos**. La reconciliación de la R-2.2
 verificó los 49 hallazgos contra el código y la cuenta real es:
 
 | | Cuántos | Cuáles |
 |---|---|---|
-| ✅ **Corregidos** | **12** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, **H-37**, H-42, H-49, H-50 |
+| ✅ **Corregidos** | **13** | H-02, **H-06**, H-15, **H-18**, H-24, H-27, **H-30**, H-31, **H-37**, H-42, H-49, H-50, H-52 |
 | 🟨 **Parciales** | **5** | H-01, H-05, H-12, H-32, H-51 |
-| 🔴🟠🟡 **Abiertos** | **30** | el resto, con **un solo 🔴: H-33** |
+| 🔴🟠🟡 **Abiertos** | **31** | el resto, con **dos 🔴: H-33 y H-53** |
 | ⚪ **Anotados** (decisión de alcance, no defecto) | **4** | H-17, H-20, H-23, H-48 |
-| | **51** | total |
+| | **53** | total |
 
 En **negrita** los tres que estaban cerrados con tests y este documento seguía contando como
 abiertos. El más grave era **H-30**, que el índice mostraba con un 🔴 falso siendo "el peor
@@ -125,6 +125,8 @@ corregidos-sin-registrar se cerraron en tandas que no volvieron acá.
 |---|---|---|
 | [H-49](#h-49) | ✅ | ~~El día de hoy no aparece en ningún reporte~~ — **corregido** |
 | [H-50](#h-50) | ✅ | ~~Proveedores no abre: la pantalla se queda en el módulo anterior, o da 504~~ — **corregido** (incidente de producción, 2026-09-17) |
+| [H-52](#h-52) | ✅ | ~~No se puede editar un producto con receta (ni el precio), ni uno sin receta con costo de más de 2 decimales~~ — **corregido** (2026-09-23) |
+| [H-53](#h-53) | 🔴 | Los productos que se preparan al momento (cafés) no descuentan insumos al venderse — **abierto, requiere diseño** |
 | [H-51](#h-51) | 🟨 | Una venta se registra dos veces si se toca "Confirmar" mientras se abre la ficha — **parcial** (pantalla y guardas corregidas; falta idempotencia en el servidor) |
 
 ---
@@ -691,6 +693,11 @@ mostrar el monto en la ficha de la venta para que no sea invisible.
 
 <a id="h-25"></a>
 ## H-25 🟠 El costo de un producto se reemplaza por el de la última compra, no se promedia
+
+> **Decidido el 2026-09-23 (DP-04): promedio ponderado**, igual que los insumos y la norma contable
+> de inventarios (NIC 2 acepta promedio ponderado o FIFO; "último costo" no es un método de valuación
+> aceptado). **Pendiente de implementar.** Aplica también a la **entrada de producción**, que tiene el
+> mismo comportamiento (`productos/repository.ts`, `crearEntradaProduccionTx`) y no estaba registrado.
 
 **Qué pasa.** Al recibir una compra de reventa, `crearEntradaCompraReventaTx` hace
 `set({ costoOperativoVigente: data.costoCompra })`
@@ -1426,3 +1433,56 @@ se va sola a la venta. Si una venta aparece repetida, se corrige con **Ajustar v
 total**, nunca borrándola; y hoy una venta anulada **sigue figurando como "pendiente de cobro"**
 porque los ajustes no recalculan el estado de pago (H-26, abierto). Eso llevó a que una venta se
 anulara dos veces: ahora el sistema lo impide.
+
+---
+
+<a id="h-52"></a>
+## H-52 ✅ No se puede editar un producto con receta (ni el precio) — corregido el 2026-09-23
+
+**Qué pasaba (reporte de CAFIATTO: "tengo este mensaje de error al querer cambiar el precio").** Al
+guardar cualquier cambio de un café —precio, nombre, foto, visibilidad— aparecía "El costo operativo
+de un producto de producción no se edita a mano; lo actualiza el Módulo Operativo" y no se guardaba
+nada. Afectaba a los 15 cafés de CAFIATTO y a un producto de otros dos negocios.
+
+**Por qué.** En un producto con receta el costo lo calcula la producción y se muestra bloqueado (regla
+2 del Módulo 2, correcta). Pero el bloqueo era solo visual: el formulario enviaba igual el costo que
+había cargado, y el servidor rechazaba cualquier guardado que trajera un costo, aunque no hubiera
+cambiado.
+
+**Un segundo defecto, encontrado al escribir el test:** en productos **sin** receta, un costo con más
+de dos decimales (ej. Media luna, 5,4167, que viene de promediar compras) hacía que el navegador
+marcara el campo como inválido y tampoco dejara guardar.
+
+**Cómo se arregló.** El costo bloqueado ya no viaja al guardar; el servidor solo rechaza si alguien
+intenta **cambiar** el costo de un producto con receta; y el campo de costo acepta los decimales que
+el sistema mismo calcula. Tests: `src/components/shared/product-form.test.tsx` y
+`src/modules/productos/editar-producto-con-receta.test.ts`.
+
+**Lo que el manual tiene que saber:** el precio de cualquier producto se cambia en *Productos → el
+producto → Editar → Precio de venta*. Las ventas ya hechas conservan el precio al que se vendieron.
+
+---
+
+<a id="h-53"></a>
+## H-53 🔴 Los productos que se preparan al momento no descuentan insumos al venderse — abierto (2026-09-23)
+
+**Qué pasa.** El Módulo Operativo se diseñó para **producción por lotes**: se produce una tanda, entra
+al stock y se vende después. Un café se prepara cuando el cliente lo pide, y el sistema no tiene esa
+modalidad. CAFIATTO lo resolvió registrando **una "producción" de 1 unidad por café** (para que el
+sistema calcule el costo) y vendiendo con el permiso *vender sin stock*.
+
+**Consecuencias verificadas en la base (2026-09-23):**
+- El stock de los cafés está en **negativo** (Dulce de leche latte frío −20, Mocha latte frío −19,
+  Capuccino −14…).
+- **Los insumos no bajan con las ventas**: con ~180 cafés vendidos, la leche bajó 2,4 L de 48 L
+  comprados, los vasos calientes 10 de 500 y el café en grano 0,38 kg. El inventario de insumos, las
+  alertas de reposición, la merma y la capacidad no reflejan la realidad.
+
+**Cómo lo resuelve la industria:** dos tipos de producto — *por lotes* (lo que CEOM tiene) y
+*preparado al momento*: sin stock propio, **la venta descuenta los insumos de su receta** y el costo de
+esa venta es el de la receta en ese momento. La arquitectura ya lo admite (Strategy de "Operaciones",
+`CEOM_Arquitectura.md` §5.1), pero es un cambio entre Productos, Ventas y Operativo con migración.
+
+**Estado:** esperando que el negocio confirme cómo prepara cada producto; después, plan de diseño
+para aprobar. Incluye corregir el stock negativo de los cafés y limpiar insumos duplicados
+("LECHE" en litros y en ml, "JARABE CARAMELO", "Jarabe Vainilla", "TAPAS FRIAS/FRÍAS").

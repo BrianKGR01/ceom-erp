@@ -266,3 +266,21 @@ condición del join, así que un producto sin movimientos viene en 0 y no desapa
 `inventario:ver`, mismo mensaje que `consultarStockTotalPorSucursal`. Sin impacto en la matriz de
 dependencias: Ventas ya consumía Productos. Test en `src/app/app/(shell)/ventas/avisos-stock.test.ts`
 (valor exacto del producto con stock, 0 del producto sin movimientos, rechazo sin permiso).
+
+## Última actualización: 2026-09-23 — H-52: editar un producto con receta (y costos con más de 2 decimales)
+**Reporte de CAFIATTO:** no podían cambiarle el precio a ningún café. Dos defectos:
+1. `actualizarProducto` rechazaba cualquier edición de un producto `produccion_nicho` que **trajera**
+   `costoOperativoVigente`, y `product-form.tsx` lo mandaba siempre: el `disabled` era un atributo
+   HTML suelto, que react-hook-form ignora. Ahora el bloqueo va en `register(..., { disabled })` (el
+   campo se ve pero no viaja) y la guarda rechaza solo si el costo **cambia** (tolerancia 0,00005, la
+   escala de la columna). En un producto con receta, `actualizarProducto` **nunca** escribe
+   `costo_operativo_vigente` ni `origen_costo`, aunque llegue el mismo valor. **⛔ No volver a
+   chequear solo "viene un costo".**
+2. El input de costo tenía `step="0.01"`; los costos que calcula el sistema tienen hasta 4 decimales
+   (ej. 5,4167) y el navegador bloqueaba el envío por validación nativa. Ahora `step="any"`.
+
+Regla 2 intacta: cambiar el costo a mano sigue rechazado (test con mutante). Sin cambio de contrato.
+Tests: `src/modules/productos/editar-producto-con-receta.test.ts`, `src/components/shared/product-form.test.tsx`.
+
+**Relacionado, no resuelto acá:** DP-04 decidida (promedio ponderado, pendiente de implementar en
+`crearEntradaCompraReventaTx` y `crearEntradaProduccionTx`) y H-53 (productos preparados al momento).
