@@ -259,3 +259,21 @@ del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProd
   gateada por `ventas:crear` (como las comisiones, H-27). `repository.ts`: `obtenerRecetasAlVender`, `obtenerStockInsumosEnSucursal`, `crearConsumosVentaTx`.
 - UI: selector "Cuándo se descuentan los insumos" en el diálogo de receta de la ficha de producto.
 - Pendiente de la Fase 1 en producción: aplicar 0050-0052 (mostrar el SQL antes) y pasar las 21 vinculaciones de CAFIATTO a `al_vender`.
+
+## Última actualización: 2026-10-16 — Fase 2 Cafiatto: bajas de insumo y de producto
+
+- Tabla `bajas` (migración 0054, con RLS `crudPolicy` en el mismo archivo) + valor `salida_baja` en `tipo_movimiento_insumo` (0053, sola por `ADD VALUE`).
+  Registro **append-only** (regla 3): una baja no se edita ni se borra; si se cargó mal se corrige con un ajuste con motivo. Guarda el motivo, la nota,
+  la cantidad (4 decimales) y el **costo congelado** (regla 4). `costo_total` es null y `costo_desconocido` true cuando falta algún costo: se marca, no se estima
+  en cero (reglas 9 y 10). Checks: exactamente un objeto (insumo o producto) y cantidad > 0.
+- Motivos (`motivos-baja.ts`, sin dependencias para poder usarlo desde el cliente): error de preparación, derrame/desperdicio, queja o reposición, vencimiento,
+  daño, otro (exige nota). **"Consumo del personal" NO es motivo de baja**: va por bonificación (decisión 1 del roadmap, Fase 5).
+- `registrarBajaInsumo`: baja + movimiento `salida_baja` (referencia = id de la baja) + saldo, en una transacción. No bloquea si el saldo no alcanza
+  (el conteo puede ir atrasado): queda en negativo y se devuelve para que la pantalla avise.
+- `registrarBajaProducto`: si el producto se prepara al vender, consume los insumos de su receta (mismo cálculo que la venta, `consumo-recetas.ts`, compartido);
+  si tiene stock terminado, `registrarBajaStockProducto` (Productos, `salida_merma`) y después el registro — dos pasos fuera de una misma transacción
+  (gap de atomicidad cruzada, como en Ventas).
+- `listarBajas`, `consultarBajasPorMotivo` (devuelve `bajasSinCostoConocido` junto al total). Permisos: `operativo:anular_ajustar` para registrar, `operativo:ver` para leer.
+- UI: `/app/produccion/bajas` (formulario + últimas bajas de 7 días + costo con aviso de bajas sin costo). Entrada "Bajas" en Producción.
+- `src/test-utils/fixture-permisos-cruzados.ts` limpia `bajas` (FK a insumos/productos).
+- Tests: `bajas.test.ts`.

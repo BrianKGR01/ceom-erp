@@ -246,6 +246,7 @@ export function AppShell({
         { href: "/app/produccion", label: "Producciones" },
         { href: "/app/produccion/insumos", label: "Insumos" },
         { href: "/app/produccion/recetas", label: "Recetas" },
+        { href: "/app/produccion/bajas", label: "Bajas" },
         { href: "/app/produccion/capacidad", label: "Capacidad" },
       ],
     },

@@ -8,16 +8,22 @@ import { consultarCapacidad } from "@/modules/patrimonio/actions";
 import {
   consultarStock,
   enviarProductoAOperaciones,
+  registrarBajaStockProducto,
   fichaProducto,
   registrarEntradaProduccion,
 } from "@/modules/productos/actions";
 import { instanteDeDiaLocal, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
+import { calcularConsumoRecetas, redondear4 } from "./consumo-recetas";
+import { ETIQUETA_MOTIVO_BAJA } from "./motivos-baja";
 import * as repo from "./repository";
 import type {
   modoConsumoRecetaEnum,
+  motivoBajaEnum,
   tipoMovimientoInsumoEnum,
   unidadMedidaInsumoEnum,
 } from "./schema";
+
+export type MotivoBaja = (typeof motivoBajaEnum.enumValues)[number];
 
 export type ModoConsumoReceta = (typeof modoConsumoRecetaEnum.enumValues)[number];
 
@@ -379,6 +385,235 @@ export async function registrarMermaAlmacenamiento(
   });
 
   return { ok: true, data: { movimientoId: movimiento.id, cantidadActual } };
+}
+
+// --- Bajas (Roadmap Cafiatto, Fase 2) ---------------------------------------
+
+export { ETIQUETA_MOTIVO_BAJA };
+
+export interface SaldoInsumoBaja {
+  insumoId: string;
+  insumoNombre: string;
+  cantidadActual: number;
+}
+
+export interface ResultadoBaja {
+  bajaId: string;
+  /** Costo de lo perdido congelado en la baja; null si a algun insumo le falta costo. */
+  costoTotal: number | null;
+  /** Insumos tocados y su saldo resultante (la pantalla avisa si alguno queda en negativo). */
+  saldos: SaldoInsumoBaja[];
+  /** Stock terminado restante, solo cuando la baja fue de un producto con stock. */
+  stockProductoActual: number | null;
+}
+
+interface DatosBajaBase {
+  sucursalId: string;
+  cantidad: number;
+  motivo: MotivoBaja;
+  nota?: string;
+}
+
+function validarBaja(input: DatosBajaBase): string | null {
+  if (!(input.cantidad > 0)) return "La cantidad de la baja tiene que ser mayor a cero.";
+  if (!(input.motivo in ETIQUETA_MOTIVO_BAJA)) return "Elegí un motivo de baja válido.";
+  if (input.motivo === "otro" && !input.nota?.trim()) {
+    return 'Con el motivo "Otro" explicá qué pasó en la nota.';
+  }
+  return null;
+}
+
+/**
+ * Baja de un insumo (leche derramada, café vencido). No es una venta ni un
+ * ajuste de conteo: deja el motivo, el costo congelado y baja el saldo. NO
+ * bloquea si el saldo no alcanza (el conteo del sistema puede ir atrasado): el
+ * saldo queda en negativo y se devuelve para que la pantalla lo avise.
+ */
+export async function registrarBajaInsumo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosBajaBase & { insumoId: string }
+): Promise<Resultado<ResultadoBaja>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para registrar bajas en este tenant." };
+  }
+  const errorValidacion = validarBaja(input);
+  if (errorValidacion) return { ok: false, error: errorValidacion };
+
+  const insumo = await repo.obtenerInsumoPorId(input.insumoId);
+  if (!insumo || insumo.tenantId !== tenantId) {
+    return { ok: false, error: "Insumo no encontrado." };
+  }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+
+  const costoUnitario = insumo.costoUnitarioVigente === null ? null : Number(insumo.costoUnitarioVigente);
+  const costoTotal = costoUnitario === null ? null : redondear4(costoUnitario * input.cantidad);
+
+  const { baja, saldos } = await repo.crearBajaInsumoTx({
+    baja: {
+      tenantId,
+      sucursalId: input.sucursalId,
+      tipo: "insumo",
+      insumoId: input.insumoId,
+      cantidad: String(redondear4(input.cantidad)),
+      motivo: input.motivo,
+      nota: input.nota?.trim() || null,
+      costoTotal: costoTotal === null ? null : String(costoTotal),
+      costoDesconocido: costoTotal === null,
+      creadoPor: solicitante.id,
+    },
+    costoUnitarioEnMovimiento: String(costoUnitario ?? 0),
+  });
+
+  return {
+    ok: true,
+    data: {
+      bajaId: baja.id,
+      costoTotal,
+      saldos: saldos.map((s) => ({ ...s, insumoNombre: insumo.nombre })),
+      stockProductoActual: null,
+    },
+  };
+}
+
+/**
+ * Baja de un producto. Si se prepara al vender, consume los insumos de su
+ * receta (un Latte descartado gasta su cafe y su leche); si tiene stock
+ * terminado, descuenta ese stock. Ninguna de las dos genera ingreso ni venta.
+ */
+export async function registrarBajaProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosBajaBase & { productoId: string }
+): Promise<Resultado<ResultadoBaja>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para registrar bajas en este tenant." };
+  }
+  const errorValidacion = validarBaja(input);
+  if (errorValidacion) return { ok: false, error: errorValidacion };
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+
+  const cantidad = redondear4(input.cantidad);
+  const plan = await calcularConsumoRecetas(tenantId, [{ productoId: input.productoId, cantidad }]);
+  const porReceta = plan.porProducto[input.productoId];
+  const base = {
+    tenantId,
+    sucursalId: input.sucursalId,
+    tipo: "producto" as const,
+    productoId: input.productoId,
+    cantidad: String(cantidad),
+    motivo: input.motivo,
+    nota: input.nota?.trim() || null,
+    creadoPor: solicitante.id,
+  };
+
+  if (porReceta) {
+    const costoTotal = porReceta.costoUnitario === null ? null : redondear4(porReceta.costoUnitario * cantidad);
+    const { baja, saldos } = await repo.crearBajaProductoConRecetaTx({
+      baja: {
+        ...base,
+        costoTotal: costoTotal === null ? null : String(costoTotal),
+        costoDesconocido: costoTotal === null,
+      },
+      consumos: plan.consumos.map((c) => ({
+        insumoId: c.insumoId,
+        cantidad: String(c.cantidad),
+        costoUnitarioEnMovimiento: String(c.costoUnitario ?? 0),
+      })),
+    });
+    const nombre = new Map(plan.consumos.map((c) => [c.insumoId, c.insumoNombre]));
+    return {
+      ok: true,
+      data: {
+        bajaId: baja.id,
+        costoTotal,
+        saldos: saldos.map((s) => ({ ...s, insumoNombre: nombre.get(s.insumoId) ?? "Insumo" })),
+        stockProductoActual: null,
+      },
+    };
+  }
+
+  // Producto con stock terminado. El movimiento lo escribe Productos (que ademas
+  // ata el producto al tenant); despues se deja el registro de la baja. Son dos
+  // pasos fuera de una misma transaccion (gap de atomicidad cruzada, como en
+  // Ventas): si el registro fallara, el stock ya bajo y el error lo dice.
+  const descuento = await registrarBajaStockProducto(solicitante, tenantId, {
+    productoId: input.productoId,
+    sucursalId: input.sucursalId,
+    cantidad,
+    motivo: ETIQUETA_MOTIVO_BAJA[input.motivo],
+  });
+  if (!descuento.ok) return descuento;
+
+  const costoUnitario = descuento.data.costoOperativoVigente;
+  const costoTotal = costoUnitario === null ? null : redondear4(costoUnitario * cantidad);
+  const baja = await repo.crearBaja({
+    ...base,
+    costoTotal: costoTotal === null ? null : String(costoTotal),
+    costoDesconocido: costoTotal === null,
+  });
+
+  return {
+    ok: true,
+    data: {
+      bajaId: baja.id,
+      costoTotal,
+      saldos: [],
+      stockProductoActual: descuento.data.cantidadActual,
+    },
+  };
+}
+
+export async function listarBajas(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  sucursalId?: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarBajasEnPeriodo>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver bajas en este tenant." };
+  }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  return { ok: true, data: await repo.listarBajasEnPeriodo(tenantId, inicio, fin, sucursalId) };
+}
+
+/**
+ * Costo de las bajas por motivo en un periodo. Devuelve junto al total cuantas
+ * bajas no tienen costo conocido: el numero sin ese marcador se lee optimista
+ * (reglas 9 y 10: marcar el hueco, no estimarlo).
+ */
+export async function consultarBajasPorMotivo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string }
+): Promise<
+  Resultado<{
+    porMotivo: Array<{ motivo: MotivoBaja; cantidadBajas: number; costoTotal: number; sinCostoConocido: number }>;
+    costoTotal: number;
+    bajasSinCostoConocido: number;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver bajas en este tenant." };
+  }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  const filas = await repo.resumirBajasPorMotivo(tenantId, inicio, fin);
+  const porMotivo = filas.map((f) => ({
+    motivo: f.motivo,
+    cantidadBajas: f.cantidadBajas,
+    costoTotal: Number(f.costoTotal),
+    sinCostoConocido: f.sinCostoConocido,
+  }));
+  return {
+    ok: true,
+    data: {
+      porMotivo,
+      costoTotal: porMotivo.reduce((s, f) => s + f.costoTotal, 0),
+      bajasSinCostoConocido: porMotivo.reduce((s, f) => s + f.sinCostoConocido, 0),
+    },
+  };
 }
 
 // --- Recetas ---------------------------------------------------------

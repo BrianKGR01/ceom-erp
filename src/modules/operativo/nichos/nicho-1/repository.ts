@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
+  bajas,
   insumos,
   movimientosInsumo,
   produccionesAjuste,
@@ -11,6 +12,7 @@ import {
   vinculacionesProductoReceta,
 } from "./schema";
 
+export type NuevaBaja = typeof bajas.$inferInsert;
 export type NuevoInsumo = typeof insumos.$inferInsert;
 export type NuevoMovimientoInsumo = typeof movimientosInsumo.$inferInsert;
 export type NuevaReceta = typeof recetas.$inferInsert;
@@ -575,6 +577,117 @@ export async function crearConsumosVentaTx(data: {
     }
     return saldos;
   });
+}
+
+// --- Bajas (Fase 2 Cafiatto) -------------------------------------------------
+
+/** Baja de un insumo: registro + movimiento `salida_baja` + saldo, todo o nada. */
+export async function crearBajaInsumoTx(data: {
+  baja: Omit<NuevaBaja, "id" | "creadoEn">;
+  costoUnitarioEnMovimiento: string;
+}) {
+  return db.transaction(async (tx) => {
+    const [baja] = await tx.insert(bajas).values(data.baja).returning();
+    await tx.insert(movimientosInsumo).values({
+      insumoId: data.baja.insumoId!,
+      sucursalId: data.baja.sucursalId,
+      tipo: "salida_baja",
+      cantidad: data.baja.cantidad,
+      costoUnitarioEnMovimiento: data.costoUnitarioEnMovimiento,
+      motivo: data.baja.motivo,
+      referenciaId: baja.id,
+      creadoPor: data.baja.creadoPor,
+    });
+    const cantidadActual = await recalcularCantidadActualInsumoTx(
+      tx,
+      data.baja.insumoId!,
+      data.baja.sucursalId
+    );
+    return { baja, saldos: [{ insumoId: data.baja.insumoId!, cantidadActual }] };
+  });
+}
+
+/** Baja de un producto preparado: registro + un `salida_baja` por insumo de su receta. */
+export async function crearBajaProductoConRecetaTx(data: {
+  baja: Omit<NuevaBaja, "id" | "creadoEn">;
+  consumos: Array<{ insumoId: string; cantidad: string; costoUnitarioEnMovimiento: string }>;
+}) {
+  return db.transaction(async (tx) => {
+    const [baja] = await tx.insert(bajas).values(data.baja).returning();
+    const saldos: Array<{ insumoId: string; cantidadActual: number }> = [];
+    for (const consumo of data.consumos) {
+      await tx.insert(movimientosInsumo).values({
+        insumoId: consumo.insumoId,
+        sucursalId: data.baja.sucursalId,
+        tipo: "salida_baja",
+        cantidad: consumo.cantidad,
+        costoUnitarioEnMovimiento: consumo.costoUnitarioEnMovimiento,
+        motivo: data.baja.motivo,
+        referenciaId: baja.id,
+        creadoPor: data.baja.creadoPor,
+      });
+      saldos.push({
+        insumoId: consumo.insumoId,
+        cantidadActual: await recalcularCantidadActualInsumoTx(tx, consumo.insumoId, data.baja.sucursalId),
+      });
+    }
+    return { baja, saldos };
+  });
+}
+
+/** Solo el registro: el movimiento de stock terminado lo escribe Productos. */
+export async function crearBaja(data: Omit<NuevaBaja, "id" | "creadoEn">) {
+  const [baja] = await db.insert(bajas).values(data).returning();
+  return baja;
+}
+
+export async function listarBajasEnPeriodo(
+  tenantId: string,
+  inicio: Date,
+  fin: Date,
+  sucursalId?: string
+) {
+  return db
+    .select({
+      id: bajas.id,
+      sucursalId: bajas.sucursalId,
+      tipo: bajas.tipo,
+      insumoId: bajas.insumoId,
+      insumoNombre: insumos.nombre,
+      productoId: bajas.productoId,
+      cantidad: bajas.cantidad,
+      motivo: bajas.motivo,
+      nota: bajas.nota,
+      costoTotal: bajas.costoTotal,
+      costoDesconocido: bajas.costoDesconocido,
+      creadoPor: bajas.creadoPor,
+      creadoEn: bajas.creadoEn,
+    })
+    .from(bajas)
+    .leftJoin(insumos, eq(bajas.insumoId, insumos.id))
+    .where(
+      and(
+        eq(bajas.tenantId, tenantId),
+        gte(bajas.creadoEn, inicio),
+        lt(bajas.creadoEn, fin),
+        sucursalId ? eq(bajas.sucursalId, sucursalId) : undefined
+      )
+    )
+    .orderBy(sql`${bajas.creadoEn} desc`);
+}
+
+/** Total por motivo. `sinCostoConocido` cuenta las bajas cuyo costo no se pudo calcular. */
+export async function resumirBajasPorMotivo(tenantId: string, inicio: Date, fin: Date) {
+  return db
+    .select({
+      motivo: bajas.motivo,
+      cantidadBajas: sql<number>`count(*)::int`,
+      costoTotal: sql<string>`coalesce(sum(${bajas.costoTotal}), 0)`,
+      sinCostoConocido: sql<number>`count(*) filter (where ${bajas.costoDesconocido})::int`,
+    })
+    .from(bajas)
+    .where(and(eq(bajas.tenantId, tenantId), gte(bajas.creadoEn, inicio), lt(bajas.creadoEn, fin)))
+    .groupBy(bajas.motivo);
 }
 
 export async function crearProduccionAjuste(data: NuevaProduccionAjuste) {

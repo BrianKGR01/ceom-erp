@@ -4,6 +4,13 @@ import {
   tienePermiso,
 } from "@/modules/identidad/actions";
 import type { UsuarioConRol } from "@/modules/identidad/actions";
+import {
+  calcularConsumoRecetas,
+  consumoPorUnidadVendida,
+  type ConsumoInsumo,
+  type ConsumoRecetas,
+  type LineaConsumo,
+} from "./nichos/nicho-1/consumo-recetas";
 import * as repo from "./nichos/nicho-1/repository";
 
 /**
@@ -24,45 +31,11 @@ import * as repo from "./nichos/nicho-1/repository";
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export interface LineaVentaOperativa {
-  productoId: string;
-  cantidad: number;
-}
+export type LineaVentaOperativa = LineaConsumo;
+export type ConsumoInsumoVenta = ConsumoInsumo;
+export type PlanConsumoVenta = ConsumoRecetas;
 
-export interface ConsumoInsumoVenta {
-  insumoId: string;
-  insumoNombre: string;
-  /** Total a descontar en toda la venta, ya agregado por insumo (4 decimales). */
-  cantidad: number;
-  costoUnitario: number | null;
-}
-
-export interface PlanConsumoVenta {
-  /**
-   * Productos de la venta que se preparan al vender. Los productos que NO
-   * estan aca siguen el camino de siempre (stock de producto terminado).
-   * `costoUnitario` es el costo de la receta por unidad vendida; `null` si a
-   * algun insumo le falta costo (la venta lo marca como costo desconocido).
-   */
-  porProducto: Record<string, { costoUnitario: number | null }>;
-  consumos: ConsumoInsumoVenta[];
-}
-
-const redondear4 = (n: number) => Math.round(n * 10_000) / 10_000;
-
-/**
- * Cuanto de cada insumo gasta UNA unidad vendida:
- * cantidad_por_lote x (base que consume la presentacion / rendimiento del lote).
- * Para recetas "por unidad" (rendimiento 1, base 1) es la cantidad de la receta.
- */
-export function consumoPorUnidadVendida(
-  cantidadPorLote: number,
-  cantidadBase: number,
-  rendimientoPorLote: number
-): number {
-  if (rendimientoPorLote <= 0) return 0;
-  return (cantidadPorLote * cantidadBase) / rendimientoPorLote;
-}
+export { consumoPorUnidadVendida };
 
 /**
  * Antes de crear la Venta: que productos se consumen por receta, cuanto de
@@ -80,43 +53,10 @@ export async function planificarConsumoVenta(
     return { ok: false, error: "No tenés permiso para registrar ventas." };
   }
 
-  const productoIds = [...new Set(lineas.map((l) => l.productoId))];
-  const recetas = await repo.obtenerRecetasAlVender(tenantId, productoIds);
-  if (recetas.length === 0) return { ok: true, data: { porProducto: {}, consumos: [] } };
-  const recetaPorProducto = new Map(recetas.map((r) => [r.productoId, r]));
-
-  const porProducto: PlanConsumoVenta["porProducto"] = {};
-  const acumulado = new Map<string, ConsumoInsumoVenta>();
-
-  for (const [productoId, receta] of recetaPorProducto) {
-    // Receta sin insumos: no hay costo que congelar, no es un costo de 0.
-    let costo: number | null = receta.composicion.length === 0 ? null : 0;
-    for (const linea of receta.composicion) {
-      const porUnidad = consumoPorUnidadVendida(
-        Number(linea.cantidadPorLote),
-        Number(receta.cantidadBase),
-        Number(receta.rendimientoPorLote)
-      );
-      const costoInsumo = linea.costoUnitarioVigente === null ? null : Number(linea.costoUnitarioVigente);
-      costo = costo === null || costoInsumo === null ? null : costo + porUnidad * costoInsumo;
-
-      const unidadesVendidas = lineas
-        .filter((l) => l.productoId === productoId)
-        .reduce((suma, l) => suma + l.cantidad, 0);
-      const previo = acumulado.get(linea.insumoId);
-      acumulado.set(linea.insumoId, {
-        insumoId: linea.insumoId,
-        insumoNombre: linea.insumoNombre,
-        cantidad: (previo?.cantidad ?? 0) + porUnidad * unidadesVendidas,
-        costoUnitario: costoInsumo,
-      });
-    }
-    porProducto[productoId] = { costoUnitario: costo === null ? null : redondear4(costo) };
+  const { porProducto, consumos } = await calcularConsumoRecetas(tenantId, lineas);
+  if (consumos.length === 0 && Object.keys(porProducto).length === 0) {
+    return { ok: true, data: { porProducto: {}, consumos: [] } };
   }
-
-  const consumos = [...acumulado.values()]
-    .map((c) => ({ ...c, cantidad: redondear4(c.cantidad) }))
-    .filter((c) => c.cantidad > 0);
 
   const saldos = await repo.obtenerStockInsumosEnSucursal(
     consumos.map((c) => c.insumoId),

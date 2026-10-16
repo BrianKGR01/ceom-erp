@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MOTIVOS_BAJA } from "./motivos-baja";
 
 // Schemas compartidos entre los formularios (react-hook-form + zodResolver)
 // y las Server Actions que los reciben — mismo criterio que el resto de
@@ -64,4 +65,13 @@ export const produccionAjusteSchema = z.object({
   costoOperativoCorregido: z.number().min(0).optional(),
   cantidadRealObtenidaCorregida: z.number().positive().optional(),
   motivo: z.string().trim().min(1, "Describí el motivo del ajuste."),
+});
+
+export const bajaFormSchema = z.object({
+  tipo: z.enum(["insumo", "producto"]),
+  objetoId: z.string().min(1, "Elegí qué se perdió."),
+  sucursalId: z.string().min(1, "Elegí una sucursal."),
+  cantidad: z.number().positive("La cantidad tiene que ser mayor a 0."),
+  motivo: z.enum(MOTIVOS_BAJA),
+  nota: z.string().trim().optional(),
 });

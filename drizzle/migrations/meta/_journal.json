@@ -372,6 +372,20 @@
       "when": 1792159692844,
       "tag": "0052_cafiatto_modo_consumo_y_precision_insumos",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792162977047,
+      "tag": "0053_cafiatto_tipo_movimiento_salida_baja",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792163006503,
+      "tag": "0054_cafiatto_bajas",
+      "breakpoints": true
     }
   ]
 }

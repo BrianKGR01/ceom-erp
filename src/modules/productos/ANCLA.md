@@ -289,3 +289,8 @@ Tests: `src/modules/productos/editar-producto-con-receta.test.ts`, `src/componen
 `recalcularCantidadActualTx` toma `pg_advisory_xact_lock` antes de sumar el ledger; movimientos simultáneos del mismo producto/sucursal
 ya no pierden unidades ni revierten por 23505. Mismo lock en `recalcularCantidadActualInsumoTx` (Nicho 1). Sin cambio de contrato ni migración.
 Test: `stock-concurrente.test.ts`. Regla: mantener el recálculo DENTRO de la transacción que inserta el movimiento (el lock es de transacción).
+
+## Última actualización: 2026-10-16 — Fase 2 Cafiatto: `registrarBajaStockProducto`
+Nueva función pública: baja de producto con stock terminado (`salida_merma`, permiso `inventario:anular_ajustar`, motivo obligatorio). Devuelve el
+`costoOperativoVigente` para que Operativo congele el costo de la baja. Sin migración (el tipo `salida_merma` ya existía). Consumida por
+`operativo/nichos/nicho-1/actions.ts::registrarBajaProducto`.

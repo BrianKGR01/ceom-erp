@@ -47,8 +47,8 @@
 - Tests: unitarios del cálculo, integración venta→movimientos, concurrencia, RLS, guardas
   (`contexto.test.ts`, `sin-db-crudo-en-transaccion.test.ts`, `access-manifest.ts`).
 
-### Fase 2 — Bajas de insumos y producto
-- Tabla `bajas` + motivos (merma, vencido, accidente, otro), movimiento append-only.
+### Fase 2 — Bajas de insumos y producto — ✅ código, UI y tests hechos en `feat/cafiatto`; falta migrar la base real (0053, 0054)
+- Tabla `bajas` + motivos (error de preparación, derrame, queja/reposición, vencimiento, daño, otro), movimiento append-only. Sin "consumo del personal" (va por bonificación, Fase 5).
 - UI de registro y listado; permisos por capacidad.
 
 ### Fase 3 — Variantes y modificadores

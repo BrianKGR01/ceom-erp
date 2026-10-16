@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
+  check,
   date,
   integer,
   numeric,
@@ -39,6 +41,8 @@ export const tipoMovimientoInsumoEnum = pgEnum("tipo_movimiento_insumo", [
   "salida_merma_almacenamiento",
   // Fase 1 Cafiatto: consumo de insumos al vender (modo_consumo = al_vender).
   "salida_venta",
+  // Fase 2 Cafiatto: baja de insumo (derrame, vencimiento, error de preparacion...).
+  "salida_baja",
 ]);
 
 // Fase 1 Cafiatto: cuando se descuentan los insumos de la receta.
@@ -300,5 +304,61 @@ export const produccionesAjuste = pgTable(
       "producciones_ajuste",
       sql`${table.produccionId} in (select id from producciones where tenant_id = (select current_tenant_id()))`
     ),
+  ]
+).enableRLS();
+
+// --- Bajas (Roadmap Cafiatto, Fase 2) ---------------------------------------
+// Perdidas que no son una venta: leche derramada, un latte que se descarta, un
+// insumo vencido. Registro append-only (regla 3): una baja no se edita ni se
+// borra; si se cargo mal, se corrige con un ajuste de stock con motivo. El
+// movimiento que descuenta el inventario es el de siempre (`movimientos_insumo`
+// con tipo `salida_baja`, o `movimientos_stock` `salida_merma`); esta tabla es
+// el "por que" y el costo congelado de esa perdida.
+//
+// El "consumo del personal" NO es un motivo de baja: se modela como bonificacion
+// de venta (decision 1 del roadmap, Fase 5).
+export const tipoBajaEnum = pgEnum("tipo_baja", ["insumo", "producto"]);
+
+export const motivoBajaEnum = pgEnum("motivo_baja", [
+  "error_preparacion",
+  "derrame_desperdicio",
+  "queja_reposicion",
+  "vencimiento",
+  "danio",
+  "otro",
+]);
+
+export const bajas = pgTable(
+  "bajas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    sucursalId: uuid("sucursal_id")
+      .notNull()
+      .references(() => sucursales.id),
+    tipo: tipoBajaEnum("tipo").notNull(),
+    insumoId: uuid("insumo_id").references(() => insumos.id),
+    productoId: uuid("producto_id").references(() => productos.id),
+    cantidad: numeric("cantidad", { precision: 14, scale: 4 }).notNull(),
+    motivo: motivoBajaEnum("motivo").notNull(),
+    nota: text("nota"),
+    // Costo de lo perdido AL MOMENTO de la baja (regla 4): no se recalcula si el
+    // costo del insumo cambia despues. Null cuando falta algun costo (se marca,
+    // no se estima en cero: reglas 9 y 10).
+    costoTotal: numeric("costo_total", { precision: 14, scale: 4 }),
+    costoDesconocido: boolean("costo_desconocido").notNull().default(false),
+    creadoPor: uuid("creado_por"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "bajas_objeto_chk",
+      sql`(${table.tipo} = 'insumo' and ${table.insumoId} is not null and ${table.productoId} is null)
+        or (${table.tipo} = 'producto' and ${table.productoId} is not null and ${table.insumoId} is null)`
+    ),
+    check("bajas_cantidad_chk", sql`${table.cantidad} > 0`),
+    ...crudPolicy("bajas", sql`${table.tenantId} = (select current_tenant_id())`),
   ]
 ).enableRLS();
