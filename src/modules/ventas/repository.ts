@@ -5,6 +5,7 @@ import {
   canalesVenta,
   clientes,
   detallesVenta,
+  detallesVentaModificadores,
   eventos,
   metodosPago,
   pagosVenta,
@@ -216,17 +217,33 @@ export async function obtenerTotalVenta(ventaId: string): Promise<number> {
  * Crea la Venta y sus lineas en una transaccion, y si hay cliente, actualiza
  * primera_compra_en/ultima_compra_en (Modulo_03 seccion 1.8) — todo o nada.
  */
+export type ModificadorDeLinea = Omit<
+  typeof detallesVentaModificadores.$inferInsert,
+  "id" | "detalleVentaId"
+>;
+
 export async function crearVentaConDetalleTx(data: {
   venta: NuevaVenta;
-  lineas: Array<Omit<NuevoDetalleVenta, "id" | "ventaId">>;
+  lineas: Array<Omit<NuevoDetalleVenta, "id" | "ventaId"> & { modificadores?: ModificadorDeLinea[] }>;
 }) {
   return db.transaction(async (tx) => {
     const [venta] = await tx.insert(ventas).values(data.venta).returning();
 
     const lineas = await tx
       .insert(detallesVenta)
-      .values(data.lineas.map((linea) => ({ ...linea, ventaId: venta.id })))
+      .values(
+        data.lineas.map(({ modificadores: _modificadores, ...linea }) => ({ ...linea, ventaId: venta.id }))
+      )
       .returning();
+
+    // Fase 3: los modificadores van atados a su linea por posicion (el INSERT
+    // devuelve las filas en el orden en que se mandaron).
+    const filasModificadores = data.lineas.flatMap((linea, i) =>
+      (linea.modificadores ?? []).map((m) => ({ ...m, detalleVentaId: lineas[i].id }))
+    );
+    if (filasModificadores.length > 0) {
+      await tx.insert(detallesVentaModificadores).values(filasModificadores);
+    }
 
     if (venta.clienteId) {
       const [clienteActual] = await tx

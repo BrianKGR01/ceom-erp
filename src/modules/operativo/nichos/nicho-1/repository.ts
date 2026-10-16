@@ -2,16 +2,21 @@ import { and, asc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   bajas,
+  gruposModificadores,
   insumos,
+  modificadores,
   movimientosInsumo,
   produccionesAjuste,
   producciones,
+  productosGruposModificadores,
   recetaInsumos,
   recetas,
   stockInsumo,
   vinculacionesProductoReceta,
 } from "./schema";
 
+export type NuevoGrupoModificadores = typeof gruposModificadores.$inferInsert;
+export type NuevoModificador = typeof modificadores.$inferInsert;
 export type NuevaBaja = typeof bajas.$inferInsert;
 export type NuevoInsumo = typeof insumos.$inferInsert;
 export type NuevoMovimientoInsumo = typeof movimientosInsumo.$inferInsert;
@@ -577,6 +582,220 @@ export async function crearConsumosVentaTx(data: {
     }
     return saldos;
   });
+}
+
+// --- Modificadores (Fase 3 Cafiatto) -----------------------------------------
+
+export async function obtenerInsumosPorIds(tenantId: string, insumoIds: string[]) {
+  if (insumoIds.length === 0) return [];
+  return db
+    .select({
+      id: insumos.id,
+      nombre: insumos.nombre,
+      costoUnitarioVigente: insumos.costoUnitarioVigente,
+    })
+    .from(insumos)
+    .where(and(inArray(insumos.id, insumoIds), eq(insumos.tenantId, tenantId), isNull(insumos.eliminadoEn)));
+}
+
+/**
+ * Grupos de modificadores ofrecidos a cada producto, con sus opciones. Una sola
+ * consulta para N productos. Solo lo no eliminado y del tenant.
+ */
+export async function obtenerModificadoresParaProductos(tenantId: string, productoIds: string[]) {
+  if (productoIds.length === 0) return [];
+  return db
+    .select({
+      productoId: productosGruposModificadores.productoId,
+      grupoId: gruposModificadores.id,
+      grupoNombre: gruposModificadores.nombre,
+      seleccion: gruposModificadores.seleccion,
+      grupoOrden: gruposModificadores.orden,
+      modificadorId: modificadores.id,
+      nombre: modificadores.nombre,
+      tipo: modificadores.tipo,
+      esBase: modificadores.esBase,
+      precioExtra: modificadores.precioExtra,
+      insumoId: modificadores.insumoId,
+      cantidad: modificadores.cantidad,
+      insumoReemplazadoId: modificadores.insumoReemplazadoId,
+      orden: modificadores.orden,
+    })
+    .from(productosGruposModificadores)
+    .innerJoin(gruposModificadores, eq(productosGruposModificadores.grupoId, gruposModificadores.id))
+    .innerJoin(modificadores, eq(modificadores.grupoId, gruposModificadores.id))
+    .where(
+      and(
+        inArray(productosGruposModificadores.productoId, productoIds),
+        isNull(productosGruposModificadores.eliminadoEn),
+        eq(gruposModificadores.tenantId, tenantId),
+        isNull(gruposModificadores.eliminadoEn),
+        isNull(modificadores.eliminadoEn)
+      )
+    )
+    .orderBy(asc(gruposModificadores.orden), asc(modificadores.orden));
+}
+
+export async function crearGrupoModificadores(data: NuevoGrupoModificadores) {
+  const [grupo] = await db.insert(gruposModificadores).values(data).returning();
+  return grupo;
+}
+
+export async function obtenerGrupoModificadoresPorId(grupoId: string) {
+  const [grupo] = await db
+    .select()
+    .from(gruposModificadores)
+    .where(and(eq(gruposModificadores.id, grupoId), isNull(gruposModificadores.eliminadoEn)))
+    .limit(1);
+  return grupo ?? null;
+}
+
+export async function actualizarGrupoModificadores(
+  grupoId: string,
+  data: Partial<Pick<NuevoGrupoModificadores, "nombre" | "seleccion" | "orden">>
+) {
+  const [grupo] = await db
+    .update(gruposModificadores)
+    .set(data)
+    .where(eq(gruposModificadores.id, grupoId))
+    .returning();
+  return grupo;
+}
+
+/** Soft delete del grupo y, con el, de sus opciones y de sus vinculos a productos. */
+export async function eliminarGrupoModificadoresSoft(grupoId: string) {
+  const ahora = new Date();
+  await db.transaction(async (tx) => {
+    await tx.update(gruposModificadores).set({ eliminadoEn: ahora }).where(eq(gruposModificadores.id, grupoId));
+    await tx
+      .update(modificadores)
+      .set({ eliminadoEn: ahora })
+      .where(and(eq(modificadores.grupoId, grupoId), isNull(modificadores.eliminadoEn)));
+    await tx
+      .update(productosGruposModificadores)
+      .set({ eliminadoEn: ahora })
+      .where(and(eq(productosGruposModificadores.grupoId, grupoId), isNull(productosGruposModificadores.eliminadoEn)));
+  });
+}
+
+export async function listarGruposConModificadores(tenantId: string) {
+  const grupos = await db
+    .select()
+    .from(gruposModificadores)
+    .where(and(eq(gruposModificadores.tenantId, tenantId), isNull(gruposModificadores.eliminadoEn)))
+    .orderBy(asc(gruposModificadores.orden), asc(gruposModificadores.nombre));
+  if (grupos.length === 0) return [];
+  const opciones = await db
+    .select()
+    .from(modificadores)
+    .where(
+      and(
+        inArray(
+          modificadores.grupoId,
+          grupos.map((g) => g.id)
+        ),
+        isNull(modificadores.eliminadoEn)
+      )
+    )
+    .orderBy(asc(modificadores.orden), asc(modificadores.nombre));
+  const vinculos = await db
+    .select({
+      grupoId: productosGruposModificadores.grupoId,
+      productoId: productosGruposModificadores.productoId,
+    })
+    .from(productosGruposModificadores)
+    .where(
+      and(
+        inArray(
+          productosGruposModificadores.grupoId,
+          grupos.map((g) => g.id)
+        ),
+        isNull(productosGruposModificadores.eliminadoEn)
+      )
+    );
+  return grupos.map((g) => ({
+    ...g,
+    modificadores: opciones.filter((m) => m.grupoId === g.id),
+    productoIds: vinculos.filter((v) => v.grupoId === g.id).map((v) => v.productoId),
+  }));
+}
+
+export async function crearModificador(data: NuevoModificador) {
+  const [modificador] = await db.insert(modificadores).values(data).returning();
+  return modificador;
+}
+
+export async function obtenerModificadorPorId(modificadorId: string) {
+  const [modificador] = await db
+    .select()
+    .from(modificadores)
+    .where(and(eq(modificadores.id, modificadorId), isNull(modificadores.eliminadoEn)))
+    .limit(1);
+  return modificador ?? null;
+}
+
+export async function actualizarModificador(
+  modificadorId: string,
+  data: Partial<
+    Pick<
+      NuevoModificador,
+      "nombre" | "tipo" | "esBase" | "precioExtra" | "insumoId" | "cantidad" | "insumoReemplazadoId" | "orden"
+    >
+  >
+) {
+  const [modificador] = await db
+    .update(modificadores)
+    .set(data)
+    .where(eq(modificadores.id, modificadorId))
+    .returning();
+  return modificador;
+}
+
+export async function eliminarModificadorSoft(modificadorId: string) {
+  await db.update(modificadores).set({ eliminadoEn: new Date() }).where(eq(modificadores.id, modificadorId));
+}
+
+export async function existeBaseEnGrupo(grupoId: string, exceptoModificadorId?: string) {
+  const filas = await db
+    .select({ id: modificadores.id })
+    .from(modificadores)
+    .where(
+      and(eq(modificadores.grupoId, grupoId), eq(modificadores.esBase, true), isNull(modificadores.eliminadoEn))
+    );
+  return filas.some((f) => f.id !== exceptoModificadorId);
+}
+
+export async function vincularGrupoAProducto(productoId: string, grupoId: string) {
+  const [existente] = await db
+    .select({ id: productosGruposModificadores.id })
+    .from(productosGruposModificadores)
+    .where(
+      and(
+        eq(productosGruposModificadores.productoId, productoId),
+        eq(productosGruposModificadores.grupoId, grupoId),
+        isNull(productosGruposModificadores.eliminadoEn)
+      )
+    )
+    .limit(1);
+  if (existente) return existente;
+  const [vinculo] = await db
+    .insert(productosGruposModificadores)
+    .values({ productoId, grupoId })
+    .returning({ id: productosGruposModificadores.id });
+  return vinculo;
+}
+
+export async function desvincularGrupoDeProducto(productoId: string, grupoId: string) {
+  await db
+    .update(productosGruposModificadores)
+    .set({ eliminadoEn: new Date() })
+    .where(
+      and(
+        eq(productosGruposModificadores.productoId, productoId),
+        eq(productosGruposModificadores.grupoId, grupoId),
+        isNull(productosGruposModificadores.eliminadoEn)
+      )
+    );
 }
 
 // --- Bajas (Fase 2 Cafiatto) -------------------------------------------------

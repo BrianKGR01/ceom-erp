@@ -102,6 +102,7 @@ async function limpiarTenant(tenantId: string, rolId: string, userIds: string[])
       const porProduccion = `(select id from producciones where tenant_id = '${tenantId}')`;
       const porReceta = `(select id from recetas where tenant_id = '${tenantId}')`;
       for (const stmt of [
+        `delete from detalles_venta_modificadores where detalle_venta_id in (select id from detalles_venta where venta_id in ${porVenta})`,
         `delete from ajustes_venta where venta_id in ${porVenta}`,
         `delete from pagos_venta where venta_id in ${porVenta}`,
         `delete from detalles_venta where venta_id in ${porVenta}`,
@@ -113,6 +114,9 @@ async function limpiarTenant(tenantId: string, rolId: string, userIds: string[])
         `delete from bajas where tenant_id = '${tenantId}'`,
         `delete from producciones_ajuste where produccion_id in ${porProduccion}`,
         `delete from producciones where tenant_id = '${tenantId}'`,
+        `delete from productos_grupos_modificadores where grupo_id in (select id from grupos_modificadores where tenant_id = '${tenantId}')`,
+        `delete from modificadores where tenant_id = '${tenantId}'`,
+        `delete from grupos_modificadores where tenant_id = '${tenantId}'`,
         `delete from vinculaciones_producto_receta where producto_id in ${porProducto}`,
         `delete from receta_insumos where receta_id in ${porReceta}`,
         `delete from recetas where tenant_id = '${tenantId}'`,

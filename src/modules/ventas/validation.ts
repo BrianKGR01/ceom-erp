@@ -9,6 +9,9 @@ import { z } from "zod";
 export const lineaVentaSchema = z.object({
   productoId: z.string().min(1),
   cantidad: z.number().positive(),
+  // Fase 3 Cafiatto.
+  modificadorIds: z.array(z.string().min(1)).max(30).optional(),
+  observacion: z.string().trim().max(300).optional(),
 });
 
 export const registrarVentaSchema = z.object({

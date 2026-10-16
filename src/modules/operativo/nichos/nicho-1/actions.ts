@@ -497,7 +497,7 @@ export async function registrarBajaProducto(
 
   const cantidad = redondear4(input.cantidad);
   const plan = await calcularConsumoRecetas(tenantId, [{ productoId: input.productoId, cantidad }]);
-  const porReceta = plan.porProducto[input.productoId];
+  const porReceta = plan.porLinea[0]?.alVender ? plan.porLinea[0] : undefined;
   const base = {
     tenantId,
     sucursalId: input.sucursalId,
@@ -614,6 +614,247 @@ export async function consultarBajasPorMotivo(
       bajasSinCostoConocido: porMotivo.reduce((s, f) => s + f.sinCostoConocido, 0),
     },
   };
+}
+
+// --- Modificadores (Roadmap Cafiatto, Fase 3) --------------------------------
+
+export type SeleccionModificador = "una" | "varias";
+export type TipoModificador = "agrega" | "reemplaza" | "indicacion";
+
+export interface DatosGrupoModificadores {
+  nombre: string;
+  seleccion: SeleccionModificador;
+  orden?: number;
+}
+
+export interface DatosModificador {
+  nombre: string;
+  tipo: TipoModificador;
+  /** Opcion por defecto de un grupo "elige 1" (ej. leche "Entera"): no cambia nada. */
+  esBase?: boolean;
+  precioExtra?: number;
+  /** agrega / reemplaza: insumo que se suma. */
+  insumoId?: string;
+  /** Cantidad del insumo que se suma, por unidad vendida. En "reemplaza" es opcional (1 a 1). */
+  cantidad?: number;
+  /** reemplaza: insumo de la receta base que se saca. */
+  insumoReemplazadoId?: string;
+  orden?: number;
+}
+
+export async function crearGrupoModificadores(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosGrupoModificadores
+): Promise<Resultado<{ grupoId: string }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
+    return { ok: false, error: "No tenés permiso para crear modificadores en este tenant." };
+  }
+  if (!input.nombre.trim()) return { ok: false, error: "Ponele un nombre al grupo." };
+  const grupo = await repo.crearGrupoModificadores({
+    tenantId,
+    nombre: input.nombre.trim(),
+    seleccion: input.seleccion,
+    orden: input.orden ?? 0,
+  });
+  return { ok: true, data: { grupoId: grupo.id } };
+}
+
+export async function actualizarGrupoModificadores(
+  solicitante: UsuarioConRol,
+  grupoId: string,
+  input: Partial<DatosGrupoModificadores>
+): Promise<Resultado<true>> {
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo) return { ok: false, error: "Grupo no encontrado." };
+  if (!(await tienePermiso(solicitante, grupo.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  if (input.nombre !== undefined && !input.nombre.trim()) {
+    return { ok: false, error: "Ponele un nombre al grupo." };
+  }
+  await repo.actualizarGrupoModificadores(grupoId, {
+    nombre: input.nombre?.trim(),
+    seleccion: input.seleccion,
+    orden: input.orden,
+  });
+  return { ok: true, data: true };
+}
+
+/** Soft delete del grupo, de sus opciones y de sus vinculos. Las ventas ya hechas conservan su copia. */
+export async function eliminarGrupoModificadores(
+  solicitante: UsuarioConRol,
+  grupoId: string
+): Promise<Resultado<true>> {
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo) return { ok: false, error: "Grupo no encontrado." };
+  if (!(await tienePermiso(solicitante, grupo.tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para eliminar modificadores." };
+  }
+  await repo.eliminarGrupoModificadoresSoft(grupoId);
+  return { ok: true, data: true };
+}
+
+export async function listarGruposModificadores(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarGruposConModificadores>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver modificadores en este tenant." };
+  }
+  return { ok: true, data: await repo.listarGruposConModificadores(tenantId) };
+}
+
+/** La forma valida de un modificador depende de su tipo; los insumos tienen que ser del tenant. */
+async function validarModificador(
+  tenantId: string,
+  grupoId: string,
+  input: DatosModificador,
+  modificadorId?: string
+): Promise<string | null> {
+  if (!input.nombre.trim()) return "Ponele un nombre a la opción.";
+  const precio = input.precioExtra ?? 0;
+  if (!(precio >= 0)) return "El precio extra no puede ser negativo.";
+
+  if (input.tipo === "agrega") {
+    if (!input.insumoId) return "Elegí el insumo que se agrega.";
+    if (!(Number(input.cantidad) > 0)) return "Indicá cuánto del insumo se agrega (mayor a 0).";
+    if (input.insumoReemplazadoId) return "Una opción que agrega no reemplaza ningún insumo.";
+  } else if (input.tipo === "reemplaza") {
+    if (!input.insumoReemplazadoId) return "Elegí el insumo de la receta que se reemplaza.";
+    if (input.cantidad !== undefined && !(Number(input.cantidad) > 0)) {
+      return "La cantidad del insumo nuevo tiene que ser mayor a 0.";
+    }
+    if (input.cantidad !== undefined && !input.insumoId) {
+      return "Elegí el insumo nuevo o quitá la cantidad.";
+    }
+    if (input.insumoId && input.insumoId === input.insumoReemplazadoId) {
+      return "El insumo nuevo tiene que ser distinto del que reemplaza.";
+    }
+  } else {
+    if (input.insumoId || input.cantidad !== undefined || input.insumoReemplazadoId) {
+      return "Una indicación es solo texto: no lleva insumos.";
+    }
+    if (precio !== 0) return "Una indicación no puede cambiar el precio.";
+  }
+  if (input.esBase && input.tipo !== "indicacion") {
+    return "La opción por defecto de un grupo no cambia nada: tiene que ser una indicación.";
+  }
+  if (input.esBase && (await repo.existeBaseEnGrupo(grupoId, modificadorId))) {
+    return "Este grupo ya tiene una opción por defecto.";
+  }
+
+  const insumoIds = [input.insumoId, input.insumoReemplazadoId].filter((x): x is string => Boolean(x));
+  if (insumoIds.length > 0) {
+    const unicos = [...new Set(insumoIds)];
+    if ((await repo.contarInsumosDelTenant(tenantId, unicos)) !== unicos.length) {
+      return "Insumo no encontrado.";
+    }
+  }
+  return null;
+}
+
+export async function crearModificador(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  grupoId: string,
+  input: DatosModificador
+): Promise<Resultado<{ modificadorId: string }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
+    return { ok: false, error: "No tenés permiso para crear modificadores en este tenant." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  const error = await validarModificador(tenantId, grupoId, input);
+  if (error) return { ok: false, error };
+
+  const modificador = await repo.crearModificador({
+    tenantId,
+    grupoId,
+    nombre: input.nombre.trim(),
+    tipo: input.tipo,
+    esBase: input.esBase ?? false,
+    precioExtra: String(input.precioExtra ?? 0),
+    insumoId: input.insumoId ?? null,
+    cantidad: input.cantidad !== undefined ? String(input.cantidad) : null,
+    insumoReemplazadoId: input.insumoReemplazadoId ?? null,
+    orden: input.orden ?? 0,
+  });
+  return { ok: true, data: { modificadorId: modificador.id } };
+}
+
+export async function actualizarModificador(
+  solicitante: UsuarioConRol,
+  modificadorId: string,
+  input: DatosModificador
+): Promise<Resultado<true>> {
+  const actual = await repo.obtenerModificadorPorId(modificadorId);
+  if (!actual) return { ok: false, error: "Opción no encontrada." };
+  if (!(await tienePermiso(solicitante, actual.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const error = await validarModificador(actual.tenantId, actual.grupoId, input, modificadorId);
+  if (error) return { ok: false, error };
+
+  await repo.actualizarModificador(modificadorId, {
+    nombre: input.nombre.trim(),
+    tipo: input.tipo,
+    esBase: input.esBase ?? false,
+    precioExtra: String(input.precioExtra ?? 0),
+    insumoId: input.insumoId ?? null,
+    cantidad: input.cantidad !== undefined ? String(input.cantidad) : null,
+    insumoReemplazadoId: input.insumoReemplazadoId ?? null,
+    orden: input.orden,
+  });
+  return { ok: true, data: true };
+}
+
+export async function eliminarModificador(
+  solicitante: UsuarioConRol,
+  modificadorId: string
+): Promise<Resultado<true>> {
+  const actual = await repo.obtenerModificadorPorId(modificadorId);
+  if (!actual) return { ok: false, error: "Opción no encontrada." };
+  if (!(await tienePermiso(solicitante, actual.tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para eliminar modificadores." };
+  }
+  await repo.eliminarModificadorSoft(modificadorId);
+  return { ok: true, data: true };
+}
+
+/** Ofrece un grupo de modificadores a un producto en el punto de venta. */
+export async function vincularGrupoModificadoresAProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoId: string,
+  grupoId: string
+): Promise<Resultado<true>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  // Ata el producto al tenant (y exige poder verlo), igual que vincularProductoAReceta.
+  const ficha = await fichaProducto(solicitante, productoId);
+  if (!ficha.ok) return ficha;
+
+  await repo.vincularGrupoAProducto(productoId, grupoId);
+  return { ok: true, data: true };
+}
+
+export async function desvincularGrupoModificadoresDeProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoId: string,
+  grupoId: string
+): Promise<Resultado<true>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  await repo.desvincularGrupoDeProducto(productoId, grupoId);
+  return { ok: true, data: true };
 }
 
 // --- Recetas ---------------------------------------------------------

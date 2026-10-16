@@ -386,6 +386,20 @@
       "when": 1792163006503,
       "tag": "0054_cafiatto_bajas",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792164848470,
+      "tag": "0055_cafiatto_variantes_producto",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792164976621,
+      "tag": "0056_cafiatto_modificadores",
+      "breakpoints": true
     }
   ]
 }

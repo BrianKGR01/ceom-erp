@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -225,11 +226,42 @@ export const detallesVenta = pgTable(
     // que Simulaciones ya aplicaba y el resto del sistema no.
     costoDesconocido: boolean("costo_desconocido").notNull().default(false),
     subtotal: numeric("subtotal", { precision: 12, scale: 2 }).notNull(),
+    // Roadmap Cafiatto, Fase 3: lo que pidio el cliente aparte de los modificadores
+    // ("para llevar", "sin hielo"). Texto libre de la caja, no mueve nada.
+    observacion: text("observacion"),
   },
   (table) => [
     ...crudPolicy(
       "detalles_venta",
       sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
+    ),
+  ]
+).enableRLS();
+
+// Roadmap Cafiatto, Fase 3 — modificadores de una linea, CONGELADOS (regla 4).
+// `modificador_id` es solo una referencia informativa, sin FK: Ventas no conoce
+// las tablas de Operativo y el modificador puede editarse o borrarse despues.
+// `precio_extra` ya esta sumado en `precio_venta_snapshot` de la linea; `efecto_receta`
+// es el cambio neto de insumos POR UNIDAD ([{insumoId, insumoNombre, cantidad}],
+// negativo = se saco de la receta) y es lo que se consumio de verdad.
+export const detallesVentaModificadores = pgTable(
+  "detalles_venta_modificadores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    detalleVentaId: uuid("detalle_venta_id")
+      .notNull()
+      .references(() => detallesVenta.id),
+    modificadorId: uuid("modificador_id"),
+    grupoNombre: text("grupo_nombre").notNull(),
+    nombre: text("nombre").notNull(),
+    tipo: text("tipo").notNull(),
+    precioExtra: numeric("precio_extra", { precision: 12, scale: 2 }).notNull().default("0"),
+    efectoReceta: jsonb("efecto_receta").notNull().default(sql`'[]'::jsonb`),
+  },
+  (table) => [
+    ...crudPolicy(
+      "detalles_venta_modificadores",
+      sql`${table.detalleVentaId} in (select dv.id from detalles_venta dv join ventas v on v.id = dv.venta_id where v.tenant_id = (select current_tenant_id()))`
     ),
   ]
 ).enableRLS();

@@ -403,6 +403,10 @@ export async function listarEventos(
 export interface DatosLineaVenta {
   productoId: string;
   cantidad: string | number;
+  /** Fase 3 Cafiatto: modificadores elegidos (leche de almendra, shot extra...). */
+  modificadorIds?: string[];
+  /** Fase 3 Cafiatto: nota de la caja para esta linea; no mueve nada. */
+  observacion?: string;
 }
 
 export interface DatosVenta {
@@ -507,10 +511,14 @@ export async function registrarVenta(
     solicitante,
     tenantId,
     input.sucursalId,
-    input.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }))
+    input.lineas.map((l) => ({
+      productoId: l.productoId,
+      cantidad: Number(l.cantidad),
+      modificadorIds: l.modificadorIds,
+    }))
   );
   if (!planReceta.ok) return planReceta;
-  const porReceta = planReceta.data.porProducto;
+  const planLineas = planReceta.data.lineas;
 
   // Regla 4: alta implicita de cliente.
   let clienteId = input.clienteId ?? null;
@@ -531,32 +539,44 @@ export async function registrarVenta(
     costoUnitarioSnapshot: string;
     costoDesconocido: boolean;
     subtotal: string;
+    observacion: string | null;
+    /** Modificadores congelados de la linea (Fase 3). */
+    modificadores: Array<{
+      modificadorId: string;
+      grupoNombre: string;
+      nombre: string;
+      tipo: string;
+      precioExtra: string;
+      efectoReceta: unknown;
+    }>;
   };
 
   // Snapshot doble (regla 1) — se congela ANTES de crear la Venta. Cada
   // línea consulta precio/costo de un producto propio, sin depender de las
   // demás (tope chico: líneas de UNA venta) — se resuelven en paralelo.
   const resultadosLineas = await Promise.all(
-    input.lineas.map(async (linea): Promise<Resultado<LineaSnapshot>> => {
+    input.lineas.map(async (linea, indice): Promise<Resultado<LineaSnapshot>> => {
       const precio = await consultarPrecioVenta(solicitante, linea.productoId);
       if (!precio.ok) return precio;
       // Producto que se prepara al vender: el costo es el de su receta HOY
       // (congelado en la linea, regla 4), no el costo_operativo_vigente de una
       // produccion que no existe.
-      const deReceta = porReceta[linea.productoId];
-      const costo = deReceta
-        ? ({ ok: true, data: { costoOperativoVigente: deReceta.costoUnitario } } as const)
+      const planLinea = planLineas[indice];
+      const costo = planLinea.alVender
+        ? ({ ok: true, data: { costoOperativoVigente: planLinea.costoUnitario } } as const)
         : await consultarCostoOperativo(solicitante, linea.productoId);
       if (!costo.ok) return costo;
 
       const cantidad = Number(linea.cantidad);
-      const subtotal = calcularSubtotal(cantidad, precio.data.precioVenta);
+      // Fase 3: el precio de la linea ya incluye lo que suman los modificadores.
+      const precioUnitario = Number(precio.data.precioVenta) + planLinea.precioExtra;
+      const subtotal = calcularSubtotal(cantidad, precioUnitario);
       return {
         ok: true,
         data: {
           productoId: linea.productoId,
           cantidad: String(cantidad),
-          precioVentaSnapshot: String(precio.data.precioVenta),
+          precioVentaSnapshot: String(precioUnitario),
           // El `?? 0` se queda: la columna es notNull y no hay costo que
           // poner. Lo que cambia (H-15) es que ese 0 ya no se guarda mudo —
           // al lado queda registrado si era un costo real de 0 o una
@@ -566,6 +586,15 @@ export async function registrarVenta(
           costoUnitarioSnapshot: String(costo.data.costoOperativoVigente ?? 0),
           costoDesconocido: costo.data.costoOperativoVigente === null,
           subtotal: String(subtotal),
+          observacion: linea.observacion?.trim() || null,
+          modificadores: planLinea.modificadores.map((m) => ({
+            modificadorId: m.modificadorId,
+            grupoNombre: m.grupoNombre,
+            nombre: m.nombre,
+            tipo: m.tipo,
+            precioExtra: String(m.precioExtra),
+            efectoReceta: m.efectoReceta,
+          })),
         },
       };
     })
@@ -636,8 +665,8 @@ export async function registrarVenta(
   // recién después inserta el movimiento (no es atómico) — si dos líneas de
   // esta misma venta comparten producto+sucursal, paralelizarlo dejaría que
   // ambas lean el mismo disponible y sobregiren el stock.
-  for (const linea of lineas) {
-    if (porReceta[linea.productoId]) {
+  for (const [indice, linea] of lineas.entries()) {
+    if (planLineas[indice].alVender) {
       // Sin stock de producto terminado que descontar: sus insumos salen abajo.
       // Se mantiene la posicion para que `descuentosStock` siga alineado con
       // las lineas; cantidadActual 0 no dispara el aviso de "stock negativo".

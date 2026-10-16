@@ -120,6 +120,8 @@ export async function actualizarProductoAction(
     precioVenta,
     costoOperativoVigente,
     vidaUtilDias,
+    grupoVariantes,
+    etiquetaVariante,
     fechaVencimientoReferencia,
     activo,
   } = parsed.data;
@@ -132,6 +134,8 @@ export async function actualizarProductoAction(
     precioVenta,
     costoOperativoVigente,
     vidaUtilDias,
+    grupoVariantes,
+    etiquetaVariante,
     fechaVencimientoReferencia: fechaVencimientoReferencia || undefined,
     activo,
   });

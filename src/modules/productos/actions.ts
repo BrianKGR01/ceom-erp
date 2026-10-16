@@ -156,6 +156,9 @@ export interface DatosProducto {
   tipoOrigenProducto?: Exclude<TipoOrigenProducto, "produccion_nicho">;
   fechaVencimientoReferencia?: string;
   vidaUtilDias?: number;
+  /** Fase 3: agrupa variantes del mismo producto ("Latte") y dice cual es esta ("12 oz"). */
+  grupoVariantes?: string;
+  etiquetaVariante?: string;
   activo?: boolean;
 }
 
@@ -183,6 +186,8 @@ export async function crearProducto(
     tipoOrigenProducto: input.tipoOrigenProducto ?? "manual",
     fechaVencimientoReferencia: input.fechaVencimientoReferencia,
     vidaUtilDias: input.vidaUtilDias,
+    grupoVariantes: input.grupoVariantes?.trim() || undefined,
+    etiquetaVariante: input.etiquetaVariante?.trim() || undefined,
     activo: input.activo ?? true,
     creadoPor: solicitante.id,
   });
@@ -240,6 +245,9 @@ export async function actualizarProducto(
     origenCosto: esProduccion ? undefined : input.origenCosto,
     fechaVencimientoReferencia: input.fechaVencimientoReferencia,
     vidaUtilDias: input.vidaUtilDias,
+    // "" limpia el campo (queda null); undefined lo deja como estaba.
+    grupoVariantes: input.grupoVariantes === undefined ? undefined : input.grupoVariantes.trim() || null,
+    etiquetaVariante: input.etiquetaVariante === undefined ? undefined : input.etiquetaVariante.trim() || null,
     activo: input.activo,
     modificadoPor: solicitante.id,
     modificadoEn: new Date(),

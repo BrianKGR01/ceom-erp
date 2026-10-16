@@ -14,6 +14,8 @@ export const productoFormSchema = z.object({
   precioVenta: z.number().positive("El precio tiene que ser mayor a 0."),
   costoOperativoVigente: z.number().min(0).optional(),
   vidaUtilDias: z.number().int().positive().optional(),
+  grupoVariantes: z.string().trim().optional(),
+  etiquetaVariante: z.string().trim().optional(),
   fechaVencimientoReferencia: z.string().optional(),
   imagenUrl: z.string().trim().optional(),
   activo: z.boolean(),

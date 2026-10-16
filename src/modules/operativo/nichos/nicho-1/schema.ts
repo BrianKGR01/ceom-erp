@@ -362,3 +362,107 @@ export const bajas = pgTable(
     ...crudPolicy("bajas", sql`${table.tenantId} = (select current_tenant_id())`),
   ]
 ).enableRLS();
+
+// --- Modificadores (Roadmap Cafiatto, Fase 3) ---------------------------------
+// Lo que el cliente pide encima del producto base: leche de almendra, un shot
+// extra, "extra caliente". Se organizan en grupos con regla de seleccion
+// ("Leche - elige 1", "Extras - varios"). Cada modificador puede mover el
+// precio, la receta o ninguno (una indicacion es solo texto).
+//
+// Viven en Operativo porque tocan la receta; Ventas guarda su propia copia
+// congelada por linea (`detalles_venta_modificadores`) y NO referencia estas
+// tablas: lo que se vendio no cambia si manana se edita el modificador.
+export const seleccionModificadorEnum = pgEnum("seleccion_modificador", ["una", "varias"]);
+
+export const tipoModificadorEnum = pgEnum("tipo_modificador", [
+  // Suma un insumo a la receta (shot adicional: +9 g de cafe).
+  "agrega",
+  // Saca un insumo de la receta base y, si corresponde, pone otro (leche entera
+  // -> leche de almendra). Sin insumo nuevo es un "sin jarabe".
+  "reemplaza",
+  // Solo texto para quien prepara. No mueve precio ni inventario.
+  "indicacion",
+]);
+
+export const gruposModificadores = pgTable(
+  "grupos_modificadores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    nombre: text("nombre").notNull(),
+    seleccion: seleccionModificadorEnum("seleccion").notNull().default("varias"),
+    orden: integer("orden").notNull().default(0),
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+  },
+  (table) => [
+    ...crudPolicy("grupos_modificadores", sql`${table.tenantId} = (select current_tenant_id())`),
+  ]
+).enableRLS();
+
+export const modificadores = pgTable(
+  "modificadores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    grupoId: uuid("grupo_id")
+      .notNull()
+      .references(() => gruposModificadores.id),
+    nombre: text("nombre").notNull(),
+    tipo: tipoModificadorEnum("tipo").notNull(),
+    // La opcion por defecto de un grupo de "elige 1" (ej. "Entera"): no cambia
+    // nada. Solo una por grupo.
+    esBase: boolean("es_base").notNull().default(false),
+    precioExtra: numeric("precio_extra", { precision: 12, scale: 2 }).notNull().default("0"),
+    // agrega / reemplaza: el insumo que se suma y cuanto, POR UNIDAD vendida.
+    insumoId: uuid("insumo_id").references(() => insumos.id),
+    cantidad: numeric("cantidad", { precision: 14, scale: 4 }),
+    // reemplaza: el insumo de la receta base que se saca (se saca toda su linea).
+    // Si `insumoId` va sin `cantidad`, el nuevo insumo entra en la misma cantidad
+    // que el que sale (cambio 1 a 1).
+    insumoReemplazadoId: uuid("insumo_reemplazado_id").references(() => insumos.id),
+    orden: integer("orden").notNull().default(0),
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "modificadores_forma_chk",
+      sql`(${table.tipo} = 'agrega' and ${table.insumoId} is not null and ${table.cantidad} > 0 and ${table.insumoReemplazadoId} is null and not ${table.esBase})
+        or (${table.tipo} = 'reemplaza' and ${table.insumoReemplazadoId} is not null and not ${table.esBase})
+        or (${table.tipo} = 'indicacion' and ${table.insumoId} is null and ${table.cantidad} is null and ${table.insumoReemplazadoId} is null and ${table.precioExtra} = 0)`
+    ),
+    check("modificadores_base_chk", sql`not ${table.esBase} or ${table.tipo} = 'indicacion'`),
+    check("modificadores_precio_chk", sql`${table.precioExtra} >= 0`),
+    uniqueIndex("modificadores_una_base_por_grupo_uq")
+      .on(table.grupoId)
+      .where(sql`${table.esBase} and ${table.eliminadoEn} is null`),
+    ...crudPolicy("modificadores", sql`${table.tenantId} = (select current_tenant_id())`),
+  ]
+).enableRLS();
+
+// A que productos se les ofrece cada grupo.
+export const productosGruposModificadores = pgTable(
+  "productos_grupos_modificadores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    productoId: uuid("producto_id")
+      .notNull()
+      .references(() => productos.id),
+    grupoId: uuid("grupo_id")
+      .notNull()
+      .references(() => gruposModificadores.id),
+    eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("productos_grupos_modificadores_uq")
+      .on(table.productoId, table.grupoId)
+      .where(sql`${table.eliminadoEn} is null`),
+    ...crudPolicy(
+      "productos_grupos_modificadores",
+      sql`${table.grupoId} in (select id from grupos_modificadores where tenant_id = (select current_tenant_id()))`
+    ),
+  ]
+).enableRLS();

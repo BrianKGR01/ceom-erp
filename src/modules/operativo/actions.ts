@@ -7,9 +7,9 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 import {
   calcularConsumoRecetas,
   consumoPorUnidadVendida,
+  resolverModificadoresDeProducto,
   type ConsumoInsumo,
-  type ConsumoRecetas,
-  type LineaConsumo,
+  type ModificadorResuelto,
 } from "./nichos/nicho-1/consumo-recetas";
 import * as repo from "./nichos/nicho-1/repository";
 
@@ -31,17 +31,41 @@ import * as repo from "./nichos/nicho-1/repository";
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export type LineaVentaOperativa = LineaConsumo;
 export type ConsumoInsumoVenta = ConsumoInsumo;
-export type PlanConsumoVenta = ConsumoRecetas;
+export type ModificadorVenta = ModificadorResuelto;
 
 export { consumoPorUnidadVendida };
 
+export interface LineaVentaOperativa {
+  productoId: string;
+  cantidad: number;
+  /** Fase 3: modificadores elegidos para esta linea. */
+  modificadorIds?: string[];
+}
+
+export interface LineaPlanConsumo {
+  /** El producto se prepara al vender: sus insumos salen de la receta. */
+  alVender: boolean;
+  /** Costo por unidad con los modificadores aplicados; null = desconocido. */
+  costoUnitario: number | null;
+  /** Suma de los precios extra de los modificadores, por unidad. */
+  precioExtra: number;
+  /** Lo elegido, ya resuelto y listo para congelar en la linea de la venta. */
+  modificadores: ModificadorVenta[];
+}
+
+export interface PlanConsumoVenta {
+  /** Alineado con las lineas de entrada. */
+  lineas: LineaPlanConsumo[];
+  consumos: ConsumoInsumoVenta[];
+}
+
 /**
- * Antes de crear la Venta: que productos se consumen por receta, cuanto de
- * cada insumo, a que costo, y si alcanza el stock. Bloquea (con el nombre del
- * insumo) si falta, salvo la capacidad especial `vender_sin_stock` — la misma
- * que ya gobierna el stock de producto terminado.
+ * Antes de crear la Venta: que lineas se consumen por receta, que modificadores
+ * aplican (precio y receta), cuanto de cada insumo, a que costo, y si alcanza el
+ * stock. Bloquea (con el nombre del insumo) si falta, salvo la capacidad
+ * especial `vender_sin_stock` — la misma que ya gobierna el stock de producto
+ * terminado.
  */
 export async function planificarConsumoVenta(
   solicitante: UsuarioConRol,
@@ -53,10 +77,30 @@ export async function planificarConsumoVenta(
     return { ok: false, error: "No tenés permiso para registrar ventas." };
   }
 
-  const { porProducto, consumos } = await calcularConsumoRecetas(tenantId, lineas);
-  if (consumos.length === 0 && Object.keys(porProducto).length === 0) {
-    return { ok: true, data: { porProducto: {}, consumos: [] } };
-  }
+  const resueltas = await Promise.all(
+    lineas.map((l) => resolverModificadoresDeProducto(tenantId, l.productoId, l.modificadorIds ?? []))
+  );
+  const fallo = resueltas.find((r) => !r.ok);
+  if (fallo && !fallo.ok) return fallo;
+  const modificadoresPorLinea = resueltas.map((r) => (r.ok ? r.data : []));
+
+  const { porLinea, consumos } = await calcularConsumoRecetas(
+    tenantId,
+    lineas.map((l, i) => ({
+      productoId: l.productoId,
+      cantidad: l.cantidad,
+      efectos: modificadoresPorLinea[i].flatMap((m) => m.efectoReceta),
+    }))
+  );
+
+  const planLineas: LineaPlanConsumo[] = lineas.map((_, i) => ({
+    alVender: porLinea[i].alVender,
+    costoUnitario: porLinea[i].costoUnitario,
+    precioExtra: modificadoresPorLinea[i].reduce((suma, m) => suma + m.precioExtra, 0),
+    modificadores: modificadoresPorLinea[i],
+  }));
+
+  if (consumos.length === 0) return { ok: true, data: { lineas: planLineas, consumos: [] } };
 
   const saldos = await repo.obtenerStockInsumosEnSucursal(
     consumos.map((c) => c.insumoId),
@@ -72,7 +116,7 @@ export async function planificarConsumoVenta(
     };
   }
 
-  return { ok: true, data: { porProducto, consumos } };
+  return { ok: true, data: { lineas: planLineas, consumos } };
 }
 
 /**
@@ -118,4 +162,53 @@ export async function consumirInsumosPorVenta(
       saldos: saldos.map((s) => ({ ...s, insumoNombre: nombre.get(s.insumoId) ?? "Insumo" })),
     },
   };
+}
+
+export interface OpcionModificadorVenta {
+  id: string;
+  nombre: string;
+  tipo: "agrega" | "reemplaza" | "indicacion";
+  esBase: boolean;
+  precioExtra: number;
+}
+
+export interface GrupoModificadoresVenta {
+  id: string;
+  nombre: string;
+  seleccion: "una" | "varias";
+  opciones: OpcionModificadorVenta[];
+}
+
+/**
+ * Lo que el punto de venta ofrece al tocar un producto: los grupos de
+ * modificadores de cada uno, con sus opciones y precios. Solo lectura para armar
+ * la pantalla; el servidor vuelve a validar todo al registrar la venta.
+ */
+export async function listarModificadoresParaVenta(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoIds: string[]
+): Promise<Resultado<Record<string, GrupoModificadoresVenta[]>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar ventas." };
+  }
+  const filas = await repo.obtenerModificadoresParaProductos(tenantId, productoIds);
+
+  const resultado: Record<string, GrupoModificadoresVenta[]> = {};
+  for (const fila of filas) {
+    const grupos = (resultado[fila.productoId] ??= []);
+    let grupo = grupos.find((g) => g.id === fila.grupoId);
+    if (!grupo) {
+      grupo = { id: fila.grupoId, nombre: fila.grupoNombre, seleccion: fila.seleccion, opciones: [] };
+      grupos.push(grupo);
+    }
+    grupo.opciones.push({
+      id: fila.modificadorId,
+      nombre: fila.nombre,
+      tipo: fila.tipo,
+      esBase: fila.esBase,
+      precioExtra: Number(fila.precioExtra),
+    });
+  }
+  return { ok: true, data: resultado };
 }
