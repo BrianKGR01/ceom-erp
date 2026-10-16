@@ -549,6 +549,27 @@ export async function listarProductoIdsAlVender(tenantId: string) {
   return filas.map((f) => f.productoId);
 }
 
+/**
+ * Fase 6: productos que se preparan al vender pero cuya receta no tiene ningun insumo. Venderlos
+ * no descontaria nada ni tendria costo: el punto de venta los oculta hasta que la receta se complete.
+ */
+export async function listarProductoIdsAlVenderSinInsumos(tenantId: string) {
+  const filas = await db
+    .select({ productoId: vinculacionesProductoReceta.productoId })
+    .from(vinculacionesProductoReceta)
+    .innerJoin(recetas, eq(vinculacionesProductoReceta.recetaId, recetas.id))
+    .where(
+      and(
+        eq(vinculacionesProductoReceta.modoConsumo, "al_vender"),
+        isNull(vinculacionesProductoReceta.eliminadoEn),
+        eq(recetas.tenantId, tenantId),
+        isNull(recetas.eliminadoEn),
+        sql`not exists (select 1 from ${recetaInsumos} where ${recetaInsumos.recetaId} = ${recetas.id})`
+      )
+    );
+  return filas.map((f) => f.productoId);
+}
+
 /** Saldo de varios insumos en una sucursal, en una sola consulta. */
 export async function obtenerStockInsumosEnSucursal(insumoIds: string[], sucursalId: string) {
   if (insumoIds.length === 0) return [];

@@ -11,6 +11,7 @@ import {
 import {
   listarModificadoresParaVenta,
   listarProductosAlVender,
+  listarProductosConRecetaIncompleta,
 } from "@/modules/operativo/actions";
 import { listarCategorias, listarProductos, listarStockPorSucursal } from "@/modules/productos/actions";
 import {
@@ -44,7 +45,7 @@ export default async function PuntoDeVentaPage() {
     listarEventos(usuario, usuario.tenantId),
   ]);
 
-  const productos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
+  const productosActivos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
   const clientes = clientesResultado.ok ? clientesResultado.data : [];
   const canales = canalesResultado.ok ? canalesResultado.data : [];
@@ -57,14 +58,18 @@ export default async function PuntoDeVentaPage() {
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
 
   // Fase 3 Cafiatto: que se prepara al vender y que modificadores ofrece cada producto.
-  const [alVenderResultado, modificadoresResultado] = await Promise.all([
+  const [alVenderResultado, incompletosResultado] = await Promise.all([
     listarProductosAlVender(usuario, usuario.tenantId),
-    listarModificadoresParaVenta(
-      usuario,
-      usuario.tenantId,
-      productos.map((p) => p.id)
-    ),
+    listarProductosConRecetaIncompleta(usuario, usuario.tenantId),
   ]);
+  // Fase 6: lo que se prepara al vender con la receta vacia no se ofrece (no descontaria ni costaria nada).
+  const recetaIncompleta = new Set(incompletosResultado.ok ? incompletosResultado.data : []);
+  const productos = productosActivos.filter((p) => !recetaIncompleta.has(p.id));
+  const modificadoresResultado = await listarModificadoresParaVenta(
+    usuario,
+    usuario.tenantId,
+    productos.map((p) => p.id)
+  );
   const alVender = new Set(alVenderResultado.ok ? alVenderResultado.data : []);
 
   // Fase 5 Cafiatto: que motivos de bonificacion ofrece la pantalla (el servidor los exige igual).

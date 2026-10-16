@@ -492,3 +492,9 @@ Una venta que vale 0 **nace `pagado`** (no queda "pendiente de cobro para siempr
 Reglas: consumo del personal = 100 % y dice quién consume; cortesía = 1-100 % y exige beneficiario o nota. **Pendiente (aplazado a propósito):** PIN de un tercero (autorizador ≠ vendedor) y descuento comercial por rol.
 POS: botón "Bonificar" solo si el usuario tiene alguna capacidad (el servidor la exige igual); resumen con subtotal/bonificación/total; con 100 % no hay pago inicial. La ficha de venta muestra la bonificación.
 Tests: `bonificacion.test.ts`, `bonificacion-ruta.test.ts`, `pos-cliente.test.tsx`.
+
+## Última actualización: 2026-10-16 — Fase 6 Cafiatto: resumen operativo
+**Contrato (aditivo):** `consultarActividadVentas(periodo, { sucursalId? })` → `{ cantidad, ingresos, porHora[{hora 0-23 local, cantidad, ingresos}], porVendedor[{vendedorId, cantidad, ingresos}] }`. Pide `ventas:ver`.
+Ingresos = suma de `detalles_venta.subtotal` (neto de bonificaciones; no resta ajustes posteriores, H-26). La hora se agrupa en la zona del negocio.
+Lo consume la pantalla `/app/produccion/resumen` junto con `rankingProductos(margen)` (Reportes), `consultarBonificacionesPorMotivo` y `consultarBajasPorMotivo`: ningún margen se calcula en la pantalla (regla 10) y los marcadores de costo desconocido viajan (regla 9).
+Test: `resumen-operativo.test.ts`.

@@ -99,6 +99,7 @@ export function AppShell({
   rolNombre,
   tenantNombre,
   esOwner,
+  nichoId = null,
   estadoAcceso,
   fechaProximoPago,
   children,
@@ -107,6 +108,8 @@ export function AppShell({
   rolNombre: string;
   tenantNombre: string;
   esOwner: boolean;
+  /** Nicho activo del negocio (null = modo básico). Decide qué módulos operativos se muestran. */
+  nichoId?: "nicho_1" | "nicho_4" | null;
   estadoAcceso: "activo" | "solo_lectura" | "bloqueado";
   fechaProximoPago: string | null;
   children: React.ReactNode;
@@ -239,19 +242,26 @@ export function AppShell({
         { href: "/app/gastos/recurrentes", label: "Recurrentes" },
       ],
     },
-    {
-      href: "/app/produccion",
-      label: "Producción",
-      icono: ChefHat,
-      subitems: [
-        { href: "/app/produccion", label: "Producciones" },
-        { href: "/app/produccion/insumos", label: "Insumos" },
-        { href: "/app/produccion/recetas", label: "Recetas" },
-        { href: "/app/produccion/bajas", label: "Bajas" },
-        { href: "/app/produccion/modificadores", label: "Modificadores" },
-        { href: "/app/produccion/capacidad", label: "Capacidad" },
-      ],
-    },
+    // Producción es el módulo operativo del Nicho 1: un negocio de otro nicho no lo ve. Modo
+    // básico (sin nicho) sí lo conserva, como hasta ahora, para no quitarle una pantalla a quien ya la usa.
+    ...(nichoId === "nicho_4"
+      ? []
+      : [
+          {
+            href: "/app/produccion",
+            label: "Producción",
+            icono: ChefHat,
+            subitems: [
+              { href: "/app/produccion", label: "Producciones" },
+              { href: "/app/produccion/resumen", label: "Resumen" },
+              { href: "/app/produccion/insumos", label: "Insumos" },
+              { href: "/app/produccion/recetas", label: "Recetas" },
+              { href: "/app/produccion/bajas", label: "Bajas" },
+              { href: "/app/produccion/modificadores", label: "Modificadores" },
+              { href: "/app/produccion/capacidad", label: "Capacidad" },
+            ],
+          } satisfies ItemNav,
+        ]),
     {
       href: "/app/caja",
       label: "Caja",

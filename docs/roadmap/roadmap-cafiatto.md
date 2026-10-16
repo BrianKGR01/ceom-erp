@@ -64,7 +64,7 @@
 - Bonificación hasta 100 % con motivo (consumo del personal y cortesía), autorizada por capacidades por rol. **Aplazados (decisión 4):** PIN de un tercero y descuento comercial por rol.
 - Consumo del personal modelado como se decida.
 
-### Fase 6 — Dashboard, navegación y cierre
+### Fase 6 — Dashboard, navegación y cierre — ✅ parcial en `feat/cafiatto`: resumen operativo, menú por nicho y filtro de recetas vacías. **Pendiente (necesita entorno con Auth):** seeds de demo y e2e autenticados
 - Dashboard operativo: ventas por hora y por vendedor, rentabilidad.
 - Navegación del sidebar por nicho (hoy hardcoded en `app-shell.tsx`).
 - Ocultar en Vender productos sin receta completa; seeds de demo; e2e Playwright.

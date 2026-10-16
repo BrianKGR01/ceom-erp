@@ -1118,6 +1118,42 @@ export async function consultarBonificacionesPorMotivo(
 }
 
 /**
+ * Fase 6: cuando y quien vende. Ventas por hora local del negocio (0-23, solo las horas con
+ * ventas) y por quien registro la venta. Cantidad = ventas distintas; ingresos = suma de
+ * lineas netas de bonificacion. El ticket promedio lo calcula quien lo muestra con estos dos
+ * numeros, que aca son exactos (no hay completitud de costo en juego).
+ */
+export async function consultarActividadVentas(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<
+  Resultado<{
+    cantidad: number;
+    ingresos: number;
+    porHora: Array<{ hora: number; cantidad: number; ingresos: number }>;
+    porVendedor: Array<{ vendedorId: string | null; cantidad: number; ingresos: number }>;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  const zona = await zonaHorariaTenant(tenantId);
+  const { inicio, fin } = rangoInstantes(periodo, zona);
+  const { porHora, porVendedor } = await repo.resumirActividadVentas(tenantId, inicio, fin, zona, opts.sucursalId);
+  return {
+    ok: true,
+    data: {
+      cantidad: porVendedor.reduce((s, f) => s + f.cantidad, 0),
+      ingresos: porVendedor.reduce((s, f) => s + f.ingresos, 0),
+      porHora,
+      porVendedor,
+    },
+  };
+}
+
+/**
  * En que sucursal se vendio. Lo usa la capa de acciones para ubicar el turno de caja de un
  * cobro; pide solo `ventas:crear` (el permiso de cobrar), no el de ver el detalle.
  */

@@ -259,6 +259,60 @@ export async function resumirBonificacionesEnPeriodo(tenantId: string, inicio: D
   });
 }
 
+/**
+ * Fase 6: actividad de ventas en un periodo, por hora local y por quien la registro.
+ * Ingresos = suma de `detalles_venta.subtotal` (neto de bonificaciones), el mismo criterio de
+ * los demas reportes (H-26: no resta ajustes posteriores). Dos consultas: la cantidad de
+ * ventas se cuenta con `count(distinct)` y unir las lineas multiplicaria las filas.
+ */
+export async function resumirActividadVentas(
+  tenantId: string,
+  inicio: Date,
+  fin: Date,
+  zona: string,
+  sucursalId?: string
+) {
+  const donde = and(
+    eq(ventas.tenantId, tenantId),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
+    sucursalId ? eq(ventas.sucursalId, sucursalId) : undefined
+  );
+  const hora = sql<number>`extract(hour from ${ventas.fechaVenta} at time zone ${zona})::int`;
+  const [porHora, porVendedor] = await Promise.all([
+    db
+      .select({
+        hora,
+        cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+        ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      })
+      .from(ventas)
+      .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(donde)
+      // Por posicion: la zona viaja como parametro y Postgres no reconoce la expresion repetida.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+    db
+      .select({
+        vendedorId: ventas.creadoPor,
+        cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+        ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      })
+      .from(ventas)
+      .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(donde)
+      .groupBy(ventas.creadoPor),
+  ]);
+  return {
+    porHora: porHora.map((f) => ({ hora: f.hora, cantidad: f.cantidad, ingresos: Number(f.ingresos) })),
+    porVendedor: porVendedor.map((f) => ({
+      vendedorId: f.vendedorId,
+      cantidad: f.cantidad,
+      ingresos: Number(f.ingresos),
+    })),
+  };
+}
+
 /** Fase 4 Cafiatto: cuantas ventas tiene un turno y por cuanto (suma de lineas). */
 export async function resumirVentasDeTurno(tenantId: string, turnoId: string) {
   const [fila] = await db

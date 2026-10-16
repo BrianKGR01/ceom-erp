@@ -227,3 +227,17 @@ export async function listarProductosAlVender(
   }
   return { ok: true, data: await repo.listarProductoIdsAlVender(tenantId) };
 }
+
+/**
+ * Fase 6: productos que se preparan al vender pero cuya receta esta vacia. El punto de venta
+ * los oculta: venderlos no descontaria insumos ni tendria costo (la receta se completa en Recetas).
+ */
+export async function listarProductosConRecetaIncompleta(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<string[]>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar ventas." };
+  }
+  return { ok: true, data: await repo.listarProductoIdsAlVenderSinInsumos(tenantId) };
+}

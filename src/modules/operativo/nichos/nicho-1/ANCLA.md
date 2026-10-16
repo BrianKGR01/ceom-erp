@@ -291,3 +291,7 @@ del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProd
   `crearModificador`, `actualizarModificador`, `eliminarModificador`, `vincularGrupoModificadoresAProducto`, `desvincularGrupoModificadoresDeProducto`, `listarGruposModificadores`.
 - UI: `/app/produccion/modificadores` (grupos, opciones y a qué productos se ofrece cada grupo). La edición de una opción existente es solo por backend por ahora (la pantalla crea y elimina).
 - `src/test-utils/fixture-permisos-cruzados.ts` limpia las tablas nuevas.
+
+## Última actualización: 2026-10-16 — Fase 6 Cafiatto
+- Fachada `operativo/actions.ts`: `listarProductosConRecetaIncompleta` (productos `al_vender` con receta sin insumos; gateada por `ventas:crear`). Vender los oculta.
+- Pantalla `/app/produccion/resumen` (resumen operativo). El menú lateral oculta Producción a negocios de `nicho_4` (modo básico la conserva).
