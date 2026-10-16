@@ -226,13 +226,13 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 |---|---|---|
 | Identidad / Tenants / Roles | — | Todos los demás módulos |
 | Productos e Inventario | Módulo Operativo (si existe), Proveedores (reventa directa), Ventas (descuento) | Ventas, Operaciones |
-| Operaciones (nicho) | Productos e Inventario, Inventario Operativo, Capacidad Operativa | Productos e Inventario, Financiero (vía COGS en Ventas) |
+| Operaciones (nicho) | Productos e Inventario, Inventario Operativo, Capacidad Operativa | Productos e Inventario, Financiero (vía COGS en Ventas), **Ventas** (consumo de insumos por receta al vender, vía la fachada `operativo/actions.ts`) |
 | Inventario Operativo | Proveedores/Compras, Operaciones | Operaciones |
 | Capacidad Operativa | Patrimonio | Operaciones |
 | Patrimonio / Activos | — | Capacidad Operativa |
 | Proveedores / Compras | Insumos (Nicho 1), Productos (Módulo 2) — FK real de `Compra.insumoId`/`productoId` | Inventario Operativo (`registrarEntradaCompraInsumo`), Productos e Inventario (`registrarEntradaCompraReventa`), Financiero — **caller real desde roadmap ítem #12**, no solo teórico |
 | Nicho 4 (`src/modules/operativo/nichos/nicho-4/`) | Patrimonio (`consultarCapacidad`), Productos e Inventario (`consultarStockTotalPorSucursal`), Operativo Nicho 1 (`calcularPorcentajeCapacidadUsada`, pura) | — |
-| Ventas | Productos e Inventario, **Costos y Gastos** (`generarGastoComisionVenta` — la venta dispara su comisión al confirmarse, H-24) | Clientes, Financiero |
+| Ventas | Productos e Inventario, **Costos y Gastos** (`generarGastoComisionVenta` — la venta dispara su comisión al confirmarse, H-24), **Operativo** (fachada neutral `src/modules/operativo/actions.ts`: `planificarConsumoVenta` / `consumirInsumosPorVenta` — los productos que se preparan al vender descuentan insumos de su receta; Roadmap Cafiatto Fase 1. Ventas nunca importa `nichos/<nicho>/`. Sin ciclo: Operativo no lee Ventas) | Clientes, Financiero |
 | Clientes | Ventas (evento) | — |
 | Egresos y Gastos | Proveedores (opcional, ficha) | Financiero, **Ventas** (comisión automática — al cerrar H-24 la flecha con Ventas quedó en un solo sentido: Gastos ya no lee la Venta con `fichaVenta()`, la recibe) |
 | Financiero | Ventas, Gastos, Proveedores/Compras (`consultarPagosCompraEnPeriodo` + `consultarCostoExtraAjustesCompraEnPeriodo` — H-31) | Gateway de Consentimiento |

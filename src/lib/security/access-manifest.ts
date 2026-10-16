@@ -239,6 +239,7 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     nota: "recetaId — fix del barrido en Nicho-1 (receta.tenantId).",
   },
   "app/app/(shell)/productos/actions.ts::desvincularProductoDeRecetaAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/productos/actions.ts::cambiarModoConsumoProductoAction": { nivel: "por-recurso", verificacion: "estatica" },
 
   // --- app/app/(shell)/proveedores/actions.ts ------------------------------
   "app/app/(shell)/proveedores/actions.ts::crearProveedorAction": { nivel: "autenticado", verificacion: "estatica" },

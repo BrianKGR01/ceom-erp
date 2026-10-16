@@ -52,6 +52,7 @@ export default async function FichaProductoPage({
           recetaId: recetaVinculadaResultado.data.receta.id,
           recetaNombre: recetaVinculadaResultado.data.receta.nombre,
           cantidadBaseConsumidaPorUnidad: recetaVinculadaResultado.data.cantidadBaseConsumidaPorUnidad,
+          modoConsumo: recetaVinculadaResultado.data.modoConsumo,
         }
       : null;
 

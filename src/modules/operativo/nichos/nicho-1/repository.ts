@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   insumos,
@@ -342,6 +342,18 @@ export async function obtenerVinculacionPorProducto(productoId: string) {
   return filas[0] ?? null;
 }
 
+export async function actualizarModoConsumoVinculacion(
+  vinculacionId: string,
+  modoConsumo: "al_producir" | "al_vender"
+) {
+  const [vinculacion] = await db
+    .update(vinculacionesProductoReceta)
+    .set({ modoConsumo })
+    .where(eq(vinculacionesProductoReceta.id, vinculacionId))
+    .returning();
+  return vinculacion;
+}
+
 export async function eliminarVinculacionSoft(vinculacionId: string) {
   const [vinculacion] = await db
     .update(vinculacionesProductoReceta)
@@ -458,6 +470,110 @@ export async function crearProduccionTx(data: {
 
     const [produccion] = await tx.insert(producciones).values(data.produccion).returning();
     return produccion;
+  });
+}
+
+// --- Consumo de insumos al vender (Fase 1 Cafiatto) -------------------------
+
+/**
+ * Recetas de los productos vinculados en modo `al_vender`, con su composicion.
+ * Dos consultas para N productos (nada de una ficha por fila). Solo recetas
+ * del tenant y no eliminadas.
+ */
+export async function obtenerRecetasAlVender(tenantId: string, productoIds: string[]) {
+  if (productoIds.length === 0) return [];
+  const vinculos = await db
+    .select({
+      productoId: vinculacionesProductoReceta.productoId,
+      recetaId: vinculacionesProductoReceta.recetaId,
+      cantidadBase: vinculacionesProductoReceta.cantidadBaseConsumidaPorUnidad,
+      rendimientoPorLote: recetas.rendimientoPorLote,
+    })
+    .from(vinculacionesProductoReceta)
+    .innerJoin(recetas, eq(vinculacionesProductoReceta.recetaId, recetas.id))
+    .where(
+      and(
+        inArray(vinculacionesProductoReceta.productoId, productoIds),
+        eq(vinculacionesProductoReceta.modoConsumo, "al_vender"),
+        isNull(vinculacionesProductoReceta.eliminadoEn),
+        eq(recetas.tenantId, tenantId),
+        isNull(recetas.eliminadoEn)
+      )
+    );
+  if (vinculos.length === 0) return [];
+
+  const lineas = await db
+    .select({
+      recetaId: recetaInsumos.recetaId,
+      insumoId: recetaInsumos.insumoId,
+      cantidadPorLote: recetaInsumos.cantidadPorLote,
+      insumoNombre: insumos.nombre,
+      costoUnitarioVigente: insumos.costoUnitarioVigente,
+    })
+    .from(recetaInsumos)
+    .innerJoin(insumos, eq(recetaInsumos.insumoId, insumos.id))
+    .where(
+      inArray(
+        recetaInsumos.recetaId,
+        vinculos.map((v) => v.recetaId)
+      )
+    );
+
+  return vinculos.map((v) => ({
+    ...v,
+    composicion: lineas.filter((l) => l.recetaId === v.recetaId),
+  }));
+}
+
+/** Saldo de varios insumos en una sucursal, en una sola consulta. */
+export async function obtenerStockInsumosEnSucursal(insumoIds: string[], sucursalId: string) {
+  if (insumoIds.length === 0) return [];
+  return db
+    .select({ insumoId: stockInsumo.insumoId, cantidadActual: stockInsumo.cantidadActual })
+    .from(stockInsumo)
+    .where(and(inArray(stockInsumo.insumoId, insumoIds), eq(stockInsumo.sucursalId, sucursalId)));
+}
+
+export async function contarInsumosDelTenant(tenantId: string, insumoIds: string[]) {
+  if (insumoIds.length === 0) return 0;
+  const filas = await db
+    .select({ id: insumos.id })
+    .from(insumos)
+    .where(and(inArray(insumos.id, insumoIds), eq(insumos.tenantId, tenantId)));
+  return filas.length;
+}
+
+/**
+ * Descuenta de golpe los insumos de una venta: un movimiento `salida_venta`
+ * por insumo (ya agregado por quien llama) y el recalculo del saldo, todo en
+ * una transaccion. Secuencial por la misma razon que `crearProduccionTx`.
+ */
+export async function crearConsumosVentaTx(data: {
+  ventaId: string;
+  sucursalId: string;
+  creadoPor: string;
+  consumos: Array<{ insumoId: string; cantidad: string; costoUnitarioEnMovimiento: string }>;
+}) {
+  return db.transaction(async (tx) => {
+    const saldos: Array<{ insumoId: string; cantidadActual: number }> = [];
+    for (const consumo of data.consumos) {
+      await tx.insert(movimientosInsumo).values({
+        insumoId: consumo.insumoId,
+        sucursalId: data.sucursalId,
+        tipo: "salida_venta",
+        cantidad: consumo.cantidad,
+        costoUnitarioEnMovimiento: consumo.costoUnitarioEnMovimiento,
+        referenciaId: data.ventaId,
+        creadoPor: data.creadoPor,
+      });
+      const cantidadActual = await recalcularCantidadActualInsumoTx(
+        tx,
+        consumo.insumoId,
+        data.sucursalId
+      );
+      saldos.push({ insumoId: consumo.insumoId, cantidadActual });
+    }
+    return saldos;
   });
 }
 

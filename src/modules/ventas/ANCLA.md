@@ -441,3 +441,17 @@ El POS (`pos-cliente.tsx`) genera una clave por intento y la renueva tras un reg
 **Deriva conocida:** `0021_simulaciones` no figura en `drizzle.__drizzle_migrations` de la base real (49 filas) aunque su tabla
 existe; no estorba porque `migrate` aplica por `when` mayor al último. No reaplicar a mano.
 Tests: `doble-confirmacion.test.ts` (bloque "idempotencia").
+
+## Última actualización: 2026-10-16 — Fase 1 Cafiatto: consumo de insumos por receta al vender (H-53)
+
+**Contrato (aditivo):** `registrarVenta` devuelve además `consumoInsumos` (resultado de `consumirInsumosPorVenta` o `null`).
+Llama a la fachada neutral `@/modules/operativo/actions` — **nunca** a `nichos/<nicho>/`:
+1. `planificarConsumoVenta` ANTES de crear nada: qué productos se preparan al vender, qué insumos, a qué costo, y si alcanza el stock
+   (bloquea la venta entera con `Insumo insuficiente ("X")` salvo capacidad `vender_sin_stock`). No crea cliente ni venta si rechaza.
+2. Snapshot: la línea de un producto al vender congela el costo de su receta (`costoDesconocido` si a algún insumo le falta costo o la receta está vacía).
+3. Tras crear la venta: no se descuenta stock de producto terminado para esas líneas; `consumirInsumosPorVenta` baja los insumos (fuera de la
+   transacción de la venta: mismo gap de atomicidad cruzada aceptado; el fallo se devuelve como aviso, la venta queda).
+`avisosDeInsumos` (ruta `ventas/actions.ts`) lleva a la pantalla el fallo o el insumo en negativo.
+Una venta repetida (idempotencia) no consume nada. **No cubierto aún:** anular/ajustar una venta NO devuelve insumos (decisión 2 del roadmap: por
+defecto no; la opción explícita viene en una fase posterior).
+Tests: `consumo-receta.test.ts`.

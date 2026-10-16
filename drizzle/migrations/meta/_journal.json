@@ -358,6 +358,20 @@
       "when": 1792158883395,
       "tag": "0050_h51_idempotencia_ventas",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792159652452,
+      "tag": "0051_cafiatto_tipo_movimiento_salida_venta",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1792159692844,
+      "tag": "0052_cafiatto_modo_consumo_y_precision_insumos",
+      "breakpoints": true
     }
   ]
 }

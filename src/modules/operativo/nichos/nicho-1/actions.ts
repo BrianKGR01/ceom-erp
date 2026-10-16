@@ -13,7 +13,13 @@ import {
 } from "@/modules/productos/actions";
 import { instanteDeDiaLocal, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
 import * as repo from "./repository";
-import type { tipoMovimientoInsumoEnum, unidadMedidaInsumoEnum } from "./schema";
+import type {
+  modoConsumoRecetaEnum,
+  tipoMovimientoInsumoEnum,
+  unidadMedidaInsumoEnum,
+} from "./schema";
+
+export type ModoConsumoReceta = (typeof modoConsumoRecetaEnum.enumValues)[number];
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -516,7 +522,13 @@ export async function actualizarComposicionReceta(
 export async function vincularProductoAReceta(
   solicitante: UsuarioConRol,
   tenantId: string,
-  input: { productoId: string; recetaId: string; cantidadBaseConsumidaPorUnidad: string | number }
+  input: {
+    productoId: string;
+    recetaId: string;
+    cantidadBaseConsumidaPorUnidad: string | number;
+    /** Fase 1 Cafiatto. Por omision `al_producir` (comportamiento historico). */
+    modoConsumo?: ModoConsumoReceta;
+  }
 ): Promise<Resultado<{ vinculacionId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
     return { ok: false, error: "No tenés permiso para vincular productos en este tenant." };
@@ -540,9 +552,42 @@ export async function vincularProductoAReceta(
     productoId: input.productoId,
     recetaId: input.recetaId,
     cantidadBaseConsumidaPorUnidad: String(input.cantidadBaseConsumidaPorUnidad),
+    modoConsumo: input.modoConsumo ?? "al_producir",
   });
 
   return { ok: true, data: { vinculacionId: vinculacion.id } };
+}
+
+/**
+ * Cambia cuando se descuentan los insumos de un producto ya vinculado:
+ * `al_producir` (Produccion) o `al_vender` (Venta). Solo afecta ventas
+ * futuras: las ya registradas conservan su snapshot de costo (regla 4).
+ */
+export async function cambiarModoConsumoProducto(
+  solicitante: UsuarioConRol,
+  productoId: string,
+  modoConsumo: ModoConsumoReceta
+): Promise<Resultado<true>> {
+  const vinculacion = await repo.obtenerVinculacionPorProducto(productoId);
+  if (!vinculacion) return { ok: false, error: "Este producto no está vinculado a ninguna receta." };
+
+  const receta = await repo.obtenerRecetaPorId(vinculacion.recetaId);
+  if (!receta) return { ok: false, error: "Receta no encontrada." };
+  if (!(await tienePermiso(solicitante, receta.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar esta receta." };
+  }
+  if (modoConsumo === "al_vender") {
+    const composicion = await repo.obtenerComposicionReceta(receta.id);
+    if (composicion.length === 0) {
+      return {
+        ok: false,
+        error: "La receta no tiene insumos: cargá su composición antes de descontarla al vender.",
+      };
+    }
+  }
+
+  await repo.actualizarModoConsumoVinculacion(vinculacion.id, modoConsumo);
+  return { ok: true, data: true };
 }
 
 export async function desvincularProductoDeReceta(
@@ -570,6 +615,7 @@ export async function obtenerRecetaDeProducto(
     receta: Awaited<ReturnType<typeof repo.obtenerRecetaPorId>>;
     composicion: Awaited<ReturnType<typeof repo.obtenerComposicionReceta>>;
     cantidadBaseConsumidaPorUnidad: string;
+    modoConsumo: ModoConsumoReceta;
   } | null>
 > {
   const vinculacion = await repo.obtenerVinculacionPorProducto(productoId);
@@ -588,6 +634,7 @@ export async function obtenerRecetaDeProducto(
       receta,
       composicion,
       cantidadBaseConsumidaPorUnidad: vinculacion.cantidadBaseConsumidaPorUnidad,
+      modoConsumo: vinculacion.modoConsumo,
     },
   };
 }

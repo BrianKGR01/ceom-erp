@@ -69,6 +69,37 @@ function avisosDeStock(
   });
 }
 
+/**
+ * Fase 1 Cafiatto — qué pasó con los insumos de las recetas. Mismo criterio que
+ * `avisosDeStock`: la venta ya quedó; si el consumo falló o dejó un insumo en
+ * negativo, se dice antes de salir de la pantalla. No hay una línea de venta
+ * dueña de un insumo (varios productos pueden compartirlo), así que el aviso se
+ * ancla a la primera línea, que es solo el ancla visual del cartel.
+ */
+function avisosDeInsumos(
+  productoIdAncla: string | undefined,
+  consumo:
+    | { ok: true; data: { saldos: Array<{ insumoNombre: string; cantidadActual: number }> } }
+    | { ok: false; error: string }
+    | null
+): Array<{ productoId: string; mensaje: string }> {
+  if (!consumo || !productoIdAncla) return [];
+  if (!consumo.ok) {
+    return [
+      {
+        productoId: productoIdAncla,
+        mensaje: `La venta quedó registrada, pero no se descontaron los insumos de la receta: ${consumo.error}`,
+      },
+    ];
+  }
+  return consumo.data.saldos
+    .filter((s) => s.cantidadActual < 0)
+    .map((s) => ({
+      productoId: productoIdAncla,
+      mensaje: `El insumo "${s.insumoNombre}" quedó en negativo: ${s.cantidadActual}. Revisá el conteo o cargá la entrada que falta.`,
+    }));
+}
+
 export async function registrarVentaAction(
   sucursalId: string,
   input: unknown
@@ -93,7 +124,10 @@ export async function registrarVentaAction(
   });
   if (!resultado.ok) return resultado;
 
-  const avisosStock = avisosDeStock(parsed.data.lineas, resultado.data.descuentosStock);
+  const avisosStock = [
+    ...avisosDeStock(parsed.data.lineas, resultado.data.descuentosStock),
+    ...avisosDeInsumos(parsed.data.lineas[0]?.productoId, resultado.data.consumoInsumos),
+  ];
 
   return {
     ok: true,

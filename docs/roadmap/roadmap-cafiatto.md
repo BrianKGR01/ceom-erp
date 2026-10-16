@@ -29,15 +29,15 @@
 
 ## 2. Fases
 
-### Fase 0 — Prerrequisitos (sin funcionalidad nueva)
+### Fase 0 — Prerrequisitos (sin funcionalidad nueva) — ✅ HECHA en rama `feat/cafiatto` (2026-10-16)
 - Entorno de pruebas aislado (worktree + postgres:16 en Docker, arranque manual).
 - Revisar deriva de `0021_simulaciones` (tabla existe, no registrada en migraciones aplicadas).
 - Tanda B de H-51: idempotencia de ventas en servidor (+ H-26). Migración: mostrar SQL antes.
 - DA-45: bloqueo del caché de stock ante movimientos concurrentes.
 - Salida: suite verde en entorno aislado.
 
-### Fase 1 — Consumo por receta al vender (cierra H-53)
-- Migración 0050: `modo_consumo` (`al_producir` | `al_vender`) en `vinculaciones_producto_receta`.
+### Fase 1 — Consumo por receta al vender (cierra H-53) — ✅ código y tests hechos en `feat/cafiatto`; falta migrar la base real
+- (Real: 0050 = idempotencia de ventas, Fase 0; 0051 = `salida_venta`; 0052 = `modo_consumo` + precisión 4 decimales de insumos.) Migración: `modo_consumo` (`al_producir` | `al_vender`) en `vinculaciones_producto_receta`.
 - Migración 0051/0052: columnas de snapshot de costo de receta en detalle de venta y movimientos
   de insumo con origen venta.
 - Fachada `operativo/actions.ts`: `consumirRecetaPorVenta` (después del commit, regla 11).

@@ -246,3 +246,16 @@ aviso, el insumo desaparecía y el producto terminado no aparecía, sin ninguna 
 un colaborador con `operativo:crear` y sin `inventario:crear`. Test:
 `src/app/app/(shell)/produccion/avisos-stock.test.ts` (control Owner + mutante). Sin cambio de contrato
 del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProduccion`.
+
+## Última actualización: 2026-10-16 — Fase 1 Cafiatto: `modo_consumo`, `salida_venta` y precisión de 4 decimales
+
+- `vinculaciones_producto_receta.modo_consumo` (`al_producir` por omisión | `al_vender`). `vincularProductoAReceta` acepta `modoConsumo`;
+  `cambiarModoConsumoProducto` lo cambia (rechaza `al_vender` si la receta no tiene insumos). Solo afecta ventas futuras.
+- Nuevo tipo de movimiento `salida_venta` (migración 0051, sola por `ADD VALUE`). Referencia = id de la venta.
+- `movimientos_insumo.cantidad` y `stock_insumo.cantidad_actual` pasan de `numeric(12,2)` a `numeric(14,4)` (migración 0052): las recetas por
+  unidad consumen fracciones (0,0150 kg) y con 2 decimales cada venta redondeaba. Verificado sin vistas/funciones dependientes en la base real (148 y 29 filas).
+- Fórmula de consumo por unidad vendida: `cantidad_por_lote x cantidad_base_consumida / rendimiento_por_lote`.
+- La puerta de entrada para Ventas es la fachada neutral `src/modules/operativo/actions.ts` (`planificarConsumoVenta`, `consumirInsumosPorVenta`),
+  gateada por `ventas:crear` (como las comisiones, H-27). `repository.ts`: `obtenerRecetasAlVender`, `obtenerStockInsumosEnSucursal`, `crearConsumosVentaTx`.
+- UI: selector "Cuándo se descuentan los insumos" en el diálogo de receta de la ficha de producto.
+- Pendiente de la Fase 1 en producción: aplicar 0050-0052 (mostrar el SQL antes) y pasar las 21 vinculaciones de CAFIATTO a `al_vender`.

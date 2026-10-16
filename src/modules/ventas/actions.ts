@@ -10,6 +10,10 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 // Gastos"). Gastos ya no lee Ventas de vuelta — ver el comentario de
 // generarGastoComisionVenta sobre por que se invirtio esa flecha.
 import { generarGastoComisionVenta } from "@/modules/gastos/actions";
+// Ventas -> Operativo (fachada neutral, nunca nichos/<nicho>/): los productos
+// que se preparan al vender descuentan insumos de su receta en vez de stock de
+// producto terminado. Roadmap Cafiatto, Fase 1.
+import { consumirInsumosPorVenta, planificarConsumoVenta } from "@/modules/operativo/actions";
 import {
   consultarCostoOperativo,
   consultarPrecioVenta,
@@ -436,6 +440,8 @@ export async function registrarVenta(
     descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>>;
     /** true si este intento ya estaba registrado: no se creo ni descontó nada. */
     repetida: boolean;
+    /** Insumos descontados por receta; null si ningun producto de la venta se prepara al vender. */
+    consumoInsumos: Awaited<ReturnType<typeof consumirInsumosPorVenta>> | null;
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
@@ -462,6 +468,7 @@ export async function registrarVenta(
         gastoComision: null,
         descuentosStock: [],
         repetida: true,
+        consumoInsumos: null,
       },
     };
   };
@@ -493,6 +500,18 @@ export async function registrarVenta(
     };
   }
 
+  // Fase 1 Cafiatto: productos que se preparan al vender. Se resuelve ANTES de
+  // crear nada (cliente, venta): si falta un insumo y el usuario no puede
+  // vender sin stock, la venta se rechaza completa, sin dejar restos.
+  const planReceta = await planificarConsumoVenta(
+    solicitante,
+    tenantId,
+    input.sucursalId,
+    input.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }))
+  );
+  if (!planReceta.ok) return planReceta;
+  const porReceta = planReceta.data.porProducto;
+
   // Regla 4: alta implicita de cliente.
   let clienteId = input.clienteId ?? null;
   if (!clienteId && input.clienteNuevo) {
@@ -521,7 +540,13 @@ export async function registrarVenta(
     input.lineas.map(async (linea): Promise<Resultado<LineaSnapshot>> => {
       const precio = await consultarPrecioVenta(solicitante, linea.productoId);
       if (!precio.ok) return precio;
-      const costo = await consultarCostoOperativo(solicitante, linea.productoId);
+      // Producto que se prepara al vender: el costo es el de su receta HOY
+      // (congelado en la linea, regla 4), no el costo_operativo_vigente de una
+      // produccion que no existe.
+      const deReceta = porReceta[linea.productoId];
+      const costo = deReceta
+        ? ({ ok: true, data: { costoOperativoVigente: deReceta.costoUnitario } } as const)
+        : await consultarCostoOperativo(solicitante, linea.productoId);
       if (!costo.ok) return costo;
 
       const cantidad = Number(linea.cantidad);
@@ -612,6 +637,13 @@ export async function registrarVenta(
   // esta misma venta comparten producto+sucursal, paralelizarlo dejaría que
   // ambas lean el mismo disponible y sobregiren el stock.
   for (const linea of lineas) {
+    if (porReceta[linea.productoId]) {
+      // Sin stock de producto terminado que descontar: sus insumos salen abajo.
+      // Se mantiene la posicion para que `descuentosStock` siga alineado con
+      // las lineas; cantidadActual 0 no dispara el aviso de "stock negativo".
+      descuentosStock.push({ ok: true, data: { movimientoId: "", cantidadActual: 0 } });
+      continue;
+    }
     const descuento = await descontarStockVenta(solicitante, tenantId, {
       productoId: linea.productoId,
       sucursalId: input.sucursalId,
@@ -620,6 +652,18 @@ export async function registrarVenta(
     });
     descuentosStock.push(descuento);
   }
+
+  // Insumos de las recetas. Fuera de la transaccion de la venta, igual que el
+  // stock (mismo gap de atomicidad cruzada aceptado): si falla, la venta queda
+  // y el fallo se devuelve para mostrarlo como aviso.
+  const consumoInsumos =
+    planReceta.data.consumos.length > 0
+      ? await consumirInsumosPorVenta(solicitante, tenantId, {
+          ventaId: venta.id,
+          sucursalId: input.sucursalId,
+          consumos: planReceta.data.consumos,
+        })
+      : null;
 
   if (input.pagoInicial) {
     await repo.registrarPagoVentaTx({
@@ -658,6 +702,7 @@ export async function registrarVenta(
       gastoComision,
       descuentosStock,
       repetida: false,
+      consumoInsumos,
     },
   };
 }
@@ -669,6 +714,7 @@ type RegistroVentaRepetida = {
   gastoComision: null;
   descuentosStock: [];
   repetida: true;
+  consumoInsumos: null;
 };
 
 /** Postgres 23505 (unique_violation), tambien cuando drizzle lo envuelve en `cause`. */

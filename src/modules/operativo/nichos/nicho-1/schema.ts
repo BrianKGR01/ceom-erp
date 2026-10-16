@@ -37,7 +37,14 @@ export const tipoMovimientoInsumoEnum = pgEnum("tipo_movimiento_insumo", [
   "entrada_ajuste_manual",
   "salida_ajuste_manual",
   "salida_merma_almacenamiento",
+  // Fase 1 Cafiatto: consumo de insumos al vender (modo_consumo = al_vender).
+  "salida_venta",
 ]);
+
+// Fase 1 Cafiatto: cuando se descuentan los insumos de la receta.
+// - al_producir: al registrar una Produccion (comportamiento historico).
+// - al_vender: al registrar la Venta, por unidad vendida, sin Produccion.
+export const modoConsumoRecetaEnum = pgEnum("modo_consumo_receta", ["al_producir", "al_vender"]);
 
 export const insumos = pgTable(
   "insumos",
@@ -75,7 +82,9 @@ export const movimientosInsumo = pgTable(
       .notNull()
       .references(() => sucursales.id),
     tipo: tipoMovimientoInsumoEnum("tipo").notNull(),
-    cantidad: numeric("cantidad", { precision: 12, scale: 2 }).notNull(),
+    // 4 decimales: una receta por unidad consume fracciones (0,0150 kg); con 2
+    // decimales cada venta redondeaba el consumo y el error se acumulaba.
+    cantidad: numeric("cantidad", { precision: 14, scale: 4 }).notNull(),
     // El costo al que entro o salio ESTA unidad especifica (snapshot), no
     // el promedio recalculado despues (Modulo_06 seccion 1.2).
     costoUnitarioEnMovimiento: numeric("costo_unitario_en_movimiento", {
@@ -113,7 +122,7 @@ export const stockInsumo = pgTable(
     sucursalId: uuid("sucursal_id")
       .notNull()
       .references(() => sucursales.id),
-    cantidadActual: numeric("cantidad_actual", { precision: 12, scale: 2 })
+    cantidadActual: numeric("cantidad_actual", { precision: 14, scale: 4 })
       .notNull()
       .default("0"),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true })
@@ -196,6 +205,7 @@ export const vinculacionesProductoReceta = pgTable(
       "cantidad_base_consumida_por_unidad",
       { precision: 12, scale: 4 }
     ).notNull(),
+    modoConsumo: modoConsumoRecetaEnum("modo_consumo").notNull().default("al_producir"),
     eliminadoEn: timestamp("eliminado_en", { withTimezone: true }),
   },
   (table) => [
