@@ -12,6 +12,7 @@ export const lineaVentaSchema = z.object({
 });
 
 export const registrarVentaSchema = z.object({
+  claveIdempotencia: z.string().uuid().optional(),
   clienteId: z.string().optional(),
   clienteNuevo: z
     .object({

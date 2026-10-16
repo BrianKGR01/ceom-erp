@@ -6,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 // Imports relativos (no "@/*"): drizzle-kit carga schema.ts con su propio
@@ -170,6 +171,11 @@ export const ventas = pgTable(
       precision: 12,
       scale: 2,
     }),
+    // H-51 Tanda B: identifica UN intento de venta. La genera el cliente al
+    // armar el carrito; si el mismo intento llega dos veces (doble toque,
+    // recarga, otra pestana) el indice unico lo frena y el servidor devuelve
+    // la venta ya creada. Null en ventas anteriores y en las que no la mandan.
+    claveIdempotencia: uuid("clave_idempotencia"),
     creadoPor: uuid("creado_por"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     modificadoPor: uuid("modificado_por"),
@@ -177,6 +183,9 @@ export const ventas = pgTable(
   },
   (table) => [
     ...crudPolicy("ventas", sql`${table.tenantId} = (select current_tenant_id())`),
+    uniqueIndex("ventas_tenant_clave_idempotencia_uq")
+      .on(table.tenantId, table.claveIdempotencia)
+      .where(sql`${table.claveIdempotencia} is not null`),
   ]
 ).enableRLS();
 

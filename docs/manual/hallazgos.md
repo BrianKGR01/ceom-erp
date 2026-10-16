@@ -1428,6 +1428,9 @@ negativo ("ya está anulada por completo"), y un pago inicial mayor al total.
 **Qué falta (Tanda B):** idempotencia en el servidor —que el mismo intento de venta, llegue por donde
 llegue (recarga, otra pestaña), no pueda crear dos ventas—. Requiere una migración.
 
+> **Tanda B implementada en rama `feat/cafiatto` (2026-10-16), pendiente de merge y de aplicar `0050` en la base real.**
+> Clave de idempotencia por intento + índice único parcial; ver `src/modules/ventas/ANCLA.md`.
+
 **Lo que el manual tiene que saber:** después de confirmar, la pantalla muestra "Venta registrada" y
 se va sola a la venta. Si una venta aparece repetida, se corrige con **Ajustar venta → Anulación
 total**, nunca borrándola; y hoy una venta anulada **sigue figurando como "pendiente de cobro"**

@@ -194,6 +194,16 @@ export async function obtenerDetallesVenta(ventaId: string) {
   return db.select().from(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
 }
 
+/** H-51 Tanda B: la venta que ya creo este intento, si existe. */
+export async function obtenerVentaPorClaveIdempotencia(tenantId: string, clave: string) {
+  const [venta] = await db
+    .select()
+    .from(ventas)
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.claveIdempotencia, clave)))
+    .limit(1);
+  return venta ?? null;
+}
+
 export async function obtenerTotalVenta(ventaId: string): Promise<number> {
   const [{ total }] = await db
     .select({ total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)` })

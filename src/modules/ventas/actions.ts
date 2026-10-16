@@ -411,6 +411,8 @@ export interface DatosVenta {
   lineas: DatosLineaVenta[];
   pagoInicial?: { metodoPagoId: string; monto: string | number };
   origenRegistro?: Extract<OrigenRegistro, "en_vivo" | "offline_sincronizado">;
+  /** H-51 Tanda B: identifica el intento; repetirla devuelve la venta ya creada. */
+  claveIdempotencia?: string;
 }
 
 /**
@@ -432,6 +434,8 @@ export async function registrarVenta(
     comisionMontoCalculado: number | null;
     gastoComision: Awaited<ReturnType<typeof generarGastoComisionVenta>> | null;
     descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>>;
+    /** true si este intento ya estaba registrado: no se creo ni descontó nada. */
+    repetida: boolean;
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
@@ -440,6 +444,29 @@ export async function registrarVenta(
   if (input.lineas.length === 0) {
     return { ok: false, error: "La venta necesita al menos una línea de producto." };
   }
+
+  // H-51 Tanda B: si este intento ya se registro, se devuelve esa venta y no
+  // se toca nada mas (ni cliente nuevo, ni stock, ni pago, ni comision). Va
+  // antes de cualquier efecto para que el reintento sea inocuo.
+  const ventaRepetida = async (): Promise<Resultado<RegistroVentaRepetida> | null> => {
+    if (!input.claveIdempotencia) return null;
+    const previa = await repo.obtenerVentaPorClaveIdempotencia(tenantId, input.claveIdempotencia);
+    if (!previa) return null;
+    return {
+      ok: true,
+      data: {
+        ventaId: previa.id,
+        totalVenta: await repo.obtenerTotalVenta(previa.id),
+        comisionMontoCalculado:
+          previa.comisionMontoCalculado !== null ? Number(previa.comisionMontoCalculado) : null,
+        gastoComision: null,
+        descuentosStock: [],
+        repetida: true,
+      },
+    };
+  };
+  const yaRegistrada = await ventaRepetida();
+  if (yaRegistrada) return yaRegistrada;
 
   // input.sucursalId no se revalidaba contra el tenant (auditoría de
   // autorización, docs/security/AUDITORIA-AUTORIZACION.md §8.3) — sin esto,
@@ -549,7 +576,7 @@ export async function registrarVenta(
   }
   const comisionMontoCalculado = calcularComision(totalVenta, porcentajeComision);
 
-  const { venta } = await repo.crearVentaConDetalleTx({
+  const creada = await repo.crearVentaConDetalleTx({
     venta: {
       tenantId,
       sucursalId: input.sucursalId,
@@ -562,10 +589,22 @@ export async function registrarVenta(
         porcentajeComision !== null ? String(porcentajeComision) : undefined,
       comisionMontoCalculado:
         comisionMontoCalculado !== null ? String(comisionMontoCalculado) : undefined,
+      claveIdempotencia: input.claveIdempotencia,
       creadoPor: solicitante.id,
     },
     lineas,
+  }).catch(async (e: unknown) => {
+    // Dos envios simultaneos del mismo intento: ambos pasaron el chequeo de
+    // arriba y el indice unico frena al segundo. Se resuelve como repetido.
+    if (input.claveIdempotencia && esViolacionUnica(e)) return null;
+    throw e;
   });
+  if (!creada) {
+    const previa = await ventaRepetida();
+    if (previa) return previa;
+    return { ok: false, error: "No se pudo registrar la venta." };
+  }
+  const { venta } = creada;
 
   const descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>> = [];
   // Secuencial a propósito: descontarStockVenta lee el stock disponible y
@@ -618,8 +657,24 @@ export async function registrarVenta(
       comisionMontoCalculado,
       gastoComision,
       descuentosStock,
+      repetida: false,
     },
   };
+}
+
+type RegistroVentaRepetida = {
+  ventaId: string;
+  totalVenta: number;
+  comisionMontoCalculado: number | null;
+  gastoComision: null;
+  descuentosStock: [];
+  repetida: true;
+};
+
+/** Postgres 23505 (unique_violation), tambien cuando drizzle lo envuelve en `cause`. */
+function esViolacionUnica(e: unknown): boolean {
+  const codigo = (x: unknown) => (x as { code?: string } | null)?.code;
+  return codigo(e) === "23505" || codigo((e as { cause?: unknown } | null)?.cause) === "23505";
 }
 
 export interface DatosAjusteVenta {

@@ -429,3 +429,15 @@ casos nuevos, como cualquier otra validación.
 cualquier vía (recarga, otra pestaña, doble envío de red), todavía crearía dos ventas—. Va en la Tanda B,
 con migración. Y **H-26 / R-3.3** sigue abierto: un ajuste no recalcula `estado_pago`, así que una
 venta anulada sigue diciendo "pendiente de cobro". Fue lo que llevó a anular una venta dos veces.
+
+## Última actualización: 2026-10-16 — H-51 Tanda B: idempotencia de `registrarVenta` (Roadmap Cafiatto, Fase 0)
+
+**Contrato (cambio aditivo):** `DatosVenta.claveIdempotencia?: string (uuid)`; `registrarVenta` devuelve además
+`repetida: boolean`. Si el mismo `(tenant, clave)` llega otra vez, devuelve la venta ya creada
+(`repetida: true`, `descuentosStock: []`, `gastoComision: null`) y **no** crea cliente, stock, pago ni comisión.
+Dos envíos simultáneos: los frena el índice único parcial `ventas_tenant_clave_idempotencia_uq`
+(migración `0050_h51_idempotencia_ventas`, columna `ventas.clave_idempotencia uuid` nula) y se resuelve como repetida.
+El POS (`pos-cliente.tsx`) genera una clave por intento y la renueva tras un registro exitoso. Sin clave, todo igual que antes.
+**Deriva conocida:** `0021_simulaciones` no figura en `drizzle.__drizzle_migrations` de la base real (49 filas) aunque su tabla
+existe; no estorba porque `migrate` aplica por `when` mayor al último. No reaplicar a mano.
+Tests: `doble-confirmacion.test.ts` (bloque "idempotencia").

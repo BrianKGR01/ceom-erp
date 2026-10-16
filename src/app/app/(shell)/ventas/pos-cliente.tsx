@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, Search, User } from "lucide-react";
@@ -178,6 +178,10 @@ export function PosCliente({
     setMetodoNuevoNombre("");
   }
 
+  // H-51 Tanda B: una clave por intento de venta. Si el servidor recibe dos
+  // veces la misma, devuelve la venta ya creada en vez de registrar otra.
+  const claveIdempotenciaRef = useRef(crypto.randomUUID());
+
   async function confirmarVenta() {
     setError(null);
     if (carrito.length === 0) {
@@ -196,6 +200,7 @@ export function PosCliente({
     if (confirmando || ventaRegistradaId) return;
     setConfirmando(true);
     const resultado = await registrarVentaAction(sucursalId, {
+      claveIdempotencia: claveIdempotenciaRef.current,
       clienteId: clienteId !== "sin_cliente" && clienteId !== "nuevo" ? clienteId : undefined,
       clienteNuevo:
         clienteId === "nuevo"
@@ -223,6 +228,7 @@ export function PosCliente({
     // ⛔ No volver a habilitar el botón en el camino exitoso. La venta ya está
     // guardada: lo único que queda es irse de esta pantalla.
     setCarrito([]);
+    claveIdempotenciaRef.current = crypto.randomUUID();
     // La venta ya quedó. Si el stock no se movió como se esperaba, se muestra
     // antes de salir de la pantalla (antes este aviso se descartaba).
     if (resultado.data.avisosStock.length > 0) {
