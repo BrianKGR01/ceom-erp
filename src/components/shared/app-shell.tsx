@@ -20,6 +20,7 @@ import {
   ShieldAlert,
   ShoppingCart,
   Truck,
+  Wallet,
   X,
 } from "lucide-react";
 import { Icono } from "@/components/brand/icono";
@@ -249,6 +250,15 @@ export function AppShell({
         { href: "/app/produccion/bajas", label: "Bajas" },
         { href: "/app/produccion/modificadores", label: "Modificadores" },
         { href: "/app/produccion/capacidad", label: "Capacidad" },
+      ],
+    },
+    {
+      href: "/app/caja",
+      label: "Caja",
+      icono: Wallet,
+      subitems: [
+        { href: "/app/caja", label: "Turno" },
+        { href: "/app/caja/historial", label: "Historial" },
       ],
     },
     { href: "/app/simulaciones", label: "Simulador", icono: Calculator },

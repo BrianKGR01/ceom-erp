@@ -205,6 +205,53 @@ export async function obtenerVentaPorClaveIdempotencia(tenantId: string, clave: 
   return venta ?? null;
 }
 
+/** Fase 4 Cafiatto: cuantas ventas tiene un turno y por cuanto (suma de lineas). */
+export async function resumirVentasDeTurno(tenantId: string, turnoId: string) {
+  const [fila] = await db
+    .select({
+      cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+      total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+    })
+    .from(ventas)
+    .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.turnoId, turnoId)));
+  return { cantidad: fila.cantidad, total: Number(fila.total) };
+}
+
+/** Fase 4 Cafiatto: lo cobrado en un turno, por metodo de pago (el turno del COBRO, no el de la venta). */
+export async function resumirCobrosDeTurno(tenantId: string, turnoId: string) {
+  return db
+    .select({
+      metodoPagoId: metodosPago.id,
+      nombre: metodosPago.nombre,
+      esEfectivo: metodosPago.esEfectivo,
+      monto: sql<string>`coalesce(sum(${pagosVenta.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
+    })
+    .from(pagosVenta)
+    .innerJoin(ventas, eq(ventas.id, pagosVenta.ventaId))
+    .innerJoin(metodosPago, eq(metodosPago.id, pagosVenta.metodoPagoId))
+    .where(and(eq(ventas.tenantId, tenantId), eq(pagosVenta.turnoId, turnoId)))
+    .groupBy(metodosPago.id, metodosPago.nombre, metodosPago.esEfectivo)
+    .orderBy(metodosPago.nombre);
+}
+
+export async function listarVentasDeTurno(tenantId: string, turnoId: string) {
+  return db
+    .select({
+      id: ventas.id,
+      fechaVenta: ventas.fechaVenta,
+      estadoPago: ventas.estadoPago,
+      creadoPor: ventas.creadoPor,
+      total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+    })
+    .from(ventas)
+    .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.turnoId, turnoId)))
+    .groupBy(ventas.id)
+    .orderBy(ventas.fechaVenta);
+}
+
 export async function obtenerTotalVenta(ventaId: string): Promise<number> {
   const [{ total }] = await db
     .select({ total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)` })

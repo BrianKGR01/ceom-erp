@@ -50,6 +50,7 @@ export function PosCliente({
   stockPorProducto,
   productos,
   modificadoresPorProducto,
+  caja = null,
   categorias,
   clientesIniciales,
   canalesIniciales,
@@ -62,6 +63,8 @@ export function PosCliente({
   productos: ProductoParaVenta[];
   /** Fase 3: grupos de modificadores que ofrece cada producto. */
   modificadoresPorProducto: Record<string, GrupoModificadores[]>;
+  /** Fase 4: null = el negocio no usa caja. */
+  caja?: { exigirTurno: boolean; turnoNumero: number | null; cajaNombre: string } | null;
   categorias: Opcion[];
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
@@ -139,6 +142,8 @@ export function PosCliente({
     });
 
   const [configurando, setConfigurando] = useState<Tarjeta | null>(null);
+  // Fase 4: con la caja activa y exigida, sin turno abierto no se confirma (el servidor lo vuelve a exigir).
+  const sinTurno = Boolean(caja?.exigirTurno && caja.turnoNumero === null);
 
   function tocarTarjeta(tarjeta: Tarjeta) {
     const sinOpciones =
@@ -259,6 +264,10 @@ export function PosCliente({
     }
 
     if (confirmando || ventaRegistradaId) return;
+    if (sinTurno) {
+      setError("Para vender, primero abrí el turno de la caja.");
+      return;
+    }
     setConfirmando(true);
     const resultado = await registrarVentaAction(sucursalId, {
       claveIdempotencia: claveIdempotenciaRef.current,
@@ -315,6 +324,25 @@ export function PosCliente({
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {caja && (
+        <div className="md:col-span-2 lg:col-span-3">
+          {sinTurno ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-bg p-4 text-sm">
+              <p className="text-warning-text">
+                <span className="font-medium">No hay un turno abierto en {caja.cajaNombre}.</span> Para vender, primero se
+                abre el turno: así cada venta queda asociada a la caja.
+              </p>
+              <Link href="/app/caja" className="font-medium text-warning-text underline">
+                Abrir turno
+              </Link>
+            </div>
+          ) : caja.turnoNumero !== null ? (
+            <p className="text-xs text-text-muted">
+              {caja.cajaNombre} · Turno #{caja.turnoNumero} abierto
+            </p>
+          ) : null}
+        </div>
+      )}
       <div className="space-y-4 lg:col-span-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {categorias.length > 0 && (

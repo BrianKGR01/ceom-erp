@@ -215,3 +215,41 @@ describe("Punto de venta — variantes y modificadores", () => {
     expect(screen.queryByText(/stock/i)).toBeNull();
   });
 });
+
+/**
+ * Roadmap Cafiatto, Fase 4 — con la caja activa y exigida, sin turno abierto no se
+ * confirma la venta (el servidor lo vuelve a exigir: esto evita el viaje de ida y vuelta).
+ */
+describe("Punto de venta — caja y turnos", () => {
+  beforeEach(() => {
+    registrarVentaAction.mockReset();
+    push.mockReset();
+  });
+
+  it("sin turno abierto avisa, ofrece abrirlo y no manda la venta", () => {
+    renderPos({ caja: { exigirTurno: true, turnoNumero: null, cajaNombre: "Caja Principal" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("No hay un turno abierto en Caja Principal.");
+    expect(screen.getByRole("link", { name: "Abrir turno" })).toHaveAttribute("href", "/app/caja");
+
+    fireEvent.click(screen.getByText("Cuñapé"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar venta" }));
+    expect(registrarVentaAction).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("alert").some((a) => a.textContent?.includes("primero abrí el turno"))).toBe(true);
+  });
+
+  it("con turno abierto muestra cuál es y vende normal", async () => {
+    registrarVentaAction.mockResolvedValue({ ok: true, data: { ventaId: "v-1", totalVenta: 6, avisosStock: [] } });
+    renderPos({ caja: { exigirTurno: true, turnoNumero: 31, cajaNombre: "Caja Principal" } });
+    expect(screen.getByText("Caja Principal · Turno #31 abierto")).toBeInTheDocument();
+    expect(screen.queryByText(/No hay un turno abierto/)).toBeNull();
+
+    fireEvent.click(screen.getByText("Cuñapé"));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar venta" }));
+    await waitFor(() => expect(registrarVentaAction).toHaveBeenCalledTimes(1));
+  });
+
+  it("con la caja apagada no aparece nada de turnos", () => {
+    renderPos({ caja: null });
+    expect(screen.queryByText(/Turno/)).toBeNull();
+  });
+});

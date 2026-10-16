@@ -99,6 +99,9 @@ export const metodosPago = pgTable(
       .references(() => tenants.id),
     nombre: text("nombre").notNull(),
     activo: boolean("activo").notNull().default(true),
+    // Roadmap Cafiatto, Fase 4: lo cobrado con un metodo marcado como efectivo es lo
+    // que entra al cajon y cuenta para el efectivo esperado al cerrar un turno.
+    esEfectivo: boolean("es_efectivo").notNull().default(false),
   },
   (table) => [
     ...crudPolicy(
@@ -172,6 +175,10 @@ export const ventas = pgTable(
       precision: 12,
       scale: 2,
     }),
+    // Roadmap Cafiatto, Fase 4: turno de caja en el que se registro la venta.
+    // Sin FK a proposito: el modulo Caja depende de Ventas y no al reves. Lo
+    // resuelve la capa de acciones; null si el negocio no usa caja.
+    turnoId: uuid("turno_id"),
     // H-51 Tanda B: identifica UN intento de venta. La genera el cliente al
     // armar el carrito; si el mismo intento llega dos veces (doble toque,
     // recarga, otra pestana) el indice unico lo frena y el servidor devuelve
@@ -310,6 +317,9 @@ export const pagosVenta = pgTable(
       .notNull()
       .references(() => metodosPago.id),
     fechaPago: timestamp("fecha_pago", { withTimezone: true }).notNull(),
+    // Fase 4: el turno en que se COBRO (no el de la venta: una venta fiada se puede
+    // cobrar en otro turno). Sin FK, igual que ventas.turno_id.
+    turnoId: uuid("turno_id"),
     creadoPor: uuid("creado_por"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
   },

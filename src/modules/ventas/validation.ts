@@ -41,6 +41,7 @@ export const canalVentaFormSchema = z.object({
 
 export const metodoPagoFormSchema = z.object({
   nombre: z.string().trim().min(1, "Ponele un nombre al método de pago."),
+  esEfectivo: z.boolean().optional(),
 });
 
 export const clienteFormSchema = z.object({

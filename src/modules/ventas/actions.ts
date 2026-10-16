@@ -196,6 +196,8 @@ export async function listarCanalesVenta(
 
 export interface DatosMetodoPago {
   nombre: string;
+  /** Fase 4: lo cobrado con este metodo entra al cajon y cuenta para el efectivo esperado del turno. */
+  esEfectivo?: boolean;
 }
 
 export async function crearMetodoPago(
@@ -206,7 +208,11 @@ export async function crearMetodoPago(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear métodos de pago." };
   }
-  const metodo = await repo.crearMetodoPago({ tenantId, nombre: input.nombre });
+  const metodo = await repo.crearMetodoPago({
+    tenantId,
+    nombre: input.nombre,
+    esEfectivo: input.esEfectivo ?? false,
+  });
   return { ok: true, data: { metodoPagoId: metodo.id } };
 }
 
@@ -220,7 +226,7 @@ export async function actualizarMetodoPago(
   if (!(await tienePermiso(solicitante, metodo.tenantId, "ventas", "editar"))) {
     return { ok: false, error: "No tenés permiso para editar este método de pago." };
   }
-  await repo.actualizarMetodoPago(metodoPagoId, { nombre: input.nombre });
+  await repo.actualizarMetodoPago(metodoPagoId, { nombre: input.nombre, esEfectivo: input.esEfectivo });
   return { ok: true, data: true };
 }
 
@@ -421,6 +427,11 @@ export interface DatosVenta {
   origenRegistro?: Extract<OrigenRegistro, "en_vivo" | "offline_sincronizado">;
   /** H-51 Tanda B: identifica el intento; repetirla devuelve la venta ya creada. */
   claveIdempotencia?: string;
+  /**
+   * Fase 4: turno de caja abierto en el que se registra. Lo resuelve la capa de acciones
+   * (modulo Caja), nunca el cliente. Ventas lo guarda sin interpretarlo.
+   */
+  turnoId?: string;
 }
 
 /**
@@ -644,6 +655,7 @@ export async function registrarVenta(
       comisionMontoCalculado:
         comisionMontoCalculado !== null ? String(comisionMontoCalculado) : undefined,
       claveIdempotencia: input.claveIdempotencia,
+      turnoId: input.turnoId,
       creadoPor: solicitante.id,
     },
     lineas,
@@ -700,6 +712,7 @@ export async function registrarVenta(
       monto: String(input.pagoInicial.monto),
       metodoPagoId: input.pagoInicial.metodoPagoId,
       fechaPago: fechaVenta,
+      turnoId: input.turnoId,
       creadoPor: solicitante.id,
     });
   }
@@ -871,7 +884,7 @@ export async function registrarAjusteVenta(
 export async function registrarPagoVenta(
   solicitante: UsuarioConRol,
   ventaId: string,
-  input: { monto: string | number; metodoPagoId: string; fechaPago?: string }
+  input: { monto: string | number; metodoPagoId: string; fechaPago?: string; turnoId?: string }
 ): Promise<Resultado<{ estadoPago: EstadoPagoVenta; totalPagado: number }>> {
   const venta = await repo.obtenerVentaPorId(ventaId);
   if (!venta) return { ok: false, error: "Venta no encontrada." };
@@ -890,6 +903,7 @@ export async function registrarPagoVenta(
     monto: String(input.monto),
     metodoPagoId: input.metodoPagoId,
     fechaPago: input.fechaPago ? instanteDeDiaLocal(input.fechaPago, zona) : new Date(),
+    turnoId: input.turnoId,
     creadoPor: solicitante.id,
   });
   if (pago.rechazado) {
@@ -903,6 +917,87 @@ export async function registrarPagoVenta(
   }
 
   return { ok: true, data: { estadoPago: pago.estadoPago, totalPagado: pago.totalPagado } };
+}
+
+/**
+ * Lo que el modulo Caja necesita saber de un turno (Roadmap Cafiatto, Fase 4): cuantas
+ * ventas se registraron, por cuanto, y lo COBRADO por metodo de pago. Solo lectura.
+ * `efectivoCobrado` es lo cobrado con metodos marcados como efectivo: el dinero que
+ * entro al cajon durante el turno.
+ *
+ * Nota: el total vendido es el de las lineas, sin restar ajustes posteriores (mismo
+ * criterio del historial, H-26). Lo que importa para el cajon son los cobros, y esos
+ * son exactos.
+ */
+export async function consultarCobrosDeTurno(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  turnoId: string
+): Promise<
+  Resultado<{
+    ventasCantidad: number;
+    ventasTotal: number;
+    porMetodo: Array<{
+      metodoPagoId: string;
+      nombre: string;
+      esEfectivo: boolean;
+      monto: number;
+      cantidad: number;
+    }>;
+    efectivoCobrado: number;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  const [ventasDelTurno, cobros] = await Promise.all([
+    repo.resumirVentasDeTurno(tenantId, turnoId),
+    repo.resumirCobrosDeTurno(tenantId, turnoId),
+  ]);
+  const porMetodo = cobros.map((c) => ({
+    metodoPagoId: c.metodoPagoId,
+    nombre: c.nombre,
+    esEfectivo: c.esEfectivo,
+    monto: Number(c.monto),
+    cantidad: c.cantidad,
+  }));
+  return {
+    ok: true,
+    data: {
+      ventasCantidad: ventasDelTurno.cantidad,
+      ventasTotal: ventasDelTurno.total,
+      porMetodo,
+      efectivoCobrado: porMetodo.filter((m) => m.esEfectivo).reduce((s, m) => s + m.monto, 0),
+    },
+  };
+}
+
+/**
+ * En que sucursal se vendio. Lo usa la capa de acciones para ubicar el turno de caja de un
+ * cobro; pide solo `ventas:crear` (el permiso de cobrar), no el de ver el detalle.
+ */
+export async function consultarSucursalDeVenta(
+  solicitante: UsuarioConRol,
+  ventaId: string
+): Promise<Resultado<{ sucursalId: string }>> {
+  const venta = await repo.obtenerVentaPorId(ventaId);
+  if (!venta) return { ok: false, error: "Venta no encontrada." };
+  if (!(await tienePermiso(solicitante, venta.tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar pagos en esta venta." };
+  }
+  return { ok: true, data: { sucursalId: venta.sucursalId } };
+}
+
+/** Las ventas registradas en un turno ("Ver ventas del turno"). */
+export async function listarVentasDeTurno(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  turnoId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarVentasDeTurno>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  return { ok: true, data: await repo.listarVentasDeTurno(tenantId, turnoId) };
 }
 
 export async function listarVentas(

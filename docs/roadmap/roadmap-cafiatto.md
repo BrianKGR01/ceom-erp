@@ -56,7 +56,7 @@
 - Modificadores: agrega, reemplaza, indicación. Snapshot por línea.
 - Cambios en carrito del POS (`pos-cliente.tsx`, hoy por `productoId`).
 
-### Fase 4 — Caja y turnos (módulo configurable, apagado por defecto)
+### Fase 4 — Caja y turnos (módulo configurable, apagado por defecto) — ✅ código, UI y tests hechos en `feat/cafiatto`; falta migrar la base real (0057, 0058)
 - Turnos: apertura con fondo, cierre; esperado = fondo + efectivo + entradas − salidas.
 - Entradas/salidas manuales, diferencia al cierre, historial.
 

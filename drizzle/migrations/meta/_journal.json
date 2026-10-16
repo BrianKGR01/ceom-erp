@@ -400,6 +400,20 @@
       "when": 1792164976621,
       "tag": "0056_cafiatto_modificadores",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792168531443,
+      "tag": "0057_cafiatto_ventas_turno_y_efectivo",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792168561011,
+      "tag": "0058_cafiatto_caja_y_turnos",
+      "breakpoints": true
     }
   ]
 }

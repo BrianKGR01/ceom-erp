@@ -234,6 +234,7 @@ Vitest (unitarios/integración) + Testing Library, Playwright (end-to-end). Vite
 | Nicho 4 (`src/modules/operativo/nichos/nicho-4/`) | Patrimonio (`consultarCapacidad`), Productos e Inventario (`consultarStockTotalPorSucursal`), Operativo Nicho 1 (`calcularPorcentajeCapacidadUsada`, pura) | — |
 | Ventas | Productos e Inventario, **Costos y Gastos** (`generarGastoComisionVenta` — la venta dispara su comisión al confirmarse, H-24), **Operativo** (fachada neutral `src/modules/operativo/actions.ts`: `planificarConsumoVenta` / `consumirInsumosPorVenta` — los productos que se preparan al vender descuentan insumos de su receta; Roadmap Cafiatto Fase 1. Ventas nunca importa `nichos/<nicho>/`. Sin ciclo: Operativo no lee Ventas) | Clientes, Financiero |
 | Clientes | Ventas (evento) | — |
+| Caja y turnos (`src/modules/caja/`) | Ventas (`consultarCobrosDeTurno`, `listarVentasDeTurno` — solo lectura), Identidad (permisos, sucursales). **Ventas no depende de Caja**: la capa de acciones de la ruta resuelve el turno (`turnoParaOperar`) y se lo pasa a Ventas, que lo guarda sin FK | — |
 | Egresos y Gastos | Proveedores (opcional, ficha) | Financiero, **Ventas** (comisión automática — al cerrar H-24 la flecha con Ventas quedó en un solo sentido: Gastos ya no lee la Venta con `fichaVenta()`, la recibe) |
 | Financiero | Ventas, Gastos, Proveedores/Compras (`consultarPagosCompraEnPeriodo` + `consultarCostoExtraAjustesCompraEnPeriodo` — H-31) | Gateway de Consentimiento |
 | Gateway de Consentimiento | — | Monitoreo Institucional, Panel Admin CEOM |

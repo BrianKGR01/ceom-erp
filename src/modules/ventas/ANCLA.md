@@ -472,3 +472,10 @@ fachada `operativo/actions.ts::planificarConsumoVenta` (que ahora devuelve `line
   cantidad. La línea del carrito se identifica por `clave` (producto + modificadores + observación). Los productos que se preparan al vender no avisan "sin stock" ni "sin costo".
 - **Variantes:** cada variante SIGUE siendo un producto (Modulo_03 4.2) con su receta y precio; `productos.grupo_variantes`/`etiqueta_variante` (migración 0055, sin FK) solo las agrupan.
 Tests: `modificadores.test.ts` (servidor, 14), `pos-cliente.test.tsx` (pantalla).
+
+## Última actualización: 2026-10-16 — Fase 4 Cafiatto: turno de caja y métodos de pago "efectivo"
+
+**Contrato (aditivo):** `DatosVenta.turnoId?`, `registrarPagoVenta(..., { turnoId? })`, `DatosMetodoPago.esEfectivo?`; nuevas funciones de solo lectura
+`consultarCobrosDeTurno`, `listarVentasDeTurno` (consumidas por el módulo Caja) y `consultarSucursalDeVenta` (pide solo `ventas:crear`).
+`ventas.turno_id` y `pagos_venta.turno_id` se guardan **sin FK** y sin interpretarlos: Ventas no importa Caja. Quien decide el turno es la capa de acciones de la ruta
+(`registrarVentaAction`, `registrarPagoVentaAction` → `turnoParaOperar`). `metodos_pago.es_efectivo` (migración 0057, con `UPDATE` de los métodos ya llamados "Efectivo").

@@ -1,5 +1,6 @@
 "use server";
 
+import { turnoParaOperar } from "@/modules/caja/actions";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import {
   abrirEvento,
@@ -11,6 +12,7 @@ import {
   crearCanalVenta,
   crearCliente,
   crearMetodoPago,
+  consultarSucursalDeVenta,
   desactivarMetodoPago,
   eliminarCanalVenta,
   eliminarCliente,
@@ -118,9 +120,15 @@ export async function registrarVentaAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
 
+  // Fase 4 Cafiatto: con la caja activa, la venta va al turno abierto de la sucursal (o se
+  // rechaza si no hay). El turno lo decide el servidor, nunca viene del cliente.
+  const turno = await turnoParaOperar(usuario, usuario.tenantId, sucursalId);
+  if (!turno.ok) return turno;
+
   const resultado = await registrarVenta(usuario, usuario.tenantId, {
     sucursalId,
     ...parsed.data,
+    turnoId: turno.data.turnoId ?? undefined,
   });
   if (!resultado.ok) return resultado;
 
@@ -296,7 +304,16 @@ export async function registrarPagoVentaAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
 
-  const resultado = await registrarPagoVenta(usuario, ventaId, parsed.data);
+  // Fase 4 Cafiatto: el cobro cuenta en el turno donde se COBRA, que puede no ser el de la venta.
+  const sucursal = await consultarSucursalDeVenta(usuario, ventaId);
+  if (!sucursal.ok) return sucursal;
+  const turno = await turnoParaOperar(usuario, usuario.tenantId, sucursal.data.sucursalId);
+  if (!turno.ok) return turno;
+
+  const resultado = await registrarPagoVenta(usuario, ventaId, {
+    ...parsed.data,
+    turnoId: turno.data.turnoId ?? undefined,
+  });
   if (!resultado.ok) return resultado;
   return { ok: true, data: resultado.data };
 }

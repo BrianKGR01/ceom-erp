@@ -15,6 +15,7 @@ import {
   listarEventos,
   listarMetodosPago,
 } from "@/modules/ventas/actions";
+import { estadoDeCajas } from "@/modules/caja/actions";
 import { PosCliente } from "./pos-cliente";
 
 export default async function PuntoDeVentaPage() {
@@ -61,6 +62,22 @@ export default async function PuntoDeVentaPage() {
     ),
   ]);
   const alVender = new Set(alVenderResultado.ok ? alVenderResultado.data : []);
+
+  // Fase 4 Cafiatto: estado de la caja en la sucursal donde se vende.
+  const cajasResultado = await estadoDeCajas(usuario, usuario.tenantId);
+  const cajaDeLaSucursal =
+    cajasResultado.ok && cajasResultado.data.habilitada
+      ? cajasResultado.data.cajas.filter((c) => c.sucursalId === sucursalPrincipal?.id)
+      : [];
+  const turnoAbierto = cajaDeLaSucursal.find((c) => c.turno)?.turno ?? null;
+  const caja =
+    cajasResultado.ok && cajasResultado.data.habilitada
+      ? {
+          exigirTurno: cajasResultado.data.exigirTurno,
+          turnoNumero: turnoAbierto?.numero ?? null,
+          cajaNombre: cajaDeLaSucursal.find((c) => c.turno)?.nombre ?? cajaDeLaSucursal[0]?.nombre ?? "Caja",
+        }
+      : null;
   const modificadoresPorProducto = modificadoresResultado.ok ? modificadoresResultado.data : {};
 
   // H-37: el stock de cada producto, en una sola consulta. Sin permiso de ver
@@ -130,6 +147,7 @@ export default async function PuntoDeVentaPage() {
               alVender: alVender.has(p.id),
             }))}
             modificadoresPorProducto={modificadoresPorProducto}
+            caja={caja}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}
