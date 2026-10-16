@@ -219,12 +219,23 @@ export async function actualizarStockMinimo(
  * Recalcula cantidad_actual desde movimientos_stock (fuente de verdad) y
  * hace upsert de la fila de stock, dentro de la misma transaccion que
  * inserta el movimiento (Modulo_02 seccion 2.5: nunca se edita a mano).
+ *
+ * DA-45: toma un lock de transaccion por (producto, sucursal) ANTES de sumar.
+ * Sin el, dos movimientos simultaneos sumaban el ledger sin ver el movimiento
+ * no comiteado del otro (READ COMMITTED) y la ultima en escribir dejaba el
+ * cache por debajo de la suma real; ademas las dos intentaban el insert de la
+ * fila de stock y una revertia su movimiento entero (23505). El lock serializa
+ * el recalculo: el segundo espera al commit del primero y recien ahi suma.
+ * Se libera solo al terminar la transaccion.
  */
 async function recalcularCantidadActualTx(
   tx: Tx,
   productoId: string,
   sucursalId: string
 ): Promise<number> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${"stock:" + productoId + ":" + sucursalId}, 0))`
+  );
   const filasPorTipo = await tx
     .select({
       tipo: movimientosStock.tipo,

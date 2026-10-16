@@ -284,3 +284,8 @@ Tests: `src/modules/productos/editar-producto-con-receta.test.ts`, `src/componen
 
 **Relacionado, no resuelto acá:** DP-04 decidida (promedio ponderado, pendiente de implementar en
 `crearEntradaCompraReventaTx` y `crearEntradaProduccionTx`) y H-53 (productos preparados al momento).
+
+## Última actualización: 2026-10-16 — DA-45 cerrada: lock por (producto, sucursal) en el recálculo del caché de stock
+`recalcularCantidadActualTx` toma `pg_advisory_xact_lock` antes de sumar el ledger; movimientos simultáneos del mismo producto/sucursal
+ya no pierden unidades ni revierten por 23505. Mismo lock en `recalcularCantidadActualInsumoTx` (Nicho 1). Sin cambio de contrato ni migración.
+Test: `stock-concurrente.test.ts`. Regla: mantener el recálculo DENTRO de la transacción que inserta el movimiento (el lock es de transacción).

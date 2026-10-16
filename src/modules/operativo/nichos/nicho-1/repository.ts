@@ -118,13 +118,19 @@ export async function listarMovimientosPorInsumo(insumoId: string, sucursalId: s
 /**
  * Recalcula cantidad_actual desde movimientos_insumo (fuente de verdad) y
  * hace upsert de stock_insumo, dentro de la misma transaccion que inserta
- * el movimiento — mismo patron que Modulo 2.
+ * el movimiento — mismo patron que Modulo 2, y con el mismo lock por
+ * (insumo, sucursal) que cerro DA-45 en Productos (ver
+ * `recalcularCantidadActualTx` en productos/repository.ts): sin el, movimientos
+ * simultaneos del mismo insumo dejaban el cache por debajo del ledger.
  */
 async function recalcularCantidadActualInsumoTx(
   tx: Tx,
   insumoId: string,
   sucursalId: string
 ): Promise<number> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${"stock_insumo:" + insumoId + ":" + sucursalId}, 0))`
+  );
   const filasPorTipo = await tx
     .select({
       tipo: movimientosInsumo.tipo,
