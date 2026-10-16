@@ -455,3 +455,20 @@ Llama a la fachada neutral `@/modules/operativo/actions` — **nunca** a `nichos
 Una venta repetida (idempotencia) no consume nada. **No cubierto aún:** anular/ajustar una venta NO devuelve insumos (decisión 2 del roadmap: por
 defecto no; la opción explícita viene en una fase posterior).
 Tests: `consumo-receta.test.ts`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: modificadores, observación por línea y variantes en el POS
+
+**Contrato (aditivo):** `DatosLineaVenta` gana `modificadorIds?: string[]` y `observacion?: string`. `registrarVenta` resuelve los modificadores por la
+fachada `operativo/actions.ts::planificarConsumoVenta` (que ahora devuelve `lineas[]` alineadas con la entrada: `alVender`, `costoUnitario`, `precioExtra`,
+`modificadores[]` ya resueltos) y **antes** de crear nada.
+- **Precio:** `precio_venta_snapshot` de la línea = precio base + suma de `precioExtra` de sus modificadores (el subtotal sigue siendo cantidad x precio).
+- **Costo:** el de la receta con el efecto de los modificadores (reemplazos y agregados), congelado en la línea; null/`costo_desconocido` si falta algún costo.
+- **Snapshot de modificadores:** `detalles_venta_modificadores` (migración 0056) copia nombre, grupo, tipo, precio extra y `efecto_receta` (cambio neto de insumos por
+  unidad). `modificador_id` es solo informativo, **sin FK** (Ventas no referencia tablas de Operativo). `detalles_venta.observacion`: texto libre de la caja.
+- **Inventario:** una línea consume receta base + efecto de sus modificadores; dos líneas del mismo producto con modificadores distintos consumen y cuestan distinto.
+- Validación del servidor (el cliente no se cree): un modificador solo vale si su grupo está ofrecido a ese producto y es del tenant; un grupo "elige 1" admite una
+  opción; las opciones base no se registran; un modificador que cambia la receta no vale en un producto que no se prepara al vender.
+- **POS:** una tarjeta por `grupoVariantes`; al tocarla se abre la hoja (`configurar-producto-dialog.tsx`) con variante, grupos de modificadores, observación y
+  cantidad. La línea del carrito se identifica por `clave` (producto + modificadores + observación). Los productos que se preparan al vender no avisan "sin stock" ni "sin costo".
+- **Variantes:** cada variante SIGUE siendo un producto (Modulo_03 4.2) con su receta y precio; `productos.grupo_variantes`/`etiqueta_variante` (migración 0055, sin FK) solo las agrupan.
+Tests: `modificadores.test.ts` (servidor, 14), `pos-cliente.test.tsx` (pantalla).

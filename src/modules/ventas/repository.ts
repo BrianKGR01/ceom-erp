@@ -232,7 +232,11 @@ export async function crearVentaConDetalleTx(data: {
     const lineas = await tx
       .insert(detallesVenta)
       .values(
-        data.lineas.map(({ modificadores: _modificadores, ...linea }) => ({ ...linea, ventaId: venta.id }))
+        data.lineas.map((linea) => {
+          const valores = { ...linea, ventaId: venta.id };
+          delete valores.modificadores;
+          return valores;
+        })
       )
       .returning();
 

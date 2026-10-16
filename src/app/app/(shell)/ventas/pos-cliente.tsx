@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CartPanel, type LineaCarrito } from "@/modules/ventas/components/cart-panel";
+import {
+  ConfigurarProductoDialog,
+  type GrupoModificadores,
+  type LineaConfigurada,
+} from "@/modules/ventas/components/configurar-producto-dialog";
 import { MetodoPagoIcon } from "@/modules/ventas/components/metodo-pago-icon";
 import {
   ProductPickerCard,
@@ -44,6 +49,7 @@ export function PosCliente({
   sucursalId,
   stockPorProducto,
   productos,
+  modificadoresPorProducto,
   categorias,
   clientesIniciales,
   canalesIniciales,
@@ -54,6 +60,8 @@ export function PosCliente({
   /** H-37. `null` = sin permiso para ver inventario. */
   stockPorProducto: Record<string, number> | null;
   productos: ProductoParaVenta[];
+  /** Fase 3: grupos de modificadores que ofrece cada producto. */
+  modificadoresPorProducto: Record<string, GrupoModificadores[]>;
   categorias: Opcion[];
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
@@ -98,28 +106,80 @@ export function PosCliente({
     avisos: Array<{ nombre: string; mensaje: string }>;
   } | null>(null);
 
-  const productosFiltrados = productos
-    .filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId)
-    .filter((p) => p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()));
+  // Fase 3: las variantes del mismo producto (mismo `grupoVariantes`) se muestran
+  // en UNA tarjeta; tocarla abre la hoja para elegir variante y modificadores.
+  interface Tarjeta {
+    clave: string;
+    /** Nombre del grupo; null si es un producto suelto. */
+    grupo: string | null;
+    variantes: ProductoParaVenta[];
+  }
+  const tarjetas: Tarjeta[] = [];
+  for (const p of productos) {
+    const grupo = p.grupoVariantes?.trim() || null;
+    const existente = grupo
+      ? tarjetas.find((t) => t.grupo?.toLowerCase() === grupo.toLowerCase())
+      : undefined;
+    if (existente) existente.variantes.push(p);
+    else tarjetas.push({ clave: grupo ? `g:${grupo.toLowerCase()}` : `p:${p.id}`, grupo, variantes: [p] });
+  }
+  const tarjetasFiltradas = tarjetas
+    .map((t) => ({
+      ...t,
+      variantes: t.variantes.filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId),
+    }))
+    .filter((t) => t.variantes.length > 0)
+    .filter((t) => {
+      const q = busqueda.trim().toLowerCase();
+      return (
+        q === "" ||
+        (t.grupo ?? "").toLowerCase().includes(q) ||
+        t.variantes.some((p) => p.nombre.toLowerCase().includes(q))
+      );
+    });
 
-  function agregarProducto(producto: ProductoParaVenta) {
+  const [configurando, setConfigurando] = useState<Tarjeta | null>(null);
+
+  function tocarTarjeta(tarjeta: Tarjeta) {
+    const sinOpciones =
+      tarjeta.variantes.length === 1 && (modificadoresPorProducto[tarjeta.variantes[0].id] ?? []).length === 0;
+    if (sinOpciones) {
+      const p = tarjeta.variantes[0];
+      agregarLinea({
+        producto: p,
+        cantidad: 1,
+        modificadorIds: [],
+        modificadoresTexto: [],
+        precioUnitario: Number(p.precioVenta),
+        observacion: "",
+      });
+      return;
+    }
+    setConfigurando(tarjeta);
+  }
+
+  function agregarLinea(linea: LineaConfigurada) {
+    const clave = [linea.producto.id, [...linea.modificadorIds].sort().join(","), linea.observacion].join("|");
     setCarrito((prev) => {
-      const existente = prev.find((l) => l.productoId === producto.id);
+      const existente = prev.find((l) => l.clave === clave);
       if (existente) {
-        return prev.map((l) =>
-          l.productoId === producto.id ? { ...l, cantidad: l.cantidad + 1 } : l
-        );
+        return prev.map((l) => (l.clave === clave ? { ...l, cantidad: l.cantidad + linea.cantidad } : l));
       }
       return [
         ...prev,
         {
-          productoId: producto.id,
-          nombre: producto.nombre,
-          precioVenta: Number(producto.precioVenta),
-          cantidad: 1,
+          clave,
+          productoId: linea.producto.id,
+          nombre: linea.producto.nombre,
+          precioVenta: linea.precioUnitario,
+          cantidad: linea.cantidad,
+          modificadorIds: linea.modificadorIds,
+          modificadoresTexto: linea.modificadoresTexto,
+          observacion: linea.observacion,
         },
       ];
     });
+    setConfigurando(null);
   }
 
   // H-37: líneas que piden más de lo que hay. Avisa, no bloquea — vender sin
@@ -128,24 +188,25 @@ export function PosCliente({
     stockPorProducto === null
       ? []
       : carrito
+          .filter((l) => !productos.find((p) => p.id === l.productoId)?.alVender)
           .map((l) => ({ ...l, disponible: stockPorProducto[l.productoId] ?? 0 }))
           .filter((l) => l.cantidad > l.disponible);
 
   // Las líneas del carrito cuyo producto no tiene costo cargado (H-15).
   const sinCostoEnCarrito = carrito.filter((linea) =>
-    productos.some((p) => p.id === linea.productoId && p.costoOperativoVigente === null)
+    productos.some((p) => p.id === linea.productoId && p.costoOperativoVigente === null && !p.alVender)
   );
 
-  function cambiarCantidad(productoId: string, cantidad: number) {
+  function cambiarCantidad(clave: string, cantidad: number) {
     setCarrito((prev) =>
       cantidad <= 0
-        ? prev.filter((l) => l.productoId !== productoId)
-        : prev.map((l) => (l.productoId === productoId ? { ...l, cantidad } : l))
+        ? prev.filter((l) => l.clave !== clave)
+        : prev.map((l) => (l.clave === clave ? { ...l, cantidad } : l))
     );
   }
 
-  function quitarLinea(productoId: string) {
-    setCarrito((prev) => prev.filter((l) => l.productoId !== productoId));
+  function quitarLinea(clave: string) {
+    setCarrito((prev) => prev.filter((l) => l.clave !== clave));
   }
 
   async function crearCanalRapido() {
@@ -208,7 +269,12 @@ export function PosCliente({
           : undefined,
       canalVentaId,
       eventoId: eventoId !== "sin_evento" ? eventoId : undefined,
-      lineas: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
+      lineas: carrito.map((l) => ({
+        productoId: l.productoId,
+        cantidad: l.cantidad,
+        modificadorIds: l.modificadorIds.length > 0 ? l.modificadorIds : undefined,
+        observacion: l.observacion || undefined,
+      })),
       pagoInicial:
         metodoPagoId !== "sin_pago" && montoPagoInicial
           ? { metodoPagoId, monto: Number(montoPagoInicial) }
@@ -293,23 +359,39 @@ export function PosCliente({
           </div>
         </div>
 
-        {productosFiltrados.length === 0 ? (
+        {tarjetasFiltradas.length === 0 ? (
           <p className="py-8 text-center text-sm text-text-muted">
             Ningún producto coincide con esta búsqueda.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {productosFiltrados.map((producto) => (
-              <ProductPickerCard
-                key={producto.id}
-                producto={producto}
-                categoriaNombre={
-                  producto.categoriaId ? categoriaPorId.get(producto.categoriaId) : undefined
-                }
-                stock={stockPorProducto === null ? null : (stockPorProducto[producto.id] ?? 0)}
-                onAgregar={() => agregarProducto(producto)}
-              />
-            ))}
+            {tarjetasFiltradas.map((tarjeta) => {
+              const primero = tarjeta.variantes[0];
+              const precios = tarjeta.variantes.map((v) => Number(v.precioVenta));
+              const variasVariantes = tarjeta.variantes.length > 1;
+              const hayPrecios = Math.min(...precios) !== Math.max(...precios);
+              return (
+                <ProductPickerCard
+                  key={tarjeta.clave}
+                  producto={
+                    variasVariantes
+                      ? { ...primero, precioVenta: String(Math.min(...precios)) }
+                      : primero
+                  }
+                  nombre={variasVariantes ? (tarjeta.grupo ?? primero.nombre) : undefined}
+                  etiquetaPrecio={variasVariantes && hayPrecios ? "desde" : undefined}
+                  categoriaNombre={
+                    primero.categoriaId ? categoriaPorId.get(primero.categoriaId) : undefined
+                  }
+                  stock={
+                    variasVariantes || stockPorProducto === null
+                      ? null
+                      : (stockPorProducto[primero.id] ?? 0)
+                  }
+                  onAgregar={() => tocarTarjeta(tarjeta)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -585,6 +667,16 @@ export function PosCliente({
           </CardContent>
         </Card>
       </div>
+
+      {configurando && (
+        <ConfigurarProductoDialog
+          titulo={configurando.grupo ?? configurando.variantes[0].nombre}
+          variantes={configurando.variantes}
+          modificadoresPorProducto={modificadoresPorProducto}
+          onCerrar={() => setConfigurando(null)}
+          onAgregar={agregarLinea}
+        />
+      )}
 
       <Dialog open={canalDialogAbierto} onOpenChange={setCanalDialogAbierto}>
         <DialogContent>

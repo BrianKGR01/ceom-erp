@@ -75,3 +75,18 @@ export const bajaFormSchema = z.object({
   motivo: z.enum(MOTIVOS_BAJA),
   nota: z.string().trim().optional(),
 });
+
+export const grupoModificadoresFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre al grupo."),
+  seleccion: z.enum(["una", "varias"]),
+});
+
+export const modificadorFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre a la opción."),
+  tipo: z.enum(["agrega", "reemplaza", "indicacion"]),
+  esBase: z.boolean().optional(),
+  precioExtra: z.number().min(0, "El precio extra no puede ser negativo.").optional(),
+  insumoId: z.string().min(1).optional(),
+  cantidad: z.number().positive("La cantidad tiene que ser mayor a 0.").optional(),
+  insumoReemplazadoId: z.string().min(1).optional(),
+});

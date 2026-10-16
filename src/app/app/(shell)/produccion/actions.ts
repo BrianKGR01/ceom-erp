@@ -8,8 +8,14 @@ import {
   actualizarReceta,
   consultarCapacidadAlmacenamientoUsada,
   consultarCapacidadProduccionUsada,
+  crearGrupoModificadores,
   crearInsumo,
+  crearModificador,
   crearReceta,
+  desvincularGrupoModificadoresDeProducto,
+  eliminarGrupoModificadores,
+  eliminarModificador,
+  vincularGrupoModificadoresAProducto,
   eliminarInsumo,
   eliminarReceta,
   fichaReceta,
@@ -25,6 +31,8 @@ import {
 import {
   ajusteInsumoSchema,
   bajaFormSchema,
+  grupoModificadoresFormSchema,
+  modificadorFormSchema,
   composicionRecetaSchema,
   entradaCompraInsumoSchema,
   insumoFormSchema,
@@ -359,4 +367,71 @@ export async function registrarBajaAction(
     ok: true,
     data: { bajaId: resultado.data.bajaId, costoTotal: resultado.data.costoTotal, avisos },
   };
+}
+
+// --- Modificadores (Roadmap Cafiatto, Fase 3) -------------------------
+
+export async function crearGrupoModificadoresAction(
+  input: unknown
+): Promise<ResultadoAccion<{ grupoId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = grupoModificadoresFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  const resultado = await crearGrupoModificadores(usuario, usuario.tenantId, parsed.data);
+  if (!resultado.ok) return resultado;
+  revalidatePath("/app/produccion/modificadores");
+  return { ok: true, data: resultado.data };
+}
+
+export async function eliminarGrupoModificadoresAction(grupoId: string): Promise<ResultadoAccion> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const resultado = await eliminarGrupoModificadores(usuario, grupoId);
+  if (!resultado.ok) return resultado;
+  revalidatePath("/app/produccion/modificadores");
+  return { ok: true, data: undefined };
+}
+
+export async function crearModificadorAction(
+  grupoId: string,
+  input: unknown
+): Promise<ResultadoAccion<{ modificadorId: string }>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const parsed = modificadorFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
+  }
+  const resultado = await crearModificador(usuario, usuario.tenantId, grupoId, parsed.data);
+  if (!resultado.ok) return resultado;
+  revalidatePath("/app/produccion/modificadores");
+  return { ok: true, data: resultado.data };
+}
+
+export async function eliminarModificadorAction(modificadorId: string): Promise<ResultadoAccion> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const resultado = await eliminarModificador(usuario, modificadorId);
+  if (!resultado.ok) return resultado;
+  revalidatePath("/app/produccion/modificadores");
+  return { ok: true, data: undefined };
+}
+
+/** Ofrece (o deja de ofrecer) un grupo de modificadores a un producto. */
+export async function ofrecerGrupoAProductoAction(
+  grupoId: string,
+  productoId: string,
+  ofrecer: boolean
+): Promise<ResultadoAccion> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  const resultado = ofrecer
+    ? await vincularGrupoModificadoresAProducto(usuario, usuario.tenantId, productoId, grupoId)
+    : await desvincularGrupoModificadoresDeProducto(usuario, usuario.tenantId, productoId, grupoId);
+  if (!resultado.ok) return resultado;
+  revalidatePath("/app/produccion/modificadores");
+  return { ok: true, data: undefined };
 }

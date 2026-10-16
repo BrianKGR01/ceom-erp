@@ -532,6 +532,23 @@ export async function obtenerRecetasAlVender(tenantId: string, productoIds: stri
   }));
 }
 
+/** Productos del tenant que se preparan al vender (vinculacion vigente en ese modo). */
+export async function listarProductoIdsAlVender(tenantId: string) {
+  const filas = await db
+    .select({ productoId: vinculacionesProductoReceta.productoId })
+    .from(vinculacionesProductoReceta)
+    .innerJoin(recetas, eq(vinculacionesProductoReceta.recetaId, recetas.id))
+    .where(
+      and(
+        eq(vinculacionesProductoReceta.modoConsumo, "al_vender"),
+        isNull(vinculacionesProductoReceta.eliminadoEn),
+        eq(recetas.tenantId, tenantId),
+        isNull(recetas.eliminadoEn)
+      )
+    );
+  return filas.map((f) => f.productoId);
+}
+
 /** Saldo de varios insumos en una sucursal, en una sola consulta. */
 export async function obtenerStockInsumosEnSucursal(insumoIds: string[], sucursalId: string) {
   if (insumoIds.length === 0) return [];

@@ -4,6 +4,10 @@ import { Package } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  listarModificadoresParaVenta,
+  listarProductosAlVender,
+} from "@/modules/operativo/actions";
 import { listarCategorias, listarProductos, listarStockPorSucursal } from "@/modules/productos/actions";
 import {
   listarCanalesVenta,
@@ -46,6 +50,18 @@ export default async function PuntoDeVentaPage() {
   );
 
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
+
+  // Fase 3 Cafiatto: que se prepara al vender y que modificadores ofrece cada producto.
+  const [alVenderResultado, modificadoresResultado] = await Promise.all([
+    listarProductosAlVender(usuario, usuario.tenantId),
+    listarModificadoresParaVenta(
+      usuario,
+      usuario.tenantId,
+      productos.map((p) => p.id)
+    ),
+  ]);
+  const alVender = new Set(alVenderResultado.ok ? alVenderResultado.data : []);
+  const modificadoresPorProducto = modificadoresResultado.ok ? modificadoresResultado.data : {};
 
   // H-37: el stock de cada producto, en una sola consulta. Sin permiso de ver
   // inventario la pantalla no muestra números — no inventa un "0".
@@ -109,7 +125,11 @@ export default async function PuntoDeVentaPage() {
               unidadVenta: p.unidadVenta,
               precioVenta: p.precioVenta,
               costoOperativoVigente: p.costoOperativoVigente,
+              grupoVariantes: p.grupoVariantes,
+              etiquetaVariante: p.etiquetaVariante,
+              alVender: alVender.has(p.id),
             }))}
+            modificadoresPorProducto={modificadoresPorProducto}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}

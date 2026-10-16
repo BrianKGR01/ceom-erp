@@ -51,7 +51,7 @@
 - Tabla `bajas` + motivos (error de preparación, derrame, queja/reposición, vencimiento, daño, otro), movimiento append-only. Sin "consumo del personal" (va por bonificación, Fase 5).
 - UI de registro y listado; permisos por capacidad.
 
-### Fase 3 — Variantes y modificadores
+### Fase 3 — Variantes y modificadores — ✅ código, UI y tests hechos en `feat/cafiatto`; falta migrar la base real (0055, 0056)
 - Variante con receta y precio propios (Modulo_03 §4.2: cada variante es un Producto).
 - Modificadores: agrega, reemplaza, indicación. Snapshot por línea.
 - Cambios en carrito del POS (`pos-cliente.tsx`, hoy por `productoId`).

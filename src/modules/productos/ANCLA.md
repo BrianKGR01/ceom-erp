@@ -294,3 +294,7 @@ Test: `stock-concurrente.test.ts`. Regla: mantener el recálculo DENTRO de la tr
 Nueva función pública: baja de producto con stock terminado (`salida_merma`, permiso `inventario:anular_ajustar`, motivo obligatorio). Devuelve el
 `costoOperativoVigente` para que Operativo congele el costo de la baja. Sin migración (el tipo `salida_merma` ya existía). Consumida por
 `operativo/nichos/nicho-1/actions.ts::registrarBajaProducto`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: agrupar variantes
+`productos.grupo_variantes` y `productos.etiqueta_variante` (texto, nulos, migración 0055). Solo agrupan para mostrar ("Latte" -> 12 oz / 16 oz): cada variante sigue siendo un producto con su
+precio, receta y costo. `DatosProducto` y el formulario las aceptan (cadena vacía en una edición las limpia). Sin cambio de contrato para quien no las usa.

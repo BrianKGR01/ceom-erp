@@ -212,3 +212,18 @@ export async function listarModificadoresParaVenta(
   }
   return { ok: true, data: resultado };
 }
+
+/**
+ * Que productos se preparan al vender: no tienen stock propio (su stock son los
+ * insumos), asi que el punto de venta no debe avisar "sin stock" ni "sin costo"
+ * por ellos.
+ */
+export async function listarProductosAlVender(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<string[]>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar ventas." };
+  }
+  return { ok: true, data: await repo.listarProductoIdsAlVender(tenantId) };
+}

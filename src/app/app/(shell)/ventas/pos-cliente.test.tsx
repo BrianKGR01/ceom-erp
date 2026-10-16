@@ -26,7 +26,11 @@ vi.mock("./actions", () => ({
 
 import { PosCliente } from "./pos-cliente";
 
-function renderPos() {
+const sinVariante = { grupoVariantes: null, etiquetaVariante: null, alVender: false };
+
+function renderPos(
+  props: Partial<React.ComponentProps<typeof PosCliente>> = {}
+) {
   return render(
     <PosCliente
       sucursalId="suc-1"
@@ -40,13 +44,16 @@ function renderPos() {
           unidadVenta: "unidad",
           precioVenta: "6",
           costoOperativoVigente: "2",
+          ...sinVariante,
         },
       ]}
+      modificadoresPorProducto={{}}
       categorias={[]}
       clientesIniciales={[]}
       canalesIniciales={[{ id: "canal-1", nombre: "Local físico" }]}
       metodosIniciales={[]}
       eventosIniciales={[]}
+      {...props}
     />
   );
 }
@@ -91,5 +98,120 @@ describe("Punto de venta — no se puede confirmar dos veces", () => {
     expect(confirmar).not.toBeDisabled();
     fireEvent.click(confirmar);
     await waitFor(() => expect(registrarVentaAction).toHaveBeenCalledTimes(2));
+  });
+});
+
+/**
+ * Roadmap Cafiatto, Fase 3 — variantes y modificadores en el punto de venta.
+ * El servidor vuelve a validar y a calcular todo; acá se afirma lo que la
+ * pantalla arma y manda: una tarjeta por grupo de variantes, el precio con los
+ * extras y los ids de modificadores en la linea.
+ */
+describe("Punto de venta — variantes y modificadores", () => {
+  const latte = (id: string, etiqueta: string, precio: string) => ({
+    id,
+    categoriaId: null,
+    nombre: `Latte ${etiqueta}`,
+    imagenUrl: null,
+    unidadVenta: "unidad",
+    precioVenta: precio,
+    costoOperativoVigente: null,
+    grupoVariantes: "Latte",
+    etiquetaVariante: etiqueta,
+    alVender: true,
+  });
+  const grupos = {
+    "latte-12": [
+      {
+        id: "g-leche",
+        nombre: "Leche",
+        seleccion: "una" as const,
+        opciones: [
+          { id: "m-entera", nombre: "Entera", tipo: "indicacion" as const, esBase: true, precioExtra: 0 },
+          { id: "m-almendra", nombre: "Almendra", tipo: "reemplaza" as const, esBase: false, precioExtra: 4 },
+        ],
+      },
+      {
+        id: "g-extras",
+        nombre: "Extras",
+        seleccion: "varias" as const,
+        opciones: [{ id: "m-shot", nombre: "Shot", tipo: "agrega" as const, esBase: false, precioExtra: 5 }],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    registrarVentaAction.mockReset();
+    push.mockReset();
+    registrarVentaAction.mockResolvedValue({
+      ok: true,
+      data: { ventaId: "venta-1", totalVenta: 29, avisosStock: [] },
+    });
+  });
+
+  it("las variantes del mismo grupo son UNA tarjeta, con el precio 'desde'", () => {
+    renderPos({
+      productos: [latte("latte-12", "12 oz", "20"), latte("latte-16", "16 oz", "26")],
+      modificadoresPorProducto: grupos,
+    });
+    expect(screen.getAllByText("Latte")).toHaveLength(1);
+    expect(screen.queryByText("Latte 12 oz")).toBeNull();
+    expect(screen.getByText(/desde/)).toBeInTheDocument();
+  });
+
+  it("el precio de la hoja suma los extras y la linea viaja con sus modificadores", async () => {
+    renderPos({
+      productos: [latte("latte-12", "12 oz", "20")],
+      modificadoresPorProducto: grupos,
+    });
+    fireEvent.click(screen.getByText("Latte 12 oz"));
+    expect(screen.getByRole("button", { name: /Agregar · Bs 20.00/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Almendra/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Shot/ }));
+    // 20 + 4 + 5
+    fireEvent.click(screen.getByRole("button", { name: /Agregar · Bs 29.00/ }));
+
+    expect(screen.getByText("Almendra · Shot")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar venta" }));
+    await waitFor(() => expect(registrarVentaAction).toHaveBeenCalledTimes(1));
+    const [, entrada] = registrarVentaAction.mock.calls[0];
+    expect(entrada.lineas).toEqual([
+      { productoId: "latte-12", cantidad: 1, modificadorIds: ["m-almendra", "m-shot"], observacion: undefined },
+    ]);
+  });
+
+  it("el mismo producto con otros modificadores es otra linea; con los mismos, suma cantidad", () => {
+    renderPos({
+      productos: [latte("latte-12", "12 oz", "20")],
+      modificadoresPorProducto: grupos,
+    });
+    const agregar = (nombre: RegExp, texto: RegExp) => {
+      // La tarjeta va antes que el carrito en el DOM; el carrito repite el nombre.
+      fireEvent.click(screen.getAllByText("Latte 12 oz")[0]);
+      if (nombre) fireEvent.click(screen.getByRole("button", { name: nombre }));
+      fireEvent.click(screen.getByRole("button", { name: texto }));
+    };
+    agregar(/Shot/, /Agregar · Bs 25.00/);
+    agregar(/Shot/, /Agregar · Bs 25.00/); // mismas opciones -> misma linea (cantidad 2)
+    agregar(/Almendra/, /Agregar · Bs 24.00/); // otras opciones -> otra linea
+
+    expect(screen.getByText("Shot")).toBeInTheDocument();
+    expect(screen.getByText("Almendra")).toBeInTheDocument();
+    expect(screen.getByText("50.00")).toBeInTheDocument(); // 2 x 25
+    expect(screen.getByText("24.00")).toBeInTheDocument();
+  });
+
+  it("un producto que se prepara al vender no avisa 'sin stock' ni 'sin costo'", () => {
+    renderPos({
+      stockPorProducto: {},
+      productos: [latte("latte-12", "12 oz", "20")],
+      modificadoresPorProducto: {},
+    });
+    // Sin opciones: se agrega directo al tocar.
+    fireEvent.click(screen.getByText("Latte 12 oz"));
+    expect(screen.getByText("Tu venta")).toBeInTheDocument();
+    expect(screen.queryByText(/no tiene costo cargado/)).toBeNull();
+    expect(screen.queryByText(/stock/i)).toBeNull();
   });
 });

@@ -277,3 +277,17 @@ del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProd
 - UI: `/app/produccion/bajas` (formulario + últimas bajas de 7 días + costo con aviso de bajas sin costo). Entrada "Bajas" en Producción.
 - `src/test-utils/fixture-permisos-cruzados.ts` limpia `bajas` (FK a insumos/productos).
 - Tests: `bajas.test.ts`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: modificadores de producto
+
+- Tablas (migración 0056, RLS en el mismo archivo): `grupos_modificadores` (regla de selección `una`/`varias`), `modificadores` (tipo `agrega`/`reemplaza`/`indicacion`,
+  `es_base`, `precio_extra`, `insumo_id`, `cantidad`, `insumo_reemplazado_id`; checks de forma por tipo y una sola base por grupo) y `productos_grupos_modificadores`
+  (a qué productos se ofrece cada grupo; con soft delete, regla 5).
+- `agrega`: suma `cantidad` del insumo por unidad vendida. `reemplaza`: saca TODA la línea del insumo reemplazado de la receta base del producto y, si hay insumo nuevo,
+  pone `cantidad` (si va vacía, la misma que salió: cambio 1 a 1); sin insumo nuevo es un "sin X". `indicacion`: solo texto, sin precio ni insumos.
+- `consumo-recetas.ts` ahora calcula por LÍNEA (`porLinea`) y expone `resolverModificadoresDeProducto`. Las bajas de producto usan `porLinea[0]`.
+- Fachada `operativo/actions.ts`: `planificarConsumoVenta` (con modificadores), `listarModificadoresParaVenta` y `listarProductosAlVender` (gateadas por `ventas:crear`).
+- CRUD de administración (`operativo:crear/editar/anular_ajustar`): `crearGrupoModificadores`, `actualizarGrupoModificadores`, `eliminarGrupoModificadores` (soft delete en cascada),
+  `crearModificador`, `actualizarModificador`, `eliminarModificador`, `vincularGrupoModificadoresAProducto`, `desvincularGrupoModificadoresDeProducto`, `listarGruposModificadores`.
+- UI: `/app/produccion/modificadores` (grupos, opciones y a qué productos se ofrece cada grupo). La edición de una opción existente es solo por backend por ahora (la pantalla crea y elimina).
+- `src/test-utils/fixture-permisos-cruzados.ts` limpia las tablas nuevas.

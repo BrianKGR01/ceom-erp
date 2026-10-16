@@ -2,10 +2,17 @@ import { Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface LineaCarrito {
+  /** Identifica la linea: el mismo producto con otros modificadores es otra linea. */
+  clave: string;
   productoId: string;
   nombre: string;
+  /** Precio unitario ya con lo que suman los modificadores. */
   precioVenta: number;
   cantidad: number;
+  /** Fase 3 Cafiatto. */
+  modificadorIds: string[];
+  modificadoresTexto: string[];
+  observacion: string;
 }
 
 // Panel de resumen en vivo — mismo patron ya usado en el Stepper de
@@ -17,8 +24,8 @@ export function CartPanel({
   onQuitar,
 }: {
   lineas: LineaCarrito[];
-  onCambiarCantidad: (productoId: string, cantidad: number) => void;
-  onQuitar: (productoId: string) => void;
+  onCambiarCantidad: (clave: string, cantidad: number) => void;
+  onQuitar: (clave: string) => void;
 }) {
   const total = lineas.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
 
@@ -34,14 +41,24 @@ export function CartPanel({
     <div className="space-y-4">
       <div className="space-y-2">
         {lineas.map((linea) => (
-          <div key={linea.productoId} className="flex items-center gap-2 text-sm">
-            <span className="line-clamp-1 flex-1 text-text-body">{linea.nombre}</span>
+          <div key={linea.clave} className="flex items-center gap-2 text-sm">
+            <div className="min-w-0 flex-1">
+              <span className="line-clamp-1 text-text-body">{linea.nombre}</span>
+              {linea.modificadoresTexto.length > 0 && (
+                <span className="line-clamp-2 text-[11px] text-text-muted">
+                  {linea.modificadoresTexto.join(" · ")}
+                </span>
+              )}
+              {linea.observacion && (
+                <span className="line-clamp-1 text-[11px] text-text-muted italic">{linea.observacion}</span>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="outline"
                 size="icon-xs"
-                onClick={() => onCambiarCantidad(linea.productoId, linea.cantidad - 1)}
+                onClick={() => onCambiarCantidad(linea.clave, linea.cantidad - 1)}
               >
                 <Minus className="size-3" />
               </Button>
@@ -52,7 +69,7 @@ export function CartPanel({
                 type="button"
                 variant="outline"
                 size="icon-xs"
-                onClick={() => onCambiarCantidad(linea.productoId, linea.cantidad + 1)}
+                onClick={() => onCambiarCantidad(linea.clave, linea.cantidad + 1)}
               >
                 <Plus className="size-3" />
               </Button>
@@ -62,7 +79,7 @@ export function CartPanel({
             </span>
             <button
               type="button"
-              onClick={() => onQuitar(linea.productoId)}
+              onClick={() => onQuitar(linea.clave)}
               className="text-text-muted hover:text-error-text"
               aria-label={`Quitar ${linea.nombre}`}
             >
