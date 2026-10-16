@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   jsonb,
   numeric,
   pgEnum,
@@ -38,6 +39,11 @@ export const tipoAjusteVentaEnum = pgEnum("tipo_ajuste_venta", [
   "descuento_posterior",
   "anulacion_total",
 ]);
+
+// Roadmap Cafiatto, Fase 5. El "consumo del personal" NO es una baja ni un descuento comercial:
+// la venta se registra completa (con su consumo de insumos y su costo) y Cafiatto asume el
+// precio. La cortesia es lo mismo hacia un cliente.
+export const motivoBonificacionEnum = pgEnum("motivo_bonificacion", ["consumo_personal", "cortesia"]);
 
 export const estadoEventoEnum = pgEnum("estado_evento", ["abierto", "cerrado"]);
 
@@ -236,10 +242,51 @@ export const detallesVenta = pgTable(
     // Roadmap Cafiatto, Fase 3: lo que pidio el cliente aparte de los modificadores
     // ("para llevar", "sin hielo"). Texto libre de la caja, no mueve nada.
     observacion: text("observacion"),
+    // Fase 5: lo que se le saco a ESTA linea por una bonificacion. `subtotal` ya viene
+    // neto (cantidad x precio - descuento), asi que ingresos, estado de pago, comision y
+    // reportes —que suman `subtotal`— ven el valor real sin cambiar. El precio de lista
+    // queda en `precio_venta_snapshot` y el costo en `costo_unitario_snapshot`.
+    descuentoMonto: numeric("descuento_monto", { precision: 12, scale: 2 }).notNull().default("0"),
   },
   (table) => [
     ...crudPolicy(
       "detalles_venta",
+      sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
+    ),
+  ]
+).enableRLS();
+
+// Fase 5: la autorizacion y el motivo de una bonificacion. Una por venta, append-only
+// (regla 3): si se cargo mal se corrige con un ajuste de la venta, no editando esto.
+export const bonificacionesVenta = pgTable(
+  "bonificaciones_venta",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ventaId: uuid("venta_id")
+      .notNull()
+      .references(() => ventas.id),
+    motivo: motivoBonificacionEnum("motivo").notNull(),
+    // 1-100. El consumo del personal es siempre 100.
+    porcentaje: numeric("porcentaje", { precision: 5, scale: 2 }).notNull(),
+    // Valor de lista bonificado (suma de los descuentos por linea).
+    montoBonificado: numeric("monto_bonificado", { precision: 12, scale: 2 }).notNull(),
+    // Quien consume / a quien se le regala. Texto libre: el listado de equipo es solo del dueno.
+    beneficiario: text("beneficiario"),
+    nota: text("nota"),
+    // Quien la autorizo: hoy, el mismo usuario que vende (tiene la capacidad). Con PIN de un
+    // tercero (decision 4, aplazada) esto distinguiria autorizador de vendedor.
+    autorizadoPor: uuid("autorizado_por").notNull(),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("bonificaciones_venta_porcentaje_chk", sql`${table.porcentaje} > 0 and ${table.porcentaje} <= 100`),
+    check(
+      "bonificaciones_venta_personal_chk",
+      sql`${table.motivo} <> 'consumo_personal' or (${table.porcentaje} = 100 and ${table.beneficiario} is not null)`
+    ),
+    uniqueIndex("bonificaciones_venta_una_por_venta_uq").on(table.ventaId),
+    ...crudPolicy(
+      "bonificaciones_venta",
       sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
     ),
   ]

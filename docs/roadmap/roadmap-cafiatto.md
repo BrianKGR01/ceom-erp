@@ -61,7 +61,7 @@
 - Entradas/salidas manuales, diferencia al cierre, historial.
 
 ### Fase 5 — Bonificación (según decisión 1 y 4)
-- Bonificación hasta 100 % con motivo; PIN/descuento por rol según decisión 4.
+- Bonificación hasta 100 % con motivo (consumo del personal y cortesía), autorizada por capacidades por rol. **Aplazados (decisión 4):** PIN de un tercero y descuento comercial por rol.
 - Consumo del personal modelado como se decida.
 
 ### Fase 6 — Dashboard, navegación y cierre

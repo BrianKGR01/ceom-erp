@@ -32,6 +32,15 @@ export const registrarVentaSchema = z.object({
       monto: z.number().positive(),
     })
     .optional(),
+  // Fase 5 Cafiatto. El servidor decide si el usuario puede (capacidad del motivo).
+  bonificacion: z
+    .object({
+      motivo: z.enum(["consumo_personal", "cortesia"]),
+      porcentaje: z.number().gt(0).max(100),
+      beneficiario: z.string().trim().max(120).optional(),
+      nota: z.string().trim().max(300).optional(),
+    })
+    .optional(),
 });
 
 export const canalVentaFormSchema = z.object({

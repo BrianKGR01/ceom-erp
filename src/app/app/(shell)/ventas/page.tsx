@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { Package } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  obtenerUsuarioActual,
+  tieneCapacidadEspecial,
+} from "@/modules/identidad/actions";
 import {
   listarModificadoresParaVenta,
   listarProductosAlVender,
@@ -62,6 +66,12 @@ export default async function PuntoDeVentaPage() {
     ),
   ]);
   const alVender = new Set(alVenderResultado.ok ? alVenderResultado.data : []);
+
+  // Fase 5 Cafiatto: que motivos de bonificacion ofrece la pantalla (el servidor los exige igual).
+  const [puedeConsumoPersonal, puedeCortesia] = await Promise.all([
+    tieneCapacidadEspecial(usuario, "bonificar_consumo_personal"),
+    tieneCapacidadEspecial(usuario, "bonificar_cortesia"),
+  ]);
 
   // Fase 4 Cafiatto: estado de la caja en la sucursal donde se vende.
   const cajasResultado = await estadoDeCajas(usuario, usuario.tenantId);
@@ -148,6 +158,7 @@ export default async function PuntoDeVentaPage() {
             }))}
             modificadoresPorProducto={modificadoresPorProducto}
             caja={caja}
+            puedeBonificar={{ consumoPersonal: puedeConsumoPersonal, cortesia: puedeCortesia }}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}

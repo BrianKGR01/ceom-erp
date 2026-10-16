@@ -22,12 +22,17 @@ export function CartPanel({
   lineas,
   onCambiarCantidad,
   onQuitar,
+  bonificacionPct,
 }: {
   lineas: LineaCarrito[];
+  /** Fase 5: porcentaje bonificado de la venta, si lo hay. */
+  bonificacionPct?: number;
   onCambiarCantidad: (clave: string, cantidad: number) => void;
   onQuitar: (clave: string) => void;
 }) {
-  const total = lineas.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
+  const subtotal = lineas.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
+  const bonificado = bonificacionPct ? Math.round(subtotal * bonificacionPct) / 100 : 0;
+  const total = subtotal - bonificado;
 
   if (lineas.length === 0) {
     return (
@@ -88,6 +93,18 @@ export function CartPanel({
           </div>
         ))}
       </div>
+      {bonificado > 0 && (
+        <div className="space-y-1 border-t border-gray-border pt-3 text-sm">
+          <div className="flex items-center justify-between text-text-muted">
+            <span>Subtotal</span>
+            <span>{subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between text-warning-text">
+            <span>Bonificación ({bonificacionPct}%)</span>
+            <span>−{bonificado.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between border-t border-gray-border pt-3">
         <span className="text-sm font-medium text-text-body">Total</span>
         <span className="text-lg font-semibold text-navy">{total.toFixed(2)}</span>

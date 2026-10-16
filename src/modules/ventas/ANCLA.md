@@ -479,3 +479,16 @@ Tests: `modificadores.test.ts` (servidor, 14), `pos-cliente.test.tsx` (pantalla)
 `consultarCobrosDeTurno`, `listarVentasDeTurno` (consumidas por el módulo Caja) y `consultarSucursalDeVenta` (pide solo `ventas:crear`).
 `ventas.turno_id` y `pagos_venta.turno_id` se guardan **sin FK** y sin interpretarlos: Ventas no importa Caja. Quien decide el turno es la capa de acciones de la ruta
 (`registrarVentaAction`, `registrarPagoVentaAction` → `turnoParaOperar`). `metodos_pago.es_efectivo` (migración 0057, con `UPDATE` de los métodos ya llamados "Efectivo").
+
+## Última actualización: 2026-10-16 — Fase 5 Cafiatto: bonificación (consumo del personal y cortesía)
+
+**Qué es:** Cafiatto asume el precio. **No** es una baja (la venta se registra completa, con su consumo de insumos y su costo) ni un descuento comercial.
+**Contrato (aditivo):** `DatosVenta.bonificacion?: { motivo: 'consumo_personal' | 'cortesia'; porcentaje; beneficiario?; nota? }`; `registrarVenta` devuelve además `montoBonificado`;
+`fichaVenta` devuelve `bonificacion`; nueva `consultarBonificacionesPorMotivo(periodo)` (monto bonificado, **costo real de lo consumido** y `ventasSinCostoConocido`: reglas 9 y 10); `repartirDescuento` (pura).
+**Cómo se guarda (clave del diseño):** el descuento se aplica **línea por línea y `detalles_venta.subtotal` queda NETO** (`descuento_monto` guarda lo restado; `precio_venta_snapshot` y `costo_unitario_snapshot` quedan intactos).
+Como el total, el estado de pago, la comisión del canal y todos los reportes suman `subtotal`, ven el ingreso real sin cambiar nada más: el margen de una venta bonificada sale negativo (costo real, ingreso 0), que es la verdad.
+Una venta que vale 0 **nace `pagado`** (no queda "pendiente de cobro para siempre"). La comisión se calcula sobre lo que de verdad se cobra. `bonificaciones_venta` (migración 0060, RLS): una por venta, append-only; guarda motivo, %, monto, beneficiario (texto libre), nota y `autorizado_por`.
+**Autorización (decisión 4 del roadmap: capacidades por rol, sin PIN todavía):** `bonificar_consumo_personal` y `bonificar_cortesia` (`capacidad_especial`, migración 0059; se asignan por rol o usuario en Mi negocio → Capacidades; el Owner las tiene). Se exige **antes** de crear nada.
+Reglas: consumo del personal = 100 % y dice quién consume; cortesía = 1-100 % y exige beneficiario o nota. **Pendiente (aplazado a propósito):** PIN de un tercero (autorizador ≠ vendedor) y descuento comercial por rol.
+POS: botón "Bonificar" solo si el usuario tiene alguna capacidad (el servidor la exige igual); resumen con subtotal/bonificación/total; con 100 % no hay pago inicial. La ficha de venta muestra la bonificación.
+Tests: `bonificacion.test.ts`, `bonificacion-ruta.test.ts`, `pos-cliente.test.tsx`.

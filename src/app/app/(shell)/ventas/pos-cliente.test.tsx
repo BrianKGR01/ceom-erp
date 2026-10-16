@@ -253,3 +253,78 @@ describe("Punto de venta — caja y turnos", () => {
     expect(screen.queryByText(/Turno/)).toBeNull();
   });
 });
+
+/**
+ * Roadmap Cafiatto, Fase 5 — bonificacion. La pantalla solo ofrece los motivos que el usuario
+ * puede usar (capacidades por rol); el servidor los exige igual. Se afirma lo que se muestra y
+ * lo que se manda, no que el boton exista.
+ */
+describe("Punto de venta — bonificación", () => {
+  const completa = { consumoPersonal: true, cortesia: true };
+
+  beforeEach(() => {
+    registrarVentaAction.mockReset();
+    push.mockReset();
+    registrarVentaAction.mockResolvedValue({ ok: true, data: { ventaId: "v-1", totalVenta: 0, avisosStock: [] } });
+  });
+
+  it("sin ninguna capacidad no se ofrece bonificar", () => {
+    renderPos();
+    fireEvent.click(screen.getByText("Cuñapé"));
+    expect(screen.queryByRole("button", { name: "Bonificar" })).toBeNull();
+  });
+
+  it("consumo del personal: pide quién consume, deja el total en 0 y manda la bonificación", async () => {
+    renderPos({ puedeBonificar: completa });
+    fireEvent.click(screen.getByText("Cuñapé")); // Bs 6
+    fireEvent.click(screen.getByRole("button", { name: "Bonificar" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar bonificación" }));
+    expect(screen.getByText("Indicá quién consume.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("¿Quién lo consume?"), { target: { value: "Ana Rojas" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar bonificación" }));
+
+    expect(screen.getByText(/Venta bonificada/)).toBeInTheDocument();
+    expect(screen.getByText("Bonificación (100%)")).toBeInTheDocument();
+    expect(screen.getByText("−6.00")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Monto del pago")).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar venta bonificada" }));
+    await waitFor(() => expect(registrarVentaAction).toHaveBeenCalledTimes(1));
+    const [, entrada] = registrarVentaAction.mock.calls[0];
+    expect(entrada.bonificacion).toEqual({
+      motivo: "consumo_personal",
+      porcentaje: 100,
+      beneficiario: "Ana Rojas",
+      nota: undefined,
+    });
+  });
+
+  it("solo cortesía: no ofrece el consumo del personal, y un parcial muestra el neto", () => {
+    renderPos({ puedeBonificar: { consumoPersonal: false, cortesia: true } });
+    fireEvent.click(screen.getByText("Cuñapé"));
+    fireEvent.click(screen.getByRole("button", { name: "Bonificar" }));
+    expect(screen.queryByText("100 % · lo consume alguien del equipo")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Porcentaje bonificado"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText(/¿A quién\?/), { target: { value: "Vecino" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar bonificación" }));
+
+    expect(screen.getByText("Bonificación (50%)")).toBeInTheDocument();
+    expect(screen.getByText("−3.00")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Monto del pago")).toBeDisabled(); // sin método elegido todavía
+  });
+
+  it("se puede quitar la bonificación y volver al total de lista", () => {
+    renderPos({ puedeBonificar: completa });
+    fireEvent.click(screen.getByText("Cuñapé"));
+    fireEvent.click(screen.getByRole("button", { name: "Bonificar" }));
+    fireEvent.change(screen.getByLabelText("¿Quién lo consume?"), { target: { value: "Luis" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar bonificación" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+    expect(screen.queryByText(/Venta bonificada/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Confirmar venta" })).toBeInTheDocument();
+  });
+});

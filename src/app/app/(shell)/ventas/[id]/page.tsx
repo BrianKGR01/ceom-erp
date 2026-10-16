@@ -28,7 +28,7 @@ export default async function FichaVentaPage({
   ]);
 
   if (!fichaResultado.ok || !fichaResultado.data.venta) redirect("/app/ventas/historial");
-  const { venta, detalles, pagos, ajustes, totalVenta } = fichaResultado.data;
+  const { venta, detalles, pagos, ajustes, bonificacion, totalVenta } = fichaResultado.data;
   const metodos = metodosResultado.ok ? metodosResultado.data : [];
   const clientes = clientesResultado.ok ? clientesResultado.data : [];
   const canales = canalesResultado.ok ? canalesResultado.data : [];
@@ -61,6 +61,17 @@ export default async function FichaVentaPage({
           ventaId={id}
           estadoPagoInicial={venta!.estadoPago}
           totalVenta={totalVenta}
+          bonificacion={
+            bonificacion
+              ? {
+                  motivo: bonificacion.motivo,
+                  porcentaje: Number(bonificacion.porcentaje),
+                  montoBonificado: Number(bonificacion.montoBonificado),
+                  beneficiario: bonificacion.beneficiario,
+                  nota: bonificacion.nota,
+                }
+              : null
+          }
           comision={
             venta!.comisionMontoCalculado !== null
               ? {
@@ -79,6 +90,7 @@ export default async function FichaVentaPage({
             cantidad: d.cantidad,
             precioVentaSnapshot: d.precioVentaSnapshot,
             subtotal: d.subtotal,
+            descuentoMonto: d.descuentoMonto,
           }))}
           pagosIniciales={pagos.map((p) => ({
             id: p.id,

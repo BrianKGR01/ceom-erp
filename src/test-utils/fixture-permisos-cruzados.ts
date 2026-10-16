@@ -103,9 +103,11 @@ async function limpiarTenant(tenantId: string, rolId: string, userIds: string[])
       const porReceta = `(select id from recetas where tenant_id = '${tenantId}')`;
       for (const stmt of [
         `delete from detalles_venta_modificadores where detalle_venta_id in (select id from detalles_venta where venta_id in ${porVenta})`,
+        `delete from bonificaciones_venta where venta_id in ${porVenta}`,
         `delete from ajustes_venta where venta_id in ${porVenta}`,
         `delete from pagos_venta where venta_id in ${porVenta}`,
         `delete from detalles_venta where venta_id in ${porVenta}`,
+        `delete from pagos_gasto where gasto_id in (select id from gastos where tenant_id = '${tenantId}')`,
         `delete from gastos where tenant_id = '${tenantId}'`,
         `delete from ventas where tenant_id = '${tenantId}'`,
         `delete from movimientos_caja where tenant_id = '${tenantId}'`,
@@ -136,6 +138,8 @@ async function limpiarTenant(tenantId: string, rolId: string, userIds: string[])
         `delete from eventos where tenant_id = '${tenantId}'`,
         `delete from clientes where tenant_id = '${tenantId}'`,
         `delete from categorias_gasto where tenant_id = '${tenantId}'`,
+        `delete from permisos_especiales_por_usuario where usuario_id in (select id from usuarios where tenant_id = '${tenantId}')`,
+        `delete from permisos_especiales_por_rol where rol_id = '${rolId}'`,
         `delete from usuarios where tenant_id = '${tenantId}'`,
         `delete from permisos where rol_id = '${rolId}'`,
         `delete from roles where id = '${rolId}'`,

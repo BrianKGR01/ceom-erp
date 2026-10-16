@@ -25,6 +25,11 @@ import {
 import { cn } from "@/lib/utils";
 import { CartPanel, type LineaCarrito } from "@/modules/ventas/components/cart-panel";
 import {
+  BonificarDialog,
+  ETIQUETA_MOTIVO_BONIFICACION,
+  type BonificacionVenta,
+} from "@/modules/ventas/components/bonificar-dialog";
+import {
   ConfigurarProductoDialog,
   type GrupoModificadores,
   type LineaConfigurada,
@@ -51,6 +56,7 @@ export function PosCliente({
   productos,
   modificadoresPorProducto,
   caja = null,
+  puedeBonificar = { consumoPersonal: false, cortesia: false },
   categorias,
   clientesIniciales,
   canalesIniciales,
@@ -65,6 +71,8 @@ export function PosCliente({
   modificadoresPorProducto: Record<string, GrupoModificadores[]>;
   /** Fase 4: null = el negocio no usa caja. */
   caja?: { exigirTurno: boolean; turnoNumero: number | null; cajaNombre: string } | null;
+  /** Fase 5: que motivos de bonificacion puede usar quien vende (capacidades por rol). */
+  puedeBonificar?: { consumoPersonal: boolean; cortesia: boolean };
   categorias: Opcion[];
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
@@ -142,6 +150,15 @@ export function PosCliente({
     });
 
   const [configurando, setConfigurando] = useState<Tarjeta | null>(null);
+
+  // Fase 5: bonificacion. El descuento real lo calcula el servidor; esto es solo para mostrar.
+  const [bonificacion, setBonificacion] = useState<BonificacionVenta | null>(null);
+  const [bonificarAbierto, setBonificarAbierto] = useState(false);
+  const puedeAlgunaBonificacion = puedeBonificar.consumoPersonal || puedeBonificar.cortesia;
+  const totalCarrito = carrito.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
+  const totalNeto = bonificacion
+    ? totalCarrito - Math.round(totalCarrito * bonificacion.porcentaje) / 100
+    : totalCarrito;
   // Fase 4: con la caja activa y exigida, sin turno abierto no se confirma (el servidor lo vuelve a exigir).
   const sinTurno = Boolean(caja?.exigirTurno && caja.turnoNumero === null);
 
@@ -284,6 +301,7 @@ export function PosCliente({
         modificadorIds: l.modificadorIds.length > 0 ? l.modificadorIds : undefined,
         observacion: l.observacion || undefined,
       })),
+      bonificacion: bonificacion ?? undefined,
       pagoInicial:
         metodoPagoId !== "sin_pago" && montoPagoInicial
           ? { metodoPagoId, monto: Number(montoPagoInicial) }
@@ -434,7 +452,32 @@ export function PosCliente({
               lineas={carrito}
               onCambiarCantidad={cambiarCantidad}
               onQuitar={quitarLinea}
+              bonificacionPct={bonificacion?.porcentaje}
             />
+
+            {/* Fase 5: Cafiatto asume el precio. Solo se ofrece a quien tiene la capacidad. */}
+            {puedeAlgunaBonificacion && carrito.length > 0 && !ventaRegistradaId && (
+              bonificacion ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-bg p-3 text-xs">
+                  <p className="text-warning-text">
+                    <span className="font-medium">Venta bonificada</span> ·{" "}
+                    {ETIQUETA_MOTIVO_BONIFICACION[bonificacion.motivo].toLowerCase()}
+                    {bonificacion.beneficiario ? ` (${bonificacion.beneficiario})` : ""} · {bonificacion.porcentaje}%
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBonificacion(null)}
+                    className="font-medium text-warning-text underline"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={() => setBonificarAbierto(true)}>
+                  Bonificar
+                </Button>
+              )
+            )}
 
             {/* H-15 — avisa, NO bloquea. La venta siempre se tiene que poder
                 registrar: el dueño cobrando con el cliente enfrente no puede
@@ -622,7 +665,7 @@ export function PosCliente({
                 placeholder="Monto del pago"
                 value={montoPagoInicial}
                 onChange={(e) => setMontoPagoInicial(e.target.value)}
-                disabled={metodoPagoId === "sin_pago"}
+                disabled={metodoPagoId === "sin_pago" || totalNeto <= 0}
               />
               <button
                 type="button"
@@ -689,12 +732,30 @@ export function PosCliente({
                 disabled={confirmando || carrito.length === 0}
                 className="w-full justify-center"
               >
-                {confirmando ? "Registrando..." : "Confirmar venta"}
+                {confirmando ? "Registrando..." : bonificacion ? "Confirmar venta bonificada" : "Confirmar venta"}
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {bonificarAbierto && (
+        <BonificarDialog
+          puede={puedeBonificar}
+          inicial={bonificacion}
+          total={totalCarrito}
+          onCerrar={() => setBonificarAbierto(false)}
+          onAplicar={(b) => {
+            setBonificacion(b);
+            // Si no queda nada por cobrar, no hay pago inicial que cargar.
+            if (b.porcentaje >= 100) {
+              setMetodoPagoId("sin_pago");
+              setMontoPagoInicial("");
+            }
+            setBonificarAbierto(false);
+          }}
+        />
+      )}
 
       {configurando && (
         <ConfigurarProductoDialog
