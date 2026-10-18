@@ -70,7 +70,13 @@ export function PosCliente({
   /** Fase 3: grupos de modificadores que ofrece cada producto. */
   modificadoresPorProducto: Record<string, GrupoModificadores[]>;
   /** Fase 4: null = el negocio no usa caja. */
-  caja?: { exigirTurno: boolean; turnoNumero: number | null; cajaNombre: string } | null;
+  caja?: {
+    exigirTurno: boolean;
+    turnoNumero: number | null;
+    cajaNombre: string;
+    /** Excepcion administrativa: puede vender sin turno aunque se exija. */
+    puedeVenderSinTurno?: boolean;
+  } | null;
   /** Fase 5: que motivos de bonificacion puede usar quien vende (capacidades por rol). */
   puedeBonificar?: { consumoPersonal: boolean; cortesia: boolean };
   categorias: Opcion[];
@@ -160,7 +166,8 @@ export function PosCliente({
     ? totalCarrito - Math.round(totalCarrito * bonificacion.porcentaje) / 100
     : totalCarrito;
   // Fase 4: con la caja activa y exigida, sin turno abierto no se confirma (el servidor lo vuelve a exigir).
-  const sinTurno = Boolean(caja?.exigirTurno && caja.turnoNumero === null);
+  const sinTurnoAbierto = Boolean(caja?.exigirTurno && caja.turnoNumero === null);
+  const sinTurno = sinTurnoAbierto && !caja?.puedeVenderSinTurno;
 
   function tocarTarjeta(tarjeta: Tarjeta) {
     const sinOpciones =
@@ -344,7 +351,17 @@ export function PosCliente({
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {caja && (
         <div className="md:col-span-2 lg:col-span-3">
-          {sinTurno ? (
+          {sinTurnoAbierto && caja.puedeVenderSinTurno ? (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-pastel-blue-bg p-4 text-sm">
+              <p className="text-navy">
+                <span className="font-medium">No hay un turno abierto en {caja.cajaNombre}.</span> Podés vender por
+                excepción administrativa: la venta quedará sin turno y su efectivo no entrará en ningún arqueo.
+              </p>
+              <Link href="/app/caja" className="font-medium text-primary underline">
+                Abrir turno
+              </Link>
+            </div>
+          ) : sinTurno ? (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-bg p-4 text-sm">
               <p className="text-warning-text">
                 <span className="font-medium">No hay un turno abierto en {caja.cajaNombre}.</span> Para vender, primero se

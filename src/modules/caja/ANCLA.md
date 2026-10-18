@@ -38,3 +38,9 @@ Vender muestra el turno o avisa que falta abrirlo. Métodos de pago: casilla "Es
 - No hay todavía "excepción administrativa" para vender sin turno (se apaga con `exigir_turno`).
 
 ## Última actualización: 2026-10-16 — Fase 4 creada. Tests: `caja.test.ts`, `caja-ventas.test.ts`, `pos-cliente.test.tsx`.
+
+## Última actualización: 2026-10-18 — excepción administrativa para vender sin turno
+`turnoParaOperar`: con la caja activa y `exigir_turno`, si no hay turno abierto y el solicitante es **dueño o tiene `ventas:anular_ajustar`** (el mismo permiso que configura la caja), devuelve `turnoId: null` en vez de rechazar (PDF §16: "salvo excepción administrativa"). El cajero sigue bloqueado.
+Nueva `puedeOperarSinTurno(solicitante, tenantId)` (la usa la pantalla Vender para avisar). Una venta o cobro por excepción queda con `turno_id` null: **su efectivo no entra en ningún arqueo**.
+Decisión de despliegue: CAFIATTO arranca con `exigir_turno` apagado; se enciende cuando el equipo ya abra y cierre turno sin falta.
+Tests: `caja.test.ts` y `caja-ventas.test.ts`.

@@ -101,6 +101,23 @@ describe.skipIf(!hasPostgres)("Caja — Vender y Cobrar usan el turno que decide
     expect((await db.select().from(ventas).where(eq(ventas.tenantId, f.tenantId))).length).toBe(antes);
   });
 
+  it("excepcion administrativa: el dueño vende sin turno aunque se exija (queda sin turno); el cajero no", async () => {
+    const { registrarVentaAction } = await import("../ventas/actions");
+    sesion = f.owner;
+    const res = await registrarVentaAction(f.sucursalId, venta(true));
+    if (!res.ok) throw new Error(res.error);
+    const [v] = await db.select().from(ventas).where(eq(ventas.id, res.data.ventaId));
+    expect(v.turnoId).toBeNull();
+    const [pago] = await db.select().from(pagosVenta).where(eq(pagosVenta.ventaId, v.id));
+    expect(pago.turnoId).toBeNull();
+
+    sesion = f.colaborador;
+    expect(await registrarVentaAction(f.sucursalId, venta(true))).toEqual({
+      ok: false,
+      error: "Para vender o cobrar, primero abrí el turno de la caja.",
+    });
+  });
+
   it("con turno abierto, la venta y su cobro quedan en ese turno", async () => {
     const { registrarVentaAction } = await import("../ventas/actions");
     const turno = ok(await abrirTurno(f.owner, f.tenantId, { cajaId, fondoInicial: 0 }));
