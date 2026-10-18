@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shared/app-shell";
 import { nombreRolVisible } from "@/lib/vocabulario";
-import { calcularEstadoAcceso, obtenerTenantPorId, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  calcularEstadoAcceso,
+  obtenerTenantPorId,
+  obtenerUsuarioActual,
+  permisosPropios,
+} from "@/modules/identidad/actions";
 
 // Shell real de /app (design-system.md seccion 5.1): sidebar navy +
 // redirect forzado a Onboarding en el primer ingreso del Owner. Vive en un
@@ -36,6 +41,7 @@ export default async function ShellLayout({
   // El bloqueo real de crear/editar ya lo hace tienePermiso() server-side
   // (identidad/actions.ts); este banner es solo la señal visual.
   const estadoAcceso = tenant ? calcularEstadoAcceso(tenant) : "activo";
+  const permisos = await permisosPropios(usuario);
 
   return (
     <AppShell
@@ -44,6 +50,7 @@ export default async function ShellLayout({
       tenantNombre={tenant?.nombreNegocio ?? ""}
       esOwner={usuario.esOwner}
       nichoId={tenant?.nichoId ?? null}
+      permisos={permisos}
       estadoAcceso={estadoAcceso}
       fechaProximoPago={tenant?.fechaProximoPago ?? null}
     >
