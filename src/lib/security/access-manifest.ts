@@ -239,6 +239,19 @@ export const ACCESS_MANIFEST: Record<string, EntradaManifiesto> = {
     nota: "recetaId — fix del barrido en Nicho-1 (receta.tenantId).",
   },
   "app/app/(shell)/productos/actions.ts::desvincularProductoDeRecetaAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/productos/actions.ts::cambiarModoConsumoProductoAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::registrarBajaAction": { nivel: "por-recurso", verificacion: "estatica" },
+
+  // --- app/app/(shell)/caja/actions.ts (Roadmap Cafiatto, Fase 4) -----------
+  "app/app/(shell)/caja/actions.ts::configurarCajaAction": { nivel: "autenticado", verificacion: "estatica" },
+  "app/app/(shell)/caja/actions.ts::abrirTurnoAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/caja/actions.ts::registrarMovimientoCajaAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/caja/actions.ts::cerrarTurnoAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::crearGrupoModificadoresAction": { nivel: "autenticado", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::eliminarGrupoModificadoresAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::crearModificadorAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::eliminarModificadorAction": { nivel: "por-recurso", verificacion: "estatica" },
+  "app/app/(shell)/produccion/actions.ts::ofrecerGrupoAProductoAction": { nivel: "por-recurso", verificacion: "estatica" },
 
   // --- app/app/(shell)/proveedores/actions.ts ------------------------------
   "app/app/(shell)/proveedores/actions.ts::crearProveedorAction": { nivel: "autenticado", verificacion: "estatica" },

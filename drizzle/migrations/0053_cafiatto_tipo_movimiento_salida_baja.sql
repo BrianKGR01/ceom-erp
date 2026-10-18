@@ -1,0 +1,1 @@
+ALTER TYPE "public"."tipo_movimiento_insumo" ADD VALUE 'salida_baja';

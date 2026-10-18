@@ -56,6 +56,8 @@ interface FilaUsuario {
 
 const CAPACIDADES: { id: Capacidad; label: string }[] = [
   { id: "vender_sin_stock", label: "Vender sin stock" },
+  { id: "bonificar_consumo_personal", label: "Bonificar consumo del personal" },
+  { id: "bonificar_cortesia", label: "Bonificar como cortesía" },
   { id: "gestionar_eventos", label: "Gestionar eventos" },
   { id: "importar_historico", label: "Importar histórico" },
   { id: "producir_sin_stock_insumo", label: "Producir sin stock" },

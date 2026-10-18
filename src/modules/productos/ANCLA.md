@@ -284,3 +284,17 @@ Tests: `src/modules/productos/editar-producto-con-receta.test.ts`, `src/componen
 
 **Relacionado, no resuelto acá:** DP-04 decidida (promedio ponderado, pendiente de implementar en
 `crearEntradaCompraReventaTx` y `crearEntradaProduccionTx`) y H-53 (productos preparados al momento).
+
+## Última actualización: 2026-10-16 — DA-45 cerrada: lock por (producto, sucursal) en el recálculo del caché de stock
+`recalcularCantidadActualTx` toma `pg_advisory_xact_lock` antes de sumar el ledger; movimientos simultáneos del mismo producto/sucursal
+ya no pierden unidades ni revierten por 23505. Mismo lock en `recalcularCantidadActualInsumoTx` (Nicho 1). Sin cambio de contrato ni migración.
+Test: `stock-concurrente.test.ts`. Regla: mantener el recálculo DENTRO de la transacción que inserta el movimiento (el lock es de transacción).
+
+## Última actualización: 2026-10-16 — Fase 2 Cafiatto: `registrarBajaStockProducto`
+Nueva función pública: baja de producto con stock terminado (`salida_merma`, permiso `inventario:anular_ajustar`, motivo obligatorio). Devuelve el
+`costoOperativoVigente` para que Operativo congele el costo de la baja. Sin migración (el tipo `salida_merma` ya existía). Consumida por
+`operativo/nichos/nicho-1/actions.ts::registrarBajaProducto`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: agrupar variantes
+`productos.grupo_variantes` y `productos.etiqueta_variante` (texto, nulos, migración 0055). Solo agrupan para mostrar ("Latte" -> 12 oz / 16 oz): cada variante sigue siendo un producto con su
+precio, receta y costo. `DatosProducto` y el formulario las aceptan (cadena vacía en una edición las limpia). Sin cambio de contrato para quien no las usa.

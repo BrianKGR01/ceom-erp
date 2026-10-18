@@ -12,6 +12,11 @@ export interface ProductoParaVenta {
    * avisarlo ANTES de confirmar la venta: el snapshot se congela en ese
    * instante y no se recalcula nunca, así que después ya es tarde. */
   costoOperativoVigente: string | null;
+  /** Fase 3: variantes del mismo producto comparten este texto ("Latte"). */
+  grupoVariantes: string | null;
+  etiquetaVariante: string | null;
+  /** Fase 3: se prepara al vender; su stock son los insumos, no hay unidades terminadas. */
+  alVender: boolean;
 }
 
 // Variante compacta y clickeable de la ProductCard de Modulo 2 — mismo
@@ -23,9 +28,15 @@ export function ProductPickerCard({
   categoriaNombre,
   stock,
   onAgregar,
+  etiquetaPrecio,
+  nombre,
 }: {
   producto: ProductoParaVenta;
   categoriaNombre?: string;
+  /** Fase 3: en una tarjeta de variantes, el nombre del grupo en vez del producto. */
+  nombre?: string;
+  /** Fase 3: ej. "desde" cuando la tarjeta agrupa variantes de distinto precio. */
+  etiquetaPrecio?: string;
   /** H-37. `null` = sin permiso para ver inventario: no se muestra nada. */
   stock: number | null;
   onAgregar: () => void;
@@ -51,12 +62,16 @@ export function ProductPickerCard({
               {categoriaNombre}
             </p>
           )}
-          <p className="line-clamp-1 text-xs font-medium text-navy">{producto.nombre}</p>
+          <p className="line-clamp-1 text-xs font-medium text-navy">{nombre ?? producto.nombre}</p>
           <p className="text-sm font-semibold text-navy">
+            {etiquetaPrecio ? `${etiquetaPrecio} ` : ""}
             {Number(producto.precioVenta).toFixed(2)}{" "}
             <span className="text-[10px] font-normal text-text-muted">/ {producto.unidadVenta}</span>
           </p>
-          {stock !== null && (
+          {producto.alVender && (
+            <p className="text-[10px] text-text-muted">Preparado al momento</p>
+          )}
+          {!producto.alVender && stock !== null && (
             <p className={stock > 0 ? "text-[10px] text-text-muted" : "text-[10px] font-medium text-warning-text"}>
               {stock === 0 ? "Sin stock" : `Stock: ${stock}`}
             </p>

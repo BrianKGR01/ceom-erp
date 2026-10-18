@@ -1,8 +1,9 @@
-import { eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import { registrarAjusteManualStock } from "@/modules/productos/actions";
-import { productos } from "@/modules/productos/schema";
+import { productos, stock } from "@/modules/productos/schema";
 import { crearFixturePermisosCruzados, type FixturePermisosCruzados } from "@/test-utils/fixture-permisos-cruzados";
 import { crearCanalVenta, crearMetodoPago, registrarAjusteVenta, registrarPagoVenta, registrarVenta } from "./actions";
 import { pagosVenta, ventas } from "./schema";
@@ -157,6 +158,68 @@ describe.skipIf(!hasPostgres)("Ventas — guardas contra la doble confirmación"
         error: "El pago (20.00) supera el total de la venta (15.00). Cargá el total, no el efectivo recibido.",
       });
       expect(await contar()).toBe(antes);
+    });
+  });
+  describe("idempotencia (H-51 Tanda B)", () => {
+    const cuentaVentasConClave = async (clave: string) => {
+      const filas = await db
+        .select({ id: ventas.id })
+        .from(ventas)
+        .where(and(eq(ventas.tenantId, f.tenantId), eq(ventas.claveIdempotencia, clave)));
+      return filas.length;
+    };
+    const stockDisponible = async () => {
+      const [fila] = await db
+        .select({ cantidad: stock.cantidadActual })
+        .from(stock)
+        .where(and(eq(stock.productoId, productoId), eq(stock.sucursalId, f.sucursalId)));
+      return Number(fila.cantidad);
+    };
+    const datos = (clave?: string) => ({
+      sucursalId: f.sucursalId,
+      canalVentaId,
+      claveIdempotencia: clave,
+      lineas: [{ productoId, cantidad: 1 }],
+      pagoInicial: { metodoPagoId, monto: 15 },
+    });
+
+    it("el mismo intento enviado dos veces devuelve la misma venta y no repite stock ni pago", async () => {
+      const clave = randomUUID();
+      const stockAntes = await stockDisponible();
+
+      const primera = await registrarVenta(f.owner, f.tenantId, datos(clave));
+      const segunda = await registrarVenta(f.owner, f.tenantId, datos(clave));
+
+      expect(primera).toMatchObject({ ok: true, data: { repetida: false } });
+      expect(segunda).toMatchObject({ ok: true, data: { repetida: true, totalVenta: 15 } });
+      if (!primera.ok || !segunda.ok) throw new Error("inalcanzable");
+      expect(segunda.data.ventaId).toBe(primera.data.ventaId);
+      expect(await cuentaVentasConClave(clave)).toBe(1);
+      expect(await totalPagado(primera.data.ventaId)).toBe(15);
+      expect(await stockDisponible()).toBe(stockAntes - 1);
+    });
+
+    it("dos envíos simultáneos del mismo intento crean una sola venta", async () => {
+      const clave = randomUUID();
+      const resultados = await Promise.all([
+        registrarVenta(f.owner, f.tenantId, datos(clave)),
+        registrarVenta(f.owner, f.tenantId, datos(clave)),
+        registrarVenta(f.owner, f.tenantId, datos(clave)),
+      ]);
+
+      for (const r of resultados) expect(r.ok).toBe(true);
+      const ids = new Set(resultados.map((r) => (r.ok ? r.data.ventaId : "")));
+      expect(ids.size).toBe(1);
+      expect(await cuentaVentasConClave(clave)).toBe(1);
+    });
+
+    it("claves distintas son ventas distintas, y sin clave nada cambia", async () => {
+      const a = await registrarVenta(f.owner, f.tenantId, datos(randomUUID()));
+      const b = await registrarVenta(f.owner, f.tenantId, datos(randomUUID()));
+      const c = await registrarVenta(f.owner, f.tenantId, datos());
+      const d = await registrarVenta(f.owner, f.tenantId, datos());
+      if (!a.ok || !b.ok || !c.ok || !d.ok) throw new Error("inalcanzable");
+      expect(new Set([a.data.ventaId, b.data.ventaId, c.data.ventaId, d.data.ventaId]).size).toBe(4);
     });
   });
 });

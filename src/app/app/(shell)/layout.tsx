@@ -43,6 +43,7 @@ export default async function ShellLayout({
       rolNombre={nombreRolVisible(usuario.rol.nombre)}
       tenantNombre={tenant?.nombreNegocio ?? ""}
       esOwner={usuario.esOwner}
+      nichoId={tenant?.nichoId ?? null}
       estadoAcceso={estadoAcceso}
       fechaProximoPago={tenant?.fechaProximoPago ?? null}
     >

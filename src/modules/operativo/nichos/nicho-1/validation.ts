@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MOTIVOS_BAJA } from "./motivos-baja";
 
 // Schemas compartidos entre los formularios (react-hook-form + zodResolver)
 // y las Server Actions que los reciben — mismo criterio que el resto de
@@ -64,4 +65,28 @@ export const produccionAjusteSchema = z.object({
   costoOperativoCorregido: z.number().min(0).optional(),
   cantidadRealObtenidaCorregida: z.number().positive().optional(),
   motivo: z.string().trim().min(1, "Describí el motivo del ajuste."),
+});
+
+export const bajaFormSchema = z.object({
+  tipo: z.enum(["insumo", "producto"]),
+  objetoId: z.string().min(1, "Elegí qué se perdió."),
+  sucursalId: z.string().min(1, "Elegí una sucursal."),
+  cantidad: z.number().positive("La cantidad tiene que ser mayor a 0."),
+  motivo: z.enum(MOTIVOS_BAJA),
+  nota: z.string().trim().optional(),
+});
+
+export const grupoModificadoresFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre al grupo."),
+  seleccion: z.enum(["una", "varias"]),
+});
+
+export const modificadorFormSchema = z.object({
+  nombre: z.string().trim().min(1, "Ponele un nombre a la opción."),
+  tipo: z.enum(["agrega", "reemplaza", "indicacion"]),
+  esBase: z.boolean().optional(),
+  precioExtra: z.number().min(0, "El precio extra no puede ser negativo.").optional(),
+  insumoId: z.string().min(1).optional(),
+  cantidad: z.number().positive("La cantidad tiene que ser mayor a 0.").optional(),
+  insumoReemplazadoId: z.string().min(1).optional(),
 });

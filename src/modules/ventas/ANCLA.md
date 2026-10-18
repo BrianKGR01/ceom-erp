@@ -429,3 +429,72 @@ casos nuevos, como cualquier otra validación.
 cualquier vía (recarga, otra pestaña, doble envío de red), todavía crearía dos ventas—. Va en la Tanda B,
 con migración. Y **H-26 / R-3.3** sigue abierto: un ajuste no recalcula `estado_pago`, así que una
 venta anulada sigue diciendo "pendiente de cobro". Fue lo que llevó a anular una venta dos veces.
+
+## Última actualización: 2026-10-16 — H-51 Tanda B: idempotencia de `registrarVenta` (Roadmap Cafiatto, Fase 0)
+
+**Contrato (cambio aditivo):** `DatosVenta.claveIdempotencia?: string (uuid)`; `registrarVenta` devuelve además
+`repetida: boolean`. Si el mismo `(tenant, clave)` llega otra vez, devuelve la venta ya creada
+(`repetida: true`, `descuentosStock: []`, `gastoComision: null`) y **no** crea cliente, stock, pago ni comisión.
+Dos envíos simultáneos: los frena el índice único parcial `ventas_tenant_clave_idempotencia_uq`
+(migración `0050_h51_idempotencia_ventas`, columna `ventas.clave_idempotencia uuid` nula) y se resuelve como repetida.
+El POS (`pos-cliente.tsx`) genera una clave por intento y la renueva tras un registro exitoso. Sin clave, todo igual que antes.
+**Deriva conocida:** `0021_simulaciones` no figura en `drizzle.__drizzle_migrations` de la base real (49 filas) aunque su tabla
+existe; no estorba porque `migrate` aplica por `when` mayor al último. No reaplicar a mano.
+Tests: `doble-confirmacion.test.ts` (bloque "idempotencia").
+
+## Última actualización: 2026-10-16 — Fase 1 Cafiatto: consumo de insumos por receta al vender (H-53)
+
+**Contrato (aditivo):** `registrarVenta` devuelve además `consumoInsumos` (resultado de `consumirInsumosPorVenta` o `null`).
+Llama a la fachada neutral `@/modules/operativo/actions` — **nunca** a `nichos/<nicho>/`:
+1. `planificarConsumoVenta` ANTES de crear nada: qué productos se preparan al vender, qué insumos, a qué costo, y si alcanza el stock
+   (bloquea la venta entera con `Insumo insuficiente ("X")` salvo capacidad `vender_sin_stock`). No crea cliente ni venta si rechaza.
+2. Snapshot: la línea de un producto al vender congela el costo de su receta (`costoDesconocido` si a algún insumo le falta costo o la receta está vacía).
+3. Tras crear la venta: no se descuenta stock de producto terminado para esas líneas; `consumirInsumosPorVenta` baja los insumos (fuera de la
+   transacción de la venta: mismo gap de atomicidad cruzada aceptado; el fallo se devuelve como aviso, la venta queda).
+`avisosDeInsumos` (ruta `ventas/actions.ts`) lleva a la pantalla el fallo o el insumo en negativo.
+Una venta repetida (idempotencia) no consume nada. **No cubierto aún:** anular/ajustar una venta NO devuelve insumos (decisión 2 del roadmap: por
+defecto no; la opción explícita viene en una fase posterior).
+Tests: `consumo-receta.test.ts`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: modificadores, observación por línea y variantes en el POS
+
+**Contrato (aditivo):** `DatosLineaVenta` gana `modificadorIds?: string[]` y `observacion?: string`. `registrarVenta` resuelve los modificadores por la
+fachada `operativo/actions.ts::planificarConsumoVenta` (que ahora devuelve `lineas[]` alineadas con la entrada: `alVender`, `costoUnitario`, `precioExtra`,
+`modificadores[]` ya resueltos) y **antes** de crear nada.
+- **Precio:** `precio_venta_snapshot` de la línea = precio base + suma de `precioExtra` de sus modificadores (el subtotal sigue siendo cantidad x precio).
+- **Costo:** el de la receta con el efecto de los modificadores (reemplazos y agregados), congelado en la línea; null/`costo_desconocido` si falta algún costo.
+- **Snapshot de modificadores:** `detalles_venta_modificadores` (migración 0056) copia nombre, grupo, tipo, precio extra y `efecto_receta` (cambio neto de insumos por
+  unidad). `modificador_id` es solo informativo, **sin FK** (Ventas no referencia tablas de Operativo). `detalles_venta.observacion`: texto libre de la caja.
+- **Inventario:** una línea consume receta base + efecto de sus modificadores; dos líneas del mismo producto con modificadores distintos consumen y cuestan distinto.
+- Validación del servidor (el cliente no se cree): un modificador solo vale si su grupo está ofrecido a ese producto y es del tenant; un grupo "elige 1" admite una
+  opción; las opciones base no se registran; un modificador que cambia la receta no vale en un producto que no se prepara al vender.
+- **POS:** una tarjeta por `grupoVariantes`; al tocarla se abre la hoja (`configurar-producto-dialog.tsx`) con variante, grupos de modificadores, observación y
+  cantidad. La línea del carrito se identifica por `clave` (producto + modificadores + observación). Los productos que se preparan al vender no avisan "sin stock" ni "sin costo".
+- **Variantes:** cada variante SIGUE siendo un producto (Modulo_03 4.2) con su receta y precio; `productos.grupo_variantes`/`etiqueta_variante` (migración 0055, sin FK) solo las agrupan.
+Tests: `modificadores.test.ts` (servidor, 14), `pos-cliente.test.tsx` (pantalla).
+
+## Última actualización: 2026-10-16 — Fase 4 Cafiatto: turno de caja y métodos de pago "efectivo"
+
+**Contrato (aditivo):** `DatosVenta.turnoId?`, `registrarPagoVenta(..., { turnoId? })`, `DatosMetodoPago.esEfectivo?`; nuevas funciones de solo lectura
+`consultarCobrosDeTurno`, `listarVentasDeTurno` (consumidas por el módulo Caja) y `consultarSucursalDeVenta` (pide solo `ventas:crear`).
+`ventas.turno_id` y `pagos_venta.turno_id` se guardan **sin FK** y sin interpretarlos: Ventas no importa Caja. Quien decide el turno es la capa de acciones de la ruta
+(`registrarVentaAction`, `registrarPagoVentaAction` → `turnoParaOperar`). `metodos_pago.es_efectivo` (migración 0057, con `UPDATE` de los métodos ya llamados "Efectivo").
+
+## Última actualización: 2026-10-16 — Fase 5 Cafiatto: bonificación (consumo del personal y cortesía)
+
+**Qué es:** Cafiatto asume el precio. **No** es una baja (la venta se registra completa, con su consumo de insumos y su costo) ni un descuento comercial.
+**Contrato (aditivo):** `DatosVenta.bonificacion?: { motivo: 'consumo_personal' | 'cortesia'; porcentaje; beneficiario?; nota? }`; `registrarVenta` devuelve además `montoBonificado`;
+`fichaVenta` devuelve `bonificacion`; nueva `consultarBonificacionesPorMotivo(periodo)` (monto bonificado, **costo real de lo consumido** y `ventasSinCostoConocido`: reglas 9 y 10); `repartirDescuento` (pura).
+**Cómo se guarda (clave del diseño):** el descuento se aplica **línea por línea y `detalles_venta.subtotal` queda NETO** (`descuento_monto` guarda lo restado; `precio_venta_snapshot` y `costo_unitario_snapshot` quedan intactos).
+Como el total, el estado de pago, la comisión del canal y todos los reportes suman `subtotal`, ven el ingreso real sin cambiar nada más: el margen de una venta bonificada sale negativo (costo real, ingreso 0), que es la verdad.
+Una venta que vale 0 **nace `pagado`** (no queda "pendiente de cobro para siempre"). La comisión se calcula sobre lo que de verdad se cobra. `bonificaciones_venta` (migración 0060, RLS): una por venta, append-only; guarda motivo, %, monto, beneficiario (texto libre), nota y `autorizado_por`.
+**Autorización (decisión 4 del roadmap: capacidades por rol, sin PIN todavía):** `bonificar_consumo_personal` y `bonificar_cortesia` (`capacidad_especial`, migración 0059; se asignan por rol o usuario en Mi negocio → Capacidades; el Owner las tiene). Se exige **antes** de crear nada.
+Reglas: consumo del personal = 100 % y dice quién consume; cortesía = 1-100 % y exige beneficiario o nota. **Pendiente (aplazado a propósito):** PIN de un tercero (autorizador ≠ vendedor) y descuento comercial por rol.
+POS: botón "Bonificar" solo si el usuario tiene alguna capacidad (el servidor la exige igual); resumen con subtotal/bonificación/total; con 100 % no hay pago inicial. La ficha de venta muestra la bonificación.
+Tests: `bonificacion.test.ts`, `bonificacion-ruta.test.ts`, `pos-cliente.test.tsx`.
+
+## Última actualización: 2026-10-16 — Fase 6 Cafiatto: resumen operativo
+**Contrato (aditivo):** `consultarActividadVentas(periodo, { sucursalId? })` → `{ cantidad, ingresos, porHora[{hora 0-23 local, cantidad, ingresos}], porVendedor[{vendedorId, cantidad, ingresos}] }`. Pide `ventas:ver`.
+Ingresos = suma de `detalles_venta.subtotal` (neto de bonificaciones; no resta ajustes posteriores, H-26). La hora se agrupa en la zona del negocio.
+Lo consume la pantalla `/app/produccion/resumen` junto con `rankingProductos(margen)` (Reportes), `consultarBonificacionesPorMotivo` y `consultarBajasPorMotivo`: ningún margen se calcula en la pantalla (regla 10) y los marcadores de costo desconocido viajan (regla 9).
+Test: `resumen-operativo.test.ts`.

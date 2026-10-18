@@ -131,6 +131,12 @@ export const productos = pgTable(
       .default("manual"),
     fechaVencimientoReferencia: date("fecha_vencimiento_referencia"),
     vidaUtilDias: integer("vida_util_dias"),
+    // Roadmap Cafiatto, Fase 3. Cada variante ES un producto (Modulo_03 4.2: su
+    // propio precio, receta y costo); esto solo las agrupa para mostrarlas
+    // juntas ("Latte" -> 12 oz / 16 oz). No hay tabla ni FK a proposito: el
+    // grupo es el texto compartido dentro del negocio.
+    grupoVariantes: text("grupo_variantes"),
+    etiquetaVariante: text("etiqueta_variante"),
     activo: boolean("activo").notNull().default(true),
     creadoPor: uuid("creado_por"),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),

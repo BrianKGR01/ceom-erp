@@ -351,6 +351,83 @@
       "when": 1785246768682,
       "tag": "0049_logs_acceso_institucion",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792158883395,
+      "tag": "0050_h51_idempotencia_ventas",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792159652452,
+      "tag": "0051_cafiatto_tipo_movimiento_salida_venta",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1792159692844,
+      "tag": "0052_cafiatto_modo_consumo_y_precision_insumos",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792162977047,
+      "tag": "0053_cafiatto_tipo_movimiento_salida_baja",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792163006503,
+      "tag": "0054_cafiatto_bajas",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1792164848470,
+      "tag": "0055_cafiatto_variantes_producto",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792164976621,
+      "tag": "0056_cafiatto_modificadores",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1792168531443,
+      "tag": "0057_cafiatto_ventas_turno_y_efectivo",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792168561011,
+      "tag": "0058_cafiatto_caja_y_turnos",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792169997572,
+      "tag": "0059_cafiatto_capacidades_bonificar",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792170057403,
+      "tag": "0060_cafiatto_bonificaciones",
+      "breakpoints": true
     }
   ]
 }

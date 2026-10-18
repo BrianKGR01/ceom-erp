@@ -2,9 +2,11 @@ import { and, asc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   ajustesVenta,
+  bonificacionesVenta,
   canalesVenta,
   clientes,
   detallesVenta,
+  detallesVentaModificadores,
   eventos,
   metodosPago,
   pagosVenta,
@@ -194,6 +196,170 @@ export async function obtenerDetallesVenta(ventaId: string) {
   return db.select().from(detallesVenta).where(eq(detallesVenta.ventaId, ventaId));
 }
 
+/** H-51 Tanda B: la venta que ya creo este intento, si existe. */
+export async function obtenerVentaPorClaveIdempotencia(tenantId: string, clave: string) {
+  const [venta] = await db
+    .select()
+    .from(ventas)
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.claveIdempotencia, clave)))
+    .limit(1);
+  return venta ?? null;
+}
+
+export async function obtenerBonificacionDeVenta(ventaId: string) {
+  const [fila] = await db
+    .select()
+    .from(bonificacionesVenta)
+    .where(eq(bonificacionesVenta.ventaId, ventaId))
+    .limit(1);
+  return fila ?? null;
+}
+
+/**
+ * Fase 5: lo bonificado en un periodo, por motivo. `costo` es el costo real de lo consumido
+ * (cantidad x costo congelado de cada linea): una bonificacion no baja el costo, solo el ingreso.
+ * `ventasSinCostoConocido` cuenta las bonificaciones con alguna linea de costo desconocido, para
+ * que el numero no se lea mas bajo de lo que es.
+ */
+export async function resumirBonificacionesEnPeriodo(tenantId: string, inicio: Date, fin: Date) {
+  const enPeriodo = and(eq(ventas.tenantId, tenantId), gte(ventas.fechaVenta, inicio), lt(ventas.fechaVenta, fin));
+  // Dos consultas a proposito: unir las lineas multiplicaria el monto de cada bonificacion.
+  const [montos, costos] = await Promise.all([
+    db
+      .select({
+        motivo: bonificacionesVenta.motivo,
+        cantidadVentas: sql<number>`count(*)::int`,
+        montoBonificado: sql<string>`coalesce(sum(${bonificacionesVenta.montoBonificado}), 0)`,
+      })
+      .from(bonificacionesVenta)
+      .innerJoin(ventas, eq(ventas.id, bonificacionesVenta.ventaId))
+      .where(enPeriodo)
+      .groupBy(bonificacionesVenta.motivo),
+    db
+      .select({
+        motivo: bonificacionesVenta.motivo,
+        costo: sql<string>`coalesce(sum(${detallesVenta.cantidad} * ${detallesVenta.costoUnitarioSnapshot}), 0)`,
+        ventasSinCostoConocido: sql<number>`count(distinct ${ventas.id}) filter (where ${detallesVenta.costoDesconocido})::int`,
+      })
+      .from(bonificacionesVenta)
+      .innerJoin(ventas, eq(ventas.id, bonificacionesVenta.ventaId))
+      .innerJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(enPeriodo)
+      .groupBy(bonificacionesVenta.motivo),
+  ]);
+  return montos.map((m) => {
+    const c = costos.find((x) => x.motivo === m.motivo);
+    return {
+      motivo: m.motivo,
+      cantidadVentas: m.cantidadVentas,
+      montoBonificado: Number(m.montoBonificado),
+      costo: Number(c?.costo ?? 0),
+      ventasSinCostoConocido: c?.ventasSinCostoConocido ?? 0,
+    };
+  });
+}
+
+/**
+ * Fase 6: actividad de ventas en un periodo, por hora local y por quien la registro.
+ * Ingresos = suma de `detalles_venta.subtotal` (neto de bonificaciones), el mismo criterio de
+ * los demas reportes (H-26: no resta ajustes posteriores). Dos consultas: la cantidad de
+ * ventas se cuenta con `count(distinct)` y unir las lineas multiplicaria las filas.
+ */
+export async function resumirActividadVentas(
+  tenantId: string,
+  inicio: Date,
+  fin: Date,
+  zona: string,
+  sucursalId?: string
+) {
+  const donde = and(
+    eq(ventas.tenantId, tenantId),
+    gte(ventas.fechaVenta, inicio),
+    lt(ventas.fechaVenta, fin),
+    sucursalId ? eq(ventas.sucursalId, sucursalId) : undefined
+  );
+  const hora = sql<number>`extract(hour from ${ventas.fechaVenta} at time zone ${zona})::int`;
+  const [porHora, porVendedor] = await Promise.all([
+    db
+      .select({
+        hora,
+        cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+        ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      })
+      .from(ventas)
+      .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(donde)
+      // Por posicion: la zona viaja como parametro y Postgres no reconoce la expresion repetida.
+      .groupBy(sql`1`)
+      .orderBy(sql`1`),
+    db
+      .select({
+        vendedorId: ventas.creadoPor,
+        cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+        ingresos: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      })
+      .from(ventas)
+      .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(donde)
+      .groupBy(ventas.creadoPor),
+  ]);
+  return {
+    porHora: porHora.map((f) => ({ hora: f.hora, cantidad: f.cantidad, ingresos: Number(f.ingresos) })),
+    porVendedor: porVendedor.map((f) => ({
+      vendedorId: f.vendedorId,
+      cantidad: f.cantidad,
+      ingresos: Number(f.ingresos),
+    })),
+  };
+}
+
+/** Fase 4 Cafiatto: cuantas ventas tiene un turno y por cuanto (suma de lineas). */
+export async function resumirVentasDeTurno(tenantId: string, turnoId: string) {
+  const [fila] = await db
+    .select({
+      cantidad: sql<number>`count(distinct ${ventas.id})::int`,
+      total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+    })
+    .from(ventas)
+    .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.turnoId, turnoId)));
+  return { cantidad: fila.cantidad, total: Number(fila.total) };
+}
+
+/** Fase 4 Cafiatto: lo cobrado en un turno, por metodo de pago (el turno del COBRO, no el de la venta). */
+export async function resumirCobrosDeTurno(tenantId: string, turnoId: string) {
+  return db
+    .select({
+      metodoPagoId: metodosPago.id,
+      nombre: metodosPago.nombre,
+      esEfectivo: metodosPago.esEfectivo,
+      monto: sql<string>`coalesce(sum(${pagosVenta.monto}), 0)`,
+      cantidad: sql<number>`count(*)::int`,
+    })
+    .from(pagosVenta)
+    .innerJoin(ventas, eq(ventas.id, pagosVenta.ventaId))
+    .innerJoin(metodosPago, eq(metodosPago.id, pagosVenta.metodoPagoId))
+    .where(and(eq(ventas.tenantId, tenantId), eq(pagosVenta.turnoId, turnoId)))
+    .groupBy(metodosPago.id, metodosPago.nombre, metodosPago.esEfectivo)
+    .orderBy(metodosPago.nombre);
+}
+
+export async function listarVentasDeTurno(tenantId: string, turnoId: string) {
+  return db
+    .select({
+      id: ventas.id,
+      fechaVenta: ventas.fechaVenta,
+      estadoPago: ventas.estadoPago,
+      creadoPor: ventas.creadoPor,
+      total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+    })
+    .from(ventas)
+    .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+    .where(and(eq(ventas.tenantId, tenantId), eq(ventas.turnoId, turnoId)))
+    .groupBy(ventas.id)
+    .orderBy(ventas.fechaVenta);
+}
+
 export async function obtenerTotalVenta(ventaId: string): Promise<number> {
   const [{ total }] = await db
     .select({ total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)` })
@@ -206,17 +372,51 @@ export async function obtenerTotalVenta(ventaId: string): Promise<number> {
  * Crea la Venta y sus lineas en una transaccion, y si hay cliente, actualiza
  * primera_compra_en/ultima_compra_en (Modulo_03 seccion 1.8) — todo o nada.
  */
+export type ModificadorDeLinea = Omit<
+  typeof detallesVentaModificadores.$inferInsert,
+  "id" | "detalleVentaId"
+>;
+
 export async function crearVentaConDetalleTx(data: {
   venta: NuevaVenta;
-  lineas: Array<Omit<NuevoDetalleVenta, "id" | "ventaId">>;
+  lineas: Array<Omit<NuevoDetalleVenta, "id" | "ventaId"> & { modificadores?: ModificadorDeLinea[] }>;
+  /** Fase 5. */
+  bonificacion?: Omit<typeof bonificacionesVenta.$inferInsert, "id" | "ventaId" | "creadoEn">;
 }) {
   return db.transaction(async (tx) => {
     const [venta] = await tx.insert(ventas).values(data.venta).returning();
 
     const lineas = await tx
       .insert(detallesVenta)
-      .values(data.lineas.map((linea) => ({ ...linea, ventaId: venta.id })))
+      .values(
+        data.lineas.map((linea) => {
+          const valores = { ...linea, ventaId: venta.id };
+          delete valores.modificadores;
+          return valores;
+        })
+      )
       .returning();
+
+    // Fase 3: los modificadores van atados a su linea por posicion (el INSERT
+    // devuelve las filas en el orden en que se mandaron).
+    const filasModificadores = data.lineas.flatMap((linea, i) =>
+      (linea.modificadores ?? []).map((m) => ({ ...m, detalleVentaId: lineas[i].id }))
+    );
+    if (filasModificadores.length > 0) {
+      await tx.insert(detallesVentaModificadores).values(filasModificadores);
+    }
+
+    if (data.bonificacion) {
+      await tx.insert(bonificacionesVenta).values({ ...data.bonificacion, ventaId: venta.id });
+    }
+
+    // Una venta que vale 0 (bonificada al 100 %) no tiene nada que cobrar: nace pagada, no
+    // "pendiente de cobro para siempre".
+    const totalNeto = lineas.reduce((s, l) => s + Number(l.subtotal), 0);
+    if (totalNeto <= 0.005) {
+      await tx.update(ventas).set({ estadoPago: "pagado" }).where(eq(ventas.id, venta.id));
+      venta.estadoPago = "pagado";
+    }
 
     if (venta.clienteId) {
       const [clienteActual] = await tx

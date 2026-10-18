@@ -22,7 +22,7 @@ export default async function MetodosPagoPage() {
         />
 
         <MetodosPagoCliente
-          metodos={metodos.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo }))}
+          metodos={metodos.map((m) => ({ id: m.id, nombre: m.nombre, activo: m.activo, esEfectivo: m.esEfectivo }))}
         />
       </div>
     </div>
