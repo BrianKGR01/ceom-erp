@@ -39,6 +39,8 @@ export interface ProductFormInitialValues {
   precioVenta?: number;
   costoOperativoVigente?: number;
   vidaUtilDias?: number;
+  grupoVariantes?: string;
+  etiquetaVariante?: string;
   fechaVencimientoReferencia?: string;
   activo?: boolean;
 }
@@ -80,6 +82,8 @@ export function ProductForm({
       precioVenta: initialValues?.precioVenta,
       costoOperativoVigente: initialValues?.costoOperativoVigente,
       vidaUtilDias: initialValues?.vidaUtilDias,
+      grupoVariantes: initialValues?.grupoVariantes ?? "",
+      etiquetaVariante: initialValues?.etiquetaVariante ?? "",
       fechaVencimientoReferencia: initialValues?.fechaVencimientoReferencia ?? "",
       activo: initialValues?.activo ?? true,
       // Nunca undefined en el valor inicial — un Select de base-ui que
@@ -156,6 +160,29 @@ export function ProductForm({
               {form.formState.errors.nombre && (
                 <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="grupoVariantes">Grupo de variantes (opcional)</Label>
+                <Input
+                  id="grupoVariantes"
+                  placeholder="Ej. Latte"
+                  {...form.register("grupoVariantes")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="etiquetaVariante">Variante (opcional)</Label>
+                <Input
+                  id="etiquetaVariante"
+                  placeholder="Ej. 12 oz"
+                  {...form.register("etiquetaVariante")}
+                />
+              </div>
+              <p className="col-span-2 -mt-2 text-xs text-text-muted">
+                Cada variante es un producto con su propio precio y receta. Poné el mismo grupo en
+                todas (por ejemplo &quot;Latte&quot;) y en Vender aparecen juntas.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

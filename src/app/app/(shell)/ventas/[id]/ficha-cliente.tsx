@@ -58,6 +58,15 @@ export interface DetalleLinea {
   cantidad: string;
   precioVentaSnapshot: string;
   subtotal: string;
+  /** Fase 5: lo que una bonificacion le saco a la linea. */
+  descuentoMonto: string;
+}
+export interface BonificacionInfo {
+  motivo: "consumo_personal" | "cortesia";
+  porcentaje: number;
+  montoBonificado: number;
+  beneficiario: string | null;
+  nota: string | null;
 }
 export interface PagoFila {
   id: string;
@@ -77,6 +86,7 @@ export function FichaVentaCliente({
   ventaId,
   estadoPagoInicial,
   totalVenta,
+  bonificacion,
   comision,
   detalles,
   pagosIniciales,
@@ -87,6 +97,7 @@ export function FichaVentaCliente({
   ventaId: string;
   estadoPagoInicial: EstadoPago;
   totalVenta: number;
+  bonificacion: BonificacionInfo | null;
   comision: { monto: number; porcentaje: number | null } | null;
   detalles: DetalleLinea[];
   pagosIniciales: PagoFila[];
@@ -236,7 +247,14 @@ export function FichaVentaCliente({
                     {linea.cantidad} × {Number(linea.precioVentaSnapshot).toFixed(2)}
                   </p>
                 </div>
-                <span className="font-medium text-navy">{Number(linea.subtotal).toFixed(2)}</span>
+                <span className="text-right">
+                  <span className="block font-medium text-navy">{Number(linea.subtotal).toFixed(2)}</span>
+                  {Number(linea.descuentoMonto) > 0 && (
+                    <span className="block text-[11px] text-warning-text">
+                      −{Number(linea.descuentoMonto).toFixed(2)} bonificado
+                    </span>
+                  )}
+                </span>
               </div>
             ))}
           </CardContent>
@@ -303,8 +321,26 @@ export function FichaVentaCliente({
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-text-muted">Subtotal</span>
-              <span className="text-text-body">{totalVenta.toFixed(2)}</span>
+              <span className="text-text-body">
+                {(totalVenta + (bonificacion?.montoBonificado ?? 0)).toFixed(2)}
+              </span>
             </div>
+            {bonificacion && (
+              <div className="space-y-0.5 text-sm">
+                <div className="flex items-center justify-between text-warning-text">
+                  <span>
+                    Bonificación ({bonificacion.porcentaje}%) ·{" "}
+                    {bonificacion.motivo === "consumo_personal" ? "consumo del personal" : "cortesía"}
+                  </span>
+                  <span>−{bonificacion.montoBonificado.toFixed(2)}</span>
+                </div>
+                {(bonificacion.beneficiario || bonificacion.nota) && (
+                  <p className="text-xs text-text-muted">
+                    {[bonificacion.beneficiario, bonificacion.nota].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-gray-border pt-3 text-base font-semibold">
               <span className="text-navy">Total</span>
               <span className="text-navy">{totalVenta.toFixed(2)}</span>

@@ -8,12 +8,24 @@ import { consultarCapacidad } from "@/modules/patrimonio/actions";
 import {
   consultarStock,
   enviarProductoAOperaciones,
+  registrarBajaStockProducto,
   fichaProducto,
   registrarEntradaProduccion,
 } from "@/modules/productos/actions";
 import { instanteDeDiaLocal, rangoInstantes, zonaHorariaTenant } from "@/lib/periodo";
+import { calcularConsumoRecetas, redondear4 } from "./consumo-recetas";
+import { ETIQUETA_MOTIVO_BAJA } from "./motivos-baja";
 import * as repo from "./repository";
-import type { tipoMovimientoInsumoEnum, unidadMedidaInsumoEnum } from "./schema";
+import type {
+  modoConsumoRecetaEnum,
+  motivoBajaEnum,
+  tipoMovimientoInsumoEnum,
+  unidadMedidaInsumoEnum,
+} from "./schema";
+
+export type MotivoBaja = (typeof motivoBajaEnum.enumValues)[number];
+
+export type ModoConsumoReceta = (typeof modoConsumoRecetaEnum.enumValues)[number];
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -375,6 +387,476 @@ export async function registrarMermaAlmacenamiento(
   return { ok: true, data: { movimientoId: movimiento.id, cantidadActual } };
 }
 
+// --- Bajas (Roadmap Cafiatto, Fase 2) ---------------------------------------
+
+export { ETIQUETA_MOTIVO_BAJA };
+
+export interface SaldoInsumoBaja {
+  insumoId: string;
+  insumoNombre: string;
+  cantidadActual: number;
+}
+
+export interface ResultadoBaja {
+  bajaId: string;
+  /** Costo de lo perdido congelado en la baja; null si a algun insumo le falta costo. */
+  costoTotal: number | null;
+  /** Insumos tocados y su saldo resultante (la pantalla avisa si alguno queda en negativo). */
+  saldos: SaldoInsumoBaja[];
+  /** Stock terminado restante, solo cuando la baja fue de un producto con stock. */
+  stockProductoActual: number | null;
+}
+
+interface DatosBajaBase {
+  sucursalId: string;
+  cantidad: number;
+  motivo: MotivoBaja;
+  nota?: string;
+}
+
+function validarBaja(input: DatosBajaBase): string | null {
+  if (!(input.cantidad > 0)) return "La cantidad de la baja tiene que ser mayor a cero.";
+  if (!(input.motivo in ETIQUETA_MOTIVO_BAJA)) return "Elegí un motivo de baja válido.";
+  if (input.motivo === "otro" && !input.nota?.trim()) {
+    return 'Con el motivo "Otro" explicá qué pasó en la nota.';
+  }
+  return null;
+}
+
+/**
+ * Baja de un insumo (leche derramada, café vencido). No es una venta ni un
+ * ajuste de conteo: deja el motivo, el costo congelado y baja el saldo. NO
+ * bloquea si el saldo no alcanza (el conteo del sistema puede ir atrasado): el
+ * saldo queda en negativo y se devuelve para que la pantalla lo avise.
+ */
+export async function registrarBajaInsumo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosBajaBase & { insumoId: string }
+): Promise<Resultado<ResultadoBaja>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para registrar bajas en este tenant." };
+  }
+  const errorValidacion = validarBaja(input);
+  if (errorValidacion) return { ok: false, error: errorValidacion };
+
+  const insumo = await repo.obtenerInsumoPorId(input.insumoId);
+  if (!insumo || insumo.tenantId !== tenantId) {
+    return { ok: false, error: "Insumo no encontrado." };
+  }
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+
+  const costoUnitario = insumo.costoUnitarioVigente === null ? null : Number(insumo.costoUnitarioVigente);
+  const costoTotal = costoUnitario === null ? null : redondear4(costoUnitario * input.cantidad);
+
+  const { baja, saldos } = await repo.crearBajaInsumoTx({
+    baja: {
+      tenantId,
+      sucursalId: input.sucursalId,
+      tipo: "insumo",
+      insumoId: input.insumoId,
+      cantidad: String(redondear4(input.cantidad)),
+      motivo: input.motivo,
+      nota: input.nota?.trim() || null,
+      costoTotal: costoTotal === null ? null : String(costoTotal),
+      costoDesconocido: costoTotal === null,
+      creadoPor: solicitante.id,
+    },
+    costoUnitarioEnMovimiento: String(costoUnitario ?? 0),
+  });
+
+  return {
+    ok: true,
+    data: {
+      bajaId: baja.id,
+      costoTotal,
+      saldos: saldos.map((s) => ({ ...s, insumoNombre: insumo.nombre })),
+      stockProductoActual: null,
+    },
+  };
+}
+
+/**
+ * Baja de un producto. Si se prepara al vender, consume los insumos de su
+ * receta (un Latte descartado gasta su cafe y su leche); si tiene stock
+ * terminado, descuenta ese stock. Ninguna de las dos genera ingreso ni venta.
+ */
+export async function registrarBajaProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosBajaBase & { productoId: string }
+): Promise<Resultado<ResultadoBaja>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para registrar bajas en este tenant." };
+  }
+  const errorValidacion = validarBaja(input);
+  if (errorValidacion) return { ok: false, error: errorValidacion };
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+
+  const cantidad = redondear4(input.cantidad);
+  const plan = await calcularConsumoRecetas(tenantId, [{ productoId: input.productoId, cantidad }]);
+  const porReceta = plan.porLinea[0]?.alVender ? plan.porLinea[0] : undefined;
+  const base = {
+    tenantId,
+    sucursalId: input.sucursalId,
+    tipo: "producto" as const,
+    productoId: input.productoId,
+    cantidad: String(cantidad),
+    motivo: input.motivo,
+    nota: input.nota?.trim() || null,
+    creadoPor: solicitante.id,
+  };
+
+  if (porReceta) {
+    const costoTotal = porReceta.costoUnitario === null ? null : redondear4(porReceta.costoUnitario * cantidad);
+    const { baja, saldos } = await repo.crearBajaProductoConRecetaTx({
+      baja: {
+        ...base,
+        costoTotal: costoTotal === null ? null : String(costoTotal),
+        costoDesconocido: costoTotal === null,
+      },
+      consumos: plan.consumos.map((c) => ({
+        insumoId: c.insumoId,
+        cantidad: String(c.cantidad),
+        costoUnitarioEnMovimiento: String(c.costoUnitario ?? 0),
+      })),
+    });
+    const nombre = new Map(plan.consumos.map((c) => [c.insumoId, c.insumoNombre]));
+    return {
+      ok: true,
+      data: {
+        bajaId: baja.id,
+        costoTotal,
+        saldos: saldos.map((s) => ({ ...s, insumoNombre: nombre.get(s.insumoId) ?? "Insumo" })),
+        stockProductoActual: null,
+      },
+    };
+  }
+
+  // Producto con stock terminado. El movimiento lo escribe Productos (que ademas
+  // ata el producto al tenant); despues se deja el registro de la baja. Son dos
+  // pasos fuera de una misma transaccion (gap de atomicidad cruzada, como en
+  // Ventas): si el registro fallara, el stock ya bajo y el error lo dice.
+  const descuento = await registrarBajaStockProducto(solicitante, tenantId, {
+    productoId: input.productoId,
+    sucursalId: input.sucursalId,
+    cantidad,
+    motivo: ETIQUETA_MOTIVO_BAJA[input.motivo],
+  });
+  if (!descuento.ok) return descuento;
+
+  const costoUnitario = descuento.data.costoOperativoVigente;
+  const costoTotal = costoUnitario === null ? null : redondear4(costoUnitario * cantidad);
+  const baja = await repo.crearBaja({
+    ...base,
+    costoTotal: costoTotal === null ? null : String(costoTotal),
+    costoDesconocido: costoTotal === null,
+  });
+
+  return {
+    ok: true,
+    data: {
+      bajaId: baja.id,
+      costoTotal,
+      saldos: [],
+      stockProductoActual: descuento.data.cantidadActual,
+    },
+  };
+}
+
+export async function listarBajas(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  sucursalId?: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarBajasEnPeriodo>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver bajas en este tenant." };
+  }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  return { ok: true, data: await repo.listarBajasEnPeriodo(tenantId, inicio, fin, sucursalId) };
+}
+
+/**
+ * Costo de las bajas por motivo en un periodo. Devuelve junto al total cuantas
+ * bajas no tienen costo conocido: el numero sin ese marcador se lee optimista
+ * (reglas 9 y 10: marcar el hueco, no estimarlo).
+ */
+export async function consultarBajasPorMotivo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string }
+): Promise<
+  Resultado<{
+    porMotivo: Array<{ motivo: MotivoBaja; cantidadBajas: number; costoTotal: number; sinCostoConocido: number }>;
+    costoTotal: number;
+    bajasSinCostoConocido: number;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver bajas en este tenant." };
+  }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  const filas = await repo.resumirBajasPorMotivo(tenantId, inicio, fin);
+  const porMotivo = filas.map((f) => ({
+    motivo: f.motivo,
+    cantidadBajas: f.cantidadBajas,
+    costoTotal: Number(f.costoTotal),
+    sinCostoConocido: f.sinCostoConocido,
+  }));
+  return {
+    ok: true,
+    data: {
+      porMotivo,
+      costoTotal: porMotivo.reduce((s, f) => s + f.costoTotal, 0),
+      bajasSinCostoConocido: porMotivo.reduce((s, f) => s + f.sinCostoConocido, 0),
+    },
+  };
+}
+
+// --- Modificadores (Roadmap Cafiatto, Fase 3) --------------------------------
+
+export type SeleccionModificador = "una" | "varias";
+export type TipoModificador = "agrega" | "reemplaza" | "indicacion";
+
+export interface DatosGrupoModificadores {
+  nombre: string;
+  seleccion: SeleccionModificador;
+  orden?: number;
+}
+
+export interface DatosModificador {
+  nombre: string;
+  tipo: TipoModificador;
+  /** Opcion por defecto de un grupo "elige 1" (ej. leche "Entera"): no cambia nada. */
+  esBase?: boolean;
+  precioExtra?: number;
+  /** agrega / reemplaza: insumo que se suma. */
+  insumoId?: string;
+  /** Cantidad del insumo que se suma, por unidad vendida. En "reemplaza" es opcional (1 a 1). */
+  cantidad?: number;
+  /** reemplaza: insumo de la receta base que se saca. */
+  insumoReemplazadoId?: string;
+  orden?: number;
+}
+
+export async function crearGrupoModificadores(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosGrupoModificadores
+): Promise<Resultado<{ grupoId: string }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
+    return { ok: false, error: "No tenés permiso para crear modificadores en este tenant." };
+  }
+  if (!input.nombre.trim()) return { ok: false, error: "Ponele un nombre al grupo." };
+  const grupo = await repo.crearGrupoModificadores({
+    tenantId,
+    nombre: input.nombre.trim(),
+    seleccion: input.seleccion,
+    orden: input.orden ?? 0,
+  });
+  return { ok: true, data: { grupoId: grupo.id } };
+}
+
+export async function actualizarGrupoModificadores(
+  solicitante: UsuarioConRol,
+  grupoId: string,
+  input: Partial<DatosGrupoModificadores>
+): Promise<Resultado<true>> {
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo) return { ok: false, error: "Grupo no encontrado." };
+  if (!(await tienePermiso(solicitante, grupo.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  if (input.nombre !== undefined && !input.nombre.trim()) {
+    return { ok: false, error: "Ponele un nombre al grupo." };
+  }
+  await repo.actualizarGrupoModificadores(grupoId, {
+    nombre: input.nombre?.trim(),
+    seleccion: input.seleccion,
+    orden: input.orden,
+  });
+  return { ok: true, data: true };
+}
+
+/** Soft delete del grupo, de sus opciones y de sus vinculos. Las ventas ya hechas conservan su copia. */
+export async function eliminarGrupoModificadores(
+  solicitante: UsuarioConRol,
+  grupoId: string
+): Promise<Resultado<true>> {
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo) return { ok: false, error: "Grupo no encontrado." };
+  if (!(await tienePermiso(solicitante, grupo.tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para eliminar modificadores." };
+  }
+  await repo.eliminarGrupoModificadoresSoft(grupoId);
+  return { ok: true, data: true };
+}
+
+export async function listarGruposModificadores(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarGruposConModificadores>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver modificadores en este tenant." };
+  }
+  return { ok: true, data: await repo.listarGruposConModificadores(tenantId) };
+}
+
+/** La forma valida de un modificador depende de su tipo; los insumos tienen que ser del tenant. */
+async function validarModificador(
+  tenantId: string,
+  grupoId: string,
+  input: DatosModificador,
+  modificadorId?: string
+): Promise<string | null> {
+  if (!input.nombre.trim()) return "Ponele un nombre a la opción.";
+  const precio = input.precioExtra ?? 0;
+  if (!(precio >= 0)) return "El precio extra no puede ser negativo.";
+
+  if (input.tipo === "agrega") {
+    if (!input.insumoId) return "Elegí el insumo que se agrega.";
+    if (!(Number(input.cantidad) > 0)) return "Indicá cuánto del insumo se agrega (mayor a 0).";
+    if (input.insumoReemplazadoId) return "Una opción que agrega no reemplaza ningún insumo.";
+  } else if (input.tipo === "reemplaza") {
+    if (!input.insumoReemplazadoId) return "Elegí el insumo de la receta que se reemplaza.";
+    if (input.cantidad !== undefined && !(Number(input.cantidad) > 0)) {
+      return "La cantidad del insumo nuevo tiene que ser mayor a 0.";
+    }
+    if (input.cantidad !== undefined && !input.insumoId) {
+      return "Elegí el insumo nuevo o quitá la cantidad.";
+    }
+    if (input.insumoId && input.insumoId === input.insumoReemplazadoId) {
+      return "El insumo nuevo tiene que ser distinto del que reemplaza.";
+    }
+  } else {
+    if (input.insumoId || input.cantidad !== undefined || input.insumoReemplazadoId) {
+      return "Una indicación es solo texto: no lleva insumos.";
+    }
+    if (precio !== 0) return "Una indicación no puede cambiar el precio.";
+  }
+  if (input.esBase && input.tipo !== "indicacion") {
+    return "La opción por defecto de un grupo no cambia nada: tiene que ser una indicación.";
+  }
+  if (input.esBase && (await repo.existeBaseEnGrupo(grupoId, modificadorId))) {
+    return "Este grupo ya tiene una opción por defecto.";
+  }
+
+  const insumoIds = [input.insumoId, input.insumoReemplazadoId].filter((x): x is string => Boolean(x));
+  if (insumoIds.length > 0) {
+    const unicos = [...new Set(insumoIds)];
+    if ((await repo.contarInsumosDelTenant(tenantId, unicos)) !== unicos.length) {
+      return "Insumo no encontrado.";
+    }
+  }
+  return null;
+}
+
+export async function crearModificador(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  grupoId: string,
+  input: DatosModificador
+): Promise<Resultado<{ modificadorId: string }>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
+    return { ok: false, error: "No tenés permiso para crear modificadores en este tenant." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  const error = await validarModificador(tenantId, grupoId, input);
+  if (error) return { ok: false, error };
+
+  const modificador = await repo.crearModificador({
+    tenantId,
+    grupoId,
+    nombre: input.nombre.trim(),
+    tipo: input.tipo,
+    esBase: input.esBase ?? false,
+    precioExtra: String(input.precioExtra ?? 0),
+    insumoId: input.insumoId ?? null,
+    cantidad: input.cantidad !== undefined ? String(input.cantidad) : null,
+    insumoReemplazadoId: input.insumoReemplazadoId ?? null,
+    orden: input.orden ?? 0,
+  });
+  return { ok: true, data: { modificadorId: modificador.id } };
+}
+
+export async function actualizarModificador(
+  solicitante: UsuarioConRol,
+  modificadorId: string,
+  input: DatosModificador
+): Promise<Resultado<true>> {
+  const actual = await repo.obtenerModificadorPorId(modificadorId);
+  if (!actual) return { ok: false, error: "Opción no encontrada." };
+  if (!(await tienePermiso(solicitante, actual.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const error = await validarModificador(actual.tenantId, actual.grupoId, input, modificadorId);
+  if (error) return { ok: false, error };
+
+  await repo.actualizarModificador(modificadorId, {
+    nombre: input.nombre.trim(),
+    tipo: input.tipo,
+    esBase: input.esBase ?? false,
+    precioExtra: String(input.precioExtra ?? 0),
+    insumoId: input.insumoId ?? null,
+    cantidad: input.cantidad !== undefined ? String(input.cantidad) : null,
+    insumoReemplazadoId: input.insumoReemplazadoId ?? null,
+    orden: input.orden,
+  });
+  return { ok: true, data: true };
+}
+
+export async function eliminarModificador(
+  solicitante: UsuarioConRol,
+  modificadorId: string
+): Promise<Resultado<true>> {
+  const actual = await repo.obtenerModificadorPorId(modificadorId);
+  if (!actual) return { ok: false, error: "Opción no encontrada." };
+  if (!(await tienePermiso(solicitante, actual.tenantId, "operativo", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para eliminar modificadores." };
+  }
+  await repo.eliminarModificadorSoft(modificadorId);
+  return { ok: true, data: true };
+}
+
+/** Ofrece un grupo de modificadores a un producto en el punto de venta. */
+export async function vincularGrupoModificadoresAProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoId: string,
+  grupoId: string
+): Promise<Resultado<true>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  // Ata el producto al tenant (y exige poder verlo), igual que vincularProductoAReceta.
+  const ficha = await fichaProducto(solicitante, productoId);
+  if (!ficha.ok) return ficha;
+
+  await repo.vincularGrupoAProducto(productoId, grupoId);
+  return { ok: true, data: true };
+}
+
+export async function desvincularGrupoModificadoresDeProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  productoId: string,
+  grupoId: string
+): Promise<Resultado<true>> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar modificadores." };
+  }
+  const grupo = await repo.obtenerGrupoModificadoresPorId(grupoId);
+  if (!grupo || grupo.tenantId !== tenantId) return { ok: false, error: "Grupo no encontrado." };
+  await repo.desvincularGrupoDeProducto(productoId, grupoId);
+  return { ok: true, data: true };
+}
+
 // --- Recetas ---------------------------------------------------------
 
 export interface DatosReceta {
@@ -516,7 +998,13 @@ export async function actualizarComposicionReceta(
 export async function vincularProductoAReceta(
   solicitante: UsuarioConRol,
   tenantId: string,
-  input: { productoId: string; recetaId: string; cantidadBaseConsumidaPorUnidad: string | number }
+  input: {
+    productoId: string;
+    recetaId: string;
+    cantidadBaseConsumidaPorUnidad: string | number;
+    /** Fase 1 Cafiatto. Por omision `al_producir` (comportamiento historico). */
+    modoConsumo?: ModoConsumoReceta;
+  }
 ): Promise<Resultado<{ vinculacionId: string }>> {
   if (!(await tienePermiso(solicitante, tenantId, "operativo", "crear"))) {
     return { ok: false, error: "No tenés permiso para vincular productos en este tenant." };
@@ -540,9 +1028,42 @@ export async function vincularProductoAReceta(
     productoId: input.productoId,
     recetaId: input.recetaId,
     cantidadBaseConsumidaPorUnidad: String(input.cantidadBaseConsumidaPorUnidad),
+    modoConsumo: input.modoConsumo ?? "al_producir",
   });
 
   return { ok: true, data: { vinculacionId: vinculacion.id } };
+}
+
+/**
+ * Cambia cuando se descuentan los insumos de un producto ya vinculado:
+ * `al_producir` (Produccion) o `al_vender` (Venta). Solo afecta ventas
+ * futuras: las ya registradas conservan su snapshot de costo (regla 4).
+ */
+export async function cambiarModoConsumoProducto(
+  solicitante: UsuarioConRol,
+  productoId: string,
+  modoConsumo: ModoConsumoReceta
+): Promise<Resultado<true>> {
+  const vinculacion = await repo.obtenerVinculacionPorProducto(productoId);
+  if (!vinculacion) return { ok: false, error: "Este producto no está vinculado a ninguna receta." };
+
+  const receta = await repo.obtenerRecetaPorId(vinculacion.recetaId);
+  if (!receta) return { ok: false, error: "Receta no encontrada." };
+  if (!(await tienePermiso(solicitante, receta.tenantId, "operativo", "editar"))) {
+    return { ok: false, error: "No tenés permiso para editar esta receta." };
+  }
+  if (modoConsumo === "al_vender") {
+    const composicion = await repo.obtenerComposicionReceta(receta.id);
+    if (composicion.length === 0) {
+      return {
+        ok: false,
+        error: "La receta no tiene insumos: cargá su composición antes de descontarla al vender.",
+      };
+    }
+  }
+
+  await repo.actualizarModoConsumoVinculacion(vinculacion.id, modoConsumo);
+  return { ok: true, data: true };
 }
 
 export async function desvincularProductoDeReceta(
@@ -570,6 +1091,7 @@ export async function obtenerRecetaDeProducto(
     receta: Awaited<ReturnType<typeof repo.obtenerRecetaPorId>>;
     composicion: Awaited<ReturnType<typeof repo.obtenerComposicionReceta>>;
     cantidadBaseConsumidaPorUnidad: string;
+    modoConsumo: ModoConsumoReceta;
   } | null>
 > {
   const vinculacion = await repo.obtenerVinculacionPorProducto(productoId);
@@ -588,6 +1110,7 @@ export async function obtenerRecetaDeProducto(
       receta,
       composicion,
       cantidadBaseConsumidaPorUnidad: vinculacion.cantidadBaseConsumidaPorUnidad,
+      modoConsumo: vinculacion.modoConsumo,
     },
   };
 }

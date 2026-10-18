@@ -2,6 +2,7 @@
 
 import { obtenerUsuarioActual, tienePermiso } from "@/modules/identidad/actions";
 import {
+  cambiarModoConsumoProducto,
   desvincularProductoDeReceta,
   vincularProductoAReceta,
 } from "@/modules/operativo/nichos/nicho-1/actions";
@@ -119,6 +120,8 @@ export async function actualizarProductoAction(
     precioVenta,
     costoOperativoVigente,
     vidaUtilDias,
+    grupoVariantes,
+    etiquetaVariante,
     fechaVencimientoReferencia,
     activo,
   } = parsed.data;
@@ -131,6 +134,8 @@ export async function actualizarProductoAction(
     precioVenta,
     costoOperativoVigente,
     vidaUtilDias,
+    grupoVariantes,
+    etiquetaVariante,
     fechaVencimientoReferencia: fechaVencimientoReferencia || undefined,
     activo,
   });
@@ -223,11 +228,27 @@ export async function vincularProductoARecetaAction(input: {
   productoId: string;
   recetaId: string;
   cantidadBaseConsumidaPorUnidad: number;
+  modoConsumo?: "al_producir" | "al_vender";
 }): Promise<ResultadoAccion<{ vinculacionId: string }>> {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
 
   return vincularProductoAReceta(usuario, usuario.tenantId, input);
+}
+
+export async function cambiarModoConsumoProductoAction(
+  productoId: string,
+  modoConsumo: "al_producir" | "al_vender"
+): Promise<ResultadoAccion<undefined>> {
+  const usuario = await obtenerUsuarioActual();
+  if (!usuario) return { ok: false, error: "Tu sesión expiró — iniciá sesión de nuevo." };
+  if (modoConsumo !== "al_producir" && modoConsumo !== "al_vender") {
+    return { ok: false, error: "Modo de consumo inválido." };
+  }
+
+  const resultado = await cambiarModoConsumoProducto(usuario, productoId, modoConsumo);
+  if (!resultado.ok) return resultado;
+  return { ok: true, data: undefined };
 }
 
 export async function desvincularProductoDeRecetaAction(

@@ -1,0 +1,2 @@
+ALTER TABLE "ventas" ADD COLUMN "clave_idempotencia" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "ventas_tenant_clave_idempotencia_uq" ON "ventas" USING btree ("tenant_id","clave_idempotencia") WHERE "ventas"."clave_idempotencia" is not null;

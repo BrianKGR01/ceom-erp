@@ -32,6 +32,7 @@ export interface MetodoListado {
   id: string;
   nombre: string;
   activo: boolean;
+  esEfectivo: boolean;
 }
 
 function MetodoFormDialog({
@@ -47,7 +48,7 @@ function MetodoFormDialog({
 }) {
   const form = useForm<MetodoFormInput>({
     resolver: zodResolver(metodoPagoFormSchema),
-    values: { nombre: metodo?.nombre ?? "" },
+    values: { nombre: metodo?.nombre ?? "", esEfectivo: metodo?.esEfectivo ?? false },
   });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +86,16 @@ function MetodoFormDialog({
               <p className="text-xs text-error-text">{form.formState.errors.nombre.message}</p>
             )}
           </div>
+
+          <label className="flex items-start gap-2 text-sm text-text-body">
+            <input type="checkbox" className="mt-1" {...form.register("esEfectivo")} />
+            <span>
+              Es efectivo
+              <span className="block text-xs text-text-muted">
+                Lo cobrado con este método entra al cajón y cuenta para el efectivo esperado al cerrar el turno.
+              </span>
+            </span>
+          </label>
 
           {error && <p className="text-xs text-error-text">{error}</p>}
 
@@ -149,7 +160,10 @@ export function MetodosPagoCliente({ metodos }: { metodos: MetodoListado[] }) {
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-pastel-blue-bg text-primary">
                 <CreditCard className="size-4" />
               </span>
-              <p className="flex-1 text-text-body">{metodo.nombre}</p>
+              <p className="flex-1 text-text-body">
+                {metodo.nombre}
+                {metodo.esEfectivo && <span className="text-xs text-text-muted"> · efectivo</span>}
+              </p>
               <Button
                 variant="ghost"
                 size="icon-sm"

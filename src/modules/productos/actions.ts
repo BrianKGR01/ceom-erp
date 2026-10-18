@@ -156,6 +156,9 @@ export interface DatosProducto {
   tipoOrigenProducto?: Exclude<TipoOrigenProducto, "produccion_nicho">;
   fechaVencimientoReferencia?: string;
   vidaUtilDias?: number;
+  /** Fase 3: agrupa variantes del mismo producto ("Latte") y dice cual es esta ("12 oz"). */
+  grupoVariantes?: string;
+  etiquetaVariante?: string;
   activo?: boolean;
 }
 
@@ -183,6 +186,8 @@ export async function crearProducto(
     tipoOrigenProducto: input.tipoOrigenProducto ?? "manual",
     fechaVencimientoReferencia: input.fechaVencimientoReferencia,
     vidaUtilDias: input.vidaUtilDias,
+    grupoVariantes: input.grupoVariantes?.trim() || undefined,
+    etiquetaVariante: input.etiquetaVariante?.trim() || undefined,
     activo: input.activo ?? true,
     creadoPor: solicitante.id,
   });
@@ -240,6 +245,9 @@ export async function actualizarProducto(
     origenCosto: esProduccion ? undefined : input.origenCosto,
     fechaVencimientoReferencia: input.fechaVencimientoReferencia,
     vidaUtilDias: input.vidaUtilDias,
+    // "" limpia el campo (queda null); undefined lo deja como estaba.
+    grupoVariantes: input.grupoVariantes === undefined ? undefined : input.grupoVariantes.trim() || null,
+    etiquetaVariante: input.etiquetaVariante === undefined ? undefined : input.etiquetaVariante.trim() || null,
     activo: input.activo,
     modificadoPor: solicitante.id,
     modificadoEn: new Date(),
@@ -616,6 +624,58 @@ export async function registrarAjusteManualStock(
   });
 
   return { ok: true, data: { movimientoId: movimiento.id, cantidadActual } };
+}
+
+/**
+ * Baja de producto con stock terminado (Roadmap Cafiatto, Fase 2): una perdida
+ * que no es una venta ni un ajuste de conteo. Escribe `salida_merma` en el
+ * ledger y devuelve el costo vigente para que quien registra la baja congele
+ * el costo de lo perdido (regla 4). No genera ingreso ni venta.
+ */
+export async function registrarBajaStockProducto(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: {
+    productoId: string;
+    sucursalId: string;
+    cantidad: string | number;
+    motivo: string;
+    referenciaId?: string;
+  }
+): Promise<
+  Resultado<{ movimientoId: string; cantidadActual: number; costoOperativoVigente: number | null }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "inventario", "anular_ajustar"))) {
+    return { ok: false, error: "No tenés permiso para dar de baja stock." };
+  }
+  const pertenece = await requireProductoDelTenant(tenantId, input.productoId);
+  if (pertenece) return pertenece;
+  const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, input.sucursalId);
+  if (sucursalOperable) return sucursalOperable;
+  if (!input.motivo.trim()) {
+    return { ok: false, error: "El motivo de la baja es obligatorio." };
+  }
+
+  const producto = await repo.obtenerProductoPorId(input.productoId);
+  const { movimiento, cantidadActual } = await repo.crearMovimientoTx({
+    productoId: input.productoId,
+    sucursalId: input.sucursalId,
+    tipo: "salida_merma",
+    cantidad: String(input.cantidad),
+    motivo: input.motivo,
+    referenciaId: input.referenciaId,
+    creadoPor: solicitante.id,
+  });
+
+  return {
+    ok: true,
+    data: {
+      movimientoId: movimiento.id,
+      cantidadActual,
+      costoOperativoVigente:
+        producto?.costoOperativoVigente != null ? Number(producto.costoOperativoVigente) : null,
+    },
+  };
 }
 
 /** descontar_stock() (Modulo_02 seccion 3) — hoy sin caller real (Ventas no

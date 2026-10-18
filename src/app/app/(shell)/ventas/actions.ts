@@ -1,5 +1,6 @@
 "use server";
 
+import { turnoParaOperar } from "@/modules/caja/actions";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
 import {
   abrirEvento,
@@ -11,6 +12,7 @@ import {
   crearCanalVenta,
   crearCliente,
   crearMetodoPago,
+  consultarSucursalDeVenta,
   desactivarMetodoPago,
   eliminarCanalVenta,
   eliminarCliente,
@@ -69,6 +71,37 @@ function avisosDeStock(
   });
 }
 
+/**
+ * Fase 1 Cafiatto — qué pasó con los insumos de las recetas. Mismo criterio que
+ * `avisosDeStock`: la venta ya quedó; si el consumo falló o dejó un insumo en
+ * negativo, se dice antes de salir de la pantalla. No hay una línea de venta
+ * dueña de un insumo (varios productos pueden compartirlo), así que el aviso se
+ * ancla a la primera línea, que es solo el ancla visual del cartel.
+ */
+function avisosDeInsumos(
+  productoIdAncla: string | undefined,
+  consumo:
+    | { ok: true; data: { saldos: Array<{ insumoNombre: string; cantidadActual: number }> } }
+    | { ok: false; error: string }
+    | null
+): Array<{ productoId: string; mensaje: string }> {
+  if (!consumo || !productoIdAncla) return [];
+  if (!consumo.ok) {
+    return [
+      {
+        productoId: productoIdAncla,
+        mensaje: `La venta quedó registrada, pero no se descontaron los insumos de la receta: ${consumo.error}`,
+      },
+    ];
+  }
+  return consumo.data.saldos
+    .filter((s) => s.cantidadActual < 0)
+    .map((s) => ({
+      productoId: productoIdAncla,
+      mensaje: `El insumo "${s.insumoNombre}" quedó en negativo: ${s.cantidadActual}. Revisá el conteo o cargá la entrada que falta.`,
+    }));
+}
+
 export async function registrarVentaAction(
   sucursalId: string,
   input: unknown
@@ -87,13 +120,22 @@ export async function registrarVentaAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
 
+  // Fase 4 Cafiatto: con la caja activa, la venta va al turno abierto de la sucursal (o se
+  // rechaza si no hay). El turno lo decide el servidor, nunca viene del cliente.
+  const turno = await turnoParaOperar(usuario, usuario.tenantId, sucursalId);
+  if (!turno.ok) return turno;
+
   const resultado = await registrarVenta(usuario, usuario.tenantId, {
     sucursalId,
     ...parsed.data,
+    turnoId: turno.data.turnoId ?? undefined,
   });
   if (!resultado.ok) return resultado;
 
-  const avisosStock = avisosDeStock(parsed.data.lineas, resultado.data.descuentosStock);
+  const avisosStock = [
+    ...avisosDeStock(parsed.data.lineas, resultado.data.descuentosStock),
+    ...avisosDeInsumos(parsed.data.lineas[0]?.productoId, resultado.data.consumoInsumos),
+  ];
 
   return {
     ok: true,
@@ -262,7 +304,16 @@ export async function registrarPagoVentaAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Revisá los datos ingresados." };
   }
 
-  const resultado = await registrarPagoVenta(usuario, ventaId, parsed.data);
+  // Fase 4 Cafiatto: el cobro cuenta en el turno donde se COBRA, que puede no ser el de la venta.
+  const sucursal = await consultarSucursalDeVenta(usuario, ventaId);
+  if (!sucursal.ok) return sucursal;
+  const turno = await turnoParaOperar(usuario, usuario.tenantId, sucursal.data.sucursalId);
+  if (!turno.ok) return turno;
+
+  const resultado = await registrarPagoVenta(usuario, ventaId, {
+    ...parsed.data,
+    turnoId: turno.data.turnoId ?? undefined,
+  });
   if (!resultado.ok) return resultado;
   return { ok: true, data: resultado.data };
 }

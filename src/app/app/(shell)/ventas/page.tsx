@@ -3,7 +3,16 @@ import { redirect } from "next/navigation";
 import { Package } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
-import { listarSucursalesPorTenant, obtenerUsuarioActual } from "@/modules/identidad/actions";
+import {
+  listarSucursalesPorTenant,
+  obtenerUsuarioActual,
+  tieneCapacidadEspecial,
+} from "@/modules/identidad/actions";
+import {
+  listarModificadoresParaVenta,
+  listarProductosAlVender,
+  listarProductosConRecetaIncompleta,
+} from "@/modules/operativo/actions";
 import { listarCategorias, listarProductos, listarStockPorSucursal } from "@/modules/productos/actions";
 import {
   listarCanalesVenta,
@@ -11,6 +20,7 @@ import {
   listarEventos,
   listarMetodosPago,
 } from "@/modules/ventas/actions";
+import { estadoDeCajas } from "@/modules/caja/actions";
 import { PosCliente } from "./pos-cliente";
 
 export default async function PuntoDeVentaPage() {
@@ -35,7 +45,7 @@ export default async function PuntoDeVentaPage() {
     listarEventos(usuario, usuario.tenantId),
   ]);
 
-  const productos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
+  const productosActivos = (productosResultado.ok ? productosResultado.data : []).filter((p) => p.activo);
   const sucursales = sucursalesResultado.ok ? sucursalesResultado.data : [];
   const clientes = clientesResultado.ok ? clientesResultado.data : [];
   const canales = canalesResultado.ok ? canalesResultado.data : [];
@@ -46,6 +56,44 @@ export default async function PuntoDeVentaPage() {
   );
 
   const sucursalPrincipal = sucursales.find((s) => s.esPrincipal) ?? sucursales[0];
+
+  // Fase 3 Cafiatto: que se prepara al vender y que modificadores ofrece cada producto.
+  const [alVenderResultado, incompletosResultado] = await Promise.all([
+    listarProductosAlVender(usuario, usuario.tenantId),
+    listarProductosConRecetaIncompleta(usuario, usuario.tenantId),
+  ]);
+  // Fase 6: lo que se prepara al vender con la receta vacia no se ofrece (no descontaria ni costaria nada).
+  const recetaIncompleta = new Set(incompletosResultado.ok ? incompletosResultado.data : []);
+  const productos = productosActivos.filter((p) => !recetaIncompleta.has(p.id));
+  const modificadoresResultado = await listarModificadoresParaVenta(
+    usuario,
+    usuario.tenantId,
+    productos.map((p) => p.id)
+  );
+  const alVender = new Set(alVenderResultado.ok ? alVenderResultado.data : []);
+
+  // Fase 5 Cafiatto: que motivos de bonificacion ofrece la pantalla (el servidor los exige igual).
+  const [puedeConsumoPersonal, puedeCortesia] = await Promise.all([
+    tieneCapacidadEspecial(usuario, "bonificar_consumo_personal"),
+    tieneCapacidadEspecial(usuario, "bonificar_cortesia"),
+  ]);
+
+  // Fase 4 Cafiatto: estado de la caja en la sucursal donde se vende.
+  const cajasResultado = await estadoDeCajas(usuario, usuario.tenantId);
+  const cajaDeLaSucursal =
+    cajasResultado.ok && cajasResultado.data.habilitada
+      ? cajasResultado.data.cajas.filter((c) => c.sucursalId === sucursalPrincipal?.id)
+      : [];
+  const turnoAbierto = cajaDeLaSucursal.find((c) => c.turno)?.turno ?? null;
+  const caja =
+    cajasResultado.ok && cajasResultado.data.habilitada
+      ? {
+          exigirTurno: cajasResultado.data.exigirTurno,
+          turnoNumero: turnoAbierto?.numero ?? null,
+          cajaNombre: cajaDeLaSucursal.find((c) => c.turno)?.nombre ?? cajaDeLaSucursal[0]?.nombre ?? "Caja",
+        }
+      : null;
+  const modificadoresPorProducto = modificadoresResultado.ok ? modificadoresResultado.data : {};
 
   // H-37: el stock de cada producto, en una sola consulta. Sin permiso de ver
   // inventario la pantalla no muestra números — no inventa un "0".
@@ -109,7 +157,13 @@ export default async function PuntoDeVentaPage() {
               unidadVenta: p.unidadVenta,
               precioVenta: p.precioVenta,
               costoOperativoVigente: p.costoOperativoVigente,
+              grupoVariantes: p.grupoVariantes,
+              etiquetaVariante: p.etiquetaVariante,
+              alVender: alVender.has(p.id),
             }))}
+            modificadoresPorProducto={modificadoresPorProducto}
+            caja={caja}
+            puedeBonificar={{ consumoPersonal: puedeConsumoPersonal, cortesia: puedeCortesia }}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
             clientesIniciales={clientes.map((c) => ({ id: c.id, nombre: c.nombre }))}
             canalesIniciales={canales.map((c) => ({ id: c.id, nombre: c.nombre }))}

@@ -59,6 +59,8 @@ export default async function EditarProductoPage({
                 ? Number(producto!.costoOperativoVigente)
                 : undefined,
             vidaUtilDias: producto!.vidaUtilDias ?? undefined,
+            grupoVariantes: producto!.grupoVariantes ?? undefined,
+            etiquetaVariante: producto!.etiquetaVariante ?? undefined,
             fechaVencimientoReferencia: producto!.fechaVencimientoReferencia ?? undefined,
             activo: producto!.activo,
           }}

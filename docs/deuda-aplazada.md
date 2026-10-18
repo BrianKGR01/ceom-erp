@@ -650,7 +650,9 @@ que solo le falta la última capa.
 Deuda que apareció después del 2026-07-22 y se aplazó **a conciencia**, con el mismo formato. No
 viene de un `ANCLA.md`: viene de trabajo que la encontró.
 
-### DA-45 · El caché de stock de Productos pierde movimientos simultáneos 🟠
+### DA-45 · El caché de stock de Productos pierde movimientos simultáneos 🟠 — ✅ CERRADA en rama `feat/cafiatto` (2026-10-16)
+> **Cierre:** `pg_advisory_xact_lock` por (producto|insumo, sucursal) al inicio de `recalcularCantidadActualTx` (Productos) y `recalcularCantidadActualInsumoTx` (Nicho 1). Test: `src/modules/productos/stock-concurrente.test.ts` (falla sin el lock, pasa con él). Pendiente de merge; sin migración.
+
 **Encontrado el 2026-09-17**, al escribir `src/db/agotamiento-pool-escrituras.test.ts` (incidente de
 pool de Proveedores). No es parte de ese incidente ni de su fix.
 

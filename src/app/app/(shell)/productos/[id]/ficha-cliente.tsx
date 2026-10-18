@@ -46,6 +46,7 @@ import {
   eliminarProductoAction,
   listarMovimientosStockAction,
   transferirStockAction,
+  cambiarModoConsumoProductoAction,
   vincularProductoARecetaAction,
 } from "../actions";
 
@@ -114,7 +115,15 @@ interface RecetaVinculada {
   recetaId: string;
   recetaNombre: string;
   cantidadBaseConsumidaPorUnidad: string;
+  modoConsumo: ModoConsumo;
 }
+
+type ModoConsumo = "al_producir" | "al_vender";
+
+const ETIQUETA_MODO_CONSUMO: Record<ModoConsumo, string> = {
+  al_producir: "Al producir un lote",
+  al_vender: "Al vender (sin producción previa)",
+};
 
 export function FichaCliente({
   productoId,
@@ -304,6 +313,8 @@ export function FichaCliente({
   const [vinculo, setVinculo] = useState(recetaVinculada);
   const [vinculoRecetaId, setVinculoRecetaId] = useState(recetas[0]?.id ?? "");
   const [vinculoCantidad, setVinculoCantidad] = useState("");
+  const [vinculoModo, setVinculoModo] = useState<ModoConsumo>("al_producir");
+  const [cambiandoModo, setCambiandoModo] = useState(false);
   const [vinculoError, setVinculoError] = useState<string | null>(null);
   const [vinculando, setVinculando] = useState(false);
   const [desvinculando, setDesvinculando] = useState(false);
@@ -312,6 +323,7 @@ export function FichaCliente({
     setVinculoError(null);
     setVinculoRecetaId(vinculo?.recetaId ?? recetas[0]?.id ?? "");
     setVinculoCantidad("");
+    setVinculoModo(vinculo?.modoConsumo ?? "al_producir");
     setVinculoAbierto(true);
   }
 
@@ -330,6 +342,7 @@ export function FichaCliente({
       productoId,
       recetaId: vinculoRecetaId,
       cantidadBaseConsumidaPorUnidad: Number(vinculoCantidad),
+      modoConsumo: vinculoModo,
     });
     setVinculando(false);
     if (!resultado.ok) {
@@ -340,8 +353,22 @@ export function FichaCliente({
       recetaId: vinculoRecetaId,
       recetaNombre: recetas.find((r) => r.id === vinculoRecetaId)?.nombre ?? "",
       cantidadBaseConsumidaPorUnidad: String(vinculoCantidad),
+      modoConsumo: vinculoModo,
     });
     setVinculoAbierto(false);
+  }
+
+  async function cambiarModo(modo: ModoConsumo) {
+    if (!vinculo || modo === vinculo.modoConsumo) return;
+    setCambiandoModo(true);
+    setVinculoError(null);
+    const resultado = await cambiarModoConsumoProductoAction(productoId, modo);
+    setCambiandoModo(false);
+    if (!resultado.ok) {
+      setVinculoError(resultado.error);
+      return;
+    }
+    setVinculo({ ...vinculo, modoConsumo: modo });
   }
 
   async function confirmarDesvinculo() {
@@ -816,6 +843,28 @@ export function FichaCliente({
                   Consume {vinculo.cantidadBaseConsumidaPorUnidad} por unidad vendida.
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label>Cuándo se descuentan los insumos</Label>
+                <Select
+                  items={ETIQUETA_MODO_CONSUMO}
+                  value={vinculo.modoConsumo}
+                  onValueChange={(v) => v && void cambiarModo(v as ModoConsumo)}
+                  disabled={cambiandoModo}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="al_producir">{ETIQUETA_MODO_CONSUMO.al_producir}</SelectItem>
+                    <SelectItem value="al_vender">{ETIQUETA_MODO_CONSUMO.al_vender}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-text-muted">
+                  {vinculo.modoConsumo === "al_vender"
+                    ? "Cada venta descuenta los insumos de la receta y congela su costo. No hace falta registrar una producción."
+                    : "Los insumos se descuentan al registrar una producción; la venta descuenta el stock del producto terminado."}
+                </p>
+              </div>
               {vinculoError && <p className="text-xs text-error-text">{vinculoError}</p>}
             </div>
           ) : (
@@ -849,6 +898,22 @@ export function FichaCliente({
                   value={vinculoCantidad}
                   onChange={(e) => setVinculoCantidad(e.target.value)}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Cuándo se descuentan los insumos</Label>
+                <Select
+                  items={ETIQUETA_MODO_CONSUMO}
+                  value={vinculoModo}
+                  onValueChange={(v) => v && setVinculoModo(v as ModoConsumo)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="al_producir">{ETIQUETA_MODO_CONSUMO.al_producir}</SelectItem>
+                    <SelectItem value="al_vender">{ETIQUETA_MODO_CONSUMO.al_vender}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {vinculoError && <p className="text-xs text-error-text">{vinculoError}</p>}
             </div>

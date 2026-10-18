@@ -91,6 +91,11 @@ export const capacidadEspecialEnum = pgEnum("capacidad_especial", [
   "gestionar_eventos",
   "importar_historico",
   "producir_sin_stock_insumo",
+  // Roadmap Cafiatto, Fase 5. Dos capacidades porque son dos niveles de confianza distintos:
+  // el equipo de turno puede dar de consumir al personal; la cortesia a un cliente es del
+  // encargado/administracion. Se asignan por rol o por usuario (no hay PIN todavia).
+  "bonificar_consumo_personal",
+  "bonificar_cortesia",
 ]);
 
 // Solo 2 nichos reales en el MVP (Modulo_01 seccion 5, CEOM_Arquitectura.md

@@ -9,9 +9,13 @@ import { z } from "zod";
 export const lineaVentaSchema = z.object({
   productoId: z.string().min(1),
   cantidad: z.number().positive(),
+  // Fase 3 Cafiatto.
+  modificadorIds: z.array(z.string().min(1)).max(30).optional(),
+  observacion: z.string().trim().max(300).optional(),
 });
 
 export const registrarVentaSchema = z.object({
+  claveIdempotencia: z.string().uuid().optional(),
   clienteId: z.string().optional(),
   clienteNuevo: z
     .object({
@@ -28,6 +32,15 @@ export const registrarVentaSchema = z.object({
       monto: z.number().positive(),
     })
     .optional(),
+  // Fase 5 Cafiatto. El servidor decide si el usuario puede (capacidad del motivo).
+  bonificacion: z
+    .object({
+      motivo: z.enum(["consumo_personal", "cortesia"]),
+      porcentaje: z.number().gt(0).max(100),
+      beneficiario: z.string().trim().max(120).optional(),
+      nota: z.string().trim().max(300).optional(),
+    })
+    .optional(),
 });
 
 export const canalVentaFormSchema = z.object({
@@ -37,6 +50,7 @@ export const canalVentaFormSchema = z.object({
 
 export const metodoPagoFormSchema = z.object({
   nombre: z.string().trim().min(1, "Ponele un nombre al método de pago."),
+  esEfectivo: z.boolean().optional(),
 });
 
 export const clienteFormSchema = z.object({

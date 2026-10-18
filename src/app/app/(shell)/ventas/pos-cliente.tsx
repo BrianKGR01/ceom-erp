@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, Search, User } from "lucide-react";
@@ -24,6 +24,16 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CartPanel, type LineaCarrito } from "@/modules/ventas/components/cart-panel";
+import {
+  BonificarDialog,
+  ETIQUETA_MOTIVO_BONIFICACION,
+  type BonificacionVenta,
+} from "@/modules/ventas/components/bonificar-dialog";
+import {
+  ConfigurarProductoDialog,
+  type GrupoModificadores,
+  type LineaConfigurada,
+} from "@/modules/ventas/components/configurar-producto-dialog";
 import { MetodoPagoIcon } from "@/modules/ventas/components/metodo-pago-icon";
 import {
   ProductPickerCard,
@@ -44,6 +54,9 @@ export function PosCliente({
   sucursalId,
   stockPorProducto,
   productos,
+  modificadoresPorProducto,
+  caja = null,
+  puedeBonificar = { consumoPersonal: false, cortesia: false },
   categorias,
   clientesIniciales,
   canalesIniciales,
@@ -54,6 +67,12 @@ export function PosCliente({
   /** H-37. `null` = sin permiso para ver inventario. */
   stockPorProducto: Record<string, number> | null;
   productos: ProductoParaVenta[];
+  /** Fase 3: grupos de modificadores que ofrece cada producto. */
+  modificadoresPorProducto: Record<string, GrupoModificadores[]>;
+  /** Fase 4: null = el negocio no usa caja. */
+  caja?: { exigirTurno: boolean; turnoNumero: number | null; cajaNombre: string } | null;
+  /** Fase 5: que motivos de bonificacion puede usar quien vende (capacidades por rol). */
+  puedeBonificar?: { consumoPersonal: boolean; cortesia: boolean };
   categorias: Opcion[];
   clientesIniciales: Opcion[];
   canalesIniciales: Opcion[];
@@ -98,28 +117,91 @@ export function PosCliente({
     avisos: Array<{ nombre: string; mensaje: string }>;
   } | null>(null);
 
-  const productosFiltrados = productos
-    .filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId)
-    .filter((p) => p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase()));
+  // Fase 3: las variantes del mismo producto (mismo `grupoVariantes`) se muestran
+  // en UNA tarjeta; tocarla abre la hoja para elegir variante y modificadores.
+  interface Tarjeta {
+    clave: string;
+    /** Nombre del grupo; null si es un producto suelto. */
+    grupo: string | null;
+    variantes: ProductoParaVenta[];
+  }
+  const tarjetas: Tarjeta[] = [];
+  for (const p of productos) {
+    const grupo = p.grupoVariantes?.trim() || null;
+    const existente = grupo
+      ? tarjetas.find((t) => t.grupo?.toLowerCase() === grupo.toLowerCase())
+      : undefined;
+    if (existente) existente.variantes.push(p);
+    else tarjetas.push({ clave: grupo ? `g:${grupo.toLowerCase()}` : `p:${p.id}`, grupo, variantes: [p] });
+  }
+  const tarjetasFiltradas = tarjetas
+    .map((t) => ({
+      ...t,
+      variantes: t.variantes.filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId),
+    }))
+    .filter((t) => t.variantes.length > 0)
+    .filter((t) => {
+      const q = busqueda.trim().toLowerCase();
+      return (
+        q === "" ||
+        (t.grupo ?? "").toLowerCase().includes(q) ||
+        t.variantes.some((p) => p.nombre.toLowerCase().includes(q))
+      );
+    });
 
-  function agregarProducto(producto: ProductoParaVenta) {
+  const [configurando, setConfigurando] = useState<Tarjeta | null>(null);
+
+  // Fase 5: bonificacion. El descuento real lo calcula el servidor; esto es solo para mostrar.
+  const [bonificacion, setBonificacion] = useState<BonificacionVenta | null>(null);
+  const [bonificarAbierto, setBonificarAbierto] = useState(false);
+  const puedeAlgunaBonificacion = puedeBonificar.consumoPersonal || puedeBonificar.cortesia;
+  const totalCarrito = carrito.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
+  const totalNeto = bonificacion
+    ? totalCarrito - Math.round(totalCarrito * bonificacion.porcentaje) / 100
+    : totalCarrito;
+  // Fase 4: con la caja activa y exigida, sin turno abierto no se confirma (el servidor lo vuelve a exigir).
+  const sinTurno = Boolean(caja?.exigirTurno && caja.turnoNumero === null);
+
+  function tocarTarjeta(tarjeta: Tarjeta) {
+    const sinOpciones =
+      tarjeta.variantes.length === 1 && (modificadoresPorProducto[tarjeta.variantes[0].id] ?? []).length === 0;
+    if (sinOpciones) {
+      const p = tarjeta.variantes[0];
+      agregarLinea({
+        producto: p,
+        cantidad: 1,
+        modificadorIds: [],
+        modificadoresTexto: [],
+        precioUnitario: Number(p.precioVenta),
+        observacion: "",
+      });
+      return;
+    }
+    setConfigurando(tarjeta);
+  }
+
+  function agregarLinea(linea: LineaConfigurada) {
+    const clave = [linea.producto.id, [...linea.modificadorIds].sort().join(","), linea.observacion].join("|");
     setCarrito((prev) => {
-      const existente = prev.find((l) => l.productoId === producto.id);
+      const existente = prev.find((l) => l.clave === clave);
       if (existente) {
-        return prev.map((l) =>
-          l.productoId === producto.id ? { ...l, cantidad: l.cantidad + 1 } : l
-        );
+        return prev.map((l) => (l.clave === clave ? { ...l, cantidad: l.cantidad + linea.cantidad } : l));
       }
       return [
         ...prev,
         {
-          productoId: producto.id,
-          nombre: producto.nombre,
-          precioVenta: Number(producto.precioVenta),
-          cantidad: 1,
+          clave,
+          productoId: linea.producto.id,
+          nombre: linea.producto.nombre,
+          precioVenta: linea.precioUnitario,
+          cantidad: linea.cantidad,
+          modificadorIds: linea.modificadorIds,
+          modificadoresTexto: linea.modificadoresTexto,
+          observacion: linea.observacion,
         },
       ];
     });
+    setConfigurando(null);
   }
 
   // H-37: líneas que piden más de lo que hay. Avisa, no bloquea — vender sin
@@ -128,24 +210,25 @@ export function PosCliente({
     stockPorProducto === null
       ? []
       : carrito
+          .filter((l) => !productos.find((p) => p.id === l.productoId)?.alVender)
           .map((l) => ({ ...l, disponible: stockPorProducto[l.productoId] ?? 0 }))
           .filter((l) => l.cantidad > l.disponible);
 
   // Las líneas del carrito cuyo producto no tiene costo cargado (H-15).
   const sinCostoEnCarrito = carrito.filter((linea) =>
-    productos.some((p) => p.id === linea.productoId && p.costoOperativoVigente === null)
+    productos.some((p) => p.id === linea.productoId && p.costoOperativoVigente === null && !p.alVender)
   );
 
-  function cambiarCantidad(productoId: string, cantidad: number) {
+  function cambiarCantidad(clave: string, cantidad: number) {
     setCarrito((prev) =>
       cantidad <= 0
-        ? prev.filter((l) => l.productoId !== productoId)
-        : prev.map((l) => (l.productoId === productoId ? { ...l, cantidad } : l))
+        ? prev.filter((l) => l.clave !== clave)
+        : prev.map((l) => (l.clave === clave ? { ...l, cantidad } : l))
     );
   }
 
-  function quitarLinea(productoId: string) {
-    setCarrito((prev) => prev.filter((l) => l.productoId !== productoId));
+  function quitarLinea(clave: string) {
+    setCarrito((prev) => prev.filter((l) => l.clave !== clave));
   }
 
   async function crearCanalRapido() {
@@ -178,6 +261,10 @@ export function PosCliente({
     setMetodoNuevoNombre("");
   }
 
+  // H-51 Tanda B: una clave por intento de venta. Si el servidor recibe dos
+  // veces la misma, devuelve la venta ya creada en vez de registrar otra.
+  const claveIdempotenciaRef = useRef(crypto.randomUUID());
+
   async function confirmarVenta() {
     setError(null);
     if (carrito.length === 0) {
@@ -194,8 +281,13 @@ export function PosCliente({
     }
 
     if (confirmando || ventaRegistradaId) return;
+    if (sinTurno) {
+      setError("Para vender, primero abrí el turno de la caja.");
+      return;
+    }
     setConfirmando(true);
     const resultado = await registrarVentaAction(sucursalId, {
+      claveIdempotencia: claveIdempotenciaRef.current,
       clienteId: clienteId !== "sin_cliente" && clienteId !== "nuevo" ? clienteId : undefined,
       clienteNuevo:
         clienteId === "nuevo"
@@ -203,7 +295,13 @@ export function PosCliente({
           : undefined,
       canalVentaId,
       eventoId: eventoId !== "sin_evento" ? eventoId : undefined,
-      lineas: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
+      lineas: carrito.map((l) => ({
+        productoId: l.productoId,
+        cantidad: l.cantidad,
+        modificadorIds: l.modificadorIds.length > 0 ? l.modificadorIds : undefined,
+        observacion: l.observacion || undefined,
+      })),
+      bonificacion: bonificacion ?? undefined,
       pagoInicial:
         metodoPagoId !== "sin_pago" && montoPagoInicial
           ? { metodoPagoId, monto: Number(montoPagoInicial) }
@@ -223,6 +321,7 @@ export function PosCliente({
     // ⛔ No volver a habilitar el botón en el camino exitoso. La venta ya está
     // guardada: lo único que queda es irse de esta pantalla.
     setCarrito([]);
+    claveIdempotenciaRef.current = crypto.randomUUID();
     // La venta ya quedó. Si el stock no se movió como se esperaba, se muestra
     // antes de salir de la pantalla (antes este aviso se descartaba).
     if (resultado.data.avisosStock.length > 0) {
@@ -243,6 +342,25 @@ export function PosCliente({
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {caja && (
+        <div className="md:col-span-2 lg:col-span-3">
+          {sinTurno ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-bg p-4 text-sm">
+              <p className="text-warning-text">
+                <span className="font-medium">No hay un turno abierto en {caja.cajaNombre}.</span> Para vender, primero se
+                abre el turno: así cada venta queda asociada a la caja.
+              </p>
+              <Link href="/app/caja" className="font-medium text-warning-text underline">
+                Abrir turno
+              </Link>
+            </div>
+          ) : caja.turnoNumero !== null ? (
+            <p className="text-xs text-text-muted">
+              {caja.cajaNombre} · Turno #{caja.turnoNumero} abierto
+            </p>
+          ) : null}
+        </div>
+      )}
       <div className="space-y-4 lg:col-span-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {categorias.length > 0 && (
@@ -287,23 +405,39 @@ export function PosCliente({
           </div>
         </div>
 
-        {productosFiltrados.length === 0 ? (
+        {tarjetasFiltradas.length === 0 ? (
           <p className="py-8 text-center text-sm text-text-muted">
             Ningún producto coincide con esta búsqueda.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-            {productosFiltrados.map((producto) => (
-              <ProductPickerCard
-                key={producto.id}
-                producto={producto}
-                categoriaNombre={
-                  producto.categoriaId ? categoriaPorId.get(producto.categoriaId) : undefined
-                }
-                stock={stockPorProducto === null ? null : (stockPorProducto[producto.id] ?? 0)}
-                onAgregar={() => agregarProducto(producto)}
-              />
-            ))}
+            {tarjetasFiltradas.map((tarjeta) => {
+              const primero = tarjeta.variantes[0];
+              const precios = tarjeta.variantes.map((v) => Number(v.precioVenta));
+              const variasVariantes = tarjeta.variantes.length > 1;
+              const hayPrecios = Math.min(...precios) !== Math.max(...precios);
+              return (
+                <ProductPickerCard
+                  key={tarjeta.clave}
+                  producto={
+                    variasVariantes
+                      ? { ...primero, precioVenta: String(Math.min(...precios)) }
+                      : primero
+                  }
+                  nombre={variasVariantes ? (tarjeta.grupo ?? primero.nombre) : undefined}
+                  etiquetaPrecio={variasVariantes && hayPrecios ? "desde" : undefined}
+                  categoriaNombre={
+                    primero.categoriaId ? categoriaPorId.get(primero.categoriaId) : undefined
+                  }
+                  stock={
+                    variasVariantes || stockPorProducto === null
+                      ? null
+                      : (stockPorProducto[primero.id] ?? 0)
+                  }
+                  onAgregar={() => tocarTarjeta(tarjeta)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -318,7 +452,32 @@ export function PosCliente({
               lineas={carrito}
               onCambiarCantidad={cambiarCantidad}
               onQuitar={quitarLinea}
+              bonificacionPct={bonificacion?.porcentaje}
             />
+
+            {/* Fase 5: Cafiatto asume el precio. Solo se ofrece a quien tiene la capacidad. */}
+            {puedeAlgunaBonificacion && carrito.length > 0 && !ventaRegistradaId && (
+              bonificacion ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-bg p-3 text-xs">
+                  <p className="text-warning-text">
+                    <span className="font-medium">Venta bonificada</span> ·{" "}
+                    {ETIQUETA_MOTIVO_BONIFICACION[bonificacion.motivo].toLowerCase()}
+                    {bonificacion.beneficiario ? ` (${bonificacion.beneficiario})` : ""} · {bonificacion.porcentaje}%
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBonificacion(null)}
+                    className="font-medium text-warning-text underline"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={() => setBonificarAbierto(true)}>
+                  Bonificar
+                </Button>
+              )
+            )}
 
             {/* H-15 — avisa, NO bloquea. La venta siempre se tiene que poder
                 registrar: el dueño cobrando con el cliente enfrente no puede
@@ -506,7 +665,7 @@ export function PosCliente({
                 placeholder="Monto del pago"
                 value={montoPagoInicial}
                 onChange={(e) => setMontoPagoInicial(e.target.value)}
-                disabled={metodoPagoId === "sin_pago"}
+                disabled={metodoPagoId === "sin_pago" || totalNeto <= 0}
               />
               <button
                 type="button"
@@ -573,12 +732,40 @@ export function PosCliente({
                 disabled={confirmando || carrito.length === 0}
                 className="w-full justify-center"
               >
-                {confirmando ? "Registrando..." : "Confirmar venta"}
+                {confirmando ? "Registrando..." : bonificacion ? "Confirmar venta bonificada" : "Confirmar venta"}
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {bonificarAbierto && (
+        <BonificarDialog
+          puede={puedeBonificar}
+          inicial={bonificacion}
+          total={totalCarrito}
+          onCerrar={() => setBonificarAbierto(false)}
+          onAplicar={(b) => {
+            setBonificacion(b);
+            // Si no queda nada por cobrar, no hay pago inicial que cargar.
+            if (b.porcentaje >= 100) {
+              setMetodoPagoId("sin_pago");
+              setMontoPagoInicial("");
+            }
+            setBonificarAbierto(false);
+          }}
+        />
+      )}
+
+      {configurando && (
+        <ConfigurarProductoDialog
+          titulo={configurando.grupo ?? configurando.variantes[0].nombre}
+          variantes={configurando.variantes}
+          modificadoresPorProducto={modificadoresPorProducto}
+          onCerrar={() => setConfigurando(null)}
+          onAgregar={agregarLinea}
+        />
+      )}
 
       <Dialog open={canalDialogAbierto} onOpenChange={setCanalDialogAbierto}>
         <DialogContent>

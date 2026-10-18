@@ -246,3 +246,52 @@ aviso, el insumo desaparecía y el producto terminado no aparecía, sin ninguna 
 un colaborador con `operativo:crear` y sin `inventario:crear`. Test:
 `src/app/app/(shell)/produccion/avisos-stock.test.ts` (control Owner + mutante). Sin cambio de contrato
 del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProduccion`.
+
+## Última actualización: 2026-10-16 — Fase 1 Cafiatto: `modo_consumo`, `salida_venta` y precisión de 4 decimales
+
+- `vinculaciones_producto_receta.modo_consumo` (`al_producir` por omisión | `al_vender`). `vincularProductoAReceta` acepta `modoConsumo`;
+  `cambiarModoConsumoProducto` lo cambia (rechaza `al_vender` si la receta no tiene insumos). Solo afecta ventas futuras.
+- Nuevo tipo de movimiento `salida_venta` (migración 0051, sola por `ADD VALUE`). Referencia = id de la venta.
+- `movimientos_insumo.cantidad` y `stock_insumo.cantidad_actual` pasan de `numeric(12,2)` a `numeric(14,4)` (migración 0052): las recetas por
+  unidad consumen fracciones (0,0150 kg) y con 2 decimales cada venta redondeaba. Verificado sin vistas/funciones dependientes en la base real (148 y 29 filas).
+- Fórmula de consumo por unidad vendida: `cantidad_por_lote x cantidad_base_consumida / rendimiento_por_lote`.
+- La puerta de entrada para Ventas es la fachada neutral `src/modules/operativo/actions.ts` (`planificarConsumoVenta`, `consumirInsumosPorVenta`),
+  gateada por `ventas:crear` (como las comisiones, H-27). `repository.ts`: `obtenerRecetasAlVender`, `obtenerStockInsumosEnSucursal`, `crearConsumosVentaTx`.
+- UI: selector "Cuándo se descuentan los insumos" en el diálogo de receta de la ficha de producto.
+- Pendiente de la Fase 1 en producción: aplicar 0050-0052 (mostrar el SQL antes) y pasar las 21 vinculaciones de CAFIATTO a `al_vender`.
+
+## Última actualización: 2026-10-16 — Fase 2 Cafiatto: bajas de insumo y de producto
+
+- Tabla `bajas` (migración 0054, con RLS `crudPolicy` en el mismo archivo) + valor `salida_baja` en `tipo_movimiento_insumo` (0053, sola por `ADD VALUE`).
+  Registro **append-only** (regla 3): una baja no se edita ni se borra; si se cargó mal se corrige con un ajuste con motivo. Guarda el motivo, la nota,
+  la cantidad (4 decimales) y el **costo congelado** (regla 4). `costo_total` es null y `costo_desconocido` true cuando falta algún costo: se marca, no se estima
+  en cero (reglas 9 y 10). Checks: exactamente un objeto (insumo o producto) y cantidad > 0.
+- Motivos (`motivos-baja.ts`, sin dependencias para poder usarlo desde el cliente): error de preparación, derrame/desperdicio, queja o reposición, vencimiento,
+  daño, otro (exige nota). **"Consumo del personal" NO es motivo de baja**: va por bonificación (decisión 1 del roadmap, Fase 5).
+- `registrarBajaInsumo`: baja + movimiento `salida_baja` (referencia = id de la baja) + saldo, en una transacción. No bloquea si el saldo no alcanza
+  (el conteo puede ir atrasado): queda en negativo y se devuelve para que la pantalla avise.
+- `registrarBajaProducto`: si el producto se prepara al vender, consume los insumos de su receta (mismo cálculo que la venta, `consumo-recetas.ts`, compartido);
+  si tiene stock terminado, `registrarBajaStockProducto` (Productos, `salida_merma`) y después el registro — dos pasos fuera de una misma transacción
+  (gap de atomicidad cruzada, como en Ventas).
+- `listarBajas`, `consultarBajasPorMotivo` (devuelve `bajasSinCostoConocido` junto al total). Permisos: `operativo:anular_ajustar` para registrar, `operativo:ver` para leer.
+- UI: `/app/produccion/bajas` (formulario + últimas bajas de 7 días + costo con aviso de bajas sin costo). Entrada "Bajas" en Producción.
+- `src/test-utils/fixture-permisos-cruzados.ts` limpia `bajas` (FK a insumos/productos).
+- Tests: `bajas.test.ts`.
+
+## Última actualización: 2026-10-16 — Fase 3 Cafiatto: modificadores de producto
+
+- Tablas (migración 0056, RLS en el mismo archivo): `grupos_modificadores` (regla de selección `una`/`varias`), `modificadores` (tipo `agrega`/`reemplaza`/`indicacion`,
+  `es_base`, `precio_extra`, `insumo_id`, `cantidad`, `insumo_reemplazado_id`; checks de forma por tipo y una sola base por grupo) y `productos_grupos_modificadores`
+  (a qué productos se ofrece cada grupo; con soft delete, regla 5).
+- `agrega`: suma `cantidad` del insumo por unidad vendida. `reemplaza`: saca TODA la línea del insumo reemplazado de la receta base del producto y, si hay insumo nuevo,
+  pone `cantidad` (si va vacía, la misma que salió: cambio 1 a 1); sin insumo nuevo es un "sin X". `indicacion`: solo texto, sin precio ni insumos.
+- `consumo-recetas.ts` ahora calcula por LÍNEA (`porLinea`) y expone `resolverModificadoresDeProducto`. Las bajas de producto usan `porLinea[0]`.
+- Fachada `operativo/actions.ts`: `planificarConsumoVenta` (con modificadores), `listarModificadoresParaVenta` y `listarProductosAlVender` (gateadas por `ventas:crear`).
+- CRUD de administración (`operativo:crear/editar/anular_ajustar`): `crearGrupoModificadores`, `actualizarGrupoModificadores`, `eliminarGrupoModificadores` (soft delete en cascada),
+  `crearModificador`, `actualizarModificador`, `eliminarModificador`, `vincularGrupoModificadoresAProducto`, `desvincularGrupoModificadoresDeProducto`, `listarGruposModificadores`.
+- UI: `/app/produccion/modificadores` (grupos, opciones y a qué productos se ofrece cada grupo). La edición de una opción existente es solo por backend por ahora (la pantalla crea y elimina).
+- `src/test-utils/fixture-permisos-cruzados.ts` limpia las tablas nuevas.
+
+## Última actualización: 2026-10-16 — Fase 6 Cafiatto
+- Fachada `operativo/actions.ts`: `listarProductosConRecetaIncompleta` (productos `al_vender` con receta sin insumos; gateada por `ventas:crear`). Vender los oculta.
+- Pantalla `/app/produccion/resumen` (resumen operativo). El menú lateral oculta Producción a negocios de `nicho_4` (modo básico la conserva).

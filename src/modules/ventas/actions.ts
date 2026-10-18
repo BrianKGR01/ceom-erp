@@ -10,6 +10,10 @@ import type { UsuarioConRol } from "@/modules/identidad/actions";
 // Gastos"). Gastos ya no lee Ventas de vuelta — ver el comentario de
 // generarGastoComisionVenta sobre por que se invirtio esa flecha.
 import { generarGastoComisionVenta } from "@/modules/gastos/actions";
+// Ventas -> Operativo (fachada neutral, nunca nichos/<nicho>/): los productos
+// que se preparan al vender descuentan insumos de su receta en vez de stock de
+// producto terminado. Roadmap Cafiatto, Fase 1.
+import { consumirInsumosPorVenta, planificarConsumoVenta } from "@/modules/operativo/actions";
 import {
   consultarCostoOperativo,
   consultarPrecioVenta,
@@ -192,6 +196,8 @@ export async function listarCanalesVenta(
 
 export interface DatosMetodoPago {
   nombre: string;
+  /** Fase 4: lo cobrado con este metodo entra al cajon y cuenta para el efectivo esperado del turno. */
+  esEfectivo?: boolean;
 }
 
 export async function crearMetodoPago(
@@ -202,7 +208,11 @@ export async function crearMetodoPago(
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
     return { ok: false, error: "No tenés permiso para crear métodos de pago." };
   }
-  const metodo = await repo.crearMetodoPago({ tenantId, nombre: input.nombre });
+  const metodo = await repo.crearMetodoPago({
+    tenantId,
+    nombre: input.nombre,
+    esEfectivo: input.esEfectivo ?? false,
+  });
   return { ok: true, data: { metodoPagoId: metodo.id } };
 }
 
@@ -216,7 +226,7 @@ export async function actualizarMetodoPago(
   if (!(await tienePermiso(solicitante, metodo.tenantId, "ventas", "editar"))) {
     return { ok: false, error: "No tenés permiso para editar este método de pago." };
   }
-  await repo.actualizarMetodoPago(metodoPagoId, { nombre: input.nombre });
+  await repo.actualizarMetodoPago(metodoPagoId, { nombre: input.nombre, esEfectivo: input.esEfectivo });
   return { ok: true, data: true };
 }
 
@@ -399,6 +409,54 @@ export async function listarEventos(
 export interface DatosLineaVenta {
   productoId: string;
   cantidad: string | number;
+  /** Fase 3 Cafiatto: modificadores elegidos (leche de almendra, shot extra...). */
+  modificadorIds?: string[];
+  /** Fase 3 Cafiatto: nota de la caja para esta linea; no mueve nada. */
+  observacion?: string;
+}
+
+/**
+ * Fase 5 Cafiatto — bonificacion: Cafiatto asume el precio. No es una baja (la venta se
+ * registra completa, con su consumo de insumos y su costo) ni un descuento comercial.
+ * - `consumo_personal`: siempre 100 % y dice quien consume.
+ * - `cortesia`: 1-100 %, para un cliente.
+ * La autoriza quien la registra, que necesita la capacidad del motivo (`bonificar_consumo_personal`
+ * / `bonificar_cortesia`). Sin PIN de un tercero todavia (decision 4 del roadmap).
+ */
+export interface DatosBonificacion {
+  motivo: "consumo_personal" | "cortesia";
+  porcentaje: number;
+  beneficiario?: string;
+  nota?: string;
+}
+
+const CAPACIDAD_DE_BONIFICACION = {
+  consumo_personal: "bonificar_consumo_personal",
+  cortesia: "bonificar_cortesia",
+} as const;
+
+const ETIQUETA_BONIFICACION = {
+  consumo_personal: "consumo del personal",
+  cortesia: "cortesía",
+} as const;
+
+/**
+ * Reparte un porcentaje de descuento entre las lineas de un pedido, a centavos exactos:
+ * el descuento total es `round(total x p / 100)` y la ultima linea absorbe el redondeo.
+ * Ninguna linea queda con un descuento mayor a su valor.
+ */
+export function repartirDescuento(subtotales: number[], porcentaje: number): number[] {
+  const centavos = (n: number) => Math.round(n * 100);
+  const totalCentavos = subtotales.reduce((s, x) => s + centavos(x), 0);
+  const descuentoTotal = Math.round((totalCentavos * porcentaje) / 100);
+  let restante = descuentoTotal;
+  return subtotales.map((x, i) => {
+    const esUltima = i === subtotales.length - 1;
+    const propio = esUltima ? restante : Math.round((centavos(x) * porcentaje) / 100);
+    const aplicado = Math.min(Math.max(propio, 0), centavos(x), restante);
+    restante -= aplicado;
+    return aplicado / 100;
+  });
 }
 
 export interface DatosVenta {
@@ -411,6 +469,15 @@ export interface DatosVenta {
   lineas: DatosLineaVenta[];
   pagoInicial?: { metodoPagoId: string; monto: string | number };
   origenRegistro?: Extract<OrigenRegistro, "en_vivo" | "offline_sincronizado">;
+  /** H-51 Tanda B: identifica el intento; repetirla devuelve la venta ya creada. */
+  claveIdempotencia?: string;
+  /**
+   * Fase 4: turno de caja abierto en el que se registra. Lo resuelve la capa de acciones
+   * (modulo Caja), nunca el cliente. Ventas lo guarda sin interpretarlo.
+   */
+  turnoId?: string;
+  /** Fase 5: Cafiatto asume el precio (ver `DatosBonificacion`). */
+  bonificacion?: DatosBonificacion;
 }
 
 /**
@@ -432,6 +499,12 @@ export async function registrarVenta(
     comisionMontoCalculado: number | null;
     gastoComision: Awaited<ReturnType<typeof generarGastoComisionVenta>> | null;
     descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>>;
+    /** true si este intento ya estaba registrado: no se creo ni descontó nada. */
+    repetida: boolean;
+    /** Insumos descontados por receta; null si ningun producto de la venta se prepara al vender. */
+    consumoInsumos: Awaited<ReturnType<typeof consumirInsumosPorVenta>> | null;
+    /** Fase 5: valor de lista que Cafiatto asumio; 0 si no hubo bonificacion. */
+    montoBonificado: number;
   }>
 > {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "crear"))) {
@@ -440,6 +513,31 @@ export async function registrarVenta(
   if (input.lineas.length === 0) {
     return { ok: false, error: "La venta necesita al menos una línea de producto." };
   }
+
+  // H-51 Tanda B: si este intento ya se registro, se devuelve esa venta y no
+  // se toca nada mas (ni cliente nuevo, ni stock, ni pago, ni comision). Va
+  // antes de cualquier efecto para que el reintento sea inocuo.
+  const ventaRepetida = async (): Promise<Resultado<RegistroVentaRepetida> | null> => {
+    if (!input.claveIdempotencia) return null;
+    const previa = await repo.obtenerVentaPorClaveIdempotencia(tenantId, input.claveIdempotencia);
+    if (!previa) return null;
+    return {
+      ok: true,
+      data: {
+        ventaId: previa.id,
+        totalVenta: await repo.obtenerTotalVenta(previa.id),
+        comisionMontoCalculado:
+          previa.comisionMontoCalculado !== null ? Number(previa.comisionMontoCalculado) : null,
+        gastoComision: null,
+        descuentosStock: [],
+        repetida: true,
+        consumoInsumos: null,
+        montoBonificado: 0,
+      },
+    };
+  };
+  const yaRegistrada = await ventaRepetida();
+  if (yaRegistrada) return yaRegistrada;
 
   // input.sucursalId no se revalidaba contra el tenant (auditoría de
   // autorización, docs/security/AUDITORIA-AUTORIZACION.md §8.3) — sin esto,
@@ -466,6 +564,49 @@ export async function registrarVenta(
     };
   }
 
+  // Fase 5 Cafiatto: la bonificacion se valida y se autoriza ANTES de crear nada.
+  if (input.bonificacion) {
+    const b = input.bonificacion;
+    if (!(b.motivo in CAPACIDAD_DE_BONIFICACION)) {
+      return { ok: false, error: "Elegí el motivo de la bonificación." };
+    }
+    if (!(b.porcentaje > 0 && b.porcentaje <= 100)) {
+      return { ok: false, error: "El porcentaje de la bonificación tiene que estar entre 1 y 100." };
+    }
+    if (b.motivo === "consumo_personal") {
+      if (b.porcentaje !== 100) {
+        return { ok: false, error: "El consumo del personal se bonifica al 100 %." };
+      }
+      if (!b.beneficiario?.trim()) {
+        return { ok: false, error: "Indicá quién consume." };
+      }
+    } else if (!b.beneficiario?.trim() && !b.nota?.trim()) {
+      return { ok: false, error: "Contá a quién se le regala o por qué, para dejarlo registrado." };
+    }
+    if (!(await tieneCapacidadEspecial(solicitante, CAPACIDAD_DE_BONIFICACION[b.motivo]))) {
+      return {
+        ok: false,
+        error: `No tenés permiso para bonificar como ${ETIQUETA_BONIFICACION[b.motivo]}.`,
+      };
+    }
+  }
+
+  // Fase 1 Cafiatto: productos que se preparan al vender. Se resuelve ANTES de
+  // crear nada (cliente, venta): si falta un insumo y el usuario no puede
+  // vender sin stock, la venta se rechaza completa, sin dejar restos.
+  const planReceta = await planificarConsumoVenta(
+    solicitante,
+    tenantId,
+    input.sucursalId,
+    input.lineas.map((l) => ({
+      productoId: l.productoId,
+      cantidad: Number(l.cantidad),
+      modificadorIds: l.modificadorIds,
+    }))
+  );
+  if (!planReceta.ok) return planReceta;
+  const planLineas = planReceta.data.lineas;
+
   // Regla 4: alta implicita de cliente.
   let clienteId = input.clienteId ?? null;
   if (!clienteId && input.clienteNuevo) {
@@ -485,26 +626,46 @@ export async function registrarVenta(
     costoUnitarioSnapshot: string;
     costoDesconocido: boolean;
     subtotal: string;
+    observacion: string | null;
+    /** Fase 5: lo que la bonificacion le saco a esta linea; `subtotal` ya viene neto. */
+    descuentoMonto: string;
+    /** Modificadores congelados de la linea (Fase 3). */
+    modificadores: Array<{
+      modificadorId: string;
+      grupoNombre: string;
+      nombre: string;
+      tipo: string;
+      precioExtra: string;
+      efectoReceta: unknown;
+    }>;
   };
 
   // Snapshot doble (regla 1) — se congela ANTES de crear la Venta. Cada
   // línea consulta precio/costo de un producto propio, sin depender de las
   // demás (tope chico: líneas de UNA venta) — se resuelven en paralelo.
   const resultadosLineas = await Promise.all(
-    input.lineas.map(async (linea): Promise<Resultado<LineaSnapshot>> => {
+    input.lineas.map(async (linea, indice): Promise<Resultado<LineaSnapshot>> => {
       const precio = await consultarPrecioVenta(solicitante, linea.productoId);
       if (!precio.ok) return precio;
-      const costo = await consultarCostoOperativo(solicitante, linea.productoId);
+      // Producto que se prepara al vender: el costo es el de su receta HOY
+      // (congelado en la linea, regla 4), no el costo_operativo_vigente de una
+      // produccion que no existe.
+      const planLinea = planLineas[indice];
+      const costo = planLinea.alVender
+        ? ({ ok: true, data: { costoOperativoVigente: planLinea.costoUnitario } } as const)
+        : await consultarCostoOperativo(solicitante, linea.productoId);
       if (!costo.ok) return costo;
 
       const cantidad = Number(linea.cantidad);
-      const subtotal = calcularSubtotal(cantidad, precio.data.precioVenta);
+      // Fase 3: el precio de la linea ya incluye lo que suman los modificadores.
+      const precioUnitario = Number(precio.data.precioVenta) + planLinea.precioExtra;
+      const subtotal = calcularSubtotal(cantidad, precioUnitario);
       return {
         ok: true,
         data: {
           productoId: linea.productoId,
           cantidad: String(cantidad),
-          precioVentaSnapshot: String(precio.data.precioVenta),
+          precioVentaSnapshot: String(precioUnitario),
           // El `?? 0` se queda: la columna es notNull y no hay costo que
           // poner. Lo que cambia (H-15) es que ese 0 ya no se guarda mudo —
           // al lado queda registrado si era un costo real de 0 o una
@@ -514,6 +675,16 @@ export async function registrarVenta(
           costoUnitarioSnapshot: String(costo.data.costoOperativoVigente ?? 0),
           costoDesconocido: costo.data.costoOperativoVigente === null,
           subtotal: String(subtotal),
+          observacion: linea.observacion?.trim() || null,
+          descuentoMonto: "0",
+          modificadores: planLinea.modificadores.map((m) => ({
+            modificadorId: m.modificadorId,
+            grupoNombre: m.grupoNombre,
+            nombre: m.nombre,
+            tipo: m.tipo,
+            precioExtra: String(m.precioExtra),
+            efectoReceta: m.efectoReceta,
+          })),
         },
       };
     })
@@ -525,6 +696,21 @@ export async function registrarVenta(
   const lineas = resultadosLineas
     .filter((r): r is { ok: true; data: LineaSnapshot } => r.ok)
     .map((r) => r.data);
+  // Fase 5: la bonificacion se aplica LINEA POR LINEA y `subtotal` queda neto. Asi el total, el
+  // estado de pago, la comision y todos los reportes (que suman `subtotal`) ven lo que de verdad
+  // se cobra, sin tocar nada mas. El precio de lista y el costo siguen intactos en la linea.
+  let montoBonificado = 0;
+  if (input.bonificacion) {
+    const descuentos = repartirDescuento(
+      lineas.map((l) => Number(l.subtotal)),
+      input.bonificacion.porcentaje
+    );
+    lineas.forEach((l, i) => {
+      l.descuentoMonto = String(descuentos[i]);
+      l.subtotal = String(Math.round((Number(l.subtotal) - descuentos[i]) * 100) / 100);
+    });
+    montoBonificado = descuentos.reduce((s, d) => s + d, 0);
+  }
   const totalVenta = lineas.reduce((acc, l) => acc + Number(l.subtotal), 0);
 
   // El pago inicial no puede superar el total: se valida ANTES de crear la
@@ -549,7 +735,7 @@ export async function registrarVenta(
   }
   const comisionMontoCalculado = calcularComision(totalVenta, porcentajeComision);
 
-  const { venta } = await repo.crearVentaConDetalleTx({
+  const creada = await repo.crearVentaConDetalleTx({
     venta: {
       tenantId,
       sucursalId: input.sucursalId,
@@ -562,17 +748,47 @@ export async function registrarVenta(
         porcentajeComision !== null ? String(porcentajeComision) : undefined,
       comisionMontoCalculado:
         comisionMontoCalculado !== null ? String(comisionMontoCalculado) : undefined,
+      claveIdempotencia: input.claveIdempotencia,
+      turnoId: input.turnoId,
       creadoPor: solicitante.id,
     },
     lineas,
+    bonificacion: input.bonificacion
+      ? {
+          motivo: input.bonificacion.motivo,
+          porcentaje: String(input.bonificacion.porcentaje),
+          montoBonificado: String(Math.round(montoBonificado * 100) / 100),
+          beneficiario: input.bonificacion.beneficiario?.trim() || null,
+          nota: input.bonificacion.nota?.trim() || null,
+          autorizadoPor: solicitante.id,
+        }
+      : undefined,
+  }).catch(async (e: unknown) => {
+    // Dos envios simultaneos del mismo intento: ambos pasaron el chequeo de
+    // arriba y el indice unico frena al segundo. Se resuelve como repetido.
+    if (input.claveIdempotencia && esViolacionUnica(e)) return null;
+    throw e;
   });
+  if (!creada) {
+    const previa = await ventaRepetida();
+    if (previa) return previa;
+    return { ok: false, error: "No se pudo registrar la venta." };
+  }
+  const { venta } = creada;
 
   const descuentosStock: Array<Awaited<ReturnType<typeof descontarStockVenta>>> = [];
   // Secuencial a propósito: descontarStockVenta lee el stock disponible y
   // recién después inserta el movimiento (no es atómico) — si dos líneas de
   // esta misma venta comparten producto+sucursal, paralelizarlo dejaría que
   // ambas lean el mismo disponible y sobregiren el stock.
-  for (const linea of lineas) {
+  for (const [indice, linea] of lineas.entries()) {
+    if (planLineas[indice].alVender) {
+      // Sin stock de producto terminado que descontar: sus insumos salen abajo.
+      // Se mantiene la posicion para que `descuentosStock` siga alineado con
+      // las lineas; cantidadActual 0 no dispara el aviso de "stock negativo".
+      descuentosStock.push({ ok: true, data: { movimientoId: "", cantidadActual: 0 } });
+      continue;
+    }
     const descuento = await descontarStockVenta(solicitante, tenantId, {
       productoId: linea.productoId,
       sucursalId: input.sucursalId,
@@ -582,12 +798,25 @@ export async function registrarVenta(
     descuentosStock.push(descuento);
   }
 
+  // Insumos de las recetas. Fuera de la transaccion de la venta, igual que el
+  // stock (mismo gap de atomicidad cruzada aceptado): si falla, la venta queda
+  // y el fallo se devuelve para mostrarlo como aviso.
+  const consumoInsumos =
+    planReceta.data.consumos.length > 0
+      ? await consumirInsumosPorVenta(solicitante, tenantId, {
+          ventaId: venta.id,
+          sucursalId: input.sucursalId,
+          consumos: planReceta.data.consumos,
+        })
+      : null;
+
   if (input.pagoInicial) {
     await repo.registrarPagoVentaTx({
       ventaId: venta.id,
       monto: String(input.pagoInicial.monto),
       metodoPagoId: input.pagoInicial.metodoPagoId,
       fechaPago: fechaVenta,
+      turnoId: input.turnoId,
       creadoPor: solicitante.id,
     });
   }
@@ -618,8 +847,28 @@ export async function registrarVenta(
       comisionMontoCalculado,
       gastoComision,
       descuentosStock,
+      repetida: false,
+      consumoInsumos,
+      montoBonificado: Math.round(montoBonificado * 100) / 100,
     },
   };
+}
+
+type RegistroVentaRepetida = {
+  ventaId: string;
+  totalVenta: number;
+  comisionMontoCalculado: number | null;
+  gastoComision: null;
+  descuentosStock: [];
+  repetida: true;
+  consumoInsumos: null;
+  montoBonificado: number;
+};
+
+/** Postgres 23505 (unique_violation), tambien cuando drizzle lo envuelve en `cause`. */
+function esViolacionUnica(e: unknown): boolean {
+  const codigo = (x: unknown) => (x as { code?: string } | null)?.code;
+  return codigo(e) === "23505" || codigo((e as { cause?: unknown } | null)?.cause) === "23505";
 }
 
 export interface DatosAjusteVenta {
@@ -741,7 +990,7 @@ export async function registrarAjusteVenta(
 export async function registrarPagoVenta(
   solicitante: UsuarioConRol,
   ventaId: string,
-  input: { monto: string | number; metodoPagoId: string; fechaPago?: string }
+  input: { monto: string | number; metodoPagoId: string; fechaPago?: string; turnoId?: string }
 ): Promise<Resultado<{ estadoPago: EstadoPagoVenta; totalPagado: number }>> {
   const venta = await repo.obtenerVentaPorId(ventaId);
   if (!venta) return { ok: false, error: "Venta no encontrada." };
@@ -760,6 +1009,7 @@ export async function registrarPagoVenta(
     monto: String(input.monto),
     metodoPagoId: input.metodoPagoId,
     fechaPago: input.fechaPago ? instanteDeDiaLocal(input.fechaPago, zona) : new Date(),
+    turnoId: input.turnoId,
     creadoPor: solicitante.id,
   });
   if (pago.rechazado) {
@@ -773,6 +1023,162 @@ export async function registrarPagoVenta(
   }
 
   return { ok: true, data: { estadoPago: pago.estadoPago, totalPagado: pago.totalPagado } };
+}
+
+/**
+ * Lo que el modulo Caja necesita saber de un turno (Roadmap Cafiatto, Fase 4): cuantas
+ * ventas se registraron, por cuanto, y lo COBRADO por metodo de pago. Solo lectura.
+ * `efectivoCobrado` es lo cobrado con metodos marcados como efectivo: el dinero que
+ * entro al cajon durante el turno.
+ *
+ * Nota: el total vendido es el de las lineas, sin restar ajustes posteriores (mismo
+ * criterio del historial, H-26). Lo que importa para el cajon son los cobros, y esos
+ * son exactos.
+ */
+export async function consultarCobrosDeTurno(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  turnoId: string
+): Promise<
+  Resultado<{
+    ventasCantidad: number;
+    ventasTotal: number;
+    porMetodo: Array<{
+      metodoPagoId: string;
+      nombre: string;
+      esEfectivo: boolean;
+      monto: number;
+      cantidad: number;
+    }>;
+    efectivoCobrado: number;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  const [ventasDelTurno, cobros] = await Promise.all([
+    repo.resumirVentasDeTurno(tenantId, turnoId),
+    repo.resumirCobrosDeTurno(tenantId, turnoId),
+  ]);
+  const porMetodo = cobros.map((c) => ({
+    metodoPagoId: c.metodoPagoId,
+    nombre: c.nombre,
+    esEfectivo: c.esEfectivo,
+    monto: Number(c.monto),
+    cantidad: c.cantidad,
+  }));
+  return {
+    ok: true,
+    data: {
+      ventasCantidad: ventasDelTurno.cantidad,
+      ventasTotal: ventasDelTurno.total,
+      porMetodo,
+      efectivoCobrado: porMetodo.filter((m) => m.esEfectivo).reduce((s, m) => s + m.monto, 0),
+    },
+  };
+}
+
+/**
+ * Fase 5: lo bonificado en un periodo, por motivo. Junto al costo real de lo consumido trae
+ * cuantas bonificaciones tienen costo desconocido: sin ese marcador el numero se lee mas bajo
+ * de lo que es (reglas 9 y 10: marcar el hueco, no estimarlo).
+ */
+export async function consultarBonificacionesPorMotivo(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string }
+): Promise<
+  Resultado<{
+    porMotivo: Array<{
+      motivo: "consumo_personal" | "cortesia";
+      cantidadVentas: number;
+      montoBonificado: number;
+      costo: number;
+      ventasSinCostoConocido: number;
+    }>;
+    montoBonificado: number;
+    costo: number;
+    ventasSinCostoConocido: number;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  const { inicio, fin } = rangoInstantes(periodo, await zonaHorariaTenant(tenantId));
+  const porMotivo = await repo.resumirBonificacionesEnPeriodo(tenantId, inicio, fin);
+  return {
+    ok: true,
+    data: {
+      porMotivo,
+      montoBonificado: porMotivo.reduce((s, m) => s + m.montoBonificado, 0),
+      costo: porMotivo.reduce((s, m) => s + m.costo, 0),
+      ventasSinCostoConocido: porMotivo.reduce((s, m) => s + m.ventasSinCostoConocido, 0),
+    },
+  };
+}
+
+/**
+ * Fase 6: cuando y quien vende. Ventas por hora local del negocio (0-23, solo las horas con
+ * ventas) y por quien registro la venta. Cantidad = ventas distintas; ingresos = suma de
+ * lineas netas de bonificacion. El ticket promedio lo calcula quien lo muestra con estos dos
+ * numeros, que aca son exactos (no hay completitud de costo en juego).
+ */
+export async function consultarActividadVentas(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  periodo: { desde: string; hasta: string },
+  opts: { sucursalId?: string } = {}
+): Promise<
+  Resultado<{
+    cantidad: number;
+    ingresos: number;
+    porHora: Array<{ hora: number; cantidad: number; ingresos: number }>;
+    porVendedor: Array<{ vendedorId: string | null; cantidad: number; ingresos: number }>;
+  }>
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  const zona = await zonaHorariaTenant(tenantId);
+  const { inicio, fin } = rangoInstantes(periodo, zona);
+  const { porHora, porVendedor } = await repo.resumirActividadVentas(tenantId, inicio, fin, zona, opts.sucursalId);
+  return {
+    ok: true,
+    data: {
+      cantidad: porVendedor.reduce((s, f) => s + f.cantidad, 0),
+      ingresos: porVendedor.reduce((s, f) => s + f.ingresos, 0),
+      porHora,
+      porVendedor,
+    },
+  };
+}
+
+/**
+ * En que sucursal se vendio. Lo usa la capa de acciones para ubicar el turno de caja de un
+ * cobro; pide solo `ventas:crear` (el permiso de cobrar), no el de ver el detalle.
+ */
+export async function consultarSucursalDeVenta(
+  solicitante: UsuarioConRol,
+  ventaId: string
+): Promise<Resultado<{ sucursalId: string }>> {
+  const venta = await repo.obtenerVentaPorId(ventaId);
+  if (!venta) return { ok: false, error: "Venta no encontrada." };
+  if (!(await tienePermiso(solicitante, venta.tenantId, "ventas", "crear"))) {
+    return { ok: false, error: "No tenés permiso para registrar pagos en esta venta." };
+  }
+  return { ok: true, data: { sucursalId: venta.sucursalId } };
+}
+
+/** Las ventas registradas en un turno ("Ver ventas del turno"). */
+export async function listarVentasDeTurno(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  turnoId: string
+): Promise<Resultado<Awaited<ReturnType<typeof repo.listarVentasDeTurno>>>> {
+  if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver ventas." };
+  }
+  return { ok: true, data: await repo.listarVentasDeTurno(tenantId, turnoId) };
 }
 
 export async function listarVentas(
@@ -813,6 +1219,7 @@ export async function fichaVenta(
     detalles: Awaited<ReturnType<typeof repo.obtenerDetallesVenta>>;
     pagos: Awaited<ReturnType<typeof repo.listarPagosPorVenta>>;
     ajustes: Awaited<ReturnType<typeof repo.listarAjustesPorVenta>>;
+    bonificacion: Awaited<ReturnType<typeof repo.obtenerBonificacionDeVenta>>;
     totalVenta: number;
   }>
 > {
@@ -822,14 +1229,15 @@ export async function fichaVenta(
     return { ok: false, error: "No tenés permiso para ver esta venta." };
   }
 
-  const [detalles, pagos, ajustes, totalVenta] = await Promise.all([
+  const [detalles, pagos, ajustes, totalVenta, bonificacion] = await Promise.all([
     repo.obtenerDetallesVenta(ventaId),
     repo.listarPagosPorVenta(ventaId),
     repo.listarAjustesPorVenta(ventaId),
     repo.obtenerTotalVenta(ventaId),
+    repo.obtenerBonificacionDeVenta(ventaId),
   ]);
 
-  return { ok: true, data: { venta, detalles, pagos, ajustes, totalVenta } };
+  return { ok: true, data: { venta, detalles, pagos, ajustes, bonificacion, totalVenta } };
 }
 
 // --- Importacion de Historial (seccion 6.2) ---------------------------------------------------------
