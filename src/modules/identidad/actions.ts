@@ -123,6 +123,25 @@ export async function tienePermiso(
 }
 
 /**
+ * Los permisos del propio usuario, en una sola lectura, para que la capa de presentacion
+ * decida que secciones mostrar (menu lateral y pantalla "sin acceso"). El dueño y el admin de
+ * CEOM lo tienen todo (`todos`). Es solo presentacion: cada accion sigue pasando por
+ * `tienePermiso()` en el servidor.
+ */
+export async function permisosPropios(
+  solicitante: UsuarioConRol
+): Promise<{ todos: boolean; permitidos: string[] }> {
+  if (solicitante.esOwner || (solicitante.rol.esRolSistema && solicitante.rolId === ROL_CEOM_ADMIN_ID)) {
+    return { todos: true, permitidos: [] };
+  }
+  const filas = await repo.listarPermisosPorRol(solicitante.rolId);
+  return {
+    todos: false,
+    permitidos: filas.filter((p) => p.permitido).map((p) => `${p.modulo}.${p.accion}`),
+  };
+}
+
+/**
  * Guard de aislamiento de tenant para operaciones por-id (auditoría de
  * autorización 2026-07-21, ver docs/security/AUDITORIA-AUTORIZACION.md).
  *
