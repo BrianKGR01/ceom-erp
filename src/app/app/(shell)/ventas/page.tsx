@@ -20,7 +20,7 @@ import {
   listarEventos,
   listarMetodosPago,
 } from "@/modules/ventas/actions";
-import { estadoDeCajas } from "@/modules/caja/actions";
+import { estadoDeCajas, puedeOperarSinTurno } from "@/modules/caja/actions";
 import { PosCliente } from "./pos-cliente";
 
 export default async function PuntoDeVentaPage() {
@@ -85,10 +85,13 @@ export default async function PuntoDeVentaPage() {
       ? cajasResultado.data.cajas.filter((c) => c.sucursalId === sucursalPrincipal?.id)
       : [];
   const turnoAbierto = cajaDeLaSucursal.find((c) => c.turno)?.turno ?? null;
+  // Excepcion administrativa: el dueño/administrador puede vender sin turno aunque se exija.
+  const sinTurnoPermitido = await puedeOperarSinTurno(usuario, usuario.tenantId);
   const caja =
     cajasResultado.ok && cajasResultado.data.habilitada
       ? {
           exigirTurno: cajasResultado.data.exigirTurno,
+          puedeVenderSinTurno: sinTurnoPermitido,
           turnoNumero: turnoAbierto?.numero ?? null,
           cajaNombre: cajaDeLaSucursal.find((c) => c.turno)?.nombre ?? cajaDeLaSucursal[0]?.nombre ?? "Caja",
         }

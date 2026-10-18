@@ -98,3 +98,11 @@
 ## 5. Definición de terminado por fase
 `pnpm test`, `pnpm typecheck`, `pnpm lint` en verde; `ANCLA.md` actualizado; matriz §7 revisada;
 commit por fase (memoria: commit por módulo).
+
+## Cierre (2026-10-18)
+- Migraciones 0050–0060 aplicadas a la base real el 2026-10-17 (respaldo previo y verificación posterior); Fases 0–6 desplegadas.
+- CAFIATTO: 21 recetas en "al vender", caja habilitada con `exigir_turno` apagado (decisión: opción 1 para el primer día).
+- Excepción administrativa para vender sin turno: hecha (`puedeOperarSinTurno`).
+- Aviso cerrable en Recetas para que el equipo revise las recetas (las recetas no se tocan desde el desarrollo: las ajusta CAFIATTO).
+- Descartado por decisión del dueño: seeds de demo y e2e autenticados (proyecto de pruebas aparte), configuración de modificadores/variantes de CAFIATTO (la hace su administrador).
+- Pendiente aparte (no es de Cafiatto): pantalla "sin acceso" y menú lateral filtrado por permisos.
