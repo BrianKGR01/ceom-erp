@@ -25,7 +25,9 @@ import {
 } from "lucide-react";
 import { Icono } from "@/components/brand/icono";
 import { Logo } from "@/components/brand/logo";
+import { puedeEntrar, type PermisosPropios } from "@/lib/acceso-navegacion";
 import { cerrarSesion } from "@/lib/supabase/actions";
+import { SinAcceso } from "./sin-acceso";
 import { cn } from "@/lib/utils";
 
 interface SubItemNav {
@@ -100,6 +102,7 @@ export function AppShell({
   tenantNombre,
   esOwner,
   nichoId = null,
+  permisos = { todos: true, permitidos: [] },
   estadoAcceso,
   fechaProximoPago,
   children,
@@ -110,6 +113,8 @@ export function AppShell({
   esOwner: boolean;
   /** Nicho activo del negocio (null = modo básico). Decide qué módulos operativos se muestran. */
   nichoId?: "nicho_1" | "nicho_4" | null;
+  /** Permisos del usuario: filtran el menu y bloquean las pantallas sin permiso. */
+  permisos?: PermisosPropios;
   estadoAcceso: "activo" | "solo_lectura" | "bloqueado";
   fechaProximoPago: string | null;
   children: React.ReactNode;
@@ -181,7 +186,7 @@ export function AppShell({
     };
   }, [abierto]);
 
-  const items: ItemNav[] = [
+  const itemsBase: ItemNav[] = [
     { href: "/app", label: "Inicio", icono: LayoutGrid },
     {
       href: "/app/ventas",
@@ -275,6 +280,19 @@ export function AppShell({
     { href: "/app/reportes", label: "Reportes", icono: BarChart3 },
     { href: "/app/consentimiento", label: "Compartir Datos", icono: KeyRound },
   ];
+
+  // Menu segun permisos: cada sub-opcion que el rol no puede ver se oculta, y un modulo sin ninguna
+  // opcion visible desaparece entero. La misma tabla de reglas bloquea la pantalla (SinAcceso).
+  const items: ItemNav[] = itemsBase.flatMap((item) => {
+    if (!item.subitems) return puedeEntrar(item.href, permisos, esOwner) ? [item] : [];
+    const visibles = item.subitems.filter((sub) => puedeEntrar(sub.href, permisos, esOwner));
+    // El enlace del modulo lleva a la primera opcion visible, pero el modulo se sigue
+    // resaltando por su ruta base (grupoBase).
+    return visibles.length > 0
+      ? [{ ...item, grupoBase: item.grupoBase ?? item.href, href: visibles[0].href, subitems: visibles }]
+      : [];
+  });
+  const pantallaPermitida = puedeEntrar(pathname, permisos, esOwner);
 
   function grupoActivo(item: ItemNav) {
     const base = item.grupoBase ?? item.href;
@@ -535,7 +553,7 @@ export function AppShell({
         )}
       >
         <BannerEstadoTenant estadoAcceso={estadoAcceso} fechaProximoPago={fechaProximoPago} />
-        {children}
+        {pantallaPermitida ? children : <SinAcceso />}
       </main>
     </>
   );

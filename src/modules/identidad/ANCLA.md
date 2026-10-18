@@ -713,3 +713,8 @@ Actualización previa el 2026-07-20 — Banner de estado del tenant construido e
 ## Última actualización: 2026-10-16 — Fase 5 Cafiatto: dos capacidades especiales nuevas
 `capacidad_especial` gana `bonificar_consumo_personal` y `bonificar_cortesia` (migración 0059). Aditivo: no cambia ninguna función ni el contrato de `tieneCapacidadEspecial`.
 Las consume Ventas (`registrarVenta` con `bonificacion`). La lista de la pantalla Capacidades (`mi-negocio/capacidades`) las incluye.
+
+## Última actualización: 2026-10-18 — pantalla "sin acceso" y menú filtrado por permisos
+Nueva `permisosPropios(solicitante)` → `{ todos, permitidos: ["modulo.accion", …] }` (una sola lectura; dueño y CEOM Admin: `todos`). Aditiva: no cambia `tienePermiso` ni `tieneCapacidadEspecial`.
+La usa el layout de `/app` para el menú lateral y para `SinAcceso`. La tabla "ruta → permiso" vive en `src/lib/acceso-navegacion.ts` (la misma para el menú y para el bloqueo). **Es presentación, no seguridad:** cada acción sigue exigiendo `tienePermiso()` en el servidor.
+Test: `permisos-propios.test.ts`.
