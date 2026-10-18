@@ -5,6 +5,7 @@ import {
   listarRecetas,
 } from "@/modules/operativo/nichos/nicho-1/actions";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
+import { AvisoRecetas } from "./aviso-recetas";
 import { RecetasCliente } from "./recetas-cliente";
 
 export default async function RecetasPage() {
@@ -28,6 +29,7 @@ export default async function RecetasPage() {
   return (
     <div className="min-h-screen bg-gray-bg p-6 xl:p-8">
       <div className="mx-auto max-w-6xl py-6">
+        <AvisoRecetas />
         <RecetasCliente
           recetas={recetas.map((r, index) => {
             const ficha = fichas[index];

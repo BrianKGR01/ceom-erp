@@ -176,7 +176,8 @@ export async function configurarCaja(
  * Para la capa de acciones de Ventas: en que turno se registra esta venta/cobro.
  * - Caja apagada -> `turnoId: null`, no se exige nada.
  * - Caja activa con turno abierto en la sucursal -> ese turno.
- * - Caja activa sin turno y `exigir_turno` -> error (no se vende sin turno).
+ * - Caja activa sin turno y `exigir_turno` -> error (no se vende sin turno), salvo la
+ *   excepcion administrativa (`puedeOperarSinTurno`): `turnoId: null`.
  */
 export async function turnoParaOperar(
   solicitante: UsuarioConRol,
@@ -192,9 +193,21 @@ export async function turnoParaOperar(
   const turno = await repo.obtenerTurnoAbiertoDeSucursal(tenantId, sucursalId);
   if (turno) return { ok: true, data: { turnoId: turno.id } };
   if (config.exigirTurno) {
+    // Excepcion administrativa (PDF §16): quien administra puede operar sin turno. La venta
+    // queda con `turno_id` null, asi que no entra en ningun arqueo.
+    if (await puedeOperarSinTurno(solicitante, tenantId)) return { ok: true, data: { turnoId: null } };
     return { ok: false, error: "Para vender o cobrar, primero abrí el turno de la caja." };
   }
   return { ok: true, data: { turnoId: null } };
+}
+
+/**
+ * Excepcion administrativa: el dueño y quien puede anular/ajustar ventas (el mismo permiso que
+ * configura la caja) pueden vender sin turno aunque se exija. El cajero no.
+ */
+export async function puedeOperarSinTurno(solicitante: UsuarioConRol, tenantId: string): Promise<boolean> {
+  if (solicitante.esOwner) return true;
+  return tienePermiso(solicitante, tenantId, "ventas", "anular_ajustar");
 }
 
 export async function abrirTurno(

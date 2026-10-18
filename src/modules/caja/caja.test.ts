@@ -137,10 +137,12 @@ describe.skipIf(!hasPostgres)("Caja y turnos (Fase 4)", () => {
   });
 
   it("con la caja activa y sin turno no se vende ni se cobra; con exigir_turno apagado sí", async () => {
-    expect(await turnoParaOperar(f.owner, f.tenantId, f.sucursalId)).toEqual({
+    expect(await turnoParaOperar(f.colaborador, f.tenantId, f.sucursalId)).toEqual({
       ok: false,
       error: "Para vender o cobrar, primero abrí el turno de la caja.",
     });
+    // Excepcion administrativa: el dueño sí puede, y queda sin turno.
+    expect(ok(await turnoParaOperar(f.owner, f.tenantId, f.sucursalId))).toEqual({ turnoId: null });
     ok(await configurarCaja(f.owner, f.tenantId, { habilitada: true, exigirTurno: false }));
     expect(ok(await turnoParaOperar(f.owner, f.tenantId, f.sucursalId))).toEqual({ turnoId: null });
     ok(await configurarCaja(f.owner, f.tenantId, { habilitada: true, exigirTurno: true }));
