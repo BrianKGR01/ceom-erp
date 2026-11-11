@@ -107,8 +107,20 @@ export function HistorialCliente({
   }, [busqueda, filtros.busqueda]);
 
   const totalPaginas = Math.max(1, Math.ceil(cantidadTotal / porPagina));
-  const desde = cantidadTotal === 0 ? 0 : (pagina - 1) * porPagina + 1;
-  const hasta = Math.min(pagina * porPagina, cantidadTotal);
+  // Una pagina fuera de rango llega de un favorito viejo o de una URL a mano: la base
+  // devuelve una lista vacia y, sin acotar, el pie decia cosas como "Mostrando 19981-1199
+  // de 1199" con los dos botones trabados. Mostramos la ultima pagina real.
+  const paginaVisible = Math.min(pagina, totalPaginas);
+  const desde = cantidadTotal === 0 ? 0 : (paginaVisible - 1) * porPagina + 1;
+  const hasta = Math.min(paginaVisible * porPagina, cantidadTotal);
+
+  useEffect(() => {
+    if (cantidadTotal > 0 && pagina > totalPaginas) {
+      iniciarCarga(() => router.replace(urlCon({ pagina: String(totalPaginas) }), { scroll: false }));
+    }
+    // urlCon se recalcula en cada render; depender de ella repetiria el replace.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cantidadTotal, pagina, totalPaginas]);
 
   return (
     <div className="space-y-4">
@@ -198,19 +210,19 @@ export function HistorialCliente({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled={pagina <= 1 || cargando}
-              onClick={() => navegar({ pagina: String(pagina - 1) })}
+              disabled={paginaVisible <= 1 || cargando}
+              onClick={() => navegar({ pagina: String(paginaVisible - 1) })}
               className="rounded-lg px-2 py-1 hover:bg-gray-bg disabled:opacity-40"
             >
               Anterior
             </button>
             <span className="px-2 font-medium text-navy">
-              {pagina} / {totalPaginas}
+              {paginaVisible} / {totalPaginas}
             </span>
             <button
               type="button"
-              disabled={pagina >= totalPaginas || cargando}
-              onClick={() => navegar({ pagina: String(pagina + 1) })}
+              disabled={paginaVisible >= totalPaginas || cargando}
+              onClick={() => navegar({ pagina: String(paginaVisible + 1) })}
               className="rounded-lg px-2 py-1 hover:bg-gray-bg disabled:opacity-40"
             >
               Siguiente
