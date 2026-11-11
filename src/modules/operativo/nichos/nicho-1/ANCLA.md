@@ -295,3 +295,6 @@ del módulo: `acreditacionProductos` ya venía en el resultado de `registrarProd
 ## Última actualización: 2026-10-16 — Fase 6 Cafiatto
 - Fachada `operativo/actions.ts`: `listarProductosConRecetaIncompleta` (productos `al_vender` con receta sin insumos; gateada por `ventas:crear`). Vender los oculta.
 - Pantalla `/app/produccion/resumen` (resumen operativo). El menú lateral oculta Producción a negocios de `nicho_4` (modo básico la conserva).
+
+## Última actualización: 2026-11-11 — Nueva salida pública `listarComposicionesDeRecetas(solicitante, tenantId)`: la composición de **todas** las recetas del tenant en una consulta, agrupada por `recetaId`.
+El maestro-detalle de `/app/produccion/recetas` pedía `fichaReceta()` por fila (~3 consultas por receta; con las 23 recetas de Cafiatto, ~70 por visita). Regla 11 de AGENTS.md: un listado agrega en una consulta. `fichaReceta()` no cambió — sigue siendo la ficha de UNA receta.

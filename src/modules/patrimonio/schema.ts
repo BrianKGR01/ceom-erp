@@ -5,6 +5,7 @@ import {
   date,
   integer,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -120,6 +121,9 @@ export const activos = pgTable(
   },
   (table) => [
     ...crudPolicy("activos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("activos_proveedor_idx").on(table.proveedorId),
+    index("activos_sucursal_idx").on(table.sucursalId),
+    index("activos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -154,6 +158,9 @@ export const pasivos = pgTable(
   },
   (table) => [
     ...crudPolicy("pasivos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("pasivos_activo_idx").on(table.activoId),
+    index("pasivos_refinanciado_desde_idx").on(table.refinanciadoDesdeId),
+    index("pasivos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -175,5 +182,6 @@ export const pagosPasivo = pgTable(
       "pagos_pasivo",
       sql`${table.pasivoId} in (select id from pasivos where tenant_id = (select current_tenant_id()))`
     ),
+    index("pagos_pasivo_pasivo_idx").on(table.pasivoId),
   ]
 ).enableRLS();

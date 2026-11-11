@@ -90,6 +90,13 @@ export function PosCliente({
   const [busqueda, setBusqueda] = useState("");
   const [categoriaId, setCategoriaId] = useState("todas");
   const categoriaPorId = new Map(categorias.map((c) => [c.id, c.nombre]));
+  // El punto de venta ya oculta los productos inactivos y los que tienen la receta vacia, asi
+  // que una categoria puede quedarse sin nada que mostrar: ese boton se veria roto. Los
+  // botones se arman con lo que de verdad hay para vender, no con todas las categorias.
+  const categoriasConProductos = new Set(
+    productos.map((p) => p.categoriaId).filter((id): id is string => Boolean(id))
+  );
+  const categoriasFiltrables = categorias.filter((c) => categoriasConProductos.has(c.id));
 
   const [clientes] = useState(clientesIniciales);
   const [clienteId, setClienteId] = useState<string>("sin_cliente");
@@ -380,7 +387,7 @@ export function PosCliente({
       )}
       <div className="space-y-4 lg:col-span-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {categorias.length > 0 && (
+          {categoriasFiltrables.length > 0 && (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -394,7 +401,7 @@ export function PosCliente({
               >
                 Todos los productos
               </button>
-              {categorias.map((categoria) => (
+              {categoriasFiltrables.map((categoria) => (
                 <button
                   key={categoria.id}
                   type="button"

@@ -190,6 +190,17 @@ export async function listarInstituciones(
  * Aprobaciones/Solicitudes (Modulo 10) — no es un dato de negocio del
  * tenant, es metadato del catalogo de Instituciones.
  */
+/**
+ * El nombre de varias instituciones de una. La pantalla de Solicitudes pedia
+ * `obtenerInstitucionPorId()` por fila; esto resuelve todas en una consulta.
+ */
+export async function listarNombresDeInstituciones(
+  institucionIds: string[]
+): Promise<Record<string, string>> {
+  const filas = await repo.listarInstitucionesPorIds([...new Set(institucionIds)]);
+  return Object.fromEntries(filas.map((i) => [i.id, i.nombre]));
+}
+
 export async function obtenerInstitucionPorId(
   institucionId: string
 ): Promise<Resultado<{ id: string; nombre: string; tipo: TipoInstitucion; contacto: string | null }>> {

@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -66,6 +67,8 @@ export const cajas = pgTable(
   },
   (table) => [
     ...crudPolicy("cajas", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("cajas_sucursal_idx").on(table.sucursalId),
+    index("cajas_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -136,5 +139,7 @@ export const movimientosCaja = pgTable(
   (table) => [
     check("movimientos_caja_monto_chk", sql`${table.monto} > 0`),
     ...crudPolicy("movimientos_caja", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("movimientos_caja_tenant_idx").on(table.tenantId),
+    index("movimientos_caja_turno_idx").on(table.turnoId),
   ]
 ).enableRLS();

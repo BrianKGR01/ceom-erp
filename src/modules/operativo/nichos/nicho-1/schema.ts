@@ -5,6 +5,7 @@ import {
   date,
   integer,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -71,6 +72,7 @@ export const insumos = pgTable(
   },
   (table) => [
     ...crudPolicy("insumos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("insumos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -110,6 +112,8 @@ export const movimientosInsumo = pgTable(
       "movimientos_insumo",
       sql`${table.insumoId} in (select id from insumos where tenant_id = (select current_tenant_id()))`
     ),
+    index("movimientos_insumo_insumo_sucursal_idx").on(table.insumoId, table.sucursalId),
+    index("movimientos_insumo_sucursal_idx").on(table.sucursalId),
   ]
 ).enableRLS();
 
@@ -142,6 +146,7 @@ export const stockInsumo = pgTable(
       "stock_insumo",
       sql`${table.insumoId} in (select id from insumos where tenant_id = (select current_tenant_id()))`
     ),
+    index("stock_insumo_sucursal_idx").on(table.sucursalId),
   ]
 ).enableRLS();
 
@@ -164,6 +169,7 @@ export const recetas = pgTable(
   },
   (table) => [
     ...crudPolicy("recetas", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("recetas_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -187,6 +193,8 @@ export const recetaInsumos = pgTable(
       "receta_insumos",
       sql`${table.recetaId} in (select id from recetas where tenant_id = (select current_tenant_id()))`
     ),
+    index("receta_insumos_insumo_idx").on(table.insumoId),
+    index("receta_insumos_receta_idx").on(table.recetaId),
   ]
 ).enableRLS();
 
@@ -217,6 +225,8 @@ export const vinculacionesProductoReceta = pgTable(
       "vinculaciones_producto_receta",
       sql`${table.recetaId} in (select id from recetas where tenant_id = (select current_tenant_id()))`
     ),
+    index("vinculaciones_producto_receta_producto_idx").on(table.productoId),
+    index("vinculaciones_producto_receta_receta_idx").on(table.recetaId),
   ]
 ).enableRLS();
 
@@ -273,6 +283,10 @@ export const producciones = pgTable(
       "producciones",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("producciones_activo_idx").on(table.activoId),
+    index("producciones_producto_idx").on(table.productoId),
+    index("producciones_sucursal_idx").on(table.sucursalId),
+    index("producciones_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -304,6 +318,7 @@ export const produccionesAjuste = pgTable(
       "producciones_ajuste",
       sql`${table.produccionId} in (select id from producciones where tenant_id = (select current_tenant_id()))`
     ),
+    index("producciones_ajuste_produccion_idx").on(table.produccionId),
   ]
 ).enableRLS();
 
@@ -360,6 +375,10 @@ export const bajas = pgTable(
     ),
     check("bajas_cantidad_chk", sql`${table.cantidad} > 0`),
     ...crudPolicy("bajas", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("bajas_insumo_idx").on(table.insumoId),
+    index("bajas_producto_idx").on(table.productoId),
+    index("bajas_sucursal_idx").on(table.sucursalId),
+    index("bajas_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -398,6 +417,7 @@ export const gruposModificadores = pgTable(
   },
   (table) => [
     ...crudPolicy("grupos_modificadores", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("grupos_modificadores_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -440,6 +460,9 @@ export const modificadores = pgTable(
       .on(table.grupoId)
       .where(sql`${table.esBase} and ${table.eliminadoEn} is null`),
     ...crudPolicy("modificadores", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("modificadores_insumo_idx").on(table.insumoId),
+    index("modificadores_insumo_reemplazado_idx").on(table.insumoReemplazadoId),
+    index("modificadores_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -464,5 +487,6 @@ export const productosGruposModificadores = pgTable(
       "productos_grupos_modificadores",
       sql`${table.grupoId} in (select id from grupos_modificadores where tenant_id = (select current_tenant_id()))`
     ),
+    index("productos_grupos_modificadores_grupo_idx").on(table.grupoId),
   ]
 ).enableRLS();

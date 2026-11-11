@@ -22,11 +22,15 @@
   sección 7).
 - Salidas que expone (`actions.ts`): CRUD de `Cliente`/`CanalVenta`/
   `MetodoPago`/`Evento` + `registrarVenta`, `registrarAjusteVenta`,
-  `registrarPagoVenta`, `listarVentas`, `listarVentasConTotal` (agregada al
-  construir el Listado de Ventas — `listarVentas` no trae el total por fila,
-  este wrapper lo agrega con `obtenerTotalVenta` por fila, mismo patrón que
-  `listarSucursalesPorTenant`/`listarMovimientosStock` de Identidad/
-  Productos), `fichaVenta`, `importarVentaHistorica`
+  `registrarPagoVenta`, `listarVentas`, `listarPaginaHistorialVentas`
+  (+ `VENTAS_POR_PAGINA`: UNA página del Historial, ya filtrada por estado/
+  canal/cliente, ordenada y con el total de cada venta sumado por la base —
+  dos consultas de tamaño fijo. **Reemplaza a `listarVentasConTotal()`**, que
+  traía todas las ventas del tenant y pedía `obtenerTotalVenta` por fila:
+  1198 ventas reales = 1199 consultas y ~291 kB de JSON para mostrar 10
+  filas, y empeoraba con cada venta. El total se calcula igual
+  (`sum(detalles_venta.subtotal)`), así que los números no cambian),
+  `fichaVenta`, `importarVentaHistorica`
   + fórmulas puras (`calcularSubtotal`, `calcularComision`) +
   `consultarIngresosPeriodo`, `consultarPagosVentaEnPeriodo`,
   `consultarAjustesVentaEnPeriodo` (agregados de solo lectura por período,
@@ -498,3 +502,7 @@ Tests: `bonificacion.test.ts`, `bonificacion-ruta.test.ts`, `pos-cliente.test.ts
 Ingresos = suma de `detalles_venta.subtotal` (neto de bonificaciones; no resta ajustes posteriores, H-26). La hora se agrupa en la zona del negocio.
 Lo consume la pantalla `/app/produccion/resumen` junto con `rankingProductos(margen)` (Reportes), `consultarBonificacionesPorMotivo` y `consultarBajasPorMotivo`: ningún margen se calcula en la pantalla (regla 10) y los marcadores de costo desconocido viajan (regla 9).
 Test: `resumen-operativo.test.ts`.
+
+## Última actualización: 2026-11-11 — Historial de ventas: `listarVentasConTotal()` **se eliminó** y la reemplaza `listarPaginaHistorialVentas(solicitante, tenantId, { pagina, porPagina, filtros })`, que devuelve `{ ventas, cantidadTotal, pagina, porPagina }`.
+Era el defecto que el equipo de Cafiatto reportó como "problemas con el historial": una consulta por venta (regla 11) sobre tablas sin índice, más el listado completo serializado al navegador. El único consumidor era `/app/ventas/historial`, que ahora pasa los filtros y la página por la URL. `repository.listarPaginaHistorialVentas()` hace el `leftJoin` + `groupBy(ventas.id)` (mismo molde que `listarVentasDeTurno`). Verificado contra la base real: los 1199 totales coinciden uno a uno con el cálculo anterior, misma suma.
+`listarVentasPorTenant()` y `obtenerTotalVenta()` siguen existiendo para `listarVentas()` y la ficha de venta.

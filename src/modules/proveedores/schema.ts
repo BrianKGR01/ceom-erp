@@ -3,6 +3,7 @@ import {
   check,
   date,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -69,6 +70,7 @@ export const proveedores = pgTable(
     // Etapa 3 del backstop de RLS (docs/security/PLAN-RLS-BACKSTOP.md
     // §10.3/§10.8, sub-etapa 3.b).
     ceomAdminBypassPolicy("proveedores"),
+    index("proveedores_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -141,6 +143,11 @@ export const compras = pgTable(
     // 4.a.3). Nunca conviven las dos: la vieja, sin restricción, anularía a
     // la nueva por semántica OR de policies permisivas múltiples.
     gatewayVigenciaBypassPolicy("compras", "financiero"),
+    index("compras_insumo_idx").on(table.insumoId),
+    index("compras_producto_idx").on(table.productoId),
+    index("compras_proveedor_idx").on(table.proveedorId),
+    index("compras_sucursal_idx").on(table.sucursalId),
+    index("compras_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -173,6 +180,7 @@ export const pagosCompra = pgTable(
       "financiero",
       sql`(select compras.tenant_id from compras where compras.id = pagos_compra.compra_id)`
     ),
+    index("pagos_compra_compra_idx").on(table.compraId),
   ]
 ).enableRLS();
 
@@ -230,5 +238,6 @@ export const comprasAjuste = pgTable(
       "financiero",
       sql`(select compras.tenant_id from compras where compras.id = compras_ajuste.compra_id)`
     ),
+    index("compras_ajuste_compra_idx").on(table.compraId),
   ]
 ).enableRLS();

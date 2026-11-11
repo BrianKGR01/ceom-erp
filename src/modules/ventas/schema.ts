@@ -4,6 +4,7 @@ import {
   check,
   jsonb,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -66,6 +67,7 @@ export const clientes = pgTable(
   },
   (table) => [
     ...crudPolicy("clientes", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("clientes_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -91,6 +93,7 @@ export const canalesVenta = pgTable(
       "canales_venta",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("canales_venta_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -114,6 +117,7 @@ export const metodosPago = pgTable(
       "metodos_pago",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("metodos_pago_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -145,6 +149,9 @@ export const eventos = pgTable(
   },
   (table) => [
     ...crudPolicy("eventos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("eventos_canal_venta_idx").on(table.canalVentaId),
+    index("eventos_sucursal_idx").on(table.sucursalId),
+    index("eventos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -200,6 +207,11 @@ export const ventas = pgTable(
     uniqueIndex("ventas_tenant_clave_idempotencia_uq")
       .on(table.tenantId, table.claveIdempotencia)
       .where(sql`${table.claveIdempotencia} is not null`),
+    index("ventas_canal_venta_idx").on(table.canalVentaId),
+    index("ventas_cliente_idx").on(table.clienteId),
+    index("ventas_evento_idx").on(table.eventoId),
+    index("ventas_sucursal_idx").on(table.sucursalId),
+    index("ventas_tenant_fecha_venta_idx").on(table.tenantId, table.fechaVenta),
   ]
 ).enableRLS();
 
@@ -253,6 +265,8 @@ export const detallesVenta = pgTable(
       "detalles_venta",
       sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
     ),
+    index("detalles_venta_producto_idx").on(table.productoId),
+    index("detalles_venta_venta_idx").on(table.ventaId),
   ]
 ).enableRLS();
 
@@ -317,6 +331,7 @@ export const detallesVentaModificadores = pgTable(
       "detalles_venta_modificadores",
       sql`${table.detalleVentaId} in (select dv.id from detalles_venta dv join ventas v on v.id = dv.venta_id where v.tenant_id = (select current_tenant_id()))`
     ),
+    index("detalles_venta_modificadores_detalle_venta_idx").on(table.detalleVentaId),
   ]
 ).enableRLS();
 
@@ -347,6 +362,8 @@ export const ajustesVenta = pgTable(
       "ajustes_venta",
       sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
     ),
+    index("ajustes_venta_producto_idx").on(table.productoId),
+    index("ajustes_venta_venta_idx").on(table.ventaId),
   ]
 ).enableRLS();
 
@@ -375,5 +392,7 @@ export const pagosVenta = pgTable(
       "pagos_venta",
       sql`${table.ventaId} in (select id from ventas where tenant_id = (select current_tenant_id()))`
     ),
+    index("pagos_venta_metodo_pago_idx").on(table.metodoPagoId),
+    index("pagos_venta_venta_idx").on(table.ventaId),
   ]
 ).enableRLS();

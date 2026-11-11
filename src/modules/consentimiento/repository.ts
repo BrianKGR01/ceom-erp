@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   aprobacionesTenant,
@@ -35,6 +35,15 @@ export async function obtenerInstitucionPorId(institucionId: string) {
     .where(and(eq(instituciones.id, institucionId), isNull(instituciones.eliminadoEn)))
     .limit(1);
   return filas[0] ?? null;
+}
+
+/** Varias instituciones de una (regla 11 de AGENTS.md: un listado no pide una ficha por fila). */
+export async function listarInstitucionesPorIds(institucionIds: string[]) {
+  if (institucionIds.length === 0) return [];
+  return db
+    .select()
+    .from(instituciones)
+    .where(and(inArray(instituciones.id, institucionIds), isNull(instituciones.eliminadoEn)));
 }
 
 export async function actualizarInstitucion(

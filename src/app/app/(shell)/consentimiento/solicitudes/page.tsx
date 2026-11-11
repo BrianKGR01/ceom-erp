@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { obtenerUsuarioActual } from "@/modules/identidad/actions";
-import { listarSolicitudesPorTenant, obtenerInstitucionPorId } from "@/modules/consentimiento/actions";
+import {
+  listarNombresDeInstituciones,
+  listarSolicitudesPorTenant,
+} from "@/modules/consentimiento/actions";
 import { SolicitudesCliente } from "./solicitudes-cliente";
 
 export default async function SolicitudesPage() {
@@ -18,12 +21,9 @@ export default async function SolicitudesPage() {
     );
   }
 
-  const institucionIds = [...new Set(resultado.data.map((s) => s.institucionId))];
-  const institucionesRes = await Promise.all(institucionIds.map((id) => obtenerInstitucionPorId(id)));
-  const nombrePorInstitucion = Object.fromEntries(
-    institucionesRes
-      .map((r, i) => (r.ok ? [institucionIds[i], r.data.nombre] : null))
-      .filter((x): x is [string, string] => x !== null)
+  // Una consulta para todas las instituciones, no una por fila.
+  const nombrePorInstitucion = await listarNombresDeInstituciones(
+    resultado.data.map((s) => s.institucionId)
   );
 
   const filas = resultado.data.map((s) => ({

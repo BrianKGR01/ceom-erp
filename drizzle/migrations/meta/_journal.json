@@ -428,6 +428,13 @@
       "when": 1792170057403,
       "tag": "0060_cafiatto_bonificaciones",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794360904575,
+      "tag": "0061_indices_claves_foraneas",
+      "breakpoints": true
     }
   ]
 }

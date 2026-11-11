@@ -954,6 +954,33 @@ export async function fichaReceta(
   return { ok: true, data: { receta, composicion } };
 }
 
+/**
+ * La composicion de todas las recetas del tenant, agrupada por receta, en una sola consulta.
+ *
+ * Reemplaza al `fichaReceta()` por fila que usaba el maestro-detalle de Recetas (una ficha por
+ * receta = ~3 consultas cada una). Mismos datos, dos consultas en total.
+ */
+export async function listarComposicionesDeRecetas(
+  solicitante: UsuarioConRol,
+  tenantId: string
+): Promise<
+  Resultado<
+    Map<string, Awaited<ReturnType<typeof repo.listarComposicionesPorTenant>>>
+  >
+> {
+  if (!(await tienePermiso(solicitante, tenantId, "operativo", "ver"))) {
+    return { ok: false, error: "No tenés permiso para ver las recetas." };
+  }
+  const filas = await repo.listarComposicionesPorTenant(tenantId);
+  const porReceta = new Map<string, typeof filas>();
+  for (const fila of filas) {
+    const actuales = porReceta.get(fila.recetaId);
+    if (actuales) actuales.push(fila);
+    else porReceta.set(fila.recetaId, [fila]);
+  }
+  return { ok: true, data: porReceta };
+}
+
 export async function actualizarComposicionReceta(
   solicitante: UsuarioConRol,
   recetaId: string,

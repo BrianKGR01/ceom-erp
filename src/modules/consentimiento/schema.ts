@@ -107,6 +107,8 @@ export const carteraInstitucional = pgTable(
       "cartera_institucional",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("cartera_institucional_institucion_idx").on(table.institucionId),
+    index("cartera_institucional_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -133,6 +135,8 @@ export const solicitudesSeguimiento = pgTable(
       "solicitudes_seguimiento",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("solicitudes_seguimiento_institucion_idx").on(table.institucionId),
+    index("solicitudes_seguimiento_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -193,6 +197,9 @@ export const aprobacionesTenant = pgTable(
     // que el Gateway lea aprobaciones_tenant bajo RLS directamente (solo
     // consume el booleano derivado) -- si eso cambia, resolverlo distinto,
     // no extendiendo este patron sin pensarlo.
+    index("aprobaciones_tenant_aprobado_por_idx").on(table.aprobadoPor),
+    index("aprobaciones_tenant_codigo_acceso_idx").on(table.codigoAccesoId),
+    index("aprobaciones_tenant_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -241,6 +248,9 @@ export const codigosAcceso = pgTable(
       "codigos_acceso",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("codigos_acceso_creado_por_idx").on(table.creadoPor),
+    index("codigos_acceso_institucion_idx").on(table.institucionId),
+    index("codigos_acceso_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -336,6 +346,7 @@ export const logsAccesoInstitucion = pgTable(
       "logs_acceso_institucion",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("logs_acceso_institucion_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -361,5 +372,8 @@ export const logsAccesoAdminCeom = pgTable(
   // tabla nunca debe ser legible via el rol authenticated de Supabase,
   // solo via el camino privilegiado que ya usan todas las Server Actions
   // del proyecto (rol "postgres", ver src/db/rls.ts).
-  () => []
+  (table) => [
+    index("logs_acceso_admin_ceom_tenant_idx").on(table.tenantId),
+    index("logs_acceso_admin_ceom_usuario_ceom_idx").on(table.usuarioCeomId),
+  ]
 ).enableRLS();

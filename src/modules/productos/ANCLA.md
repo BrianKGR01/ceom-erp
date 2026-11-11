@@ -298,3 +298,8 @@ Nueva función pública: baja de producto con stock terminado (`salida_merma`, p
 ## Última actualización: 2026-10-16 — Fase 3 Cafiatto: agrupar variantes
 `productos.grupo_variantes` y `productos.etiqueta_variante` (texto, nulos, migración 0055). Solo agrupan para mostrar ("Latte" -> 12 oz / 16 oz): cada variante sigue siendo un producto con su
 precio, receta y costo. `DatosProducto` y el formulario las aceptan (cadena vacía en una edición las limpia). Sin cambio de contrato para quien no las usa.
+
+## Última actualización: 2026-11-11 — Alta de producto con stock inicial: nueva salida pública `crearProductoConStockInicial(solicitante, tenantId, input & { stockInicial?, sucursalId? })`.
+Arregla un defecto real del Alta: llamaba `crearProducto()` y después `registrarAjusteManualStock()`, que exige `inventario.anular_ajustar` — el permiso de **corregir** un conteo a mano. Un rol de Cajero (con `productos.crear` e `inventario.crear`, como el de Cafiatto) creaba el producto y recién ahí fallaba el stock: el producto quedaba creado, la pantalla mostraba error, y reintentar lo duplicaba.
+Dos cambios: la carga inicial pide `inventario.crear` (es una entrada normal, como `registrarEntradaProduccion`/`registrarEntradaCompraReventa`, no una corrección), y **todos** los permisos y la sucursal se validan ANTES de crear el producto, así un rechazo no deja nada a medias. El movimiento se sigue guardando como `entrada_ajuste_manual` con motivo "Carga inicial", para no partir en dos el historial de los productos ya cargados.
+`registrarAjusteManualStock()` no cambió: sigue exigiendo `inventario.anular_ajustar` para los ajustes de conteo desde la ficha.
