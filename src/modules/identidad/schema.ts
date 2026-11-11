@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   date,
+  index,
   pgEnum,
   pgSchema,
   pgTable,
@@ -139,6 +140,7 @@ export const tenants = pgTable("tenants", {
 },
   (table) => [
     ...crudPolicy("tenants", sql`${table.id} = (select current_tenant_id())`),
+    index("tenants_plan_idx").on(table.planId),
   ]
 ).enableRLS();
 
@@ -313,6 +315,8 @@ export const usuarios = pgTable(
       "usuarios",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("usuarios_rol_idx").on(table.rolId),
+    index("usuarios_sucursal_idx").on(table.sucursalId),
   ]
 ).enableRLS();
 

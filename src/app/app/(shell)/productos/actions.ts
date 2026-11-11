@@ -10,7 +10,7 @@ import {
   actualizarCategoria,
   actualizarProducto,
   crearCategoria,
-  crearProducto,
+  crearProductoConStockInicial,
   eliminarCategoria,
   eliminarProducto,
   fichaProducto,
@@ -70,33 +70,18 @@ export async function crearProductoAction(
   const { stockInicial, sucursalId, categoriaId, fechaVencimientoReferencia, ...datosProducto } =
     parsed.data;
 
-  const resultado = await crearProducto(usuario, usuario.tenantId, {
+  // Una sola accion del modulo: valida permisos y sucursal ANTES de crear, asi un rechazo no
+  // deja el producto creado con un error en pantalla (que llevaba a reintentar y duplicarlo).
+  const resultado = await crearProductoConStockInicial(usuario, usuario.tenantId, {
     ...datosProducto,
     // El Select de categoria manda "" cuando no se elige nada — la columna
     // es un uuid, no acepta string vacio (rechaza en DB si se lo pasamos tal cual).
     categoriaId: categoriaId || undefined,
     fechaVencimientoReferencia: fechaVencimientoReferencia || undefined,
+    stockInicial,
+    sucursalId,
   });
   if (!resultado.ok) return resultado;
-
-  if (stockInicial && stockInicial > 0) {
-    if (!sucursalId) {
-      return { ok: false, error: "Elegí una sucursal para cargar el stock inicial." };
-    }
-    const ajuste = await registrarAjusteManualStock(usuario, usuario.tenantId, {
-      productoId: resultado.data.productoId,
-      sucursalId,
-      tipo: "entrada_ajuste_manual",
-      cantidad: stockInicial,
-      motivo: "Carga inicial",
-    });
-    if (!ajuste.ok) {
-      return {
-        ok: false,
-        error: `Creamos el producto, pero no pudimos cargar el stock inicial: ${ajuste.error}`,
-      };
-    }
-  }
 
   return { ok: true, data: { productoId: resultado.data.productoId } };
 }

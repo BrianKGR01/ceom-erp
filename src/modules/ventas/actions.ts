@@ -1191,23 +1191,47 @@ export async function listarVentas(
   return { ok: true, data: await repo.listarVentasPorTenant(tenantId) };
 }
 
-/** listarVentas() no trae el total por fila (Venta no persiste un
- * monto_total propio) — este wrapper lo agrega llamando obtenerTotalVenta
- * por fila, mismo criterio que listarSucursalesPorTenant/
- * listarMovimientosStock agregados esta sesion. */
-export async function listarVentasConTotal(
+/** Cuantas filas sirve una pagina del Historial. */
+export const VENTAS_POR_PAGINA = 20;
+
+/**
+ * Una pagina del Historial de ventas: filtrada, ordenada, paginada y con el total de cada
+ * venta ya sumado, todo en la base (dos consultas de tamano fijo).
+ *
+ * Reemplaza a `listarVentasConTotal()`, que traia TODAS las ventas del tenant y pedia una
+ * consulta por fila para el total. Con 1198 ventas reales eran 1199 consultas y ~291 kB de
+ * JSON al navegador para mostrar 10 filas, y empeoraba con cada venta nueva. El total de cada
+ * venta se calcula igual que antes (`sum(detalles_venta.subtotal)`), asi que los numeros no
+ * cambian.
+ */
+export async function listarPaginaHistorialVentas(
   solicitante: UsuarioConRol,
-  tenantId: string
-): Promise<Resultado<Array<Awaited<ReturnType<typeof repo.listarVentasPorTenant>>[number] & { total: number }>>> {
+  tenantId: string,
+  opciones: {
+    pagina?: number;
+    porPagina?: number;
+    filtros?: repo.FiltrosHistorialVentas;
+  } = {}
+): Promise<
+  Resultado<{
+    ventas: Awaited<ReturnType<typeof repo.listarPaginaHistorialVentas>>["ventas"];
+    cantidadTotal: number;
+    pagina: number;
+    porPagina: number;
+  }>
+> {
   if (!(await tienePermiso(solicitante, tenantId, "ventas", "ver"))) {
     return { ok: false, error: "No tenés permiso para ver ventas." };
   }
-  const ventas = await repo.listarVentasPorTenant(tenantId);
-  const totales = await Promise.all(ventas.map((v) => repo.obtenerTotalVenta(v.id)));
-  return {
-    ok: true,
-    data: ventas.map((venta, i) => ({ ...venta, total: totales[i] })),
-  };
+  const porPagina = Math.min(Math.max(1, Math.trunc(opciones.porPagina ?? VENTAS_POR_PAGINA)), 100);
+  const pagina = Math.max(1, Math.trunc(opciones.pagina ?? 1));
+  const { ventas, cantidadTotal } = await repo.listarPaginaHistorialVentas(
+    tenantId,
+    opciones.filtros ?? {},
+    porPagina,
+    (pagina - 1) * porPagina
+  );
+  return { ok: true, data: { ventas, cantidadTotal, pagina, porPagina } };
 }
 
 export async function fichaVenta(

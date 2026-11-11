@@ -430,3 +430,6 @@ filtrar sin elegir tenant, y si la zona fuera por negocio dos filas del mismo li
 con días distintos.
 
 Contexto completo: `docs/auditoria-prelanzamiento/antiguo/05-dia-local-y-reportes.md`.
+
+## Última actualización: 2026-11-11 — Nueva salida pública `listarNombresDeInstituciones(institucionIds)`: el nombre de varias instituciones en una consulta.
+`/app/consentimiento/solicitudes` pedía `obtenerInstitucionPorId()` por fila. `obtenerInstitucionPorId()` no cambió. No toca el Gateway ni la autorización: es el mismo dato que ya servía la pantalla, resuelto en una consulta en vez de N.

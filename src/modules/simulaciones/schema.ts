@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   numeric,
+  index,
   pgEnum,
   pgTable,
   text,
@@ -71,5 +72,7 @@ export const simulaciones = pgTable(
   },
   (table) => [
     ...crudPolicy("simulaciones", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("simulaciones_producto_idx").on(table.productoId),
+    index("simulaciones_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();

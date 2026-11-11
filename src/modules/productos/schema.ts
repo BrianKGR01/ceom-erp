@@ -4,6 +4,7 @@ import {
   date,
   integer,
   numeric,
+  index,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -101,6 +102,8 @@ export const categoriasProducto = pgTable(
       "categorias_producto",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("categorias_producto_categoria_sugerida_idx").on(table.categoriaSugeridaId),
+    index("categorias_producto_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -146,6 +149,8 @@ export const productos = pgTable(
   },
   (table) => [
     ...crudPolicy("productos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("productos_categoria_idx").on(table.categoriaId),
+    index("productos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -182,6 +187,7 @@ export const stock = pgTable(
       "stock",
       sql`${table.productoId} in (select id from productos where tenant_id = (select current_tenant_id()))`
     ),
+    index("stock_sucursal_idx").on(table.sucursalId),
   ]
 ).enableRLS();
 
@@ -215,5 +221,7 @@ export const movimientosStock = pgTable(
       "movimientos_stock",
       sql`${table.productoId} in (select id from productos where tenant_id = (select current_tenant_id()))`
     ),
+    index("movimientos_stock_producto_sucursal_idx").on(table.productoId, table.sucursalId),
+    index("movimientos_stock_sucursal_idx").on(table.sucursalId),
   ]
 ).enableRLS();

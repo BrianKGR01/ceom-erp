@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 
 type EstadoPago = "pendiente" | "parcial" | "pagado";
 
@@ -38,41 +40,83 @@ const LABEL_ESTADO: Record<EstadoPago, string> = {
   pendiente: "Pendiente de cobro",
 };
 
-const POR_PAGINA = 10;
+/** Cuanto esperamos entre teclas antes de pedirle al servidor la busqueda. */
+const ESPERA_BUSQUEDA_MS = 350;
 
+/**
+ * El Historial muestra UNA pagina, ya filtrada por la base. Los filtros y la pagina viven en
+ * la URL (asi el boton "atras" del navegador y un enlace compartido funcionan), y cada cambio
+ * vuelve a pedir esa pagina al servidor. Antes este componente recibia TODAS las ventas del
+ * tenant y filtraba en memoria: con 1198 ventas eran ~291 kB de JSON por visita para mostrar
+ * 10 filas, y tres filtros sobre el arreglo completo por cada tecla.
+ */
 export function HistorialCliente({
   ventas,
   canales,
+  filtros,
+  pagina,
+  porPagina,
+  cantidadTotal,
 }: {
   ventas: VentaListado[];
   canales: { id: string; nombre: string }[];
+  filtros: { estado: "todas" | EstadoPago; canalId: string; busqueda: string };
+  pagina: number;
+  porPagina: number;
+  cantidadTotal: number;
 }) {
-  const [busqueda, setBusqueda] = useState("");
-  const [canalId, setCanalId] = useState<string>("todos");
-  const [estado, setEstado] = useState<"todas" | EstadoPago>("todas");
-  const [pagina, setPagina] = useState(1);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [cargando, iniciarCarga] = useTransition();
+  const [busqueda, setBusqueda] = useState(filtros.busqueda);
 
-  const filtradas = ventas
-    .filter((v) => estado === "todas" || v.estadoPago === estado)
-    .filter((v) => canalId === "todos" || v.canalId === canalId)
-    .filter((v) => v.clienteNombre.toLowerCase().includes(busqueda.trim().toLowerCase()));
+  function urlCon(cambios: Record<string, string>) {
+    const valores: Record<string, string> = {
+      estado: filtros.estado === "todas" ? "" : filtros.estado,
+      canal: filtros.canalId === "todos" ? "" : filtros.canalId,
+      q: filtros.busqueda,
+      pagina: String(pagina),
+      ...cambios,
+    };
+    // Un filtro nuevo vuelve a la pagina 1 salvo que se pida una pagina explicita.
+    if (!("pagina" in cambios)) valores.pagina = "1";
 
-  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
-  const paginaActual = Math.min(pagina, totalPaginas);
-  const visibles = filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
-
-  function actualizarFiltro<T>(setter: (v: T) => void, valor: T) {
-    setter(valor);
-    setPagina(1);
+    const params = new URLSearchParams();
+    for (const [clave, valor] of Object.entries(valores)) {
+      // La pagina 1 y los filtros vacios no van en la URL: deja el enlace limpio.
+      if (!valor || (clave === "pagina" && valor === "1")) continue;
+      params.set(clave, valor);
+    }
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
   }
+
+  function navegar(cambios: Record<string, string>) {
+    iniciarCarga(() => router.push(urlCon(cambios), { scroll: false }));
+  }
+
+  // La busqueda no dispara una consulta por tecla: espera a que la persona deje de escribir.
+  useEffect(() => {
+    if (busqueda === filtros.busqueda) return;
+    const temporizador = setTimeout(() => {
+      iniciarCarga(() => router.push(urlCon({ q: busqueda }), { scroll: false }));
+    }, ESPERA_BUSQUEDA_MS);
+    return () => clearTimeout(temporizador);
+    // urlCon se recalcula en cada render; depender de ella reiniciaria el temporizador siempre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, filtros.busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(cantidadTotal / porPagina));
+  const desde = cantidadTotal === 0 ? 0 : (pagina - 1) * porPagina + 1;
+  const hasta = Math.min(pagina * porPagina, cantidadTotal);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           <ToggleGroup
-            value={estado}
-            onValueChange={(v) => actualizarFiltro(setEstado, v)}
+            value={filtros.estado}
+            onValueChange={(v) => navegar({ estado: v === "todas" ? "" : String(v) })}
             options={[
               { value: "todas", label: "Todas" },
               ...((Object.keys(LABEL_ESTADO) as EstadoPago[]).map((e) => ({
@@ -87,8 +131,8 @@ export function HistorialCliente({
                 todos: "Todos los canales",
                 ...Object.fromEntries(canales.map((c) => [c.id, c.nombre])),
               }}
-              value={canalId}
-              onValueChange={(v) => v && actualizarFiltro(setCanalId, v)}
+              value={filtros.canalId}
+              onValueChange={(v) => v && navegar({ canal: v === "todos" ? "" : String(v) })}
             >
               <SelectTrigger className="w-44">
                 <SelectValue />
@@ -109,17 +153,23 @@ export function HistorialCliente({
           <Input
             placeholder="Buscar cliente..."
             value={busqueda}
-            onChange={(e) => actualizarFiltro(setBusqueda, e.target.value)}
+            onChange={(e) => setBusqueda(e.target.value)}
+            maxLength={80}
             className="pl-8"
           />
         </div>
       </div>
 
-      <div className="divide-y divide-gray-border rounded-2xl bg-card shadow-card">
-        {visibles.length === 0 && (
+      <div
+        className={cn(
+          "divide-y divide-gray-border rounded-2xl bg-card shadow-card transition-opacity",
+          cargando && "opacity-60"
+        )}
+      >
+        {ventas.length === 0 && (
           <p className="p-6 text-center text-sm text-text-muted">No hay ventas para mostrar.</p>
         )}
-        {visibles.map((venta) => (
+        {ventas.map((venta) => (
           <Link
             key={venta.id}
             href={`/app/ventas/${venta.id}`}
@@ -135,35 +185,32 @@ export function HistorialCliente({
               </p>
             </div>
             <Badge variant={BADGE_ESTADO[venta.estadoPago]}>{LABEL_ESTADO[venta.estadoPago]}</Badge>
-            <span className="w-20 text-right font-medium text-navy">
-              {venta.total.toFixed(2)}
-            </span>
+            <span className="w-20 text-right font-medium text-navy">{venta.total.toFixed(2)}</span>
           </Link>
         ))}
       </div>
 
-      {filtradas.length > POR_PAGINA && (
+      {cantidadTotal > porPagina && (
         <div className="flex items-center justify-between text-sm text-text-muted">
           <span>
-            Mostrando {(paginaActual - 1) * POR_PAGINA + 1}-
-            {Math.min(paginaActual * POR_PAGINA, filtradas.length)} de {filtradas.length} ventas
+            Mostrando {desde}-{hasta} de {cantidadTotal} ventas
           </span>
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled={paginaActual === 1}
-              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={pagina <= 1 || cargando}
+              onClick={() => navegar({ pagina: String(pagina - 1) })}
               className="rounded-lg px-2 py-1 hover:bg-gray-bg disabled:opacity-40"
             >
               Anterior
             </button>
             <span className="px-2 font-medium text-navy">
-              {paginaActual} / {totalPaginas}
+              {pagina} / {totalPaginas}
             </span>
             <button
               type="button"
-              disabled={paginaActual === totalPaginas}
-              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={pagina >= totalPaginas || cargando}
+              onClick={() => navegar({ pagina: String(pagina + 1) })}
               className="rounded-lg px-2 py-1 hover:bg-gray-bg disabled:opacity-40"
             >
               Siguiente

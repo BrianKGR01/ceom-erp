@@ -16,6 +16,12 @@ export function CatalogoCliente({
   const [categoriaId, setCategoriaId] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState("");
   const categoriaPorId = new Map(categorias.map((c) => [c.id, c.nombre]));
+  // Una categoria sin ningun producto en esta pantalla seria un boton que al tocarlo deja la
+  // lista vacia — "el filtro no funciona". Se muestra solo lo que de verdad filtra algo.
+  const categoriasConProductos = new Set(
+    productos.map((p) => p.categoriaId).filter((id): id is string => Boolean(id))
+  );
+  const categoriasFiltrables = categorias.filter((c) => categoriasConProductos.has(c.id));
 
   const filtrados = productos
     .filter((p) => categoriaId === "todas" || p.categoriaId === categoriaId)
@@ -24,7 +30,7 @@ export function CatalogoCliente({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {categorias.length > 0 && (
+        {categoriasFiltrables.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -38,7 +44,7 @@ export function CatalogoCliente({
             >
               Todas
             </button>
-            {categorias.map((categoria) => (
+            {categoriasFiltrables.map((categoria) => (
               <button
                 key={categoria.id}
                 type="button"

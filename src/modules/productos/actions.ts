@@ -195,6 +195,65 @@ export async function crearProducto(
   return { ok: true, data: { productoId: producto.id } };
 }
 
+/**
+ * Alta de producto con su stock inicial, en una sola accion publica del modulo.
+ *
+ * Existe por un defecto real: el Alta llamaba `crearProducto()` y despues
+ * `registrarAjusteManualStock()`, que exige `inventario.anular_ajustar` — el permiso de
+ * CORREGIR un conteo a mano. Un rol de Cajero (con `productos.crear` e `inventario.crear`)
+ * creaba el producto y recien ahi fallaba el stock: el producto quedaba creado, la pantalla
+ * mostraba un error, y reintentar duplicaba el producto.
+ *
+ * Dos cambios: la carga inicial pide `inventario.crear` (es una entrada normal, como una
+ * entrada de produccion o de compra, no una correccion), y TODOS los permisos y la sucursal se
+ * validan ANTES de crear el producto, asi un rechazo no deja nada a medias.
+ *
+ * El movimiento se guarda igual que antes (`entrada_ajuste_manual`, motivo "Carga inicial"),
+ * para no partir en dos el historial de los productos ya cargados.
+ */
+export async function crearProductoConStockInicial(
+  solicitante: UsuarioConRol,
+  tenantId: string,
+  input: DatosProducto & { stockInicial?: number; sucursalId?: string }
+): Promise<Resultado<{ productoId: string; cantidadActual: number | null }>> {
+  const { stockInicial, sucursalId, ...datosProducto } = input;
+  const cargaStock = typeof stockInicial === "number" && stockInicial > 0;
+
+  if (!(await tienePermiso(solicitante, tenantId, "productos", "crear"))) {
+    return { ok: false, error: "No tenés permiso para crear productos." };
+  }
+  if (cargaStock) {
+    if (!(await tienePermiso(solicitante, tenantId, "inventario", "crear"))) {
+      return {
+        ok: false,
+        error:
+          "No tenés permiso para cargar stock. Podés crear el producto dejando el stock inicial en 0.",
+      };
+    }
+    if (!sucursalId) {
+      return { ok: false, error: "Elegí una sucursal para cargar el stock inicial." };
+    }
+    const sucursalOperable = await requireSucursalOperable(solicitante, tenantId, sucursalId);
+    if (sucursalOperable) return sucursalOperable;
+  }
+
+  const creado = await crearProducto(solicitante, tenantId, datosProducto);
+  if (!creado.ok) return creado;
+  if (!cargaStock || !sucursalId) {
+    return { ok: true, data: { productoId: creado.data.productoId, cantidadActual: null } };
+  }
+
+  const { cantidadActual } = await repo.crearMovimientoTx({
+    productoId: creado.data.productoId,
+    sucursalId,
+    tipo: "entrada_ajuste_manual",
+    cantidad: String(stockInicial),
+    motivo: "Carga inicial",
+    creadoPor: solicitante.id,
+  });
+  return { ok: true, data: { productoId: creado.data.productoId, cantidadActual } };
+}
+
 export async function actualizarProducto(
   solicitante: UsuarioConRol,
   productoId: string,

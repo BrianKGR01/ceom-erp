@@ -328,6 +328,27 @@ export async function obtenerComposicionReceta(recetaId: string) {
     .where(eq(recetaInsumos.recetaId, recetaId));
 }
 
+/**
+ * La composicion de TODAS las recetas del tenant, en una sola consulta.
+ *
+ * El maestro-detalle de Recetas pedia la ficha de cada receta por separado (23 recetas reales
+ * = ~70 consultas por visita). Regla 11 de AGENTS.md: un listado agrega en una consulta.
+ */
+export async function listarComposicionesPorTenant(tenantId: string) {
+  return db
+    .select({
+      recetaId: recetaInsumos.recetaId,
+      insumoId: recetaInsumos.insumoId,
+      cantidadPorLote: recetaInsumos.cantidadPorLote,
+      insumoNombre: insumos.nombre,
+      costoUnitarioVigente: insumos.costoUnitarioVigente,
+    })
+    .from(recetaInsumos)
+    .innerJoin(recetas, eq(recetaInsumos.recetaId, recetas.id))
+    .innerJoin(insumos, eq(recetaInsumos.insumoId, insumos.id))
+    .where(and(eq(recetas.tenantId, tenantId), isNull(recetas.eliminadoEn)));
+}
+
 // --- Vinculacion Producto-Receta ---------------------------------------------------------
 
 export async function crearVinculacion(data: NuevaVinculacion) {

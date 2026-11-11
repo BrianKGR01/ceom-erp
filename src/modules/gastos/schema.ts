@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   numeric,
+  index,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -84,6 +85,8 @@ export const categoriasGasto = pgTable(
       "categorias_gasto",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("categorias_gasto_categoria_gasto_sugerida_idx").on(table.categoriaGastoSugeridaId),
+    index("categorias_gasto_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -114,6 +117,9 @@ export const gastosRecurrentes = pgTable(
       "gastos_recurrentes",
       sql`${table.tenantId} = (select current_tenant_id())`
     ),
+    index("gastos_recurrentes_categoria_idx").on(table.categoriaId),
+    index("gastos_recurrentes_sucursal_idx").on(table.sucursalId),
+    index("gastos_recurrentes_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -153,6 +159,10 @@ export const gastos = pgTable(
   },
   (table) => [
     ...crudPolicy("gastos", sql`${table.tenantId} = (select current_tenant_id())`),
+    index("gastos_categoria_idx").on(table.categoriaId),
+    index("gastos_proveedor_idx").on(table.proveedorId),
+    index("gastos_sucursal_idx").on(table.sucursalId),
+    index("gastos_tenant_idx").on(table.tenantId),
   ]
 ).enableRLS();
 
@@ -174,5 +184,6 @@ export const pagosGasto = pgTable(
       "pagos_gasto",
       sql`${table.gastoId} in (select id from gastos where tenant_id = (select current_tenant_id()))`
     ),
+    index("pagos_gasto_gasto_idx").on(table.gastoId),
   ]
 ).enableRLS();

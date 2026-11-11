@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   ajustesVenta,
@@ -358,6 +358,69 @@ export async function listarVentasDeTurno(tenantId: string, turnoId: string) {
     .where(and(eq(ventas.tenantId, tenantId), eq(ventas.turnoId, turnoId)))
     .groupBy(ventas.id)
     .orderBy(ventas.fechaVenta);
+}
+
+/** Filtros del Historial de ventas — los resuelve la base, no el navegador. */
+export interface FiltrosHistorialVentas {
+  estadoPago?: "pendiente" | "parcial" | "pagado";
+  canalVentaId?: string;
+  /** Coincidencia parcial sobre el nombre del cliente ("Sin cliente" incluido). */
+  busquedaCliente?: string;
+}
+
+/**
+ * Una pagina del Historial de ventas, con el total de cada venta ya sumado por la base.
+ *
+ * Reemplaza al par `listarVentasPorTenant()` + N x `obtenerTotalVenta()`, que pedia una
+ * consulta por fila (regla 11 de AGENTS.md: un listado agrega en una consulta). Con las 1198
+ * ventas de un tenant real eso eran 1199 consultas y ~291 kB de JSON para pintar 10 filas.
+ * Aca son dos consultas de tamano fijo: la pagina y el conteo para el paginador.
+ */
+export async function listarPaginaHistorialVentas(
+  tenantId: string,
+  filtros: FiltrosHistorialVentas,
+  limite: number,
+  desplazamiento: number
+) {
+  const condiciones = [eq(ventas.tenantId, tenantId)];
+  if (filtros.estadoPago) condiciones.push(eq(ventas.estadoPago, filtros.estadoPago));
+  if (filtros.canalVentaId) condiciones.push(eq(ventas.canalVentaId, filtros.canalVentaId));
+  const busqueda = filtros.busquedaCliente?.trim();
+  if (busqueda) {
+    // `ilike` con el patron parametrizado: el texto del usuario nunca se interpola en el SQL.
+    condiciones.push(
+      sql`coalesce(${clientes.nombre}, 'Sin cliente') ilike ${`%${busqueda}%`}`
+    );
+  }
+  const filtro = and(...condiciones);
+
+  const [filas, conteo] = await Promise.all([
+    db
+      .select({
+        id: ventas.id,
+        fechaVenta: ventas.fechaVenta,
+        estadoPago: ventas.estadoPago,
+        canalVentaId: ventas.canalVentaId,
+        clienteId: ventas.clienteId,
+        clienteNombre: clientes.nombre,
+        total: sql<string>`coalesce(sum(${detallesVenta.subtotal}), 0)`,
+      })
+      .from(ventas)
+      .leftJoin(clientes, eq(clientes.id, ventas.clienteId))
+      .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
+      .where(filtro)
+      .groupBy(ventas.id, clientes.nombre)
+      .orderBy(desc(ventas.fechaVenta))
+      .limit(limite)
+      .offset(desplazamiento),
+    db
+      .select({ cantidad: sql<number>`count(*)::int` })
+      .from(ventas)
+      .leftJoin(clientes, eq(clientes.id, ventas.clienteId))
+      .where(filtro),
+  ]);
+
+  return { ventas: filas, cantidadTotal: conteo[0]?.cantidad ?? 0 };
 }
 
 export async function obtenerTotalVenta(ventaId: string): Promise<number> {

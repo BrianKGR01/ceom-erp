@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import {
-  fichaReceta,
+  listarComposicionesDeRecetas,
   listarInsumos,
   listarRecetas,
 } from "@/modules/operativo/nichos/nicho-1/actions";
@@ -12,18 +12,17 @@ export default async function RecetasPage() {
   const usuario = await obtenerUsuarioActual();
   if (!usuario) redirect("/login");
 
-  const [recetasResultado, insumosResultado] = await Promise.all([
+  // Composicion completa de cada receta, cargada de una — evita un fetch client-side al
+  // cambiar de seleccion en el maestro-detalle. Antes pedia la ficha de CADA receta por
+  // separado (~3 consultas por receta); ahora es una sola consulta para todas.
+  const [recetasResultado, insumosResultado, composicionesResultado] = await Promise.all([
     listarRecetas(usuario, usuario.tenantId),
     listarInsumos(usuario, usuario.tenantId),
+    listarComposicionesDeRecetas(usuario, usuario.tenantId),
   ]);
   const recetas = recetasResultado.ok ? recetasResultado.data : [];
   const insumos = insumosResultado.ok ? insumosResultado.data : [];
-
-  // Composicion completa de cada receta, cargada de una — evita un
-  // fetch client-side al cambiar de seleccion en el maestro-detalle
-  // (mismo criterio que fichaProveedor() por fila en el Directorio de
-  // Proveedores).
-  const fichas = await Promise.all(recetas.map((r) => fichaReceta(usuario, r.id)));
+  const composiciones = composicionesResultado.ok ? composicionesResultado.data : null;
   const insumoPorId = new Map(insumos.map((i) => [i.id, i]));
 
   return (
@@ -31,16 +30,12 @@ export default async function RecetasPage() {
       <div className="mx-auto max-w-6xl py-6">
         <AvisoRecetas />
         <RecetasCliente
-          recetas={recetas.map((r, index) => {
-            const ficha = fichas[index];
-            const composicion =
-              ficha.ok && ficha.data.composicion
-                ? ficha.data.composicion.map((c) => ({
-                    insumoId: c.insumoId,
-                    cantidadPorLote: c.cantidadPorLote,
-                    insumoNombre: c.insumoNombre,
-                  }))
-                : [];
+          recetas={recetas.map((r) => {
+            const composicion = (composiciones?.get(r.id) ?? []).map((c) => ({
+              insumoId: c.insumoId,
+              cantidadPorLote: c.cantidadPorLote,
+              insumoNombre: c.insumoNombre,
+            }));
             return {
               id: r.id,
               nombre: r.nombre,
