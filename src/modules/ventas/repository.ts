@@ -410,7 +410,12 @@ export async function listarPaginaHistorialVentas(
       .leftJoin(detallesVenta, eq(detallesVenta.ventaId, ventas.id))
       .where(filtro)
       .groupBy(ventas.id, clientes.nombre)
-      .orderBy(desc(ventas.fechaVenta))
+      // El id desempata: con LIMIT/OFFSET, dos ventas en el MISMO instante
+      // (dos cajas cobrando a la vez, una importacion) dejan el orden a
+      // criterio del planner y la misma fila puede repetirse en una pagina y
+      // faltar en la siguiente. Hoy no hay empates en produccion, pero el
+      // desempate es gratis y el sintoma seria dificil de atribuir.
+      .orderBy(desc(ventas.fechaVenta), desc(ventas.id))
       .limit(limite)
       .offset(desplazamiento),
     db
